@@ -1,0 +1,193 @@
+name: "🐛 Bug report"
+description: Report reproducible behavior that is not working as intended
+title: "[Bug]: "
+labels:
+  - bug
+  - needs:triage
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a problem.
+
+        Before continuing:
+
+        - Search existing issues to avoid creating a duplicate.
+        - Use the support channel for setup questions and general troubleshooting.
+        - Do not report security vulnerabilities here. Follow the private reporting instructions in our [Security Policy](https://github.com/payloadbay/.github/blob/master/SECURITY.md).
+        - Remove credentials, webhook secrets, API tokens, personal data, and sensitive payload contents from logs and examples.
+
+        Payload Bay is in early development. Architecture and public interfaces may change, but clear and reproducible defect reports are still valuable.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Bug description
+      description: Clearly describe what is not working and why you believe it is a defect.
+      placeholder: Describe the problem and its visible effect.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: affected-area
+    attributes:
+      label: Affected area
+      description: Select the area most directly affected. Maintainers may adjust this during triage.
+      # Compatibility contract:
+      # The metadata labeler matches these option values as exact lines.
+      # Update .github/labeler.yml and its mapping tests in the same change
+      # whenever an option value is renamed.
+      options:
+        - Installation or deployment
+        - Authentication or authorization
+        - Ingress or source handling
+        - Provider integration
+        - Routing or delivery
+        - Retries, replay, or recovery
+        - Runner connectivity or delivery
+        - Dashboard or user interface
+        - API or SDK
+        - Storage or database
+        - Observability or operations
+        - Documentation content
+        - Other or unknown
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Provide the smallest reliable sequence that demonstrates the problem.
+      placeholder: |
+        1. Configure ...
+        2. Send or run ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: Describe what you expected to happen.
+      placeholder: Payload Bay should ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: Actual behavior
+      description: Describe what happened instead, including any visible error.
+      placeholder: Instead, Payload Bay ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Payload Bay version or commit
+      description: Provide the release, image tag, package version, or commit SHA where the problem occurs.
+      placeholder: "For example: v0.1.0, master@abc1234, or ghcr.io/payloadbay/payloadbay:..."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: installation-method
+    attributes:
+      label: Installation method
+      description: Select how the affected Payload Bay component is being run.
+      options:
+        - Docker Compose
+        - Coolify
+        - Kubernetes
+        - External Supabase
+        - Local development checkout
+        - Package or native binary
+        - Other
+        - Not applicable
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include relevant operating system, architecture, browser, runtime, database, Supabase, container, proxy, and network details.
+      placeholder: |
+        Operating system:
+        Architecture:
+        Browser or runtime:
+        Deployment platform:
+        Relevant component versions:
+        Reverse proxy or ingress:
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and diagnostics
+      description: Paste the smallest relevant log or error excerpt. Remove secrets, tokens, personal data, and sensitive payload contents.
+      render: shell
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Link to a minimal repository or provide a reduced configuration/request that reproduces the issue. Do not include secrets.
+      placeholder: |
+        Repository or gist:
+        Reduced configuration:
+        Sanitized request:
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or recordings
+      description: Add screenshots or recordings when they materially help demonstrate the problem. Redact sensitive information first.
+
+  - type: dropdown
+    id: regression
+    attributes:
+      label: Regression
+      description: Did this behavior work in an earlier Payload Bay version?
+      options:
+        - "Yes"
+        - "No"
+        - Unknown
+    validations:
+      required: true
+
+  - type: input
+    id: last-working-version
+    attributes:
+      label: Last known working version
+      description: If this is a regression, provide the last release, image, package version, or commit where it worked.
+      placeholder: "For example: v0.0.9 or commit abc1234"
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add relevant context that does not fit elsewhere, including workarounds or frequency.
+      placeholder: The problem occurs every time / intermittently / only when ...
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Submission checklist
+      options:
+        - label: I searched existing issues and did not find an existing report for this problem.
+          required: true
+        - label: I have provided enough information for another person to reproduce or investigate the problem.
+          required: true
+        - label: I removed credentials, secrets, personal data, and sensitive payload contents from this report.
+          required: true
+        - label: This report does not disclose a security vulnerability.
+          required: true
+        - label: I have personally reviewed this report and verified that its technical claims are accurate.
+          required: true

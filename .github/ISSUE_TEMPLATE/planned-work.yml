@@ -1,0 +1,131 @@
+name: "📋 Planned work (maintainers only)"
+description: Track approved work that should be visible in the repository
+title: "[Planned]: "
+labels:
+  - maintainer:planned-work
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This form is for Payload Bay maintainers documenting approved work that should be visible publicly.
+
+        External feature proposals belong in the feature or improvement request form. Issues submitted through this form by users without repository collaboration access are closed automatically as not planned.
+
+        After the issue is created, GitHub Issues Sync creates its canonical Linear issue and the Linear bot posts the PAB identifier in a comment. Do not create a separate Linear issue first.
+
+  - type: dropdown
+    id: work-type
+    attributes:
+      label: Type of work
+      description: Select every type that materially applies.
+      multiple: true
+      options:
+        - 🐛 Bug fix
+        - ✨ New feature
+        - 🔧 Improvement to existing behavior
+        - 💥 Breaking change
+        - ♻️ Refactor without an intended behavior change
+        - 🧾 Documentation
+        - 🧪 Tests
+        - 🤖 CI/CD or automation
+        - ⬆️ Dependency update
+        - 🧹 Maintenance
+        - ⚙️ Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: affected-areas
+    attributes:
+      label: Affected areas
+      description: Select every area materially affected by the work.
+      multiple: true
+      options:
+        - Accessibility
+        - API
+        - Architecture
+        - Authentication
+        - Brand
+        - Database
+        - Delivery
+        - Documentation
+        - Governance
+        - Infrastructure
+        - Ingress
+        - Integrations
+        - Observability
+        - Reliability
+        - Runner
+        - SDK
+        - Security
+        - Storage
+        - UI/UX
+    validations:
+      required: true
+
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: State the concrete problem to solve or result to achieve.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-outcome
+    attributes:
+      label: Expected outcome
+      description: Describe the observable result when the work is complete.
+    validations:
+      required: true
+
+  - type: textarea
+    id: in-scope
+    attributes:
+      label: In scope
+      description: List the work included in this issue.
+      placeholder: |
+        - ...
+        - ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: non-goals
+    attributes:
+      label: Non-goals
+      description: List adjacent work that is deliberately excluded.
+      placeholder: |
+        - ...
+        - ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      description: List independently verifiable completion criteria.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: definition-of-done
+    attributes:
+      label: Definition of done
+      description: State the final quality and integration conditions for closing the issue.
+    validations:
+      required: true
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Reference only genuine blockers or required predecessor work. Write "None" when there are none.
+    validations:
+      required: true

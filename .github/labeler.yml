@@ -1,0 +1,323 @@
+version: 1
+
+labels:
+  # Feature and improvement request types
+  # Compatibility contract with ISSUE_TEMPLATE/feature-request.yml:
+  # These rules match the dropdown option values as exact lines. Update and
+  # test both files together whenever an option value is renamed.
+  - label: feature
+    type: issue
+    body: '(?m)^New product capability\r?$'
+
+  - label: improvement
+    type: issue
+    body: '(?m)^Improvement to an existing capability\r?$'
+
+  # Pull request types
+  - label: bug
+    type: pull_request
+    body: '(?m)^- \[[xX]\] 🐛 Bug fix$'
+
+  - label: feature
+    type: pull_request
+    body: '(?m)^- \[[xX]\] ✨ New feature$'
+
+  - label: improvement
+    type: pull_request
+    body: '(?m)^- \[[xX]\] 🔧 Improvement to existing behavior$'
+
+  - label: breaking change
+    type: pull_request
+    body: '(?m)^- \[[xX]\] 💥 Breaking change$'
+
+  - label: maintenance
+    type: pull_request
+    body: '(?m)^- \[[xX]\] ♻️ Refactor without an intended behavior change$'
+
+  - label: documentation
+    type: pull_request
+    body: '(?m)^- \[[xX]\] 🧾 Documentation$'
+
+  - label: tests
+    type: pull_request
+    body: '(?m)^- \[[xX]\] 🧪 Tests$'
+
+  - label: maintenance
+    type: pull_request
+    body: '(?m)^- \[[xX]\] 🤖 CI/CD or automation$'
+
+  - label: dependencies
+    type: pull_request
+    body: '(?m)^- \[[xX]\] ⬆️ Dependency update$'
+
+  - label: maintenance
+    type: pull_request
+    body: '(?m)^- \[[xX]\] 🧹 Maintenance$'
+
+  # Planned-work issue types. GitHub renders multi-select dropdowns as a
+  # comma-separated line, so match complete option tokens.
+  - label: bug
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Type of work\r?\n\r?\n(?:[^,\r\n]+,\s*)*🐛 Bug fix(?:,\s*[^,\r\n]+)*\r?$'
+
+  - label: feature
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Type of work\r?\n\r?\n(?:[^,\r\n]+,\s*)*✨ New feature(?:,\s*[^,\r\n]+)*\r?$'
+
+  - label: improvement
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Type of work\r?\n\r?\n(?:[^,\r\n]+,\s*)*🔧 Improvement to existing behavior(?:,\s*[^,\r\n]+)*\r?$'
+
+  - label: breaking change
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Type of work\r?\n\r?\n(?:[^,\r\n]+,\s*)*💥 Breaking change(?:,\s*[^,\r\n]+)*\r?$'
+
+  - label: maintenance
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Type of work\r?\n\r?\n(?:[^,\r\n]+,\s*)*♻️ Refactor without an intended behavior change(?:,\s*[^,\r\n]+)*\r?$'
+
+  - label: documentation
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Type of work\r?\n\r?\n(?:[^,\r\n]+,\s*)*🧾 Documentation(?:,\s*[^,\r\n]+)*\r?$'
+
+  - label: tests
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Type of work\r?\n\r?\n(?:[^,\r\n]+,\s*)*🧪 Tests(?:,\s*[^,\r\n]+)*\r?$'
+
+  - label: maintenance
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Type of work\r?\n\r?\n(?:[^,\r\n]+,\s*)*🤖 CI/CD or automation(?:,\s*[^,\r\n]+)*\r?$'
+
+  - label: dependencies
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Type of work\r?\n\r?\n(?:[^,\r\n]+,\s*)*⬆️ Dependency update(?:,\s*[^,\r\n]+)*\r?$'
+
+  - label: maintenance
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Type of work\r?\n\r?\n(?:[^,\r\n]+,\s*)*🧹 Maintenance(?:,\s*[^,\r\n]+)*\r?$'
+
+  # Pull request areas
+  - label: area:accessibility
+    type: pull_request
+    body: '(?m)^- \[[xX]\] Accessibility$'
+
+  - label: area:api
+    type: pull_request
+    body: '(?m)^- \[[xX]\] API$'
+
+  - label: area:architecture
+    type: pull_request
+    body: '(?m)^- \[[xX]\] Architecture$'
+
+  - label: area:auth
+    type: pull_request
+    body: '(?m)^- \[[xX]\] Authentication$'
+
+  - label: area:brand
+    type: pull_request
+    body: '(?m)^- \[[xX]\] Brand$'
+
+  - label: area:database
+    type: pull_request
+    body: '(?m)^- \[[xX]\] Database$'
+
+  - label: area:delivery
+    type: pull_request
+    body: '(?m)^- \[[xX]\] Delivery$'
+
+  - label: area:docs
+    type: pull_request
+    body: '(?m)^- \[[xX]\] Documentation$'
+
+  - label: area:governance
+    type: pull_request
+    body: '(?m)^- \[[xX]\] Governance$'
+
+  - label: area:infrastructure
+    type: pull_request
+    body: '(?m)^- \[[xX]\] Infrastructure$'
+
+  - label: area:ingress
+    type: pull_request
+    body: '(?m)^- \[[xX]\] Ingress$'
+
+  - label: area:integrations
+    type: pull_request
+    body: '(?m)^- \[[xX]\] Integrations$'
+
+  - label: area:observability
+    type: pull_request
+    body: '(?m)^- \[[xX]\] Observability$'
+
+  - label: area:reliability
+    type: pull_request
+    body: '(?m)^- \[[xX]\] Reliability$'
+
+  - label: area:runner
+    type: pull_request
+    body: '(?m)^- \[[xX]\] Runner$'
+
+  - label: area:sdk
+    type: pull_request
+    body: '(?m)^- \[[xX]\] SDK$'
+
+  - label: area:security
+    type: pull_request
+    body: '(?m)^- \[[xX]\] Security$'
+
+  - label: area:storage
+    type: pull_request
+    body: '(?m)^- \[[xX]\] Storage$'
+
+  - label: area:ui-ux
+    type: pull_request
+    body: '(?m)^- \[[xX]\] UI/UX$'
+
+  # Planned-work issue areas
+  - label: area:accessibility
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Affected areas\r?\n\r?\n(?:[^,\r\n]+,\s*)*Accessibility(?:,\s*[^,\r\n]+)*\r?$'
+  - label: area:api
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Affected areas\r?\n\r?\n(?:[^,\r\n]+,\s*)*API(?:,\s*[^,\r\n]+)*\r?$'
+  - label: area:architecture
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Affected areas\r?\n\r?\n(?:[^,\r\n]+,\s*)*Architecture(?:,\s*[^,\r\n]+)*\r?$'
+  - label: area:auth
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Affected areas\r?\n\r?\n(?:[^,\r\n]+,\s*)*Authentication(?:,\s*[^,\r\n]+)*\r?$'
+  - label: area:brand
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Affected areas\r?\n\r?\n(?:[^,\r\n]+,\s*)*Brand(?:,\s*[^,\r\n]+)*\r?$'
+  - label: area:database
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Affected areas\r?\n\r?\n(?:[^,\r\n]+,\s*)*Database(?:,\s*[^,\r\n]+)*\r?$'
+  - label: area:delivery
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Affected areas\r?\n\r?\n(?:[^,\r\n]+,\s*)*Delivery(?:,\s*[^,\r\n]+)*\r?$'
+  - label: area:docs
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Affected areas\r?\n\r?\n(?:[^,\r\n]+,\s*)*Documentation(?:,\s*[^,\r\n]+)*\r?$'
+  - label: area:governance
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Affected areas\r?\n\r?\n(?:[^,\r\n]+,\s*)*Governance(?:,\s*[^,\r\n]+)*\r?$'
+  - label: area:infrastructure
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Affected areas\r?\n\r?\n(?:[^,\r\n]+,\s*)*Infrastructure(?:,\s*[^,\r\n]+)*\r?$'
+  - label: area:ingress
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Affected areas\r?\n\r?\n(?:[^,\r\n]+,\s*)*Ingress(?:,\s*[^,\r\n]+)*\r?$'
+  - label: area:integrations
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Affected areas\r?\n\r?\n(?:[^,\r\n]+,\s*)*Integrations(?:,\s*[^,\r\n]+)*\r?$'
+  - label: area:observability
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Affected areas\r?\n\r?\n(?:[^,\r\n]+,\s*)*Observability(?:,\s*[^,\r\n]+)*\r?$'
+  - label: area:reliability
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Affected areas\r?\n\r?\n(?:[^,\r\n]+,\s*)*Reliability(?:,\s*[^,\r\n]+)*\r?$'
+  - label: area:runner
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Affected areas\r?\n\r?\n(?:[^,\r\n]+,\s*)*Runner(?:,\s*[^,\r\n]+)*\r?$'
+  - label: area:sdk
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Affected areas\r?\n\r?\n(?:[^,\r\n]+,\s*)*SDK(?:,\s*[^,\r\n]+)*\r?$'
+  - label: area:security
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Affected areas\r?\n\r?\n(?:[^,\r\n]+,\s*)*Security(?:,\s*[^,\r\n]+)*\r?$'
+  - label: area:storage
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Affected areas\r?\n\r?\n(?:[^,\r\n]+,\s*)*Storage(?:,\s*[^,\r\n]+)*\r?$'
+  - label: area:ui-ux
+    type: issue
+    title: '^\[Planned\]:'
+    body: '(?m)^### Affected areas\r?\n\r?\n(?:[^,\r\n]+,\s*)*UI/UX(?:,\s*[^,\r\n]+)*\r?$'
+
+  # Bug report areas
+  # Compatibility contract with ISSUE_TEMPLATE/bug-report.yml:
+  # These rules match the dropdown option values as exact lines. They do not
+  # depend on the generated field heading. Update and test both files together
+  # whenever an option value is renamed.
+  - label: area:infrastructure
+    type: issue
+    body: '(?m)^Installation or deployment\r?$'
+
+  - label: area:auth
+    type: issue
+    body: '(?m)^Authentication or authorization\r?$'
+
+  - label: area:ingress
+    type: issue
+    body: '(?m)^Ingress or source handling\r?$'
+
+  - label: area:integrations
+    type: issue
+    body: '(?m)^Provider integration\r?$'
+
+  - label: area:delivery
+    type: issue
+    body: '(?m)^Routing or delivery\r?$'
+
+  - label: area:reliability
+    type: issue
+    body: '(?m)^Retries, replay, or recovery\r?$'
+
+  - label: area:runner
+    type: issue
+    body: '(?m)^Runner connectivity or delivery\r?$'
+
+  - label: area:ui-ux
+    type: issue
+    body: '(?m)^Dashboard or user interface\r?$'
+
+  - label: area:api
+    type: issue
+    body: '(?m)^API or SDK\r?$'
+
+  - label: area:sdk
+    type: issue
+    body: '(?m)^API or SDK\r?$'
+
+  - label: area:storage
+    type: issue
+    body: '(?m)^Storage or database\r?$'
+
+  - label: area:database
+    type: issue
+    body: '(?m)^Storage or database\r?$'
+
+  - label: area:observability
+    type: issue
+    body: '(?m)^Observability or operations\r?$'
+
+  - label: area:docs
+    type: issue
+    body: '(?m)^Documentation content\r?$'

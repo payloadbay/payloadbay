@@ -1,0 +1,88 @@
+name: Commitlint
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  branch:
+    name: Branch Name
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate branch name
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          issue_pattern='^(docs|feat|fix|perf|refactor|revert|test)/[0-9]+-[a-z0-9]+(-[a-z0-9]+)*$'
+          maintenance_pattern='^(build|chore|ci)/([0-9]+-)?[a-z0-9]+(-[a-z0-9]+)*$'
+          automation_pattern='^(dependabot|renovate)/.+'
+
+          if [[ "$HEAD_REF" =~ $issue_pattern || "$HEAD_REF" =~ $maintenance_pattern || "$HEAD_REF" =~ $automation_pattern ]]; then
+            exit 0
+          fi
+
+          echo "Invalid branch name: $HEAD_REF"
+          echo "Use <type>/<issue-number>-<short-description> for issue-backed work."
+          echo "Build, chore, and ci branches may omit the issue number."
+          exit 1
+
+  commits:
+    name: Conventional Commits
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - name: Install commitlint
+        run: npm install --global --ignore-scripts @commitlint/cli@21.2.1
+      - name: Validate pull request commits
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: commitlint --config .github/commitlint.config.mjs --from "$BASE_SHA" --to "$HEAD_SHA" --verbose
+      - name: Validate pushed commits
+        if: ${{ github.event_name == 'push' }}
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          if [[ "$BEFORE_SHA" == "0000000000000000000000000000000000000000" ]]; then
+            commitlint --config .github/commitlint.config.mjs --last --verbose
+          else
+            commitlint --config .github/commitlint.config.mjs --from "$BEFORE_SHA" --to "$HEAD_SHA" --verbose
+          fi
+
+  title:
+    name: Conventional PR Title
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out commitlint configuration
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          sparse-checkout: .github/commitlint.config.mjs
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - name: Install commitlint
+        run: npm install --global --ignore-scripts @commitlint/cli@21.2.1
+      - name: Validate pull request title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$PR_TITLE" | commitlint --config .github/commitlint.config.mjs --verbose

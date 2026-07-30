@@ -1,0 +1,172 @@
+name: "✨ Feature or improvement request"
+description: Propose a new capability or an improvement to existing behavior
+title: "[Request]: "
+labels:
+  - needs:triage
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to suggest an improvement to Payload Bay. Please provide enough detail for us to understand the request and discuss its scope.
+
+        Before continuing:
+
+        - Search existing issues and discussions to avoid creating a duplicate.
+        - Use the support channel for setup questions and troubleshooting.
+        - Use the private process in our [Security Policy](https://github.com/payloadbay/.github/blob/master/SECURITY.md) for security vulnerabilities.
+        - Keep Payload Bay's non-goals in mind: it is not a general automation platform, workflow builder, message broker, cron service, or arbitrary background-job system.
+
+  - type: dropdown
+    id: request-type
+    attributes:
+      label: Request type
+      description: Select whether this introduces a new product capability or improves existing behavior.
+      # Compatibility contract:
+      # The metadata labeler matches these option values as exact lines.
+      # Update .github/labeler.yml and its mapping tests in the same change
+      # whenever an option value is renamed.
+      options:
+        - New product capability
+        - Improvement to an existing capability
+    validations:
+      required: true
+
+  - type: dropdown
+    id: affected-area
+    attributes:
+      label: Affected area
+      description: Select the area most directly affected. Maintainers may adjust this during triage.
+      # Compatibility contract:
+      # The metadata labeler matches these option values as exact lines.
+      # Update .github/labeler.yml and its mapping tests in the same change
+      # whenever an option value is renamed.
+      options:
+        - Installation or deployment
+        - Authentication or authorization
+        - Ingress or source handling
+        - Provider integration
+        - Routing or delivery
+        - Retries, replay, or recovery
+        - Runner connectivity or delivery
+        - Dashboard or user interface
+        - API or SDK
+        - Storage or database
+        - Observability or operations
+        - Documentation content
+        - Other or unknown
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or opportunity
+      description: Describe the limitation, recurring difficulty, or opportunity this request addresses. Focus on the underlying need rather than only the proposed implementation.
+      placeholder: Today, users cannot / must repeatedly / have difficulty ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: beneficiaries
+    attributes:
+      label: Who benefits?
+      description: Identify the users, operators, contributors, or application types that would benefit and explain their use case.
+      placeholder: This primarily helps self-hosted operators who ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: desired-outcome
+    attributes:
+      label: Desired outcome
+      description: Describe the observable product outcome you want, without requiring a specific internal implementation.
+      placeholder: A user should be able to ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed solution
+      description: If you have a concrete design or workflow in mind, describe it here. Mockups, API examples, and diagrams are welcome.
+      placeholder: One possible approach is ...
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe current workarounds or alternative solutions and explain why they are insufficient.
+      placeholder: We currently work around this by ...
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Suggested scope
+      description: Describe what should be included for this request to provide useful value.
+      placeholder: |
+        In scope:
+        - ...
+        - ...
+
+  - type: textarea
+    id: non-goals
+    attributes:
+      label: Non-goals
+      description: Identify adjacent behavior that should explicitly remain outside this request.
+      placeholder: |
+        This request does not need to:
+        - ...
+
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility and operational considerations
+      description: Note relevant migration, self-hosting, deployment, security, performance, API, or backward-compatibility implications.
+      placeholder: This may affect existing installations by ...
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: Examples or prior art
+      description: Link to relevant standards, provider documentation, comparable products, mockups, or API examples.
+      placeholder: |
+        Relevant specification:
+        Comparable behavior:
+        Example workflow:
+
+  - type: dropdown
+    id: contribution
+    attributes:
+      label: Contribution interest
+      description: Would you be interested in helping implement or validate this request after its scope is agreed?
+      options:
+        - I can help implement this
+        - I can help test or validate this
+        - I can provide additional product or technical context
+        - I am not currently able to contribute implementation work
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add any relevant information that does not fit elsewhere.
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Submission checklist
+      options:
+        - label: I searched existing issues and discussions and did not find an equivalent request.
+          required: true
+        - label: I described the underlying problem or desired outcome, not only an implementation.
+          required: true
+        - label: This request is within Payload Bay's webhook ingestion, delivery, inspection, reliability, security, runner, or operational scope.
+          required: true
+        - label: This is not a support request or security vulnerability report.
+          required: true
+        - label: I have personally reviewed this request and verified that its technical claims are accurate.
+          required: true

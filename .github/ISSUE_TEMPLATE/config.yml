@@ -1,0 +1,10 @@
+blank_issues_enabled: false
+
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/payloadbay/.github/security/policy
+    about: Follow the private reporting instructions instead of opening a public issue.
+
+  - name: Get help or ask a question
+    url: https://github.com/payloadbay/.github/blob/master/SUPPORT.md
+    about: Read the support guide before opening an issue for troubleshooting or usage questions.

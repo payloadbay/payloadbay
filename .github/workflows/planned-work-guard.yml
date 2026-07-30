@@ -1,0 +1,50 @@
+name: Planned Work Guard
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  enforce-maintainer-form:
+    name: Enforce Maintainer Form
+    if: contains(github.event.issue.labels.*.name, 'maintainer:planned-work')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Close unauthorized planned-work issue
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const allowedAssociations = new Set([
+              "OWNER",
+              "MEMBER",
+              "COLLABORATOR",
+            ]);
+            const association = context.payload.issue.author_association;
+
+            if (allowedAssociations.has(association)) {
+              core.info(`Allowed author association: ${association}`);
+              return;
+            }
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issueNumber = context.issue.number;
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: issueNumber,
+              body: "This form is reserved for Payload Bay maintainers documenting work that has already been approved in Linear. Please use the feature or improvement request form for a new proposal.",
+            });
+            await github.rest.issues.update({
+              owner,
+              repo,
+              issue_number: issueNumber,
+              state: "closed",
+              state_reason: "not_planned",
+            });
