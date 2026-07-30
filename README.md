@@ -22,16 +22,17 @@ deploy/                    Self-hosting and deployment material
 scripts/                   Product build and release tooling
 ```
 
-The [Payload Bay Runner](https://github.com/payloadbay/runner) is intentionally
+The Payload Bay Runner is intentionally
 a separate repository. It is a CLI and native-binary product with independent
 releases and a tested compatibility relationship to Payload Bay server releases.
 
 ## Related repositories
 
 - [Brand](https://github.com/payloadbay/brand)
-- [Documentation](https://github.com/payloadbay/docs)
-- [Website](https://github.com/payloadbay/website)
 - [Organization standards](https://github.com/payloadbay/.github)
+
+Public documentation, website, and Runner repositories will be linked here when
+they are activated.
 
 Payload Bay is in early development. This repository currently establishes the
 product workspace; it does not yet contain an implementation.
