@@ -52,6 +52,9 @@ not become a competing brand source of truth. Do not add automatic
 - Work from current `master` unless local guidance says otherwise.
 - Keep branches and pull requests focused. Use Conventional Commit messages and
   pull-request titles; Payload Bay uses squash merges.
+- For non-trivial work, use an existing GitHub issue or agree the intended
+  outcome in an issue or Discussion before substantial implementation. Do not
+  create unnecessary issues for trivial mechanical changes.
 - Inspect the worktree before staging. Run relevant validation and report what
   was run or intentionally not run.
 - Do not invent planning data, weaken protections, or modify baseline-managed
