@@ -14,8 +14,8 @@ body:
 
         Before continuing:
 
-        - Search existing issues to avoid creating a duplicate.
-        - Use the support channel for setup questions and general troubleshooting.
+        - Search existing issues and [Discussions](https://github.com/orgs/payloadbay/discussions) to avoid creating a duplicate.
+        - Use [Q&A](https://github.com/orgs/payloadbay/discussions/categories/q-a) for setup questions, usage help, and general troubleshooting.
         - Do not report security vulnerabilities here. Follow the private reporting instructions in our [Security Policy](https://github.com/payloadbay/.github/blob/master/SECURITY.md).
         - Remove credentials, webhook secrets, API tokens, personal data, and sensitive payload contents from logs and examples.
 

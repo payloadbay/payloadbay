@@ -1,10 +1,22 @@
 blank_issues_enabled: false
 
 contact_links:
+  - name: Read documentation and repository guides
+    url: https://github.com/payloadbay/payloadbay
+    about: Start with the product README and the documentation available for the component you use.
+
+  - name: Get help or ask a question
+    url: https://github.com/orgs/payloadbay/discussions/categories/q-a
+    about: Use Q&A for installation, configuration, troubleshooting, and usage help.
+
+  - name: Discuss an early product idea
+    url: https://github.com/orgs/payloadbay/discussions/categories/ideas
+    about: Use Ideas to explore a proposal before it is ready for issue tracking.
+
+  - name: Share a setup or use case
+    url: https://github.com/orgs/payloadbay/discussions/categories/show-and-tell
+    about: Share an integration, deployment, or real-world use case with the community.
+
   - name: Report a security vulnerability
     url: https://github.com/payloadbay/.github/security/policy
     about: Follow the private reporting instructions instead of opening a public issue.
-
-  - name: Get help or ask a question
-    url: https://github.com/payloadbay/.github/blob/master/SUPPORT.md
-    about: Read the support guide before opening an issue for troubleshooting or usage questions.
