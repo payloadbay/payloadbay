@@ -54,6 +54,8 @@ jobs:
           require-conventional-commits: true
           require-commit-author-match: true
           blocked-paths: |
+            AGENTS.md
+            AGENTS.local.md
             README.md
             SECURITY.md
             LICENSE
