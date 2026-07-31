@@ -51,6 +51,32 @@ outbound runners without exposing every destination directly to providers.
 - **Inspect** payloads, deliveries, attempts, responses, and incidents.
 - **Reach private applications** without exposing inbound webhook endpoints.
 
+## Mission
+
+> A safe landing place for every event.
+
+Payload Bay is being built to give webhooks and other events a reliable place to
+arrive before they reach an application.
+
+It should receive the original request, verify it, retain it, deliver it through
+a controlled path, and make failures visible. The goal is a platform that lets
+applications depend on events without being directly coupled to every provider's
+availability or delivery behavior.
+
+## Community
+
+Payload Bay is an open-source project first. We want Community to be a capable,
+self-hosted product that people can use because it is good software, not because
+a limited free tier happens to fit their current quota.
+
+A self-hosted project should not become less useful because it receives more
+events, adds another source, connects another runner, or reaches an arbitrary
+product limit. Hobby projects, independent developers, small teams, and small
+businesses should be able to use the core platform without paying to remove
+constraints deliberately placed in their way.
+
+Donations and sponsorship are optional ways to support the project.
+
 ## Project status
 
 Payload Bay is in early development. This repository currently establishes the
@@ -58,31 +84,6 @@ product workspace and does not yet contain an installable implementation.
 
 The first work proves the self-hosted ingress, durable persistence, delivery,
 retry, and recovery path before public interfaces are stabilized.
-
-## Community and Enterprise
-
-Payload Bay is an open-source project first. We are building a good,
-self-hosted webhook platform that people can depend on, not a deliberately
-limited free version of a paid product.
-
-We want Community to be useful on its own. People who run Payload Bay
-should be able to receive, verify, store, route, deliver, retry, replay, and
-inspect events without an artificial event counter or a required central Payload
-Bay service deciding when the product stops being useful.
-
-That matters to hobby projects, independent developers, small teams, and small
-businesses. They should be able to choose a capable self-hosted platform without
-being required to pay just to remove constraints deliberately placed on its core.
-
-The project needs sustainable support too. Donations and sponsorship are welcome.
-We plan to offer Enterprise capabilities that help fund ongoing development and
-make Payload Bay easier to govern and operate inside larger organizations. That
-can include permissions, identity, auditability, support, managed operations,
-and other organizational requirements.
-
-The line is simple: Enterprise can make Payload Bay easier to govern and operate
-inside an organization. It should not be the place where fundamental delivery
-reliability, runners, replay, or core integrations are unlocked.
 
 ## Contributing
 
