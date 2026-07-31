@@ -61,40 +61,28 @@ retry, and recovery path before public interfaces are stabilized.
 
 ## Community and Enterprise
 
-Payload Bay is an open-source project first. It is being built to be a capable,
-reliable webhook platform that people can run in their own infrastructure.
+Payload Bay is an open-source project first. We are building a good,
+self-hosted webhook platform that people can depend on, not a deliberately
+limited free version of a paid product.
 
-Community is not a trial tier. It is the core product.
+We want Community to be useful on its own. People who run Payload Bay
+should be able to receive, verify, store, route, deliver, retry, replay, and
+inspect events without an artificial event counter or a required central Payload
+Bay service deciding when the product stops being useful.
 
-A Community installation is intended to run without a Payload Bay account,
-activation server, central Community cloud, or external license validation. Its
-operator controls the installation, infrastructure, data, domains, secrets, and
-operational decisions.
+That matters to hobby projects, independent developers, small teams, and small
+businesses. They should be able to choose a capable self-hosted platform without
+being required to pay just to remove constraints deliberately placed on its core.
 
-The Community direction includes the reliability-focused core: receiving,
-verifying, storing, inspecting, routing, delivering, retrying, and replaying
-events; HTTP and runner delivery; provider integrations; API access; rate
-limits; abuse protection; alerts; and self-hosting deployment options.
+The project needs sustainable support too. Donations and sponsorship are welcome.
+We plan to offer Enterprise capabilities that help fund ongoing development and
+make Payload Bay easier to govern and operate inside larger organizations. That
+can include permissions, identity, auditability, support, managed operations,
+and other organizational requirements.
 
-Payload Bay does not intend to create artificial limits for events, workspaces,
-sources, targets, or runners merely to make people upgrade. Hobby projects,
-independent developers, small teams, and small businesses should be able to use
-the core platform without paying to remove deliberately imposed constraints.
-
-Capacity is determined by the infrastructure an operator chooses to run. Payload
-Bay does not promise that every installation can handle every workload.
-
-Donations and sponsorship are voluntary ways to support the project.
-
-Enterprise is planned for organizations with genuine governance and operational
-requirements, such as workspace isolation, granular permissions, teams, scoped
-service accounts, auditability, identity integrations, external secret
-management, managed operations, support, and commercial terms.
-
-Enterprise helps fund continued development and makes Payload Bay easier to run
-in those environments. It is not intended to sell fundamental webhook
-reliability. Retries, replay, runners, and core provider integrations remain
-part of the Community direction.
+The line is simple: Enterprise can make Payload Bay easier to govern and operate
+inside an organization. It should not be the place where fundamental delivery
+reliability, runners, replay, or core integrations are unlocked.
 
 ## Contributing
 
