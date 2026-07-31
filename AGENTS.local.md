@@ -9,9 +9,10 @@ Payload Bay is in early implementation. The README describes intended product
 capabilities and target repository boundaries; it does not prove that a feature,
 directory, API, table, or command already exists.
 
-Use the linked Linear issue and the current code as the source of truth for the
-task at hand. Do not create empty architecture scaffolding merely because a
-future path is listed in the README.
+Use the current code, the scoped GitHub issue when one exists, and relevant
+repository documentation as the source of truth for the task at hand. Do not
+create empty architecture scaffolding merely because a future path is listed in
+the README.
 
 ## Architecture boundaries
 
