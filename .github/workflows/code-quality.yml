@@ -1,0 +1,71 @@
+name: Code Quality
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  quality:
+    name: Code Quality
+    if: ${{ hashFiles('package.json') != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Check formatting
+        run: bun run format:check
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Check types
+        run: bun run typecheck
+
+      - name: Run tests with coverage
+        run: bun run test:coverage
+
+      - name: Audit changed production code
+        uses: fallow-rs/fallow@fab6c5029dcc44c7d2dbd5d0adf24dc5fe4faf7e # v3.12.0
+        with:
+          command: audit
+          production: true
+          config: fallow.toml
+          coverage: coverage/coverage-final.json
+          coverage-root: ${{ github.workspace }}
+          annotations: false
+          review-comments: true
+          review-guidance: true
+          max-comments: 10
+          github-token: ${{ github.token }}
+
+      - name: Reject duplicated production code
+        uses: fallow-rs/fallow@fab6c5029dcc44c7d2dbd5d0adf24dc5fe4faf7e # v3.12.0
+        with:
+          command: dupes
+          production: true
+          config: fallow.toml
+          auto-changed-since: true
+          min-tokens: 50
+          min-lines: 5
+          annotations: false
+          review-comments: true
+          review-guidance: true
+          max-comments: 10
+          github-token: ${{ github.token }}

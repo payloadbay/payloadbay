@@ -1,0 +1,14 @@
+[audit]
+gate = "new-only"
+
+[duplicates]
+mode = "mild"
+minTokens = 50
+minLines = 5
+ignoreImports = true
+ignore = ["**/*.generated.ts"]
+
+[health]
+maxCyclomatic = 20
+maxCognitive = 15
+maxCrap = 30
