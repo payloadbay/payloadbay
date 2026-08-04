@@ -85,6 +85,34 @@ product workspace and does not yet contain an installable implementation.
 The first work proves the self-hosted ingress, durable persistence, delivery,
 retry, and recovery path before public interfaces are stabilized.
 
+## Local backend development
+
+Payload Bay uses a project-local Supabase CLI and Docker-compatible container
+runtime for backend development. The committed `supabase/` directory contains
+non-secret local configuration, migrations, and Edge Function source. It is
+safe to inspect with Supabase Studio, but Studio is not the source of truth.
+
+```bash
+bun install
+bun run supabase:start
+bun run supabase:status
+```
+
+Reset the local database and apply committed migrations with:
+
+```bash
+bun run supabase:reset
+```
+
+Stop local services without deleting their data:
+
+```bash
+bun run supabase:stop
+```
+
+The local Supabase stack is for development only. Do not expose it to external
+traffic or use its default credentials for an installation.
+
 ## Contributing
 
 Contributions, feedback, and real-world requirements are welcome.
