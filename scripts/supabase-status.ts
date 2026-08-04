@@ -7,7 +7,7 @@ const output = await new Response(command.stdout).text();
 const exitCode = await command.exited;
 
 if (exitCode !== 0) {
-  Bun.exit(exitCode);
+  process.exit(exitCode);
 }
 
 const status = JSON.parse(output) as Record<string, string>;
