@@ -85,6 +85,19 @@ product workspace and does not yet contain an installable implementation.
 The first work proves the self-hosted ingress, durable persistence, delivery,
 retry, and recovery path before public interfaces are stabilized.
 
+## Development workflow
+
+Core uses the shared [Payload Bay SpecKit setup](.github/speckit/README.md) with
+Python helpers, Codex skills and the TDD extension. The
+[project constitution](.specify/memory/constitution.md) records the current
+architecture and test-first delivery rules. Feature specifications, plans and
+tasks stay in this repository.
+
+The shared preset arrives through Repository Baseline CI. Installing or refreshing
+it is a separate local SpecKit step. The product test runner and verified TDD
+profile are not established yet; those must be scoped and verified before the
+first behavioral implementation. This setup does not implement webhook delivery.
+
 ## Local backend development
 
 Payload Bay uses a project-local Supabase CLI and Docker-compatible container

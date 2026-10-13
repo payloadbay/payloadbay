@@ -72,6 +72,22 @@ work into this repository without an explicit decision.
   local Supabase tooling exists, use the smallest relevant Supabase, migration,
   function, and integration tests for the change.
 
+## SpecKit development
+
+Core is initialized with Python helpers, Codex skills and the centrally distributed
+Payload Bay preset. Shared source is under `.github/speckit/`; read its setup guide
+for initialization, dependency requirements, refresh and Claude switching.
+
+The project constitution lives in `.specify/memory/constitution.md`. Feature specs,
+plans, tasks, verified test commands and graph artifacts remain Core-owned. Use
+an available Graphify graph for broad navigation and verify findings in source;
+use `rg` for exact searches or missing/stale graph coverage.
+
+The TDD extension is installed, but Core currently has no product test runner or
+verified TDD profile. Establish that capability as scoped work before the first
+behavioral implementation; do not record a fictional passing suite. SpecKit
+initialization does not implement the planned ingress/delivery flow.
+
 ## Task-specific context
 
 Read additional material only when the task requires it:

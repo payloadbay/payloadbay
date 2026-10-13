@@ -1,0 +1,33 @@
+{
+  "schema_version": "1.0",
+  "presets": {
+    "payloadbay": {
+      "version": "0.1.0",
+      "source": "local",
+      "manifest_hash": "sha256:bd260770f4c2eedb2d83f1609182aacf5e3ef672c1d259f75852a30fa83d010b",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "codex": [
+          "speckit.constitution",
+          "speckit.specify",
+          "speckit.plan",
+          "speckit.tasks",
+          "speckit.implement",
+          "speckit.analyze"
+        ]
+      },
+      "registered_skills": {
+        "codex": [
+          "speckit-constitution",
+          "speckit-specify",
+          "speckit-plan",
+          "speckit-tasks",
+          "speckit-implement",
+          "speckit-analyze"
+        ]
+      },
+      "installed_at": "2026-10-13T14:36:46.648367+00:00"
+    }
+  }
+}
