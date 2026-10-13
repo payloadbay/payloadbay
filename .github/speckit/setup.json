@@ -1,0 +1,15 @@
+{
+  "specifyVersion": "1.1.3",
+  "script": "py",
+  "pythonDependencies": { "PyYAML": "6.0.3" },
+  "defaultIntegration": "codex",
+  "supportedIntegrations": ["codex", "claude"],
+  "preset": "payloadbay",
+  "presetVersion": "0.1.0",
+  "presetPriority": 10,
+  "tddExtension": {
+    "id": "tdd",
+    "version": "1.1.2",
+    "url": "https://github.com/d0whc3r/spec-kit-tdd/releases/download/v1.1.2/tdd-1.1.2.zip"
+  }
+}
