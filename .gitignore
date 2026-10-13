@@ -6,3 +6,8 @@ node_modules/
 coverage/
 dist/
 .DS_Store
+.venv/
+.specify/extensions/.cache/
+.specify/presets/.cache/
+.specify/presets/*/.composed/
+__pycache__/
