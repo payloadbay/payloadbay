@@ -22,21 +22,40 @@ The native `/mcp` connection supports inspection and deployment operations.
 REST was explicitly authorized for project/application configuration that the
 installed MCP server does not expose. Credentials remain outside the repository.
 
-## Remaining work
+## Preview build strategy
 
-The preview Compose file has not been implemented or pushed, and the supported
-prebuilt application/worker/executor images have not been published. The existing
-`compose.dev.yml` provides disposable test fixtures and must not be used as the
-deployed product stack. Previews need their own database, keys and SMTP settings;
-they must not use production data or credentials.
+PR previews build application, worker and executor images directly from the
+checked-out PR branch using `deploy/compose.preview.yml`. No published Payload
+Bay images or merge into master is required. Clipify's separate preview Dockerfile
+uses the same source-build approach. Prebuilt images remain the operator release
+interface, not a preview prerequisite.
 
-After the real stack is verified and available on GitHub, load its Compose file
-in Coolify and map service `app` to
-`https://payloadbay-preview.cloud.thedannicraft.de:3000`. Both that hostname and
-`42.payloadbay-preview.cloud.thedannicraft.de` resolved to the deployment host
-during setup. Domain assignment currently returns validation error 422 because
-Coolify requires a loaded Compose definition first.
+The preview-only `schema` service runs development Drizzle push after PostgreSQL
+is healthy. Application and worker startup wait for schema completion and executor
+readiness. Production continues to require CI-owned release migrations; preview
+startup does not generate or commit release migration files. PostgreSQL storage
+is scoped to the Compose project; no fixed container or volume names are used.
+Mailpit collects synthetic preview email internally and has no public port mapping.
 
-Then verify an actual PR deployment, GitHub webhook delivery, isolated service
-state, application health, login and event delivery, and close/merge cleanup.
-The settings alone do not establish that automatic PR previews work.
+HeroUI Pro installation uses the `heroui_auth_token` BuildKit secret sourced from
+`HEROUI_AUTH_TOKEN`. Configure it for preview builds, not container runtime; never
+pass it as a Docker ARG or commit it. Runtime secrets are generated separately from
+production credentials in this dedicated preview application. Additional PRs use
+the application's preview settings; this is not a claim of a fresh key per PR.
+
+The intended app domain is `https://payloadbay-preview.cloud.thedannicraft.de:3000`,
+with the saved PR URL template. Both the base hostname and
+`42.payloadbay-preview.cloud.thedannicraft.de` resolved to the deployment host.
+Coolify must load the branch Compose definition before accepting the service domain
+mapping. PUBLIC_URL references the generated service URL for authentication links.
+
+## Verification and remaining work
+
+The real Docker Compose parser validates the preview definition. Existing Docker
+image tests verify non-root startup and actual worker/executor HTTP delivery with
+a disposable source-schema database. These do not prove the remote preview works.
+
+Verify a clean licensed build on Coolify, service domain mapping, PR webhook
+handling, isolated state, login/event delivery and close/merge cleanup. Operator
+release images, CI migration artifacts and full alpha release gates remain separate
+unfinished work.

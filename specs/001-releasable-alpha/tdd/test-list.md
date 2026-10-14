@@ -794,3 +794,5 @@ Standard mode is runc, optional gVisor is runsc. Missing explicitly selected run
 | U316 | Continuous failure producer queues opted-in SMTP notifications | FR-028 | example | DONE | `tests/integration/notifications.test.ts::U316 continuous failure producer queues opted-in SMTP notifications` |
 
 | U317 | Scoped notification readers manage only their own SMTP preferences through API | FR-027, FR-028 | example | DONE | `tests/deployment/installation.test.ts::U317 scoped readers manage only their own SMTP preferences through API` |
+
+| U318 | Source-build preview | PR images build locally from source and wait for preview schema | deployment | DONE | `tests/deployment/preview.test.ts` |

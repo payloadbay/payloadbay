@@ -39,7 +39,7 @@ test("non-root app standalone and executor runtime images start without host mou
 
 test("U253 restricted worker image delivers accepted bytes through isolated executor", async () => {
 	const { withFixtures } = await import("../../scripts/tests/fixtures.ts");
-	const { migrate } = await import("../../packages/domain/src/migrate.ts");
+	const { prepareDevelopmentDatabase: migrate } = await import("../../packages/domain/src/development.ts");
 	const { database } = await import("../../packages/domain/src/db.ts");
 	const { seedScope } = await import("../helpers/domain-fixtures.ts");
 	const { executorFixture } = await import("../helpers/executor-fixture.ts");

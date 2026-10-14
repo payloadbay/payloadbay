@@ -2339,3 +2339,12 @@ A5 transport Green correction: the web TypeScript lib set lacked DOM.AsyncIterab
 - green: smallest production change in `packages/contracts/src/notifications.ts`, `packages/domain/src/notification-subscriptions.ts`, `apps/web/src/app/api/v1/projects/[projectId]/notification-subscriptions/route.ts`, `apps/web/src/app/api/v1/notification-rules/[ruleId]/subscription/route.ts`; `bun run test:file tests/deployment/installation.test.ts` -> 12 passed, 0 failed (159.58s); artifact `test-results/cycle-U317.txt`.
 - refactor: none needed in this cycle.
 - commit: uncommitted, preserving the known pre-existing worktree.
+
+## Cycle U318: PR source-build preview stack
+
+- Test: `tests/deployment/preview.test.ts::U318 PR preview builds branch services and initializes its own database`.
+- Red: actual assertion `PR preview must provide a source-build Compose stack`; selected test failed before the Compose file existed.
+- Green: owning file passed 1 test against the real Docker Compose parser, validating source builds, startup prerequisites, isolated database addressing, restricted executor and BuildKit credential reference.
+- Broader verification: `tests/deployment/images.test.ts` passed 2 actual Docker tests, including managed HTTP delivery through the worker/executor. Its first run exposed an outdated disposable fixture calling the production migration entrypoint; corrected to the existing development schema helper. That setup failure is not credited as test-first behavior.
+- Quality checks: ESLint, TypeScript and Prettier passed before publication; no release migration generated.
+- Limit: the parser and image tests do not prove a clean licensed app build or a healthy remote Coolify PR deployment; those require the configured HeroUI build credential and a deployment run.
