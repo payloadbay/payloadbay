@@ -98,33 +98,24 @@ it is a separate local SpecKit step. The product test runner and verified TDD
 profile are not established yet; those must be scoped and verified before the
 first behavioral implementation. This setup does not implement webhook delivery.
 
-## Local backend development
+## Architecture and development status
 
-Payload Bay uses a project-local Supabase CLI and Docker-compatible container
-runtime for backend development. The committed `supabase/` directory contains
-non-secret local configuration, migrations, and Edge Function source. It is
-safe to inspect with Supabase Studio, but Studio is not the source of truth.
+The approved foundation is an integrated Next.js/Node.js application,
+PostgreSQL, Graphile Worker and Better Auth, using HeroUI for the dashboard and
+Bun for dependency management. Operators will deploy prebuilt published Docker
+images; web and trusted worker roles share one coordinated release. Configured
+script execution requires a separately validated executor boundary.
 
-```bash
-bun install
-bun run supabase:start
-bun run supabase:status
-```
-
-Reset the local database and apply committed migrations with:
-
-```bash
-bun run supabase:reset
-```
-
-Stop local services without deleting their data:
-
-```bash
-bun run supabase:stop
-```
-
-The local Supabase stack is for development only. Do not expose it to external
-traffic or use its default credentials for an installation.
+A plain Next.js/HeroUI Pro web scaffold now lives in `apps/web/src/app`; use
+`bun run web:dev`, `bun run web:typecheck`, `bun run web:lint` and
+`bun run web:build`. Published images, database/worker/executor flows and the
+product test suite are not implemented. Verified bootstrap checks are available
+through `bun run test`, `test:file`, `test:affected` and `test:coverage`; see
+[tooling bootstrap](docs/deployment/bootstrap.md). Optional gVisor execution is unverified; clean CI Pro
+build prerequisites remain unresolved. Existing Supabase package scripts
+are legacy experiment tooling, not the supported product startup path. See the
+[current planning draft](specs/001-releasable-alpha/plan.md) for open decisions,
+validation gates and migration scope.
 
 ## Contributing
 
@@ -146,12 +137,12 @@ search existing Issues and Discussions, and coordinate the intended outcome.
 ## Repository boundaries
 
 This is the canonical product repository. It is intended to contain the
-Supabase backend, dashboard, shared API contract, public SDK, and official
+integrated web application, worker, shared API contract, public SDK, and official
 integrations that ship as the Payload Bay product.
 
 ```text
-supabase/                  Backend schema, Edge Functions, queues, and Cron
-apps/dashboard/            Dashboard application
+apps/web/                  Integrated dashboard and HTTP API
+apps/worker/               Trusted background job processing
 packages/api-contract/     Versioned API and generated types
 packages/sdk-node/         Public Node.js SDK
 packages/integration-sdk/  Integration authoring contract

@@ -1,0 +1,15 @@
+@import "tailwindcss";
+@import "@heroui/styles";
+@import "@heroui-pro/react/css";
+@import "./brand-theme.css";
+
+@theme inline {
+	--font-sans: "Inter Variable", Inter, sans-serif;
+}
+
+body {
+	margin: 0;
+	background: var(--background);
+	color: var(--foreground);
+	font-family: var(--font-sans);
+}

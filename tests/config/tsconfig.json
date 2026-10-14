@@ -1,0 +1,24 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"lib": ["ES2023", "DOM", "DOM.Iterable", "DOM.AsyncIterable"],
+		"types": ["node", "bun"],
+		"allowImportingTsExtensions": true,
+		"noEmit": true,
+		"strict": true,
+		"skipLibCheck": true,
+		"paths": {
+			"@types": ["../../apps/web/./src/app/types.ts"],
+			"@lib/*": ["../../apps/web/./src/app/lib/*"],
+			"@components/*": ["../../apps/web/./src/app/components/*"],
+			"@styles/*": ["../../apps/web/./src/app/styles/*"],
+			"@api/*": ["../../apps/web/./src/app/lib/api/*"],
+			"@contracts/*": ["../../apps/web/../../packages/contracts/src/*"],
+			"@domain/*": ["../../apps/web/../../packages/domain/src/*"],
+			"@sdk/*": ["../../apps/web/../../packages/script-sdk/src/*"]
+		}
+	},
+	"include": ["../../scripts/**/*.ts", "../../packages/**/*.ts", "../../apps/worker/**/*.ts", "../../apps/executor/**/*.ts", "../**/*.ts"]
+}

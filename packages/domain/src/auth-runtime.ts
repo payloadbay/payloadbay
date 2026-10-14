@@ -1,0 +1,104 @@
+import { betterAuth } from "better-auth";
+import { admin, emailOTP } from "better-auth/plugins";
+import { createAuthMiddleware, APIError } from "better-auth/api";
+import { Pool } from "pg";
+import { createHmac, randomUUID } from "node:crypto";
+import { authSchemaOptions } from "./auth-schema.ts";
+import { queueMail } from "./mail-queue.ts";
+import { requestLoginCode } from "./auth.ts";
+import type { ServerConfig } from "./config.ts";
+
+export function createAuth(pool: Pool, config: ServerConfig) {
+	const identityPool = new Pool({
+		connectionString: config.databaseUrl,
+		options: "-c search_path=auth",
+		connectionTimeoutMillis: 5000,
+		statement_timeout: 10000,
+		idle_in_transaction_session_timeout: 10000,
+	});
+	identityPool.on("error", () => console.error("Authentication database connection unavailable"));
+	const auth = betterAuth({
+		...authSchemaOptions(identityPool),
+		secret: config.authSecret,
+		baseURL: config.publicUrl,
+		basePath: "/api/auth",
+		trustedOrigins: [new URL(config.publicUrl).origin],
+		session: { cookieCache: { enabled: false } },
+		socialProviders: config.oauth,
+		account: { accountLinking: { enabled: true, requireLocalEmailVerified: true, allowDifferentEmails: false } },
+		databaseHooks: {
+			user: {
+				create: {
+					before: async (user, ctx) => {
+						if (ctx?.path !== "/admin/create-user" || ctx.request || ctx.headers) throw new APIError("FORBIDDEN", { message: "Registration is disabled" });
+
+						return { data: user };
+					},
+				},
+			},
+		},
+		plugins: [
+			admin(),
+			emailOTP({
+				disableSignUp: true,
+				expiresIn: 300,
+				allowedAttempts: 5,
+				storeOTP: { hash: async (otp) => createHmac("sha256", config.authSecret).update(otp).digest("base64url") },
+				resendStrategy: "rotate",
+				sendVerificationOTP: async ({ email, otp, type }) => {
+					if (type !== "sign-in") throw Error("Only sign-in codes are supported");
+					const identifier = "sign-in-otp-" + email;
+					const verificationHash = createHmac("sha256", config.authSecret).update(otp).digest("base64url");
+					const record = (await pool.query('SELECT "expiresAt" FROM auth.verification WHERE identifier=$1', [identifier])).rows[0];
+					if (!record) throw Error("Verification state is unavailable");
+					await queueMail(
+						pool,
+						"otp:" + randomUUID(),
+						{
+							email,
+							otp,
+							identifier,
+							verificationHash,
+							expiresAt: record.expiresAt.toISOString(),
+						},
+						config.encryptionKey,
+					);
+				},
+			}),
+		],
+		hooks: {
+			before: createAuthMiddleware(async (ctx) => {
+				if (ctx.path.includes("forget-password") || ctx.path.includes("reset-password") || ctx.path.includes("sign-up")) throw new APIError("NOT_FOUND", { message: "This authentication method is unavailable" });
+				if (ctx.path === "/sign-in/email-otp") {
+					const email = String(ctx.body?.email ?? "")
+						.trim()
+						.toLowerCase();
+					const record = (await pool.query('SELECT "expiresAt","expiresAt">clock_timestamp() AS live FROM auth.verification WHERE identifier=$1', ["sign-in-otp-" + email])).rows[0];
+					if (!record?.live || new Date(record.expiresAt).getTime() <= Date.now()) throw new APIError("BAD_REQUEST", { message: "Code is invalid or expired" });
+				}
+			}),
+		},
+		advanced: { useSecureCookies: new URL(config.publicUrl).protocol === "https:", ipAddress: { ipAddressHeaders: [] } },
+		logger: { disabled: true },
+	});
+
+	return {
+		auth,
+		api: auth.api,
+		async handler(request: Request) {
+			const pathname = new URL(request.url).pathname;
+			if (pathname === "/api/auth/email-otp/send-verification-otp" && request.method === "POST") {
+				if (request.headers.get("origin") && request.headers.get("origin") !== new URL(config.publicUrl).origin) return Response.json({ error: { code: "invalid_origin", message: "Request origin is not allowed" } }, { status: 403 });
+				const body = await request.json().catch(() => null);
+				if (!body || typeof body.email !== "string" || body.email.length > 254 || body.type !== "sign-in") return Response.json({ error: { code: "invalid_input", message: "Check the submitted values" } }, { status: 400 });
+
+				return Response.json(await requestLoginCode(pool, auth, body.email, config.otpRequestLimit));
+			}
+
+			return auth.handler(request);
+		},
+		async close() {
+			await identityPool.end();
+		},
+	};
+}

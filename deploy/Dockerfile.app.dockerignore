@@ -1,0 +1,14 @@
+**/.git
+**/.env*
+**/.venv
+**/coverage
+**/test-results
+**/playwright-report
+.specify
+.agents
+.codex
+graphify-out
+specs
+node_modules
+apps/*/node_modules
+!apps/web/.next/standalone/**

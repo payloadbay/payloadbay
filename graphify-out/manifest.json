@@ -1,0 +1,32 @@
+{
+  "package.json": {
+    "mtime": 1785858519.4391975,
+    "seen": 1791905334.885297,
+    "ast_hash": "f981a5b63daea3e14ed519d70e403058",
+    "semantic_hash": "f981a5b63daea3e14ed519d70e403058"
+  },
+  "scripts/supabase-status.ts": {
+    "mtime": 1785858519.4391975,
+    "seen": 1791905334.885303,
+    "ast_hash": "6146c7107aba9f134640809af4c8d650",
+    "semantic_hash": "6146c7107aba9f134640809af4c8d650"
+  },
+  ".specify/memory/constitution.md": {
+    "mtime": 1791902438.770065,
+    "seen": 1791905334.8853056,
+    "ast_hash": "556191202acfc2757bb7ee9d448882c2",
+    "semantic_hash": "556191202acfc2757bb7ee9d448882c2"
+  },
+  "AGENTS.local.md": {
+    "mtime": 1791902438.7740653,
+    "seen": 1791905334.885307,
+    "ast_hash": "7fd03b9074d87d5ccdb0f1897bb6d34b",
+    "semantic_hash": "7fd03b9074d87d5ccdb0f1897bb6d34b"
+  },
+  "README.md": {
+    "mtime": 1791902438.7740653,
+    "seen": 1791905334.8853087,
+    "ast_hash": "07c0521d3a103666085c90ffae0a71fe",
+    "semantic_hash": "07c0521d3a103666085c90ffae0a71fe"
+  }
+}
