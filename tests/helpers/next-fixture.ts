@@ -6,7 +6,7 @@ import { once } from "node:events";
 import { authFixture } from "./auth-fixtures.ts";
 import { ensureNextBuild } from "../../scripts/tests/next-build.ts";
 
-export async function nextFixture(run: (f: Parameters<Parameters<typeof authFixture>[0]>[0] & { url: string; executorUrl: string }) => Promise<void>) {
+export async function nextFixture(run: (f: Parameters<Parameters<typeof authFixture>[0]>[0] & { url: string; executorUrl: string }) => Promise<void>, options: { preview?: boolean } = {}) {
 	await authFixture(async (f) => {
 		ensureNextBuild();
 		const listener = createServer();
@@ -19,6 +19,7 @@ export async function nextFixture(run: (f: Parameters<Parameters<typeof authFixt
 		const child = spawn("node", ["apps/web/.next/standalone/apps/web/server.js"], {
 			env: {
 				...fixtureEnvironment(f, url),
+				IS_PREVIEW: options.preview ? "true" : "false",
 				PORT: String(port),
 				HOSTNAME: "127.0.0.1",
 				EXECUTOR_URL: executor.url,

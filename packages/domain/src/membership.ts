@@ -1,5 +1,6 @@
 import { transaction } from "./db.ts";
 import type { Pool, PoolClient } from "pg";
+import { previewReviewerEmail } from "./preview.ts";
 import { AppError } from "../../contracts/src/errors.ts";
 import { permissions, type Permission } from "../../contracts/src/permissions.ts";
 import { effectivePermissions, assertGrantSubset, rolePermissions, type ScopeRef, type Actor } from "./authorization.ts";
@@ -65,6 +66,11 @@ export async function setGrant(
 		// All membership changes in a scope serialize, including insertion of its first grant.
 		await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", ["grant:" + input.scope.type + ":" + input.scope.id]);
 		const held = await requirePermission(db, actor, input.scope, "members.manage");
+		if (process.env.IS_PREVIEW === "true" && input.scope.type === "instance" && input.role !== "owner") {
+			const demo = await db.query('SELECT 1 FROM auth."user" WHERE id=$1 AND email=$2', [input.userId, previewReviewerEmail]);
+			if (demo.rowCount) throw new AppError("preview_identity_protected", 403, "Preview reviewer access cannot be removed");
+		}
+
 		assertGrantSubset(held, input.permissions);
 		if (input.role === "owner") {
 			await requirePermission(db, actor, input.scope, "ownership.transfer");

@@ -1,5 +1,6 @@
 # PR-only source builds. Operator releases use published images instead.
 x-runtime: &runtime
+  IS_PREVIEW: "true"
   DATABASE_URL: postgres://payloadbay:${POSTGRES_PASSWORD:?}@postgres:5432/payloadbay
   PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3000}
   COOLIFY_URL: ${COOLIFY_URL:-}
@@ -33,7 +34,7 @@ services:
       POSTGRES_USER: payloadbay
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
       POSTGRES_DB: payloadbay
-    volumes: ["postgres:/var/lib/postgresql/data"]
+    tmpfs: ["/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U payloadbay -d payloadbay"]
       interval: 2s
@@ -41,6 +42,9 @@ services:
       retries: 30
     restart: unless-stopped
   smtp:
+    expose: ["8025"]
+    environment:
+      MP_UI_AUTH: ${PREVIEW_MAIL_AUTH:?}
     image: axllent/mailpit:v1.30.2@sha256:37a38e48e9338cd7e89dfeb487f37b02ebfcd9cb23111bed2d345e79d37d6dd6
     restart: unless-stopped
   schema:
@@ -50,9 +54,9 @@ services:
       target: preview-schema
       secrets: [heroui_auth_token]
     environment:
+      <<: *runtime
       NODE_ENV: development
-      DATABASE_URL: postgres://payloadbay:${POSTGRES_PASSWORD:?}@postgres:5432/payloadbay
-    command: ["node", "--import", "tsx", "scripts/database/push.ts"]
+    command: ["sh", "-c", "node --import tsx scripts/database/push.ts && node --import tsx scripts/preview/seed.ts"]
     depends_on:
       postgres: {condition: service_healthy}
     restart: "no"
@@ -101,9 +105,6 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
-
-volumes:
-  postgres:
 
 secrets:
   heroui_auth_token:

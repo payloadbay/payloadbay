@@ -798,3 +798,7 @@ Standard mode is runc, optional gVisor is runsc. Missing explicitly selected run
 | U318 | Source-build preview | PR images build locally from source and wait for preview schema | deployment | DONE | `tests/deployment/preview.test.ts` |
 
 | U319 | Coolify runtime selects the actual preview base URL over stale explicit configuration | FR-022, FR-029 | boundary | DONE | `tests/unit/contracts.test.ts::U319 base URL follows Clipify Coolify runtime precedence` |
+
+| U320 | Fresh preview seeds the known admitted reviewer and sample project with real OTP login | FR-022, FR-029 | example | DONE | `tests/integration/preview.test.ts::U320 preview seed provisions a repeatable admitted demo owner and project` |
+| U321 | Preview warning is evaluated at runtime and absent from ordinary installations | FR-029 | example | DONE | `tests/integration/preview.test.ts::U321 preview warning is shown by runtime mode and absent outside previews` |
+| U322 | Adding another owner cannot permit demoting the fixed preview reviewer identity | FR-002, FR-029 | boundary | DONE | `tests/integration/preview.test.ts::U322 preview reviewer cannot be locked out by adding another owner then demoting the demo account` |

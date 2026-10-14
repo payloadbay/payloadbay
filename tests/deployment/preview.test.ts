@@ -11,6 +11,7 @@ test("U318 PR preview builds branch services and initializes its own database", 
 			env: {
 				...process.env,
 				HEROUI_AUTH_TOKEN: "synthetic-build-credential",
+				PREVIEW_MAIL_AUTH: "reviewer:synthetic-preview-password",
 				POSTGRES_PASSWORD: "synthetic-preview-password",
 				BETTER_AUTH_SECRET: "synthetic-auth-secret-32-characters",
 				PAYLOADBAY_ENCRYPTION_KEY: "synthetic-encryption-key-32-characters",
@@ -28,7 +29,10 @@ test("U318 PR preview builds branch services and initializes its own database", 
 	assert.equal(config.services.app.depends_on.schema.condition, "service_completed_successfully");
 	assert.equal(config.services.worker.depends_on.schema.condition, "service_completed_successfully");
 	assert.equal(config.services.schema.environment.NODE_ENV, "development");
-	assert.equal(config.services.schema.command.at(-1), "scripts/database/push.ts");
+	assert.match(config.services.schema.command.at(-1), /scripts\/database\/push\.ts.*scripts\/preview\/seed\.ts/);
+	assert.equal(config.services.schema.environment.IS_PREVIEW, "true");
+	assert.equal(config.services.smtp.environment.MP_UI_AUTH, "reviewer:synthetic-preview-password");
+	assert.deepEqual(config.services.smtp.expose, ["8025"]);
 	assert.match(config.services.app.environment.DATABASE_URL, /@postgres:5432\/payloadbay$/);
 	assert.equal(config.services.executor.runtime, "runc");
 	assert.equal(config.services.executor.read_only, true);
@@ -38,6 +42,6 @@ test("U318 PR preview builds branch services and initializes its own database", 
 		assert.equal(service.ports, undefined, "Coolify routes the app without publishing internal services");
 	}
 
-	assert.ok(config.volumes.postgres);
-	assert.equal(config.volumes.postgres.external, undefined);
+	assert.ok(config.services.postgres.tmpfs.includes("/var/lib/postgresql/data"));
+	assert.equal(config.services.postgres.volumes, undefined);
 });

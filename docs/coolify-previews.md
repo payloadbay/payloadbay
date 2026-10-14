@@ -70,3 +70,28 @@ notification links consume this shared configuration. Outside Coolify,
 `PUBLIC_URL` (or `NEXT_PUBLIC_BASE_URL`) wins and preserves explicit ports/paths;
 the existing localhost fallback remains. URLs are read from operator/deployment
 configuration, never untrusted request Host headers.
+
+## Disposable demo configuration
+
+Preview PostgreSQL now uses tmpfs, not a persistent volume. The application has a
+custom start command `docker compose up -d --force-recreate --remove-orphans`.
+This recreates the database on redeployment; schema startup runs development push
+and the guarded seed command before app/worker startup. This reset policy applies
+only to this dedicated preview application. Remote reset behavior still needs
+verification once its build succeeds.
+
+The known synthetic account is `reviewer@preview.payloadbay.test`; it is admitted
+and provisioned through Better Auth, then assigned the demo instance owner role.
+The seed creates a sample workspace, project and unpublished ingress draft through
+normal domain commands and is repeatable within a fresh demo. It refuses production
+mode and will not overwrite a completed non-demo installation.
+
+Mailpit exposes HTTP port 8025 to the proxy, not a host-published port. MP_UI_AUTH
+uses the preview-only PREVIEW_MAIL_AUTH value. The intended service mapping is
+`https://payloadbay-mail.cloud.thedannicraft.de:8025`, with a distinct PR hostname.
+The browser URL is pending Coolify's successful Compose loading/domain assignment;
+it is not live merely because the service is declared. Its shared reviewer
+credential is separate from GitHub roles and never committed. The chosen goal is public functional review without GitHub maintainer privileges.
+Before privileged access is distributed publicly, sandbox, preview egress and
+resource limits still require verification. The current mail credential is a
+temporary access control, not the final public demo experience.

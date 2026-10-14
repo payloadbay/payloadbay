@@ -2356,3 +2356,12 @@ A5 transport Green correction: the web TypeScript lib set lacked DOM.AsyncIterab
 - Implementation: shared domain base URL resolver adapted from Clipify `src/app/lib/baseUrl.ts`, with Payload Bay's explicit PUBLIC_URL override and local fallback. App and worker read the same resolver. Preview Compose passes Coolify runtime metadata; no request Host headers are trusted.
 - Verification: the first whole-file run without required subprocess access timed out in unrelated esbuild compiler tests; rerun with the established execution permissions. This infrastructure failure is not a behavior Red.
 - Green: owning contracts file 26 passed; preview Compose file 1 passed. ESLint, TypeScript and Prettier passed. The URL rules are locally verified; the remote preview is still blocked on failure-log access.
+
+## Cycles U320–U322: disposable reviewer demo
+
+- U320 Red: real PostgreSQL/Better Auth test hit the explicit not-implemented seed seam instead of the required preview-only guard. Green provisions one fixed synthetic reviewer, verified admission and owner grant, sample workspace/project/draft route, and a real queued OTP email; repeated seed does not duplicate records.
+- U321 Red: actual Next.js login HTML lacked the disposable preview warning. Green uses request-time connection() in the root layout, renders the warning for runtime IS_PREVIEW=true and omits it otherwise. The fixture explicitly supplies runtime mode; the installed Next.js connection documentation was consulted.
+- U322 Red: `Missing expected rejection` after a second owner was created and the seeded reviewer was demoted. Green rejects that instance grant change only in preview mode, preserving ordinary role behavior.
+- Owning integration file: 3 passed, 0 failed. Authorization regression file: 11 passed, 0 failed. Real Docker Compose parser checks seeded startup, ephemeral PostgreSQL and authenticated Mailpit. Clean remote deployment and reset behavior are not claimed by these local runs.
+- Preview reset configuration: force recreation; schema then guarded seed; PostgreSQL tmpfs. No release migration is generated or committed.
+- Contributor guidance records synthetic identity, Mailpit, shared edits, data reset, test-only payloads and the public functional-review goal. Public hostile-publisher hardening remains unverified; gVisor alone is not an outbound network policy.
