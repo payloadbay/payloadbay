@@ -59,3 +59,14 @@ Verify a clean licensed build on Coolify, service domain mapping, PR webhook
 handling, isolated state, login/event delivery and close/merge cleanup. Operator
 release images, CI migration artifacts and full alpha release gates remain separate
 unfinished work.
+
+## Preview base URL
+
+`packages/domain/src/base-url.ts` reuses Clipify's runtime precedence: when
+Coolify runtime metadata exists, the first `COOLIFY_URL` wins over a stale
+configured URL and is normalized to an HTTPS hostname without the internal
+container port or path. Both Next.js authentication/origin checks and worker
+notification links consume this shared configuration. Outside Coolify,
+`PUBLIC_URL` (or `NEXT_PUBLIC_BASE_URL`) wins and preserves explicit ports/paths;
+the existing localhost fallback remains. URLs are read from operator/deployment
+configuration, never untrusted request Host headers.

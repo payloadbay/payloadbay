@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { smtpSchema } from "../../contracts/src/config.ts";
 import { AppError } from "../../contracts/src/errors.ts";
+import { resolveBaseUrl } from "./base-url.ts";
 
 export function readConfig(env: Record<string, string | undefined>) {
 	if (env.SMTP_SECURE !== undefined && !["true", "false"].includes(env.SMTP_SECURE)) throw Error("SMTP TLS configuration is invalid");
@@ -57,9 +58,16 @@ const serverSchema = z.object({
 });
 
 export function readServerConfig(env: Record<string, string | undefined>) {
+	let publicUrl: string;
+	try {
+		publicUrl = resolveBaseUrl(env).href;
+	} catch {
+		throw new AppError("configuration_required", 503, "Server configuration requires attention");
+	}
+
 	const parsed = serverSchema.safeParse({
 		databaseUrl: env.DATABASE_URL,
-		publicUrl: env.PUBLIC_URL ?? "http://localhost:3000",
+		publicUrl,
 		authSecret: env.BETTER_AUTH_SECRET,
 		encryptionKey: env.PAYLOADBAY_ENCRYPTION_KEY,
 		bootstrapSecret: env.PAYLOADBAY_BOOTSTRAP_SECRET,

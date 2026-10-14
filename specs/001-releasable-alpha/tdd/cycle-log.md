@@ -2348,3 +2348,11 @@ A5 transport Green correction: the web TypeScript lib set lacked DOM.AsyncIterab
 - Broader verification: `tests/deployment/images.test.ts` passed 2 actual Docker tests, including managed HTTP delivery through the worker/executor. Its first run exposed an outdated disposable fixture calling the production migration entrypoint; corrected to the existing development schema helper. That setup failure is not credited as test-first behavior.
 - Quality checks: ESLint, TypeScript and Prettier passed before publication; no release migration generated.
 - Limit: the parser and image tests do not prove a clean licensed app build or a healthy remote Coolify PR deployment; those require the configured HeroUI build credential and a deployment run.
+
+## Cycle U319: Clipify preview URL resolution
+
+- Test: `tests/unit/contracts.test.ts::U319 base URL follows Clipify Coolify runtime precedence`.
+- Red: current configuration selected `https://stale.example.test` instead of the configured Coolify runtime preview hostname.
+- Implementation: shared domain base URL resolver adapted from Clipify `src/app/lib/baseUrl.ts`, with Payload Bay's explicit PUBLIC_URL override and local fallback. App and worker read the same resolver. Preview Compose passes Coolify runtime metadata; no request Host headers are trusted.
+- Verification: the first whole-file run without required subprocess access timed out in unrelated esbuild compiler tests; rerun with the established execution permissions. This infrastructure failure is not a behavior Red.
+- Green: owning contracts file 26 passed; preview Compose file 1 passed. ESLint, TypeScript and Prettier passed. The URL rules are locally verified; the remote preview is still blocked on failure-log access.

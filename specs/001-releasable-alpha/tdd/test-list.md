@@ -796,3 +796,5 @@ Standard mode is runc, optional gVisor is runsc. Missing explicitly selected run
 | U317 | Scoped notification readers manage only their own SMTP preferences through API | FR-027, FR-028 | example | DONE | `tests/deployment/installation.test.ts::U317 scoped readers manage only their own SMTP preferences through API` |
 
 | U318 | Source-build preview | PR images build locally from source and wait for preview schema | deployment | DONE | `tests/deployment/preview.test.ts` |
+
+| U319 | Coolify runtime selects the actual preview base URL over stale explicit configuration | FR-022, FR-029 | boundary | DONE | `tests/unit/contracts.test.ts::U319 base URL follows Clipify Coolify runtime precedence` |

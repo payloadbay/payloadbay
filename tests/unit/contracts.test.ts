@@ -240,3 +240,16 @@ test("U312 accepted metadata stays within the processing metadata budget", () =>
 	cyclic.self = cyclic;
 	expect(() => validateDecision("ingress", accepted(cyclic))).toThrow("Invalid stage outcome");
 });
+
+test("U319 base URL follows Clipify Coolify runtime precedence", () => {
+	const env = {
+		...serverEnv,
+		PUBLIC_URL: "https://stale.example.test",
+		COOLIFY_URL: "http://13.preview.example.test:3000/path,https://other.example.test",
+		COOLIFY_RESOURCE_UUID: "preview-resource",
+	};
+	expect(new URL(readServerConfig(env).publicUrl).origin).toBe("https://13.preview.example.test");
+	expect(new URL(readServerConfig({ ...env, COOLIFY_RESOURCE_UUID: "", COOLIFY_URL: "" }).publicUrl).origin).toBe("https://stale.example.test");
+	expect(new URL(readServerConfig({ ...serverEnv, PUBLIC_URL: "localhost:4000" }).publicUrl).origin).toBe("http://localhost:4000");
+	expect(new URL(readServerConfig({ ...serverEnv, PUBLIC_URL: undefined, COOLIFY_URL: "preview.example.test:3000" }).publicUrl).origin).toBe("https://preview.example.test");
+});
