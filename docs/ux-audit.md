@@ -41,7 +41,7 @@ with its Apache-2.0 license, from `heroui-inc/heroui` revision
 and requires catalog discovery, component docs, installed-type checks and actual
 interaction testing. Use the unified Pro MCP for Pro-specific controls. Central
 baseline PR https://github.com/payloadbay/.github/pull/28 stays library-neutral
-and uses the existing AGENTS distribution path; it has not been merged/applied.
+and uses the existing AGENTS distribution path. It was merged as `ae400620`; distribution is owned by the baseline workflow.
 
 References:
 

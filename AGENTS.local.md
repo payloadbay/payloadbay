@@ -101,11 +101,9 @@ Read additional material only when the task requires it:
 
 ## Dashboard source organization
 
-Before implementing UI, inspect HeroUI's component catalog and the documentation
-for the matching interaction. Prefer purpose-built controls (for example InputOTP
-for sign-in codes), use secondary fields on surfaces, and verify the installed
-package types as well as the docs. Check actual desktop/mobile behavior before
-publishing; a successful HTTP response alone is not a functional UI check.
+For web UI, follow `apps/web/AGENTS.md`, which links the project-scoped official
+HeroUI skill and the required design, styling, composition and interaction review.
+The central baseline owns the library-neutral UI review rule.
 
 Page-specific presentation and state live directly in that route's `page.tsx`.
 Use a client page when it owns browser interaction; do not extract a one-use
@@ -147,8 +145,10 @@ Workers, executors and other Node tooling use the corresponding `@payloadbay/*`
 workspace exports so production Node resolves them without an alias loader.
 Do not traverse parent directories in web application imports.
 
-Async action success/error feedback must use HeroUI toasts. Do not render inline
-success/error boxes. Keep field validation and code diagnostics associated with
+Use bottom-positioned HeroUI toasts for action failures and completion feedback
+that is not already clear from the resulting view. Normal flow transitions, such
+as email entry advancing to OTP entry, communicate through the next step rather
+than a success toast. Do not render inline success/error boxes. Keep field validation and code diagnostics associated with
 inputs; loading/empty/unavailable views and the durable notification inbox are
 separate product states. Test-only SQL under tests/fixtures/schema-history is not
 release migration history; CI owns packages/domain/drizzle artifacts.
