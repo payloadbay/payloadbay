@@ -20,11 +20,10 @@ export function AuthPanel({ setup = false, preview = false }: { setup?: boolean;
 	const [sent, setSent] = useState(false);
 	const [busy, setBusy] = useState(setup);
 	const [error, setError] = useState("");
-	const [status, setStatus] = useState<string>("");
 	const [available, setAvailable] = useState(!setup);
 	const [configured, setConfigured] = useState(false);
 
-	useFeedbackToast(error, status, { error: "Authentication error", success: "Authentication status" });
+	useFeedbackToast(error, "", { error: "Could not sign in" });
 
 	async function check() {
 		try {
@@ -89,7 +88,6 @@ export function AuthPanel({ setup = false, preview = false }: { setup?: boolean;
 
 		setSent(true);
 		setOtp("");
-		setStatus("If this email is eligible, a sign-in code is on its way. The code expires in five minutes.");
 	}
 
 	async function submit(event: FormEvent<HTMLFormElement>) {
@@ -129,8 +127,18 @@ export function AuthPanel({ setup = false, preview = false }: { setup?: boolean;
 			</Link>
 			<Card className='w-full gap-6 p-6 sm:p-8'>
 				<Card.Header className='items-center gap-2 text-center'>
-					<h1 className='text-2xl font-semibold'>{setup ? "Set up Payload Bay" : "Welcome back"}</h1>
-					<Card.Description>{setup ? "Create the first instance owner with your installation setup secret." : "Sign in with a code sent to your email. No password required."}</Card.Description>
+					<h1 className='text-2xl font-semibold'>{sent ? "Check your email" : setup ? "Set up Payload Bay" : "Welcome back"}</h1>
+					<Card.Description>
+						{sent ? (
+							<>
+								Enter the six-digit code sent to <strong className='text-foreground break-all font-medium'>{email}</strong>. It expires in five minutes.
+							</>
+						) : setup ? (
+							"Create the first instance owner with your installation setup secret."
+						) : (
+							"Sign in with a code sent to your email. No password required."
+						)}
+					</Card.Description>
 				</Card.Header>
 				<Card.Content className='flex flex-col gap-6'>
 					{setup && (
@@ -184,11 +192,13 @@ export function AuthPanel({ setup = false, preview = false }: { setup?: boolean;
 									</TextField>
 								</>
 							)}
-							<TextField name='email' type='email' value={email} onChange={setEmail} isRequired isReadOnly={sent} maxLength={254}>
-								<Label>Email address</Label>
-								<Input variant='secondary' autoComplete='email' />
-								<FieldError />
-							</TextField>
+							{!sent && (
+								<TextField name='email' type='email' value={email} onChange={setEmail} isRequired maxLength={254}>
+									<Label>Email address</Label>
+									<Input variant='secondary' autoComplete='email' />
+									<FieldError />
+								</TextField>
+							)}
 							{sent && (
 								<div className='flex flex-col gap-2'>
 									<Label htmlFor='sign-in-code'>Sign-in code</Label>
@@ -220,7 +230,7 @@ export function AuthPanel({ setup = false, preview = false }: { setup?: boolean;
 										isDisabled={busy}
 										onPress={() => {
 											setSent(false);
-											setStatus("");
+											setOtp("");
 											setError("");
 										}}
 									>

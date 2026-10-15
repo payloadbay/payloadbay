@@ -1,10 +1,9 @@
 "use client";
 
 import { useFeedbackToast } from "@lib/feedback";
-import Link from "next/link";
 import { useState, type FormEvent } from "react";
-import { Button, Card, Form, TextField, Label, Input, FieldError } from "@heroui/react";
-import { EmptyState } from "@heroui-pro/react";
+import { Button, Card, Form, TextField, Label, Input, FieldError, Table } from "@heroui/react";
+import { EmptyState, NativeSelect } from "@heroui-pro/react";
 import { IconFolderPlus, IconArrowRight } from "@tabler/icons-react";
 import { useDashboard } from "@components/dashboard-shell";
 import { api } from "@lib/api-client";
@@ -55,9 +54,8 @@ export default function DashboardPage() {
 		<section className='flex flex-col gap-6'>
 			<header className='flex flex-wrap items-start justify-between gap-4'>
 				<div>
-					<p className='text-muted text-sm'>Organize your delivery infrastructure</p>
 					<h1 className='text-3xl font-semibold'>Projects</h1>
-					<p className='text-muted mt-2'>Receive events, keep their history, and deliver them when your applications are ready.</p>
+					<p className='text-muted mt-2'>Choose a project to manage its routes and events.</p>
 				</div>
 				<div className='flex gap-2'>
 					{canWorkspace && (
@@ -74,17 +72,18 @@ export default function DashboardPage() {
 				</div>
 			</header>
 			{workspaces.length > 0 && (
-				<label className='flex max-w-sm flex-col gap-2 text-sm'>
-					Workspace
-					<select aria-label='Workspace' className='border-border bg-field rounded-lg border px-3 py-2' value={filter} onChange={(e) => setFilter(e.target.value)}>
-						<option value=''>All accessible projects</option>
+				<NativeSelect className='max-w-sm' fullWidth>
+					<Label htmlFor='workspace-filter'>Workspace</Label>
+					<NativeSelect.Trigger id='workspace-filter' aria-label='Workspace' value={filter} onChange={(e) => setFilter(e.target.value)}>
+						<NativeSelect.Option value=''>All accessible projects</NativeSelect.Option>
 						{workspaces.map((w) => (
-							<option key={w.id} value={w.id}>
+							<NativeSelect.Option key={w.id} value={w.id}>
 								{w.name}
-							</option>
+							</NativeSelect.Option>
 						))}
-					</select>
-				</label>
+						<NativeSelect.Indicator />
+					</NativeSelect.Trigger>
+				</NativeSelect>
 			)}
 			{form && (
 				<Card className='max-w-lg'>
@@ -94,16 +93,17 @@ export default function DashboardPage() {
 					<Card.Content>
 						<Form className='flex flex-col gap-4' onSubmit={create}>
 							{form === "project" && (
-								<label className='flex flex-col gap-2'>
-									Workspace
-									<select aria-label='Project workspace' required value={workspace} onChange={(e) => setWorkspace(e.target.value)} className='border-border bg-field rounded-lg border p-2'>
+								<NativeSelect variant='secondary' fullWidth>
+									<Label htmlFor='project-workspace'>Workspace</Label>
+									<NativeSelect.Trigger id='project-workspace' aria-label='Project workspace' required value={workspace} onChange={(e) => setWorkspace(e.target.value)}>
 										{owned.map((w) => (
-											<option key={w.id} value={w.id}>
+											<NativeSelect.Option key={w.id} value={w.id}>
 												{w.name}
-											</option>
+											</NativeSelect.Option>
 										))}
-									</select>
-								</label>
+										<NativeSelect.Indicator />
+									</NativeSelect.Trigger>
+								</NativeSelect>
 							)}
 							<TextField
 								isRequired
@@ -142,24 +142,32 @@ export default function DashboardPage() {
 				</Card>
 			)}
 			{visible.length ? (
-				<div className='grid gap-4 md:grid-cols-2 xl:grid-cols-3'>
-					{visible.map((project) => (
-						<Card key={project.id}>
-							<Card.Header>
-								<h2 className='text-lg font-semibold'>
-									<Link href={"/projects/" + project.id}>{project.name}</Link>
-								</h2>
-								<Card.Description>{project.slug}</Card.Description>
-							</Card.Header>
-							<Card.Footer>
-								<Link className='text-accent flex items-center gap-2 text-sm' href={"/projects/" + project.id}>
-									Open project
-									<IconArrowRight size={16} aria-hidden='true' />
-								</Link>
-							</Card.Footer>
-						</Card>
-					))}
-				</div>
+				<Table>
+					<Table.ScrollContainer>
+						<Table.Content aria-label='Projects' className='w-full table-fixed'>
+							<Table.Header>
+								<Table.Column isRowHeader>Project</Table.Column>
+								<Table.Column className='hidden sm:table-cell'>Workspace</Table.Column>
+								<Table.Column aria-label='Open project' className='w-12' />
+							</Table.Header>
+							<Table.Body items={visible}>
+								{(project) => (
+									<Table.Row id={project.id} href={"/projects/" + project.id}>
+										<Table.Cell>
+											<span className='block break-all font-medium'>{project.name}</span>
+											<span className='text-muted mt-1 block text-xs sm:hidden'>{workspaces.find((workspace) => workspace.id === project.workspace_id)?.name ?? "Workspace"}</span>
+											<span className='text-muted mt-1 hidden text-xs sm:block'>{project.slug}</span>
+										</Table.Cell>
+										<Table.Cell className='hidden sm:table-cell'>{workspaces.find((workspace) => workspace.id === project.workspace_id)?.name ?? "Workspace"}</Table.Cell>
+										<Table.Cell>
+											<IconArrowRight size={18} aria-hidden='true' />
+										</Table.Cell>
+									</Table.Row>
+								)}
+							</Table.Body>
+						</Table.Content>
+					</Table.ScrollContainer>
+				</Table>
 			) : (
 				<EmptyState className='border-border rounded-xl border border-dashed py-12'>
 					<EmptyState.Header>

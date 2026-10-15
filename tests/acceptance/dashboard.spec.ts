@@ -47,7 +47,7 @@ test("U61 setup and login use real SMTP codes", async ({ page, request }) => {
 	await page.getByRole("button", { name: "Send sign-in code", exact: true }).click();
 	await page.getByLabel("Sign-in code").fill(await code());
 	await page.getByRole("button", { name: "Create owner and continue" }).click();
-	await expect(page).toHaveURL(/\/dashboard$/);
+	await expect(page).toHaveURL(/\/$/);
 	const me = await page.request.get("/api/v1/me");
 	expect(me.status()).toBe(200);
 	expect((await me.json()).user.email).toBe("browser@example.test");
@@ -57,7 +57,7 @@ test("U61 setup and login use real SMTP codes", async ({ page, request }) => {
 	await page.getByRole("button", { name: "Send sign-in code", exact: true }).click();
 	await page.getByLabel("Sign-in code").fill(await code(1));
 	await page.getByRole("button", { name: "Sign in", exact: true }).click();
-	await expect(page).toHaveURL(/\/dashboard$/);
+	await expect(page).toHaveURL(/\/$/);
 	expect((await page.request.get("/api/v1/me")).status()).toBe(200);
 });
 
@@ -94,9 +94,9 @@ test("U62 dashboard hides projects outside inherited access", async ({ page }) =
 	}
 
 	await signInBrowser(page, "viewer@example.test");
-	await page.goto("/dashboard");
+	await page.goto("/");
 	await expect(page.getByRole("heading", { name: "Projects", exact: true })).toBeVisible();
-	await expect(page.getByRole("heading", { name: "Visible project" })).toBeVisible();
+	await expect(page.getByRole("row", { name: /Visible project/ })).toBeVisible();
 	await expect(page.getByText("Hidden project", { exact: true })).toHaveCount(0);
 	await expect(page.getByRole("button", { name: "Create workspace" })).toHaveCount(0);
 	await expect(page.getByRole("button", { name: "Create project" })).toHaveCount(0);
@@ -344,7 +344,7 @@ test("U275 stored event appears through authenticated live updates", async ({ pa
 test("U276 administrator opens and personally dismisses runtime advice", async ({ page }) => {
 	const { ensureBrowserOwner } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
-	await page.goto("/dashboard");
+	await page.goto("/");
 	await expect(page.getByRole("button", { name: "Notifications", exact: true }), "Notification inbox must be available").toBeVisible();
 	await page.getByRole("button", { name: "Notifications", exact: true }).click();
 	await expect(page.getByRole("heading", { name: "Scripts use ordinary Docker containment", exact: true })).toBeVisible();

@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { Toast, toast } from "@heroui/react";
 
 export function ToastHost() {
-	return <Toast.Provider placement='top end' />;
+	return <Toast.Provider placement='bottom' style={{ bottom: "calc(1rem + env(safe-area-inset-bottom, 0px))" }} />;
 }
 
 export function useFeedbackToast(error: string, success: string = "", titles: { error?: string; success?: string } = {}) {
