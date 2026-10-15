@@ -195,6 +195,18 @@ export default function EventsPage({ params }: { params: Promise<{ projectId: st
 	}
 
 	if (loading) return <p role='status'>Loading events…</p>;
+	if (error && !project)
+		return (
+			<EmptyState>
+				<EmptyState.Header>
+					<EmptyState.Title>Events unavailable</EmptyState.Title>
+					<EmptyState.Description>Your events could not be loaded. Retry to reconnect.</EmptyState.Description>
+				</EmptyState.Header>
+				<Button variant='secondary' onPress={() => void load()}>
+					Retry loading events
+				</Button>
+			</EmptyState>
+		);
 
 	return (
 		<section className='flex flex-col gap-6'>

@@ -19,6 +19,7 @@ type Notice = {
 export function NotificationInbox({ scope, label = "Notifications" }: { scope: Scope; label?: string }) {
 	const [open, setOpen] = useState(false);
 	const [items, setItems] = useState<Notice[]>([]);
+	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState("");
 	const [busy, setBusy] = useState<string | null>(null);
 
@@ -29,11 +30,16 @@ export function NotificationInbox({ scope, label = "Notifications" }: { scope: S
 	const receive = useCallback((items: Notice[]) => {
 		setItems(items);
 		setError("");
+		setLoading(false);
 	}, []);
 
-	const failed = useCallback((cause: unknown) => setError(cause instanceof Error ? cause.message : "Notifications unavailable"), []);
+	const failed = useCallback((cause: unknown) => {
+		setError(cause instanceof Error ? cause.message : "Notifications unavailable");
+		setLoading(false);
+	}, []);
 
 	const load = useCallback(async () => {
+		setLoading(true);
 		try {
 			receive(await fetchData());
 		} catch (cause) {
@@ -97,7 +103,18 @@ export function NotificationInbox({ scope, label = "Notifications" }: { scope: S
 								<p className='text-muted text-sm'>Notices for this scope. Dismissal applies to your account.</p>
 							</Sheet.Header>
 							<Sheet.Body className='flex flex-col gap-4'>
-								{items.length === 0 && !error && <p className='text-muted'>No active notifications.</p>}
+								{loading ? (
+									<p role='status'>Loading notifications…</p>
+								) : error ? (
+									<div className='flex flex-col items-start gap-3'>
+										<p>Notifications unavailable.</p>
+										<Button variant='secondary' onPress={() => void load()}>
+											Retry loading notifications
+										</Button>
+									</div>
+								) : (
+									items.length === 0 && <p className='text-muted'>No active notifications.</p>
+								)}
 								{items.map((item) => (
 									<article key={item.id} className='border-border rounded-lg border p-4'>
 										<h3 className='font-semibold'>{item.subject}</h3>

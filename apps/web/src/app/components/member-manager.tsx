@@ -91,6 +91,18 @@ export function MemberManager({ scope: chosen, held: chosenHeld }: { scope?: Sco
 		};
 	}, [read]);
 
+	async function retry() {
+		setLoading(true);
+		setError("");
+		try {
+			setMembers(await read());
+		} catch (cause) {
+			setError(cause instanceof Error ? cause.message : "Members unavailable");
+		} finally {
+			setLoading(false);
+		}
+	}
+
 	function edit(member: Member) {
 		setEditing(member);
 		setRole(member.role_preset);
@@ -133,6 +145,16 @@ export function MemberManager({ scope: chosen, held: chosenHeld }: { scope?: Sco
 
 			{loading ? (
 				<p role='status'>Loading members…</p>
+			) : error && members.length === 0 ? (
+				<EmptyState>
+					<EmptyState.Header>
+						<EmptyState.Title>Members unavailable</EmptyState.Title>
+						<EmptyState.Description>Membership information could not be loaded.</EmptyState.Description>
+					</EmptyState.Header>
+					<Button variant='secondary' onPress={() => void retry()}>
+						Retry loading members
+					</Button>
+				</EmptyState>
 			) : members.length ? (
 				<div className='grid gap-3 md:grid-cols-2'>
 					{members.map((member) => (

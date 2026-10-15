@@ -11,12 +11,12 @@ test("U60 setup explains service errors and retry recovers", async ({ page }) =>
 	});
 	await page.goto("/setup");
 	await expect(page.getByRole("heading", { name: "Set up Payload Bay" })).toBeVisible();
-	await expect(page.getByRole("alertdialog", { name: "Authentication error", exact: true })).toContainText("Check the database and SMTP configuration");
+	await expect(page.getByRole("alertdialog", { name: "Setup unavailable", exact: true })).toContainText("Check the database and SMTP configuration");
 	unavailable = false;
 	await page.getByRole("button", { name: "Retry setup check" }).click();
 	await expect(page.getByLabel("Your name")).toBeVisible();
 	await expect(page.getByLabel("Setup secret")).toBeVisible();
-	await expect(page.getByRole("alertdialog", { name: "Authentication error", exact: true })).toHaveCount(0);
+	await expect(page.getByRole("alertdialog", { name: "Setup unavailable", exact: true })).toHaveCount(0);
 });
 
 test("U61 setup and login use real SMTP codes", async ({ page, request }) => {

@@ -112,3 +112,67 @@ test("mobile dashboard keeps account actions in the avatar menu and projects in 
 	expect(name).toBe("Updated Reviewer");
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
+
+test.describe("unavailable and empty states", () => {
+	test.beforeEach(async ({ page }) => {
+		const permissions = ["metadata.read", "members.manage", "notifications.read"];
+		await page.route("**/api/v1/me", (route) =>
+			route.fulfill({
+				json: {
+					user: { id: "reviewer", name: "Reviewer", email: "reviewer@example.test" },
+					instanceId: "instance",
+					permissions,
+					roles: {},
+				},
+			}),
+		);
+		await page.route("**/api/v1/workspaces", (route) => route.fulfill({ json: [] }));
+		await page.route("**/api/v1/projects", (route) => route.fulfill({ json: [] }));
+		await page.route("**/api/v1/projects/project", (route) => route.fulfill({ json: { id: "project", name: "Project", permissions } }));
+		await page.route("**/api/v1/notifications?*", (route) => route.fulfill({ json: [] }));
+		await page.route("**/api/v1/changes?*", (route) => route.fulfill({ contentType: "text/event-stream", body: ": connected\n\n" }));
+	});
+
+	test("failed event loading offers retry instead of claiming no events exist", async ({ page }) => {
+		let unavailable = true;
+		await page.route("**/api/v1/projects/project/events", (route) => route.fulfill(unavailable ? { status: 503, json: { error: { code: "unavailable", message: "Service unavailable" } } } : { json: { items: [], nextCursor: null } }));
+		await page.goto("/projects/project/events");
+		await expect(page.getByRole("heading", { name: "Events unavailable", exact: true })).toBeVisible();
+		await expect(page.getByRole("heading", { name: "No events yet", exact: true })).toHaveCount(0);
+		unavailable = false;
+		await page.getByRole("button", { name: "Retry loading events" }).click();
+		await expect(page.getByRole("heading", { name: "No events yet", exact: true })).toBeVisible();
+	});
+
+	test("failed member loading offers retry instead of claiming no members exist", async ({ page }) => {
+		let unavailable = true;
+		await page.route("**/api/v1/members?*", (route) => route.fulfill(unavailable ? { status: 503, json: { error: { code: "unavailable", message: "Service unavailable" } } } : { json: [] }));
+		await page.goto("/admin/members");
+		await expect(page.getByRole("heading", { name: "Members unavailable", exact: true })).toBeVisible();
+		await expect(page.getByRole("heading", { name: "No local members", exact: true })).toHaveCount(0);
+		unavailable = false;
+		await page.getByRole("button", { name: "Retry loading members" }).click();
+		await expect(page.getByRole("heading", { name: "No local members", exact: true })).toBeVisible();
+	});
+
+	test("notification inbox distinguishes pending, unavailable and genuinely empty", async ({ page }) => {
+		let release!: () => void;
+		const pending = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		let unavailable = true;
+		await page.route("**/api/v1/notifications?*", async (route) => {
+			await pending;
+			await route.fulfill(unavailable ? { status: 503, json: { error: { code: "unavailable", message: "Service unavailable" } } } : { json: [] });
+		});
+		await page.goto("/");
+		await page.getByRole("button", { name: "Notifications", exact: true }).click();
+		await expect(page.getByText("Loading notifications…", { exact: true })).toBeVisible();
+		await expect(page.getByText("No active notifications.", { exact: true })).toHaveCount(0);
+		release();
+		await expect(page.getByText("Notifications unavailable.", { exact: true })).toBeVisible();
+		unavailable = false;
+		await page.getByRole("button", { name: "Retry loading notifications" }).click();
+		await expect(page.getByText("No active notifications.", { exact: true })).toBeVisible();
+	});
+});

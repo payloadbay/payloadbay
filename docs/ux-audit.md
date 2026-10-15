@@ -17,13 +17,13 @@ management operation has passed end-to-end browser acceptance.
 - Scannable project table, with workspace detail collapsed into the project cell on mobile, and HeroUI Pro NativeSelect workspace filters.
 - Project-local official HeroUI skill and web instructions; central library-neutral AGENTS baseline PR.
 
+- Event and member initial-load failures now show unavailable/retry instead of false empty states.
+- Notification inbox distinguishes initial loading, unavailable/retry, and a successful empty response.
+
 ## Remaining findings
 
 | Priority | Source | Finding and recommended change |
 | --- | --- | --- |
-| High | `apps/web/src/app/(dashboard)/projects/[projectId]/events/page.tsx` | Initial fetch failure ends loading but falls through to “No events yet.” Distinguish unavailable/retry from successfully empty; preserve loaded events on refresh errors. |
-| High | `apps/web/src/app/components/member-manager.tsx` | Initial loading failure can fall through to “No local members.” Use unavailable/retry instead of implying no grants exist. |
-| Medium | `apps/web/src/app/components/notification-inbox.tsx` | Empty array renders “No active notifications” before the initial fetch resolves. Add initial loading and unavailable/retry states. |
 | Medium | Code/middleware, shared/secret bindings, notification rules and route test forms | Hand-styled native selects, number fields, checkbox and textareas bypass matching HeroUI controls. Review Select/NativeSelect, NumberField, Checkbox/Switch, TextArea and TextField per interaction. Native elements are not inherently inaccessible; preserve constraints and controlled behavior during replacement. |
 | Medium | `apps/web/src/app/components/shared-bindings.tsx` and route/replay controls | Short internal IDs and implementation terms often carry primary context. Lead with resource names and plain-language outcomes, keeping IDs in secondary details. |
 | Medium | `apps/web/src/app/components/secret-bindings.tsx` | Unsaved binding changes are announced only through an expiring toast. Show persistent unsaved/published state near editor actions. |

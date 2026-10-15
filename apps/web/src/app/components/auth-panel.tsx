@@ -23,7 +23,7 @@ export function AuthPanel({ setup = false, preview = false }: { setup?: boolean;
 	const [available, setAvailable] = useState(!setup);
 	const [configured, setConfigured] = useState(false);
 
-	useFeedbackToast(error, "", { error: "Could not sign in" });
+	useFeedbackToast(error, "", { error: setup ? "Setup unavailable" : "Could not sign in" });
 
 	async function check() {
 		try {
