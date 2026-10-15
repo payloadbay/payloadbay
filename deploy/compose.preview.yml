@@ -1,7 +1,7 @@
 # PR-only source builds. Operator releases use published images instead.
 x-runtime: &runtime
   IS_PREVIEW: "true"
-  DATABASE_URL: postgres://payloadbay:${POSTGRES_PASSWORD:?}@postgres:5432/payloadbay
+  DATABASE_URL: postgres://payloadbay:${POSTGRES_PASSWORD:?}@${SERVICE_NAME_POSTGRES:-postgres}:5432/payloadbay
   PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3000}
   COOLIFY_URL: ${COOLIFY_URL:-}
   COOLIFY_RESOURCE_UUID: ${COOLIFY_RESOURCE_UUID:-}
@@ -11,9 +11,9 @@ x-runtime: &runtime
   PAYLOADBAY_BOOTSTRAP_SECRET: ${PAYLOADBAY_BOOTSTRAP_SECRET:?}
   PAYLOADBAY_EXECUTOR_TOKEN: ${PAYLOADBAY_EXECUTOR_TOKEN:?}
   PAYLOADBAY_BROKER_SECRET: ${PAYLOADBAY_BROKER_SECRET:?}
-  EXECUTOR_URL: http://executor:8080
+  EXECUTOR_URL: http://${SERVICE_NAME_EXECUTOR:-executor}:8080
   PAYLOADBAY_EXECUTOR_RUNTIME: ${PAYLOADBAY_EXECUTOR_RUNTIME:-runc}
-  SMTP_HOST: smtp
+  SMTP_HOST: ${SERVICE_NAME_SMTP:-smtp}
   SMTP_PORT: 1025
   SMTP_SECURE: "false"
   SMTP_FROM: Payload Bay Preview <preview@example.invalid>
@@ -70,7 +70,7 @@ services:
     environment:
       PAYLOADBAY_EXECUTOR_TOKEN: ${PAYLOADBAY_EXECUTOR_TOKEN:?}
       PAYLOADBAY_EXECUTOR_RUNTIME: ${PAYLOADBAY_EXECUTOR_RUNTIME:-runc}
-      PAYLOADBAY_BROKER_URL: http://worker:8081/broker
+      PAYLOADBAY_BROKER_URL: http://${SERVICE_NAME_WORKER:-worker}:8081/broker
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 5s
