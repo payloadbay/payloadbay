@@ -4,6 +4,15 @@ Follow the organization [contribution guidelines](https://github.com/payloadbay/
 for issues, branches, pull requests, review and AI disclosure. This repository
 adds the following preview testing guidance.
 
+## Preview deployment approval
+
+Maintainer/team PRs deploy automatically under Coolify's repository-members-only
+policy. External PRs need a maintainer to inspect the current commit and explicitly
+trigger its preview in Coolify. New commits must be reviewed before another
+maintainer-triggered deployment. Approval concerns running submitted code, not
+who may functionally review the resulting preview. No custom approval service is
+required.
+
 ## Disposable PR demos
 
 Each PR preview has its own PostgreSQL container and synthetic dataset. The

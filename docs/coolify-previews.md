@@ -22,6 +22,19 @@ The native `/mcp` connection supports inspection and deployment operations.
 REST was explicitly authorized for project/application configuration that the
 installed MCP server does not expose. Credentials remain outside the repository.
 
+## Current deployment policy
+
+Confirmed on 2026-10-15: automatic previews are restricted to Coolify's trusted
+repository members (owners, members and collaborators). Public/fork automatic
+PR deployment is disabled. An external contributor's PR requires a maintainer
+to review the exact current commit and explicitly deploy it through Coolify's
+Preview Deployments controls. Review new commits before redeploying them.
+
+Coolify's setting is a deployment restriction, not a queued approval system.
+External authors do not receive automatic build access after opening a PR.
+Reviewers can still use a deployed preview without GitHub maintainer membership.
+No n8n gate, package proxy or custom image pipeline is being introduced.
+
 ## Preview build strategy
 
 PR previews build application, worker and executor images directly from the

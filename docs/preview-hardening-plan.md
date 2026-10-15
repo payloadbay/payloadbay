@@ -3,6 +3,16 @@
 Confirmed direction, 2026-10-14. This is an implementation plan, not evidence
 that the current preview is hardened or that its remote deployment is healthy.
 
+## Policy update: 2026-10-15
+
+The maintainer selected Coolify's native restricted automatic deployments:
+repository owners/members/collaborators may auto-deploy; other PRs require a
+maintainer-reviewed explicit preview deployment for the current commit.
+Public automatic PR deployments are disabled. This supersedes the automatic
+untrusted-build goal below. Dependency images, proxies, n8n gates and a custom
+build/publish pipeline are deferred proposals, not agreed implementation work.
+Runtime isolation, disposable data and preview warnings remain relevant.
+
 ## Goal
 
 Anyone, including a PR author or first-time contributor on a phone, can test the
