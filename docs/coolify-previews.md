@@ -38,8 +38,10 @@ No n8n gate, package proxy or custom image pipeline is being introduced.
 ## Preview build strategy
 
 PR previews build application, worker and executor images directly from the
-checked-out PR branch using `deploy/compose.preview.yml`. No published Payload
-Bay images or merge into master is required. Clipify's separate preview Dockerfile
+checked-out PR branch. Coolify v4.4.6 separately loads
+`deploy/compose.preview.yml` from master, so the bootstrap Compose file must exist
+on master; Dockerfiles and application code remain in the PR checkout. No published Payload
+Bay images are required. Clipify's separate preview Dockerfile
 uses the same source-build approach. Prebuilt images remain the operator release
 interface, not a preview prerequisite.
 
@@ -108,3 +110,26 @@ credential is separate from GitHub roles and never committed. The chosen goal is
 Before privileged access is distributed publicly, sandbox, preview egress and
 resource limits still require verification. The current mail credential is a
 temporary access control, not the final public demo experience.
+
+
+## Compose build interpolation
+
+Coolify builds using `/artifacts/build-time.env`, then supplies the runtime
+environment when starting services. Compose still interpolates service environment
+values during `build`, even though the Dockerfiles do not consume them. Keep real
+runtime keys runtime-only. The preview custom build command is:
+
+```sh
+docker compose --project-directory deploy --env-file /artifacts/build-time.env --env-file deploy/preview.build.env build --pull
+```
+
+`deploy/preview.build.env` contains nonsecret parsing placeholders only; never use
+that file for `up`. Coolify injects the Compose file path itself. The explicit
+project directory preserves repository-root build contexts from this Compose
+file. HeroUI remains a separate BuildKit secret. App and Mailpit service domains
+are now configured; successful deployment and browser routing remain unverified.
+
+The first remote source build reached image building: worker and executor images
+completed, while HeroUI Pro installation failed with an opaque vendor CLI error.
+The build-only fetch diagnostic reports HTTP status codes without request headers,
+URLs, response bodies or original credential-bearing error objects.
