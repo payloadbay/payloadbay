@@ -131,5 +131,6 @@ are now configured; successful deployment and browser routing remain unverified.
 
 The first remote source build reached image building: worker and executor images
 completed, while HeroUI Pro installation failed with an opaque vendor CLI error.
-The build-only fetch diagnostic reports HTTP status codes without request headers,
-URLs, response bodies or original credential-bearing error objects.
+The operator confirmed that `HEROUI_AUTH_TOKEN` contains the HeroUI dashboard
+CI/CD token. The installer failure is not yet diagnosed; do not assume a wrong
+token type from the opaque error. No custom installer diagnostics are retained.
