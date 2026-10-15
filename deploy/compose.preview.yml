@@ -1,0 +1,111 @@
+# PR-only source builds. Operator releases use published images instead.
+x-runtime: &runtime
+  IS_PREVIEW: "true"
+  DATABASE_URL: postgres://payloadbay:${POSTGRES_PASSWORD:?}@postgres:5432/payloadbay
+  PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3000}
+  COOLIFY_URL: ${COOLIFY_URL:-}
+  COOLIFY_RESOURCE_UUID: ${COOLIFY_RESOURCE_UUID:-}
+  COOLIFY_CONTAINER_NAME: ${COOLIFY_CONTAINER_NAME:-}
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
+  PAYLOADBAY_ENCRYPTION_KEY: ${PAYLOADBAY_ENCRYPTION_KEY:?}
+  PAYLOADBAY_BOOTSTRAP_SECRET: ${PAYLOADBAY_BOOTSTRAP_SECRET:?}
+  PAYLOADBAY_EXECUTOR_TOKEN: ${PAYLOADBAY_EXECUTOR_TOKEN:?}
+  PAYLOADBAY_BROKER_SECRET: ${PAYLOADBAY_BROKER_SECRET:?}
+  EXECUTOR_URL: http://executor:8080
+  PAYLOADBAY_EXECUTOR_RUNTIME: ${PAYLOADBAY_EXECUTOR_RUNTIME:-runc}
+  SMTP_HOST: smtp
+  SMTP_PORT: 1025
+  SMTP_SECURE: "false"
+  SMTP_FROM: Payload Bay Preview <preview@example.invalid>
+
+x-restricted: &restricted
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs: ["/tmp:size=67108864,mode=1777"]
+  pids_limit: 128
+  mem_limit: 1g
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:17-bookworm@sha256:3645570cccdfa447589da9f57dd740faa29b30938e861289a5574b6ca6b03826
+    environment:
+      POSTGRES_USER: payloadbay
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: payloadbay
+    tmpfs: ["/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U payloadbay -d payloadbay"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+  smtp:
+    expose: ["8025"]
+    environment:
+      MP_UI_AUTH: ${PREVIEW_MAIL_AUTH:?}
+    image: axllent/mailpit:v1.30.2@sha256:37a38e48e9338cd7e89dfeb487f37b02ebfcd9cb23111bed2d345e79d37d6dd6
+    restart: unless-stopped
+  schema:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.app
+      target: preview-schema
+      secrets: [heroui_auth_token]
+    environment:
+      <<: *runtime
+      NODE_ENV: development
+    command: ["sh", "-c", "node --import tsx scripts/database/push.ts && node --import tsx scripts/preview/seed.ts"]
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+  executor:
+    <<: *restricted
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.executor
+      target: runner
+    runtime: ${PAYLOADBAY_EXECUTOR_RUNTIME:-runc}
+    environment:
+      PAYLOADBAY_EXECUTOR_TOKEN: ${PAYLOADBAY_EXECUTOR_TOKEN:?}
+      PAYLOADBAY_EXECUTOR_RUNTIME: ${PAYLOADBAY_EXECUTOR_RUNTIME:-runc}
+      PAYLOADBAY_BROKER_URL: http://worker:8081/broker
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  worker:
+    <<: *restricted
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.worker
+    environment: *runtime
+    depends_on:
+      schema: {condition: service_completed_successfully}
+      executor: {condition: service_healthy}
+      smtp: {condition: service_started}
+  app:
+    <<: *restricted
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.app
+      target: app
+      secrets: [heroui_auth_token]
+    environment: *runtime
+    expose: ["3000"]
+    depends_on:
+      schema: {condition: service_completed_successfully}
+      executor: {condition: service_healthy}
+      worker: {condition: service_started}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+secrets:
+  heroui_auth_token:
+    environment: HEROUI_AUTH_TOKEN
