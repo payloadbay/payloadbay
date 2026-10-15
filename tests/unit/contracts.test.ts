@@ -253,3 +253,18 @@ test("U319 base URL follows Clipify Coolify runtime precedence", () => {
 	expect(new URL(readServerConfig({ ...serverEnv, PUBLIC_URL: "localhost:4000" }).publicUrl).origin).toBe("http://localhost:4000");
 	expect(new URL(readServerConfig({ ...serverEnv, PUBLIC_URL: undefined, COOLIFY_URL: "preview.example.test:3000" }).publicUrl).origin).toBe("https://preview.example.test");
 });
+
+test("editable ingress dispatches named HTTP methods and reports unsupported methods", async () => {
+	const compiled = await compile({
+		stage: "ingress",
+		body: `export async function GET(ctx: IngressContext): Promise<IngressDecision> { return ctx.respondOnly({status:200,body:"ready"}); }
+export async function POST(ctx: IngressContext): Promise<IngressDecision> { return ctx.accept({event:{body:ctx.request.body,contentType:ctx.request.contentType},response:{status:202,body:"queued"}}); }`,
+	});
+	const module = await import("data:text/javascript;base64," + Buffer.from(compiled.bundle).toString("base64"));
+
+	const response = (value: unknown) => value;
+
+	expect(await module.default({ request: { method: "GET" }, respondOnly: response })).toEqual({ status: 200, body: "ready" });
+	expect(await module.default({ request: { method: "DELETE" }, respondOnly: response })).toEqual({ status: 405, headers: { allow: "GET, POST" }, body: "Method not allowed" });
+	expect(await module.default({ request: { method: "POST", body: "event", contentType: "text/plain" }, accept: response })).toEqual({ event: { body: "event", contentType: "text/plain" }, response: { status: 202, body: "queued" } });
+});

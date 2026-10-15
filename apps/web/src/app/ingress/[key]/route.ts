@@ -18,3 +18,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ key
 		run: (options: Parameters<typeof executeSource>[1]) => executeSource(config, options),
 	});
 }
+
+// Provider scripts decide whether a method is accepted, rejected or challenge-only.
+export const GET = POST;
+
+export const PUT = POST;
+
+export const PATCH = POST;
+
+export const DELETE = POST;
+
+export const HEAD = POST;
+
+export const OPTIONS = POST;

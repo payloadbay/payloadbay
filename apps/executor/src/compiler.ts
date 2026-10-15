@@ -66,8 +66,38 @@ export async function compile(input: unknown) {
 	const ctxType = stage === "ingress_middleware" ? "IngressMiddlewareContext" : stage === "processing_middleware" ? "ProcessingMiddlewareContext" : stage === "ingress" ? "IngressContext" : "ProcessingContext";
 	const resultType = stage === "ingress_middleware" ? "IngressMiddlewareDecision" : stage === "processing_middleware" ? "ProcessingMiddlewareDecision" : stage === "ingress" ? "IngressDecision" : "ProcessingDecision";
 	const functionName = stage === "ingress" ? "ingress" : stage === "processing" ? "processEvent" : "middleware";
-	const header = imports + (imports ? "\n" : "") + `export default async function ${functionName}(ctx: ${ctxType}): Promise<${resultType}> {\n`;
-	const generated = header + body + "\n}\n";
+	const parsedBody = ts.createSourceFile("ingress.ts", body, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
+	const httpFile = stage === "ingress" && parsedBody.statements.some((node) => ts.canHaveModifiers(node) && ts.getModifiers(node)?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword));
+	const methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
+	const handlers = httpFile
+		? parsedBody.statements
+				.filter(ts.isFunctionDeclaration)
+				.filter((node) => methods.includes(node.name?.text ?? "") && node.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword))
+				.map((node) => node.name!.text)
+		: [];
+	if (httpFile && (!handlers.length || parsedBody.statements.some((node) => ts.isExportAssignment(node) || (ts.canHaveModifiers(node) && ts.getModifiers(node)?.some((modifier) => modifier.kind === ts.SyntaxKind.DefaultKeyword)))))
+		throw new CompilationError([
+			{
+				sourceId,
+				line: 1,
+				column: 1,
+				severity: "error",
+				code: "http_handlers",
+				message: "Export at least one named HTTP method function (GET, POST, PUT, PATCH, DELETE, HEAD or OPTIONS). Default exports are managed by Payload Bay.",
+			},
+		]);
+	const header = httpFile ? "" : imports + (imports ? "\n" : "") + `export default async function ${functionName}(ctx: ${ctxType}): Promise<${resultType}> {\n`;
+	const dispatch = httpFile
+		? `
+const __payloadbayHandlers: Partial<Record<string, (ctx: IngressContext) => IngressDecision | Promise<IngressDecision>>> = { ${handlers.join(", ")} };
+export default async function __payloadbayIngress(ctx: IngressContext): Promise<IngressDecision> {
+ const handler = __payloadbayHandlers[ctx.request.method.toUpperCase()];
+ if (!handler) return ctx.respondOnly({status:405,headers:{allow:${JSON.stringify(handlers.join(", "))}},body:"Method not allowed"});
+ return await handler(ctx);
+}
+`
+		: "\n}\n";
+	const generated = header + body + dispatch;
 	const source = ts.createSourceFile("body.ts", generated, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
 
 	function inspect(node: ts.Node): void {
@@ -82,7 +112,7 @@ export async function compile(input: unknown) {
 					message: "Unregistered imports are not supported",
 				},
 			]);
-		if (ts.isImportDeclaration(node) && (!ts.isStringLiteral(node.moduleSpecifier) || !bindings.some((key) => node.moduleSpecifier.getText(source) === JSON.stringify("@shared/" + key))))
+		if (ts.isImportDeclaration(node) && (!ts.isStringLiteral(node.moduleSpecifier) || !bindings.some((key) => node.moduleSpecifier.getText(source).slice(1, -1) === "@shared/" + key)))
 			throw new CompilationError([
 				{
 					sourceId,
@@ -130,7 +160,7 @@ export async function compile(input: unknown) {
 	}
 
 	const functions = source.statements.filter(ts.isFunctionDeclaration);
-	if (functions.length !== 1 || functions[0]?.name?.text !== functionName || source.statements.length !== bindings.length + 1)
+	if (!httpFile && (functions.length !== 1 || functions[0]?.name?.text !== functionName || source.statements.length !== bindings.length + 1))
 		throw new CompilationError([
 			{
 				sourceId,

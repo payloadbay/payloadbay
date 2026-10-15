@@ -8,6 +8,7 @@ import { Button, Card, Form, TextField, Label, Input, FieldError, Tabs } from "@
 import { EmptyState, Sheet } from "@heroui-pro/react";
 import { IconCode, IconPlus, IconCopy, IconLock, IconArrowLeft, IconCheck } from "@tabler/icons-react";
 import { formatScript } from "@lib/script-document";
+import { ScriptingGuide } from "@components/scripting-guide";
 import { CodeEditor } from "@components/code-editor";
 import { api, ApiFailure } from "@lib/api-client";
 import { useDashboard } from "@components/dashboard-shell";
@@ -483,6 +484,9 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 										</>
 									)}
 									{tab === "middleware" && origin && <p className='text-muted text-sm'>Local override of {origin.slice(0, 8)}. The parent stays unchanged; this copy replaces it when an affected route is published.</p>}
+									<div className='flex justify-end'>
+										<ScriptingGuide />
+									</div>
 									<CodeEditor
 										label={tab === "modules" ? "Shared helper code" : "Middleware code"}
 										value={body}

@@ -36,7 +36,7 @@ export async function createEndpoint(
 	return transaction(pool, async (db) => {
 		await requirePermission(db, actor, { type: "project", id: input.projectId }, "endpoints.configure");
 		const endpoint = (await db.query("INSERT INTO payloadbay.endpoint(project_id,name,slug,ingress_key,priority) VALUES($1,$2,$3,$4,$5) RETURNING id,name,slug,config_version,ingress_key", [input.projectId, input.name.trim(), input.slug, randomBytes(24).toString("base64url"), input.priority ?? 0])).rows[0];
-		await db.query("INSERT INTO payloadbay.draft(endpoint_id,stage,body) VALUES($1,'ingress',$2),($1,'processing',$3)", [endpoint.id, 'return ctx.reject({status:503,body:"Configure and publish your ingress handler first."});', deliveryTemplate.body]);
+		await db.query("INSERT INTO payloadbay.draft(endpoint_id,stage,body) VALUES($1,'ingress',$2),($1,'processing',$3)", [endpoint.id, 'export async function POST(ctx: IngressContext): Promise<IngressDecision> { return ctx.reject({status:503,body:"Configure and publish your ingress handler first."}); }', deliveryTemplate.body]);
 		await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation,resource_id) VALUES($1,'project',$2,'endpoint.created',$3)", [actor.userId, input.projectId, endpoint.id]);
 
 		return endpoint;

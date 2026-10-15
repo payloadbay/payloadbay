@@ -12,3 +12,10 @@ const verified = await crypto.subtle.verify("HMAC",key,signature,new Uint8Array(
 if (!verified) return ctx.reject({status:401,body:"Invalid signature"});
 return ctx.accept({event:{body:ctx.request.body,contentType:ctx.request.contentType},response:{status:202,body:"Accepted"}});`,
 };
+
+export const hmacHttpTemplate = {
+	...hmacTemplate,
+	source: `export async function POST(ctx: IngressContext): Promise<IngressDecision> {
+${hmacTemplate.body}
+}`,
+};

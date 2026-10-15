@@ -7,12 +7,13 @@ import { Button, Card, Tabs, Accordion, TextArea, Label } from "@heroui/react";
 import { IconArrowLeft, IconCheck, IconUpload, IconPlayerPause, IconPlayerPlay, IconCopy, IconChevronDown } from "@tabler/icons-react";
 import { NativeSelect } from "@heroui-pro/react";
 import { formatScript } from "@lib/script-document";
+import { ScriptingGuide } from "@components/scripting-guide";
 import { CodeEditor } from "@components/code-editor";
 import { SharedBindings } from "@components/shared-bindings";
 import { SecretBindings } from "@components/secret-bindings";
 import { api, ApiFailure } from "@lib/api-client";
-import { hmacTemplate } from "@sdk/templates/hmac";
-import { unverifiedTemplate } from "@sdk/templates/unverified";
+import { hmacHttpTemplate } from "@sdk/templates/hmac";
+import { unverifiedHttpTemplate } from "@sdk/templates/unverified";
 import { deliveryTemplate } from "@sdk/templates/delivery";
 import type { CompilationDiagnostic } from "@contracts/compilation";
 import type { Permission } from "@contracts/permissions";
@@ -142,7 +143,7 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 
 	async function change(body: string) {
 		try {
-			body = await formatScript(body, stage);
+			body = await formatScript(body, stage === "ingress" ? undefined : stage);
 		} catch (cause) {
 			failed(cause);
 
@@ -160,7 +161,7 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 		setError("");
 		setDiagnostics([]);
 		try {
-			const formatted = await formatScript(drafts[stage].body, stage, drafts[stage].shared_bindings);
+			const formatted = await formatScript(drafts[stage].body, stage === "ingress" ? undefined : stage, drafts[stage].shared_bindings);
 			const saved = await api<Draft>("/endpoints/" + endpointId + "/drafts/" + stage, { method: "PATCH", version: drafts[stage].version, json: { body: formatted, sharedBindings: drafts[stage].shared_bindings, secretBindings: drafts[stage].secret_bindings } });
 			setDrafts((previous) => (previous ? { ...previous, [stage]: saved } : previous));
 			setSavedDrafts((previous) => (previous ? { ...previous, [stage]: saved } : previous));
@@ -181,7 +182,7 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 		try {
 			let saved: Record<Stage, Draft> = { ...drafts };
 			for (const slot of ["ingress", "processing"] as const) {
-				const formatted = await formatScript(drafts[slot].body, slot, drafts[slot].shared_bindings);
+				const formatted = await formatScript(drafts[slot].body, slot === "ingress" ? undefined : slot, drafts[slot].shared_bindings);
 				const value = await api<Draft>("/endpoints/" + endpointId + "/drafts/" + slot, { method: "PATCH", version: drafts[slot].version, json: { body: formatted, sharedBindings: drafts[slot].shared_bindings, secretBindings: drafts[slot].secret_bindings } });
 				saved = { ...saved, [slot]: value };
 				setDrafts((previous) => (previous ? { ...previous, [slot]: value } : previous));
@@ -341,8 +342,8 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 											defaultValue=''
 											onChange={(event) => {
 												const selected = event.target.value;
-												if (selected === "hmac") void change(hmacTemplate.body);
-												else if (selected === "unverified") void change(unverifiedTemplate.body);
+												if (selected === "hmac") void change(hmacHttpTemplate.source);
+												else if (selected === "unverified") void change(unverifiedHttpTemplate.source);
 												else if (selected === "delivery") void change(deliveryTemplate.body);
 												event.target.value = "";
 											}}
@@ -362,11 +363,15 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 								)}
 							</div>
 							<div className='min-w-0'>
+								<div className='mb-3 flex flex-wrap items-center justify-between gap-2'>
+									<p className='text-muted max-w-prose text-sm'>{slot === "ingress" ? "Export a handler for each HTTP method you want this route to receive. Choose whether to queue the event or just reply." : "Process queued events and decide whether delivery is complete, should retry, or has failed."}</p>
+									<ScriptingGuide />
+								</div>
 								<CodeEditor
 									key={slot}
 									label={slot === "ingress" ? "Ingress code" : "Processing code"}
 									value={drafts[slot].body}
-									stage={slot}
+									stage={slot === "ingress" ? undefined : slot}
 									bindings={drafts[slot].shared_bindings}
 									onSave={editable && !busy ? () => void save() : undefined}
 									onChange={(body) => {
