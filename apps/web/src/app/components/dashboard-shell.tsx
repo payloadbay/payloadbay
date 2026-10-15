@@ -116,8 +116,8 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 		}
 	}
 
-	const nav = (
-		<Sidebar>
+	const navigationContent = (
+		<>
 			<Sidebar.Header>
 				<Link href='/' className='text-accent px-3 py-4 text-lg font-semibold'>
 					Payload Bay
@@ -159,13 +159,18 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 					</Sidebar.Menu>
 				</Sidebar.Group>
 			</Sidebar.Content>
-		</Sidebar>
+		</>
 	);
 
 	return (
 		<Context.Provider value={{ ...data, reload: load }}>
 			<AppLayout
-				sidebar={nav}
+				sidebar={
+					<>
+						<Sidebar>{navigationContent}</Sidebar>
+						<Sidebar.Mobile aria-label='Dashboard navigation'>{navigationContent}</Sidebar.Mobile>
+					</>
+				}
 				navigate={(href) => router.push(href)}
 				navbar={
 					<header className='border-border flex min-h-16 items-center justify-between gap-3 border-b px-4 sm:px-6'>

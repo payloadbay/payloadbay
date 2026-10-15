@@ -20,6 +20,9 @@ management operation has passed end-to-end browser acceptance.
 - Event and member initial-load failures now show unavailable/retry instead of false empty states.
 - Notification inbox distinguishes initial loading, unavailable/retry, and a successful empty response.
 
+- Mobile navigation now mounts HeroUI Sidebar.Mobile as well as the desktop sidebar; browser coverage opens, dismisses and navigates through the drawer.
+- Dashboard scope/settings structure is drafted in [dashboard-navigation.md](dashboard-navigation.md), with existing coverage and missing pages distinguished.
+
 ## Remaining findings
 
 | Priority | Source | Finding and recommended change |

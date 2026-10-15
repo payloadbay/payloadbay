@@ -102,6 +102,16 @@ test("mobile dashboard keeps account actions in the avatar menu and projects in 
 	await page.setViewportSize({ width: 320, height: 740 });
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 	await page.setViewportSize({ width: 390, height: 844 });
+	await page.getByRole("button", { name: "Toggle navigation" }).click();
+	const navigation = page.getByRole("dialog");
+	await expect(navigation).toBeVisible();
+	await expect(navigation.getByText("Webhook Playground", { exact: true })).toBeVisible();
+	await page.keyboard.press("Escape");
+	await expect(navigation).toBeHidden();
+	await page.getByRole("button", { name: "Toggle navigation" }).click();
+	await navigation.getByRole("row", { name: "Instance members", exact: true }).click();
+	await expect(page).toHaveURL(/\/admin\/members$/);
+	await expect(navigation).toBeHidden();
 	await page.getByRole("button", { name: "Account menu" }).click();
 	await expect(page.getByRole("menuitem", { name: "Sign out", exact: true })).toBeVisible();
 	await page.getByRole("menuitem", { name: "Account settings", exact: true }).click();
