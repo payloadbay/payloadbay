@@ -172,7 +172,8 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 						<div className='flex min-w-0 items-center gap-2'>
 							<AppLayout.MenuToggle aria-label='Toggle navigation' />
 							<Link href='/' aria-label='Payload Bay home' className='shrink-0'>
-								<Image src='/brand/payloadbay-logo-dark-rounded.svg' alt='Payload Bay' width={160} height={35} priority />
+								<Image src='/brand/payloadbay-logo-dark-rounded.svg' alt='Payload Bay' width={160} height={35} priority className='hidden min-[360px]:block' />
+								<Image src='/brand/payloadbay-icon-dark-rounded.svg' alt='Payload Bay' width={32} height={32} priority className='min-[360px]:hidden' />
 							</Link>
 						</div>
 						<div className='flex shrink-0 items-center gap-2'>

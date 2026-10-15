@@ -57,7 +57,7 @@ export default function DashboardPage() {
 					<h1 className='text-3xl font-semibold'>Projects</h1>
 					<p className='text-muted mt-2'>Choose a project to manage its routes and events.</p>
 				</div>
-				<div className='flex gap-2'>
+				<div className='flex flex-wrap gap-2'>
 					{canWorkspace && (
 						<Button variant='secondary' onPress={() => open("workspace")}>
 							Create workspace

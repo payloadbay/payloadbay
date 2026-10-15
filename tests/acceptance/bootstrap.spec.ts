@@ -59,7 +59,7 @@ test("failed sign-in request shows a bottom toast without advancing the form", a
 test("mobile dashboard keeps account actions in the avatar menu and projects in a compact table", async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
 	let name = "Very Long Reviewer Display Name";
-	const permissions = ["metadata.read", "members.manage", "workspaces.create", "projects.create", "ownership.transfer"];
+	const permissions = ["metadata.read", "members.manage", "workspaces.create", "projects.create", "ownership.transfer", "notifications.read"];
 	await page.route("**/api/v1/**", (route) => {
 		const path = new URL(route.request().url()).pathname;
 		const responses: Record<string, unknown> = {
@@ -99,6 +99,9 @@ test("mobile dashboard keeps account actions in the avatar menu and projects in 
 	await expect(page.getByRole("grid", { name: "Projects", exact: true })).toBeVisible();
 	await expect(page.getByRole("row", { name: /Webhook Playground/ })).toBeVisible();
 	await expect(page.getByText("long-reviewer-address@preview.payloadbay.test", { exact: true })).toHaveCount(0);
+	await page.setViewportSize({ width: 320, height: 740 });
+	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+	await page.setViewportSize({ width: 390, height: 844 });
 	await page.getByRole("button", { name: "Account menu" }).click();
 	await expect(page.getByRole("menuitem", { name: "Sign out", exact: true })).toBeVisible();
 	await page.getByRole("menuitem", { name: "Account settings", exact: true }).click();
