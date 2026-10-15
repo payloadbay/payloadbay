@@ -81,12 +81,15 @@ plans, tasks, verified test commands and graph artifacts remain Core-owned. Use
 an available Graphify graph for broad navigation and verify findings in source;
 use `rg` for exact searches or missing/stale graph coverage.
 
-The TDD extension has a verified root bootstrap runner/profile and alpha test list.
-Bootstrap checks pass; domain/application suites remain unimplemented. Register
-new test files and source-coverage ownership before meaningful Red cycles. Optional host
-runsc execution is unavailable and clean licensed CI build is unverified; keep those limits
-explicit. Do not count infrastructure smoke as passing product acceptance. SpecKit
-initialization does not implement the planned ingress/delivery flow.
+The TDD extension has a root runner/profile and registered domain, executor,
+integration, browser and deployment suites in `tests/config/inventory.json`.
+Use scoped tests for local work and the feature's release gates for completion;
+a green preview or infrastructure smoke does not certify the full alpha.
+The current application and delivery flow exist on the alpha branch. Coolify
+preview builds and scoped product tests have passed; optional host runsc and
+complete published-release installation/upgrade evidence remain separate gates.
+Keep new test files registered and record actual evidence without inventing Red
+cycles for work that was not implemented test-first.
 
 ## Task-specific context
 

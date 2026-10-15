@@ -165,7 +165,7 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 		setEditingModule(null);
 		setEditingBinding(null);
 		setName("");
-		setBody(tab === "modules" ? "export function example(value: string) {\n  return value;\n}" : "return ctx.continue();");
+		setBody(tab === "modules" ? "export function example(value: string) {\n\treturn value;\n}" : "\treturn ctx.continue();");
 		setStage("processing");
 		setPosition("0");
 		setFailure("required");
@@ -177,7 +177,7 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 		setSavedEditor(
 			JSON.stringify({
 				name: "",
-				body: tab === "modules" ? "export function example(value: string) {\n  return value;\n}" : "return ctx.continue();",
+				body: tab === "modules" ? "export function example(value: string) {\n\treturn value;\n}" : "\treturn ctx.continue();",
 				stage: "processing",
 				position: "0",
 				failure: "required",
@@ -475,19 +475,36 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 			>
 				<Sheet.Backdrop>
 					<Sheet.Content>
-						<Sheet.Dialog>
+						<Sheet.Dialog className='flex max-h-[calc(100dvh-1rem)] w-full min-w-0 flex-col overflow-hidden'>
 							<Sheet.CloseTrigger />
 							<Sheet.Header>
 								<Sheet.Heading>{tab === "modules" ? "Shared helper source" : "Middleware configuration"}</Sheet.Heading>
 							</Sheet.Header>
-							<Sheet.Body>
+							<Sheet.Body className='min-h-0 flex-1 overflow-y-auto'>
 								<Form id='code-editor-form' className='flex flex-col gap-4' onSubmit={save}>
 									{diagnostics.map((diagnostic, index) => (
 										<p key={index} role='alert' className='text-danger font-mono text-xs'>
 											{diagnostic.sourceId}:{diagnostic.line}:{diagnostic.column} — {diagnostic.message}
 										</p>
 									))}
-									<TextField isRequired value={name} onChange={setName} maxLength={100} isDisabled={busy || !canEdit}>
+									<TextField
+										isRequired
+										value={name}
+										onChange={(next) => {
+											if (tab === "modules" && !editingBinding)
+												setBody((current) => {
+													const prior = name.replace(/[^A-Za-z0-9_$]/g, "_") || "example";
+													const identifier = next.replace(/[^A-Za-z0-9_$]/g, "_") || "example";
+													if (!/^[A-Za-z_$]/.test(identifier)) return current;
+													const starter = `export function ${prior}(value: string) {\n\treturn value;\n}`;
+
+													return current === starter ? `export function ${identifier}(value: string) {\n\treturn value;\n}` : current;
+												});
+											setName(next);
+										}}
+										maxLength={100}
+										isDisabled={busy || !canEdit}
+									>
 										<Label>{tab === "modules" ? "Helper name" : "Middleware name"}</Label>
 										<Input variant='secondary' />
 										<FieldError />
@@ -564,14 +581,17 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 										onChange={setBody}
 										readOnly={busy || !canEdit || (tab === "middleware" && !canPublish)}
 									/>
-									{canEdit && (tab === "modules" || canPublish) && (
-										<Button type='submit' isDisabled={busy}>
-											<IconCheck size={16} />
-											{busy ? "Saving…" : tab === "modules" ? "Save helper version" : "Save middleware"}
-										</Button>
-									)}
 								</Form>
 							</Sheet.Body>
+							<Sheet.Footer className='shrink-0'>
+								{" "}
+								{canEdit && (tab === "modules" || canPublish) && (
+									<Button type='submit' form='code-editor-form' isDisabled={busy}>
+										<IconCheck size={16} />
+										{busy ? "Saving…" : tab === "modules" ? "Save helper version" : "Save middleware"}
+									</Button>
+								)}
+							</Sheet.Footer>
 						</Sheet.Dialog>
 					</Sheet.Content>
 				</Sheet.Backdrop>

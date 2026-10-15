@@ -7,18 +7,18 @@
 
 Build one independently installable event-delivery application. The dashboard is a purpose-built product, not a table editor. No required Payload Bay cloud account. Supabase experiments are historical evidence; no second Supabase backend mode.
 
-| Component | Selection and responsibility |
-|---|---|
-| Application | Next.js App Router, React, TypeScript, production Node.js; dashboard and API together |
-| UI | HeroUI Pro (`@heroui-pro/react`) with its required base packages; Monaco for TypeScript editing |
-| API | Route Handlers, Zod contracts, generated OpenAPI, locally bundled Scalar at `/docs/api` |
-| Realtime | One authenticated multiplexed SSE subscription; cursors, reconnect/backfill, heartbeats |
-| Database | PostgreSQL; `pg` and Drizzle for typed domain access and append-only SQL migrations |
-| Identity | Better Auth; default email OTP via SMTP; supported OAuth providers enabled by environment |
-| Jobs | Graphile Worker; event/job transaction, priorities, reserved capacity, retries |
-| Scripts | Self-hosted workerd executor; fresh process per execution, capability broker; standard Docker default, optional gVisor |
-| Tooling | Bun package manager and unit-test runner; Node/container integration and Playwright browser tests |
-| Deployment | Published pinned Docker images and Compose; operator never installs Node/Bun or runs npm scripts |
+| Component   | Selection and responsibility                                                                                           |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Application | Next.js App Router, React, TypeScript, production Node.js; dashboard and API together                                  |
+| UI          | HeroUI Pro (`@heroui-pro/react`) with its required base packages; Monaco for TypeScript editing                        |
+| API         | Route Handlers, Zod contracts, generated OpenAPI, locally bundled Scalar at `/docs/api`                                |
+| Realtime    | One authenticated multiplexed SSE subscription; cursors, reconnect/backfill, heartbeats                                |
+| Database    | PostgreSQL; `pg` and Drizzle for typed domain access and append-only SQL migrations                                    |
+| Identity    | Better Auth; default email OTP via SMTP; supported OAuth providers enabled by environment                              |
+| Jobs        | Graphile Worker; event/job transaction, priorities, reserved capacity, retries                                         |
+| Scripts     | Self-hosted workerd executor; fresh process per execution, capability broker; standard Docker default, optional gVisor |
+| Tooling     | Bun package manager and unit-test runner; Node/container integration and Playwright browser tests                      |
+| Deployment  | Published pinned Docker images and Compose; operator never installs Node/Bun or runs npm scripts                       |
 
 Installed pins: Bun 1.3.14; Node 22.23.3 verified locally; Next.js 16.4.0, React/ReactDOM 19.3.0, TypeScript 5.9.3, Tailwind 4.3.3, HeroUI base 3.2.6, Pro 1.0.0-beta.10 and Inter Variable 5.3.0. Planned package pins resolved from registry 2026-10-13: Graphile Worker 0.18.0, Better Auth 1.7.7, Drizzle ORM 0.45.4 / Kit 0.31.11, pg 8.23.1, Zod 4.6.7, Scalar Next.js 0.12.10, Monaco 0.57.0, Playwright 1.64.0 and Nodemailer 10.1.0. These planned dependencies are not installed or compatibility-tested. PostgreSQL 17 and executor image patch/digest pins are foundation deliverables verified through real image resolution, not invented digests.
 
@@ -50,14 +50,14 @@ complete editable TypeScript module with exported HTTP-method handlers:
 
 ```ts
 export async function POST(ctx: IngressContext): Promise<IngressDecision> {
-  return ctx.accept({
-    event: { body: ctx.request.body, contentType: ctx.request.contentType },
-    response: { status: 202, body: "Accepted" },
-  });
+	return ctx.accept({
+		event: { body: ctx.request.body, contentType: ctx.request.contentType },
+		response: { status: 202, body: "Accepted" },
+	});
 }
 
 export async function GET(ctx: IngressContext): Promise<IngressDecision> {
-  return ctx.respondOnly({ status: 200, body: "Ready" });
+	return ctx.respondOnly({ status: 200, body: "Ready" });
 }
 ```
 
@@ -70,10 +70,8 @@ There is no giant module mixing every lifecycle stage.
 The Processing wrapper is likewise fixed:
 
 ```ts
-export default async function processEvent(
-  ctx: ProcessingContext,
-): Promise<ProcessingDecision> {
-  // User's Processing body is inserted here.
+export default async function processEvent(ctx: ProcessingContext): Promise<ProcessingDecision> {
+	// User's Processing body is inserted here.
 }
 ```
 
@@ -88,15 +86,14 @@ compilation, type/dependency policy and tagged-result validation gate publicatio
 Editor diagnostics assist rather than enforce the boundary. Save formats with
 the repository's Prettier settings; drafts never affect published executions.
 
-
 ### Ingress body example
 
 Illustrative SDK contract; not existing implementation. This generic example deliberately accepts bytes. Real Twitch/Stripe verification and challenge handling are ordinary editable template code with helpers, not hidden platform functions.
 
 ```ts
 return ctx.accept({
-  event: { body: ctx.request.body, contentType: ctx.request.contentType },
-  response: { status: 202, body: "Accepted", headers: { "content-type": "text/plain" } },
+	event: { body: ctx.request.body, contentType: ctx.request.contentType },
+	response: { status: 202, body: "Accepted", headers: { "content-type": "text/plain" } },
 });
 ```
 
@@ -106,14 +103,14 @@ return ctx.accept({
 
 ```ts
 const app = await ctx.destinations.send("application", {
-  operationId: "application-delivery",
-  body: ctx.event.body,
+	operationId: "application-delivery",
+	body: ctx.event.body,
 });
 
 const chat = await ctx.destinations.send("notifications", {
-  operationId: "notification-delivery",
-  body: JSON.stringify({ text: "An event was received" }),
-  headers: { "content-type": "application/json" },
+	operationId: "notification-delivery",
+	body: JSON.stringify({ text: "An event was received" }),
+	headers: { "content-type": "application/json" },
 });
 
 ctx.log.info("Delivery completed", { appStatus: app.status, chatStatus: chat.status });
@@ -216,7 +213,6 @@ Constitution 2.2.0 and Core guidance reflect the authorized architecture. Produc
 
 Next SpecKit stage: derive tasks and TDD acceptance inventory from this plan; begin scoped foundation implementation only under the repository issue workflow. No new repositories/worktrees, no generalized multi-backend layer and no extra framework merely for terminology.
 
-
 ## 13. Constitution check and actual repository evidence
 
 Pre-research and post-design gates: PASS for architecture ownership, coherent scope, durable acceptance/at-least-once contract, scoped authorization, isolated user code, append-only migrations and documented failure evidence. No constitution exceptions requested. Implementation gates are not satisfied by planning: exact image resolution, dependency compatibility, lease recovery, resource containment and behavioral tests must pass before release.
@@ -229,25 +225,25 @@ Verified current commands: `bun run web:typecheck`, `bun run web:lint`, `bun run
 
 Planned test routes below do not exist yet; each suite owns its cases once implemented. Tags/coverage may reference multiple requirements without duplicate execution.
 
-| Owner route | Acceptance / requirements |
-|---|---|
-| tests/unit/policy.test.ts | Grant union, scope resolution, middleware override/order, tagged decisions; FR002/019/023 |
-| tests/unit/contracts.test.ts | Zod/OpenAPI/error/publication validation, fixed wrappers and source-map locations; FR014/020/024 |
-| tests/integration/config.test.ts | Production configuration and browser-bundle credential exclusion; FR002/011/022 |
-| tests/integration/database.test.ts | Domain schema, recovery-table dependency integrity, migration lock/rollback/equivalence; FR006/008/012 |
-| tests/integration/publication.test.ts | Server draft conflicts, revision pinning, template/synthetic tests and secret-version capabilities/revocation; FR004/013/017/018/024 |
-| tests/integration/middleware.test.ts | Runtime patches/short-circuit/failure policy, scoped shared-code CRUD and custom routing capability integration; FR007/015/018/019 |
-| tests/unit/notifications.test.ts | Opt-in threshold boundaries, distinct-operation counts and severity selection; FR027–028 |
-| tests/integration/notifications.test.ts | Typed incident producers, scoped recipients/read/dismiss/SSE, optional SMTP and rule filtering; FR027–028 |
-| tests/integration/auth.test.ts | Bootstrap races, admission/invites, OTP expiry/resends, config and API-token grants; US1/FR022/023 |
-| tests/integration/ingress.test.ts | Exact bytes/challenge, invalid verification, rollback, event/job/publication pin; US3/FR004–006 |
-| tests/integration/delivery.test.ts | Actual HTTP outcomes, fanout, pause/retry/terminal/replay/action digest; US3–5/FR007–010/015–016 |
-| tests/integration/recovery.test.ts | Child/container death, generation fencing, partitions, old results, successful-effect journal; US5/FR008–009 |
-| tests/integration/live-api.test.ts | API authorization, scalar document parity, cursor/backfill/revocation; FR020–023 |
-| tests/executor/isolation.test.ts | Import/filesystem/secret/native/network/IPC/resource attacks, sibling availability; FR011/017 |
-| tests/acceptance/dashboard.spec.ts | Product flows, body editor publish/test diagnostics, theme, replay/admin views; US1–5/FR003/013/018/024/026 |
-| tests/performance/delivery.test.ts | Ack versus delivery target, critical capacity under replay/email backlog; FR025 |
-| tests/deployment/installation.test.ts | Published-image install, migrations, pending-job upgrade, backup/restore; FR001/012 |
+| Owner route                             | Acceptance / requirements                                                                                                            |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| tests/unit/policy.test.ts               | Grant union, scope resolution, middleware override/order, tagged decisions; FR002/019/023                                            |
+| tests/unit/contracts.test.ts            | Zod/OpenAPI/error/publication validation, fixed wrappers and source-map locations; FR014/020/024                                     |
+| tests/integration/config.test.ts        | Production configuration and browser-bundle credential exclusion; FR002/011/022                                                      |
+| tests/integration/database.test.ts      | Domain schema, recovery-table dependency integrity, migration lock/rollback/equivalence; FR006/008/012                               |
+| tests/integration/publication.test.ts   | Server draft conflicts, revision pinning, template/synthetic tests and secret-version capabilities/revocation; FR004/013/017/018/024 |
+| tests/integration/middleware.test.ts    | Runtime patches/short-circuit/failure policy, scoped shared-code CRUD and custom routing capability integration; FR007/015/018/019   |
+| tests/unit/notifications.test.ts        | Opt-in threshold boundaries, distinct-operation counts and severity selection; FR027–028                                             |
+| tests/integration/notifications.test.ts | Typed incident producers, scoped recipients/read/dismiss/SSE, optional SMTP and rule filtering; FR027–028                            |
+| tests/integration/auth.test.ts          | Bootstrap races, admission/invites, OTP expiry/resends, config and API-token grants; US1/FR022/023                                   |
+| tests/integration/ingress.test.ts       | Exact bytes/challenge, invalid verification, rollback, event/job/publication pin; US3/FR004–006                                      |
+| tests/integration/delivery.test.ts      | Actual HTTP outcomes, fanout, pause/retry/terminal/replay/action digest; US3–5/FR007–010/015–016                                     |
+| tests/integration/recovery.test.ts      | Child/container death, generation fencing, partitions, old results, successful-effect journal; US5/FR008–009                         |
+| tests/integration/live-api.test.ts      | API authorization, scalar document parity, cursor/backfill/revocation; FR020–023                                                     |
+| tests/executor/isolation.test.ts        | Import/filesystem/secret/native/network/IPC/resource attacks, sibling availability; FR011/017                                        |
+| tests/acceptance/dashboard.spec.ts      | Product flows, body editor publish/test diagnostics, theme, replay/admin views; US1–5/FR003/013/018/024/026                          |
+| tests/performance/delivery.test.ts      | Ack versus delivery target, critical capacity under replay/email backlog; FR025                                                      |
+| tests/deployment/installation.test.ts   | Published-image install, migrations, pending-job upgrade, backup/restore; FR001/012                                                  |
 
 The table above is the complete owner inventory. scripts/tests/inventory.ts must reconcile discovered tests against it and reject missing, unowned or multiply owned final executions. Each owner distinguishes primitive unit assertions, real server transactions and browser interactions; complete OpenAPI/route parity belongs to live-api after API generation.
 
@@ -275,7 +271,6 @@ Additional owner: tests/integration/notifications.test.ts owns incident reconcil
 - The first CI-generated release artifact and its image upgrade/install gates
   remain unverified until the workflow runs; missing artifacts fail readiness.
 
-
 ## Maintainer dashboard review addendum — 2026-10-15
 
 The implemented follow-up is recorded in [the UX review](../../docs/ux-audit.md).
@@ -292,3 +287,15 @@ separate from shared thresholds. No failure notifications or subscriptions are
 implicitly enabled. Preview seeding publishes only its fixed demo route, executes
 synthetic ingress through workerd and stores real receipts/jobs; reruns preserve
 existing edited source/publications. CI still owns release migration generation.
+
+### Approved review addendum — 2026-10-15
+
+Follow `docs/ui-ux-rules.md` for composition and `docs/ux-audit.md` for the current
+screen review. Persist valid rejected/response-only ingress requests for history
+without accepted receipts/jobs; keep retries as distinct outgoing attempts, not
+new ingress records. Existing immutable event rows gain outcome/method/response
+metadata, defaulting old records to accepted. Development uses db:push; no feature
+branch release migration is generated. Overview aggregates and search obey the
+same metadata authorization as event/resource lists. Bounded active-route handler failures/invalid outcomes are retained as error
+records. A pre-handler ledger for unknown/oversized requests or process crashes
+before outcome recording is not included in this addendum.

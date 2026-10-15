@@ -11,7 +11,7 @@ export default function DashboardLayout({ children }: AppLayoutProps) {
 				</p>
 			}
 		>
-			<DashboardShell>{children}</DashboardShell>
+			<DashboardShell preview={process.env.IS_PREVIEW === "true"}>{children}</DashboardShell>
 		</Suspense>
 	);
 }

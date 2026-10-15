@@ -39,7 +39,7 @@ export function ScriptingGuide() {
 							<section>
 								<h3 className='font-semibold'>2. Choose what happens</h3>
 								<p className='text-muted mt-1 text-sm'>
-									<code>ctx.accept(...)</code> stores the event and queues processing before sending your response. <code>ctx.respondOnly(...)</code> replies without storing an event, useful for verification challenges. <code>ctx.reject(...)</code> rejects the request. Read the raw bytes and headers through <code>ctx.request</code>; verify signatures in your own code.
+									<code>ctx.accept(...)</code> stores the event and queues processing before sending your response. <code>ctx.respondOnly(...)</code> replies without queueing delivery, useful for verification challenges. <code>ctx.reject(...)</code> rejects the request. Read the raw bytes and headers through <code>ctx.request</code>; verify signatures in your own code.
 								</p>
 							</section>
 							<section>
@@ -51,11 +51,12 @@ export function ScriptingGuide() {
 							<section>
 								<h3 className='font-semibold'>Helpers and secrets</h3>
 								<p className='text-muted mt-1 text-sm'>
-									Create helper files under the project’s Code and middleware page. Bind a saved version in Helper imports, then import it in ingress code with <code>import * as Helpers from &quot;@shared/Helpers&quot;;</code>. Processing imports are generated for its bindings. Bind secret versions by name and read them from <code>ctx.secrets.NAME</code>; never paste credentials into source.
+									Create helper files under the project’s Code and middleware page. Bind a saved version in Helper imports, then the editor adds its ingress import as <code>import * as Helpers from &quot;@shared/Helpers&quot;;</code>. Processing imports are generated for its bindings. Bind secret versions by name and read them from <code>ctx.secrets.NAME</code>; never paste credentials into source.
 								</p>
 							</section>
 							<section>
 								<h3 className='font-semibold'>Save, test, publish</h3>
+								<p className='text-muted mt-1 text-sm'>Requests with a valid ingress outcome are stored, including rejected and response-only requests. Only accepted events are queued for processing.</p>
 								<p className='text-muted mt-1 text-sm'>Save formats the file with the project’s Prettier rules. Script test uses synthetic input and simulated delivery. To test the live route, send an HTTP request to its receiving URL after publishing. Publishing activates both stages for new events; stored events retain their original version.</p>
 							</section>
 						</Modal.Body>

@@ -203,7 +203,7 @@ Boundary examples sample invariants; no property-based tool is installed. Timers
 | U90 | Headers larger than16KiB are rejected | FR-004, FR-005, FR-006, FR-011, FR-014 | example | PENDING | |
 | U91 | Ingress at its2s deadline is terminated without false acceptance | FR-004, FR-005, FR-006, FR-011, FR-014 | example | PENDING | |
 | U92 | A protocol response preserves plaintext content type and exact body | FR-004, FR-005, FR-006, FR-011, FR-014 | example | PENDING | |
-| U93 | A reject outcome creates no processing work | FR-004, FR-005, FR-006, FR-011, FR-014 | example | DONE | `tests/integration/ingress.test.ts::U93 reject produces no stored event or queued work` |
+| U93 | A reject outcome creates no processing work | FR-004, FR-005, FR-006, FR-011, FR-014 | example | DONE | `tests/integration/ingress.test.ts::U93 reject records the inbound request without queued work` |
 | U94 | An acceptance transaction rollback sends no success | FR-004, FR-005, FR-006, FR-011, FR-014 | example | DONE | `tests/integration/ingress.test.ts::U94 queue failure rolls back accepted event and acknowledgement` |
 | U95 | Invalid CRLF response headers are rejected | FR-004, FR-005, FR-006, FR-011, FR-014 | example | DONE | `tests/unit/contracts.test.ts::U95 ingress response rejects CRLF header injection` |
 

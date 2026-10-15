@@ -266,13 +266,23 @@ export const event = domain.table(
 		publicationId: uuid("publication_id").notNull(),
 		receivedAt: time("received_at").notNull().defaultNow(),
 		originalBody: bytes("original_body").notNull(),
+		ingressOutcome: text("ingress_outcome").notNull().default("accept"),
+		requestMethod: text("request_method").notNull().default("POST"),
+		responseStatus: integer("response_status"),
 		headers: jsonb("headers").notNull(),
 		contentType: text("content_type").notNull(),
 		acceptedBody: bytes("accepted_body").notNull(),
 		metadata: jsonb("metadata").notNull().default({}),
 		derivedFromEventId: uuid("derived_from_event_id").references((): AnyPgColumn => event.id),
 	},
-	(t) => [foreignKey({ name: "event_publication_endpoint", columns: [t.publicationId, t.endpointId], foreignColumns: [publication.id as AnyPgColumn, publication.endpointId as AnyPgColumn] }), unique("event_id_endpoint").on(t.id, t.endpointId), unique("event_id_publication").on(t.id, t.publicationId), index("event_endpoint_time").on(t.endpointId, t.receivedAt.desc(), t.id.desc()), index("event_global_history").on(t.receivedAt.desc(), t.id.desc())],
+	(t) => [
+		check("event_ingress_outcome", sql`${t.ingressOutcome} IN ('accept','reject','respondOnly','error')`),
+		foreignKey({ name: "event_publication_endpoint", columns: [t.publicationId, t.endpointId], foreignColumns: [publication.id as AnyPgColumn, publication.endpointId as AnyPgColumn] }),
+		unique("event_id_endpoint").on(t.id, t.endpointId),
+		unique("event_id_publication").on(t.id, t.publicationId),
+		index("event_endpoint_time").on(t.endpointId, t.receivedAt.desc(), t.id.desc()),
+		index("event_global_history").on(t.receivedAt.desc(), t.id.desc()),
+	],
 );
 
 export const receipt = domain.table(

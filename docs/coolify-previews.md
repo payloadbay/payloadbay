@@ -139,7 +139,7 @@ token type from the opaque error. No custom installer diagnostics are retained.
 
 ## Seeded delivery walkthrough
 
-The synthetic Webhook Playground includes a default **Demo receiver** destination
+The synthetic Demo integrations project includes a default **Demo receiver** destination
 pointing to this preview's `/api/preview/receiver`. It accepts POST and returns
 HTTP 204 without forwarding or retaining request bodies. The receiver returns
 404 outside preview mode. It adds no container or external dependency.

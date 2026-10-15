@@ -10,6 +10,7 @@ import { api } from "@lib/api-client";
 import type { ProjectSummary } from "@types";
 
 type Summary = {
+	eventId?: string;
 	id: string;
 	endpointId: string;
 	projectId: string;
@@ -37,6 +38,9 @@ type Attempt = {
 	started_at: string;
 };
 type Detail = {
+	ingressOutcome: string;
+	method: string;
+	responseStatus: number | null;
 	id: string;
 	projectId: string;
 	endpointName: string;
@@ -54,7 +58,13 @@ type Payload = {
 };
 
 const labels: Record<string, string> = {
-	queued: "Queued",
+	delivered: "Delivered",
+	delivery_failed: "Delivery failed",
+	error: "Ingress failed",
+	reject: "Rejected",
+	respondOnly: "Response only",
+	accept: "Accepted",
+	queued: "Accepted · queued",
 	running: "Processing",
 	retry_wait: "Retry scheduled",
 	succeeded: "Handler completed",
@@ -71,6 +81,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 	const [projectFilter, setProjectFilter] = useState("");
 	const [workspaceFilter, setWorkspaceFilter] = useState("");
 	const [stateFilter, setStateFilter] = useState("");
+	const [view, setView] = useState<"requests" | "attempts">("requests");
 
 	const activeProjectId = projectId ?? projectFilter;
 
@@ -95,13 +106,14 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 			const query = new URLSearchParams();
 			if (cursor) query.set("cursor", cursor);
 			if (endpointId) query.set("endpointId", endpointId);
-			if (stateFilter) query.set("state", stateFilter);
+			if (stateFilter && view === "requests") query.set("state", stateFilter);
+			query.set("view", view);
 			if (!activeProjectId && workspaceFilter) query.set("workspaceId", workspaceFilter);
 			const address = activeProjectId ? "/projects/" + activeProjectId + "/events" : "/events";
 
 			return Promise.all([activeProjectId ? api<ProjectSummary>("/projects/" + activeProjectId) : Promise.resolve(null), api<Page>(address + (query.size ? "?" + query.toString() : ""))]);
 		},
-		[activeProjectId, endpointId, stateFilter, workspaceFilter],
+		[activeProjectId, endpointId, stateFilter, workspaceFilter, view],
 	);
 
 	const receive = useCallback(([p, list]: [ProjectSummary | null, Page], append = false) => {
@@ -163,7 +175,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 				opened = true;
 			};
 
-			for (const kind of ["event.accepted", "execution.changed", "attempt.completed", "configuration.changed", "resync-required"]) updates.addEventListener(kind, changed);
+			for (const kind of ["event.recorded", "event.accepted", "execution.changed", "attempt.completed", "configuration.changed", "resync-required"]) updates.addEventListener(kind, changed);
 		}
 
 		return () => {
@@ -172,7 +184,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 		};
 	}, [activeProjectId, me.instanceId, me.permissions, projects, load]);
 
-	const inspectionProject = projects.find((item) => item.id === page.items.find((event) => event.id === selected)?.projectId) ?? project;
+	const inspectionProject = projects.find((item) => item.id === page.items.find((event) => (event.eventId ?? event.id) === selected)?.projectId) ?? project;
 
 	useEffect(() => {
 		if (!selected || !inspectionProject) return;
@@ -197,7 +209,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 		return () => {
 			active = false;
 		};
-	}, [selected, inspectionProject, activeProjectId]);
+	}, [selected, inspectionProject, activeProjectId, page.items]);
 
 	function inspect(id: string) {
 		setSelected(id);
@@ -253,6 +265,15 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 				</Button>
 			</header>
 
+			<div className='flex flex-wrap gap-2' aria-label='History view'>
+				<Button variant={view === "requests" ? "primary" : "secondary"} onPress={() => setView("requests")}>
+					Incoming requests
+				</Button>
+				<Button variant={view === "attempts" ? "primary" : "secondary"} onPress={() => setView("attempts")}>
+					Delivery attempts
+				</Button>
+			</div>
+			<p className='text-muted text-sm'>{view === "requests" ? "One row per received request, including rejected and response-only outcomes. Updates arrive live." : "One row per outgoing HTTP attempt. Retries appear separately and link back to the original request."}</p>
 			<div className='grid gap-3 sm:grid-cols-3'>
 				{!projectId && (
 					<>
@@ -293,7 +314,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 				)}
 				<NativeSelect fullWidth>
 					<Label>Processing state</Label>
-					<NativeSelect.Trigger aria-label='Event processing state' value={stateFilter} onChange={(e) => setStateFilter(e.target.value)}>
+					<NativeSelect.Trigger aria-label='Event processing state' disabled={view === "attempts"} value={stateFilter} onChange={(e) => setStateFilter(e.target.value)}>
 						<NativeSelect.Option value=''>All states</NativeSelect.Option>
 						{Object.entries(labels).map(([value, name]) => (
 							<NativeSelect.Option key={value} value={value}>
@@ -308,7 +329,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 			{page.items.length ? (
 				<Table>
 					<Table.ScrollContainer>
-						<Table.Content aria-label='Stored events'>
+						<Table.Content aria-label={view === "requests" ? "Stored events" : "Delivery attempts"}>
 							<Table.Header>
 								<Table.Column isRowHeader>Request</Table.Column>
 								<Table.Column className='hidden sm:table-cell'>Processing</Table.Column>
@@ -334,7 +355,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 											</p>
 										</Table.Cell>
 										<Table.Cell>
-											<Button isIconOnly size='sm' variant='secondary' aria-label={"Inspect event " + event.id.slice(0, 8)} onPress={() => inspect(event.id)}>
+											<Button isIconOnly size='sm' variant='secondary' aria-label={"Inspect event " + event.id.slice(0, 8)} onPress={() => inspect(event.eventId ?? event.id)}>
 												<IconEye size={16} />
 											</Button>
 										</Table.Cell>
@@ -368,13 +389,13 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 			>
 				<Sheet.Backdrop>
 					<Sheet.Content>
-						<Sheet.Dialog>
+						<Sheet.Dialog className='flex max-h-[calc(100dvh-1rem)] w-full min-w-0 max-w-2xl flex-col overflow-hidden'>
 							<Sheet.CloseTrigger />
 							<Sheet.Header>
 								<Sheet.Heading>Event inspection</Sheet.Heading>
-								<p className='text-muted text-sm'>{selected}</p>
+								<p className='text-muted break-all text-xs'>{selected}</p>
 							</Sheet.Header>
-							<Sheet.Body className='flex flex-col gap-6'>
+							<Sheet.Body className='flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto'>
 								{!detail && !detailError ? (
 									<p role='status'>Loading event history…</p>
 								) : (
@@ -382,6 +403,10 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 										<>
 											<div>
 												<h3 className='font-semibold'>{detail.endpointName}</h3>
+												<p className='text-muted mt-1 text-sm'>
+													{detail.method} · {labels[detail.ingressOutcome] ?? detail.ingressOutcome}
+													{detail.responseStatus ? ` · HTTP ${detail.responseStatus}` : ""}
+												</p>
 												<p className='text-muted text-sm'>
 													{detail.contentType} · {detail.bodyBytes} bytes
 												</p>
@@ -420,10 +445,14 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 													<pre aria-label='Original request body' className='border-border bg-field max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-lg border p-4 font-mono text-xs'>
 														{decode(payload.originalBody)}
 													</pre>
-													<h3 className='my-3 font-semibold'>Accepted event body</h3>
-													<pre aria-label='Accepted event body' className='border-border bg-field max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-lg border p-4 font-mono text-xs'>
-														{decode(payload.acceptedBody)}
-													</pre>
+													{detail.ingressOutcome === "accept" && (
+														<>
+															<h3 className='my-3 font-semibold'>Accepted event body</h3>
+															<pre aria-label='Accepted event body' className='border-border bg-field max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-lg border p-4 font-mono text-xs'>
+																{decode(payload.acceptedBody)}
+															</pre>
+														</>
+													)}
 													<h3 className='my-3 font-semibold'>Request headers</h3>
 													<pre aria-label='Request headers' className='border-border bg-field max-h-64 overflow-auto rounded-lg border p-4 font-mono text-xs'>
 														{JSON.stringify(payload.headers, null, 2)}
@@ -437,14 +466,19 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 								)}
 							</Sheet.Body>
 							<Sheet.Footer>
-								{inspectionProject?.permissions.includes("events.replay") && (
+								{inspectionProject?.permissions.includes("events.replay") && detail?.ingressOutcome === "accept" && (
 									<div className='flex flex-col gap-3'>
 										<p className='text-muted text-xs'>Replay creates new history and may repeat external effects. The stored payload stays unchanged.</p>
 										<div className='flex flex-wrap items-center gap-3'>
-											<select aria-label='Replay publication' className='border-border bg-field rounded-lg border p-2 text-sm' value={policy} onChange={(event) => setPolicy(event.target.value as "original" | "current")} disabled={busy}>
-												<option value='original'>Original publication</option>
-												<option value='current'>Current publication (explicit)</option>
-											</select>
+											<NativeSelect variant='secondary' fullWidth>
+												<Label>Script version for replay</Label>
+												<NativeSelect.Trigger aria-label='Replay publication' value={policy} onChange={(event) => setPolicy(event.target.value as "original" | "current")} disabled={busy}>
+													<NativeSelect.Option value='original'>Version used when received</NativeSelect.Option>
+													<NativeSelect.Option value='current'>Currently published version</NativeSelect.Option>
+													<NativeSelect.Indicator />
+												</NativeSelect.Trigger>
+											</NativeSelect>
+											<p className='text-muted text-xs'>{policy === "original" ? "Run the saved processing code and dependencies originally used for this request." : "Run today's published processing code and dependencies against the stored accepted payload."}</p>
 											<Button onPress={() => void replay()} isDisabled={busy || !detail}>
 												<IconPlayerPlay size={16} />
 												{busy ? "Queuing…" : "Replay event"}

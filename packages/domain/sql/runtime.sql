@@ -64,7 +64,7 @@ CREATE OR REPLACE FUNCTION payloadbay.append_change(scope_type text,scope_id uui
 RETURNS bigint LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $$
 DECLARE assigned bigint;
 BEGIN
- IF scope_type NOT IN ('instance','workspace','project') OR kind NOT IN ('event.accepted','execution.changed','attempt.completed','configuration.changed','health.changed','notification.changed') OR octet_length(resource_id)>128 OR jsonb_typeof(metadata)<>'object' OR octet_length(metadata::text)>8192 THEN RAISE EXCEPTION 'invalid change record';END IF;
+ IF scope_type NOT IN ('instance','workspace','project') OR kind NOT IN ('event.recorded','event.accepted','execution.changed','attempt.completed','configuration.changed','health.changed','notification.changed') OR octet_length(resource_id)>128 OR jsonb_typeof(metadata)<>'object' OR octet_length(metadata::text)>8192 THEN RAISE EXCEPTION 'invalid change record';END IF;
  PERFORM pg_advisory_xact_lock(hashtextextended('payloadbay:change-commit-order:v1',0));
  INSERT INTO payloadbay.change_record(scope_type,scope_id,kind,resource_id,metadata) VALUES(scope_type,scope_id,kind,resource_id,metadata) RETURNING cursor INTO assigned;
  PERFORM pg_notify('payloadbay_changes',assigned::text);

@@ -1,7 +1,7 @@
 import type { PoolClient } from "pg";
 import type { ScopeRef } from "./authorization.ts";
 
-export type ChangeKind = "event.accepted" | "execution.changed" | "attempt.completed" | "configuration.changed" | "health.changed" | "notification.changed";
+export type ChangeKind = "event.recorded" | "event.accepted" | "execution.changed" | "attempt.completed" | "configuration.changed" | "health.changed" | "notification.changed";
 
 export async function appendChange(
 	db: PoolClient,

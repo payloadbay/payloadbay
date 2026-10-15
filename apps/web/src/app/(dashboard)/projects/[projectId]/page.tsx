@@ -1,11 +1,10 @@
 "use client";
 
 import { useFeedbackToast } from "@lib/feedback";
-import Link from "next/link";
 import { use, useState, useEffect, useCallback, type FormEvent } from "react";
-import { Button, Card, Form, TextField, Label, Input, FieldError } from "@heroui/react";
-import { EmptyState } from "@heroui-pro/react";
-import { IconRoute, IconPlus, IconArrowRight, IconPlugConnected } from "@tabler/icons-react";
+import { Button, Table, Form, TextField, Label, Input, FieldError } from "@heroui/react";
+import { EmptyState, Sheet } from "@heroui-pro/react";
+import { IconRoute, IconPlus, IconPlugConnected } from "@tabler/icons-react";
 import { api } from "@lib/api-client";
 import type { ProjectSummary } from "@types";
 
@@ -125,55 +124,67 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 			</header>
 
 			{form && (
-				<Card className='max-w-xl'>
-					<Card.Header>
-						<h2 className='text-xl font-semibold'>{form === "route" ? "New ingress route" : "New destination"}</h2>
-						<Card.Description>{form === "route" ? "A receiving address with editable verification and processing code." : "An HTTP target reached from the Payload Bay worker. Private network targets are supported."}</Card.Description>
-					</Card.Header>
-					<Card.Content>
-						<Form onSubmit={create} className='flex flex-col gap-4'>
-							<TextField
-								isRequired
-								name='name'
-								value={name}
-								onChange={(value) => {
-									setName(value);
-									setSlug(
-										value
-											.toLowerCase()
-											.replace(/[^a-z0-9]+/g, "-")
-											.replace(/^-|-$/g, ""),
-									);
-								}}
-							>
-								<Label>Name</Label>
-								<Input variant='secondary' />
-								<FieldError />
-							</TextField>
-							{form === "route" ? (
-								<TextField isRequired value={slug} onChange={setSlug} pattern='[a-z0-9][a-z0-9-]*'>
-									<Label>URL name</Label>
-									<Input variant='secondary' />
-									<FieldError />
-								</TextField>
-							) : (
-								<TextField isRequired type='url' value={url} onChange={setUrl}>
-									<Label>Destination URL</Label>
-									<Input variant='secondary' placeholder='https://your-app.example/events' />
-									<FieldError />
-								</TextField>
-							)}
-							<div className='flex gap-2'>
-								<Button type='submit' isDisabled={busy}>
-									{busy ? "Creating…" : form === "route" ? "Create ingress route" : "Create destination"}
-								</Button>
-								<Button variant='ghost' isDisabled={busy} onPress={() => setForm(null)}>
-									Cancel
-								</Button>
-							</div>
-						</Form>
-					</Card.Content>
-				</Card>
+				<Sheet
+					isOpen={Boolean(form)}
+					onOpenChange={(open) => {
+						if (!open && !busy) setForm(null);
+					}}
+				>
+					<Sheet.Backdrop>
+						<Sheet.Content>
+							<Sheet.Dialog className='max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto'>
+								<Sheet.CloseTrigger />
+								<Sheet.Header>
+									<Sheet.Heading>{form === "route" ? "New ingress route" : "New destination"}</Sheet.Heading>
+									<p>{form === "route" ? "A receiving address with editable verification and processing code." : "An HTTP target reached from the Payload Bay worker. Private network targets are supported."}</p>
+								</Sheet.Header>
+								<Sheet.Body>
+									<Form onSubmit={create} className='flex flex-col gap-4'>
+										<TextField
+											isRequired
+											name='name'
+											value={name}
+											onChange={(value) => {
+												setName(value);
+												setSlug(
+													value
+														.toLowerCase()
+														.replace(/[^a-z0-9]+/g, "-")
+														.replace(/^-|-$/g, ""),
+												);
+											}}
+										>
+											<Label>Name</Label>
+											<Input variant='secondary' />
+											<FieldError />
+										</TextField>
+										{form === "route" ? (
+											<TextField isRequired value={slug} onChange={setSlug} pattern='[a-z0-9][a-z0-9-]*'>
+												<Label>URL name</Label>
+												<Input variant='secondary' />
+												<FieldError />
+											</TextField>
+										) : (
+											<TextField isRequired type='url' value={url} onChange={setUrl}>
+												<Label>Destination URL</Label>
+												<Input variant='secondary' placeholder='https://your-app.example/events' />
+												<FieldError />
+											</TextField>
+										)}
+										<div className='flex gap-2'>
+											<Button type='submit' isDisabled={busy}>
+												{busy ? "Creating…" : form === "route" ? "Create ingress route" : "Create destination"}
+											</Button>
+											<Button variant='ghost' isDisabled={busy} onPress={() => setForm(null)}>
+												Cancel
+											</Button>
+										</div>
+									</Form>
+								</Sheet.Body>
+							</Sheet.Dialog>
+						</Sheet.Content>
+					</Sheet.Backdrop>
+				</Sheet>
 			)}
 			<section className='flex flex-col gap-4' aria-labelledby='destinations-heading'>
 				<div className='flex items-center justify-between'>
@@ -188,16 +199,26 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 					)}
 				</div>
 				{destinations.length ? (
-					<div className='grid gap-4 md:grid-cols-2'>
-						{destinations.map((destination) => (
-							<Card key={destination.id}>
-								<Card.Header>
-									<h3 className='font-semibold'>{destination.name}</h3>
-									<Card.Description>{destination.is_default ? "Default delivery target" : "Additional delivery target"}</Card.Description>
-								</Card.Header>
-							</Card>
-						))}
-					</div>
+					<Table>
+						<Table.ScrollContainer>
+							<Table.Content aria-label='Destinations' className='w-full'>
+								<Table.Header>
+									<Table.Column isRowHeader>Destination</Table.Column>
+									<Table.Column>Delivery target</Table.Column>
+								</Table.Header>
+								<Table.Body>
+									{destinations.map((destination) => (
+										<Table.Row key={destination.id} id={destination.id}>
+											<Table.Cell>{destination.name}</Table.Cell>
+											<Table.Cell>
+												{destination.is_default ? "Default" : "Additional"} · v{destination.version}
+											</Table.Cell>
+										</Table.Row>
+									))}
+								</Table.Body>
+							</Table.Content>
+						</Table.ScrollContainer>
+					</Table>
 				) : (
 					<EmptyState className='border-border rounded-xl border border-dashed py-8'>
 						<EmptyState.Header>
@@ -223,25 +244,30 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 					)}
 				</div>
 				{routes.length ? (
-					<div className='grid gap-4 md:grid-cols-2'>
-						{routes.map((route) => (
-							<Card key={route.id}>
-								<Card.Header>
-									<h3 className='font-semibold'>{route.name}</h3>
-									<Card.Description>
-										{route.active_publication_id ? "Published" : "Not published"}
-										{route.paused ? " · Delivery paused" : ""}
-									</Card.Description>
-								</Card.Header>
-								<Card.Footer>
-									<Link className='text-accent flex items-center gap-2' href={"/projects/" + projectId + "/routes/" + route.id}>
-										Configure route
-										<IconArrowRight size={16} />
-									</Link>
-								</Card.Footer>
-							</Card>
-						))}
-					</div>
+					<Table>
+						<Table.ScrollContainer>
+							<Table.Content aria-label='Ingress routes' className='w-full'>
+								<Table.Header>
+									<Table.Column isRowHeader>Route</Table.Column>
+									<Table.Column>Status</Table.Column>
+								</Table.Header>
+								<Table.Body>
+									{routes.map((route) => (
+										<Table.Row key={route.id} id={route.id} href={"/projects/" + projectId + "/routes/" + route.id}>
+											<Table.Cell>
+												{route.name}
+												<span className='text-muted block text-xs'>Configure route</span>
+											</Table.Cell>
+											<Table.Cell>
+												{route.active_publication_id ? "Published" : "Draft"}
+												{route.paused ? " · Delivery paused" : ""}
+											</Table.Cell>
+										</Table.Row>
+									))}
+								</Table.Body>
+							</Table.Content>
+						</Table.ScrollContainer>
+					</Table>
 				) : (
 					<EmptyState className='border-border rounded-xl border border-dashed py-8'>
 						<EmptyState.Header>

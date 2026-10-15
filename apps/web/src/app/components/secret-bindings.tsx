@@ -3,7 +3,7 @@
 import { useFeedbackToast } from "@lib/feedback";
 import { useState, useEffect, useCallback, type FormEvent } from "react";
 import { Button, Card, Form, TextField, Label, Input, FieldError, Table } from "@heroui/react";
-import { NativeSelect } from "@heroui-pro/react";
+import { NativeSelect, Sheet } from "@heroui-pro/react";
 import { IconKey, IconX } from "@tabler/icons-react";
 import { api } from "@lib/api-client";
 
@@ -28,6 +28,8 @@ export function SecretBindings({ projectId, bindings, onChange, canUse, canManag
 	const [binding, setBinding] = useState("SIGNING_SECRET");
 	const [selected, setSelected] = useState("");
 	const [creating, setCreating] = useState(false);
+	const [bindingOpen, setBindingOpen] = useState(false);
+	const [query, setQuery] = useState("");
 	const [name, setName] = useState("Signing key");
 	const [value, setValue] = useState("");
 	const [busy, setBusy] = useState(false);
@@ -79,6 +81,7 @@ export function SecretBindings({ projectId, bindings, onChange, canUse, canManag
 		}
 
 		onChange({ ...bindings, [binding]: selected });
+		setBindingOpen(false);
 		setNotice("");
 		setError("");
 	}
@@ -163,68 +166,135 @@ export function SecretBindings({ projectId, bindings, onChange, canUse, canManag
 					<p className='text-muted text-sm'>No secrets bound. Add one only if your script needs it.</p>
 				)}
 
-				{canUse && versions.some((version) => !version.revoked_at) && (
-					<Form onSubmit={bind} className='flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end'>
-						<TextField isRequired value={binding} onChange={setBinding} isDisabled={disabled || busy} pattern='[A-Za-z_][A-Za-z0-9_]*'>
-							<Label>Binding name</Label>
-							<Input variant='secondary' />
-							<FieldError />
-						</TextField>
-						<NativeSelect variant='secondary' className='min-w-0 w-full sm:w-auto'>
-							<Label>Secret version</Label>
-							<NativeSelect.Trigger aria-label='Secret version' value={selected} onChange={(event) => setSelected(event.target.value)} disabled={disabled || busy} required>
-								<NativeSelect.Option value=''>Choose a version</NativeSelect.Option>
-								{versions
-									.filter((version) => !version.revoked_at)
-									.map((version) => (
-										<NativeSelect.Option key={version.id} value={version.id}>
-											{version.name} · v{version.version}
-										</NativeSelect.Option>
-									))}
-								<NativeSelect.Indicator />
-							</NativeSelect.Trigger>
-						</NativeSelect>
-						<Button type='submit' variant='secondary' isDisabled={disabled || busy || !selected}>
+				<div className='flex flex-wrap items-end gap-3'>
+					<TextField aria-label='Search secrets' value={query} onChange={setQuery} className='min-w-0 flex-1'>
+						<Input variant='secondary' placeholder='Search secrets…' />
+					</TextField>
+					{canUse && versions.some((version) => !version.revoked_at) && (
+						<Button variant='secondary' isDisabled={disabled || busy} onPress={() => setBindingOpen(true)}>
 							Bind secret version
 						</Button>
-					</Form>
-				)}
-				{!versions.some((version) => !version.revoked_at) && <p className='text-muted text-sm'>No secret versions exist yet.{canManage ? " Create one below, then bind it to your script." : " Ask a project administrator to create one."}</p>}
-				{canManage &&
-					(creating ? (
-						<Form onSubmit={create} className='border-border flex flex-col gap-3 border-t pt-4'>
-							<TextField isRequired value={name} onChange={setName} isDisabled={busy}>
-								<Label>Secret name</Label>
-								<Input variant='secondary' />
-								<FieldError />
-							</TextField>
-							<TextField isRequired type='password' value={value} onChange={setValue} isDisabled={busy}>
-								<Label>Secret value</Label>
-								<Input variant='secondary' autoComplete='new-password' />
-								<FieldError />
-							</TextField>
-							<p className='text-muted text-xs'>Stored encrypted in this project. Rotate by creating another version with the same name.</p>
-							<div className='flex gap-2'>
-								<Button type='submit' isDisabled={busy}>
-									{busy ? "Creating…" : "Create secret version"}
-								</Button>
-								<Button
-									variant='ghost'
-									isDisabled={busy}
-									onPress={() => {
-										setCreating(false);
-										setValue("");
-									}}
-								>
-									Cancel
-								</Button>
-							</div>
-						</Form>
-					) : (
-						<Button variant='ghost' className='self-start' isDisabled={disabled} onPress={() => setCreating(true)}>
-							Create a secret version
+					)}
+					{canManage && (
+						<Button isDisabled={disabled || busy} onPress={() => setCreating(true)}>
+							Create secret version
 						</Button>
-					))}
+					)}
+				</div>
+				<Table>
+					<Table.ScrollContainer>
+						<Table.Content aria-label='Secret inventory' className='w-full'>
+							<Table.Header>
+								<Table.Column isRowHeader>Secret</Table.Column>
+								<Table.Column>Version / status</Table.Column>
+							</Table.Header>
+							<Table.Body>
+								{versions
+									.filter((version) => version.name.toLowerCase().includes(query.toLowerCase()))
+									.map((version) => (
+										<Table.Row key={version.id} id={version.id}>
+											<Table.Cell>
+												{version.name}
+												<span className='text-muted block text-xs'>Encrypted · value hidden</span>
+											</Table.Cell>
+											<Table.Cell>
+												v{version.version} · {version.revoked_at ? "Revoked" : "Available"}
+											</Table.Cell>
+										</Table.Row>
+									))}
+							</Table.Body>
+						</Table.Content>
+					</Table.ScrollContainer>
+				</Table>
+				<Sheet isOpen={bindingOpen} onOpenChange={setBindingOpen}>
+					<Sheet.Backdrop>
+						<Sheet.Content>
+							<Sheet.Dialog className='max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto'>
+								<Sheet.CloseTrigger />
+								<Sheet.Header>
+									<Sheet.Heading>Bind a secret</Sheet.Heading>
+								</Sheet.Header>
+								<Sheet.Body>
+									<Form onSubmit={bind} className='flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end'>
+										<TextField isRequired value={binding} onChange={setBinding} isDisabled={disabled || busy} pattern='[A-Za-z_][A-Za-z0-9_]*'>
+											<Label>Binding name</Label>
+											<Input variant='secondary' />
+											<FieldError />
+										</TextField>
+										<NativeSelect variant='secondary' className='min-w-0 w-full sm:w-auto'>
+											<Label>Secret version</Label>
+											<NativeSelect.Trigger aria-label='Secret version' value={selected} onChange={(event) => setSelected(event.target.value)} disabled={disabled || busy} required>
+												<NativeSelect.Option value=''>Choose a version</NativeSelect.Option>
+												{versions
+													.filter((version) => !version.revoked_at)
+													.map((version) => (
+														<NativeSelect.Option key={version.id} value={version.id}>
+															{version.name} · v{version.version}
+														</NativeSelect.Option>
+													))}
+												<NativeSelect.Indicator />
+											</NativeSelect.Trigger>
+										</NativeSelect>
+										<Button type='submit' variant='secondary' isDisabled={disabled || busy || !selected}>
+											Bind secret version
+										</Button>
+									</Form>
+								</Sheet.Body>
+							</Sheet.Dialog>
+						</Sheet.Content>
+					</Sheet.Backdrop>
+				</Sheet>
+				{!versions.some((version) => !version.revoked_at) && <p className='text-muted text-sm'>No secret versions exist yet.{canManage ? " Create one, then bind it to your script." : " Ask a project administrator to create one."}</p>}
+				<Sheet
+					isOpen={creating}
+					onOpenChange={(open) => {
+						if (!busy) {
+							setCreating(open);
+							if (!open) setValue("");
+						}
+					}}
+				>
+					<Sheet.Backdrop>
+						<Sheet.Content>
+							<Sheet.Dialog className='max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto'>
+								<Sheet.CloseTrigger />
+								<Sheet.Header>
+									<Sheet.Heading>Create secret version</Sheet.Heading>
+								</Sheet.Header>
+								<Sheet.Body>
+									<Form onSubmit={create} className='border-border flex flex-col gap-3 border-t pt-4'>
+										<TextField isRequired value={name} onChange={setName} isDisabled={busy}>
+											<Label>Secret name</Label>
+											<Input variant='secondary' />
+											<FieldError />
+										</TextField>
+										<TextField isRequired type='password' value={value} onChange={setValue} isDisabled={busy}>
+											<Label>Secret value</Label>
+											<Input variant='secondary' autoComplete='new-password' />
+											<FieldError />
+										</TextField>
+										<p className='text-muted text-xs'>Stored encrypted in this project. Rotate by creating another version with the same name.</p>
+										<div className='flex gap-2'>
+											<Button type='submit' isDisabled={busy}>
+												{busy ? "Creating…" : "Create secret version"}
+											</Button>
+											<Button
+												variant='ghost'
+												isDisabled={busy}
+												onPress={() => {
+													setCreating(false);
+													setValue("");
+												}}
+											>
+												Cancel
+											</Button>
+										</div>
+									</Form>
+								</Sheet.Body>
+							</Sheet.Dialog>
+						</Sheet.Content>
+					</Sheet.Backdrop>
+				</Sheet>
 			</Card.Content>
 		</Card>
 	);

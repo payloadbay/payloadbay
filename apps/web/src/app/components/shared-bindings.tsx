@@ -63,7 +63,7 @@ export function SharedBindings({ projectId, bindings, onChange, disabled }: Shar
 					Shared helper imports
 				</h3>
 				<Card.Description>
-					Bind a saved helper version, then import it from <code>@shared/ImportName</code>.{" "}
+					Bind a saved helper version. Its visible import is added to the script from <code>@shared/ImportName</code>.{" "}
 					<Link className='text-accent underline' href={"/code/project/" + projectId}>
 						Create or edit helper files
 					</Link>

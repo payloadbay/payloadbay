@@ -63,8 +63,13 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 
 	const [testBody, setTestBody] = useState('{"type":"purchase.completed","data":{"orderId":"demo-001","amount":4900,"currency":"EUR"}}');
 	const [requestMethod, setRequestMethod] = useState("POST");
+	const [requestHeaders, setRequestHeaders] = useState('{"content-type": "application/json"}');
 	const [sending, setSending] = useState(false);
-	const [requestResult, setRequestResult] = useState<{ status: number; body: string } | null>(null);
+	const [requestResult, setRequestResult] = useState<{
+		status: number;
+		body: string;
+		headers: Record<string, string>;
+	} | null>(null);
 	const [testHeaders, setTestHeaders] = useState("{}");
 	const [testSecrets, setTestSecrets] = useState("{}");
 	const [testResult, setTestResult] = useState<unknown>(null);
@@ -75,13 +80,19 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 		setError("");
 		setRequestResult(null);
 		try {
+			const headers: unknown = JSON.parse(requestHeaders);
+			if (!headers || typeof headers !== "object" || Array.isArray(headers) || Object.values(headers).some((value) => typeof value !== "string")) throw Error("Request headers must be a JSON object with text values");
 			const response = await fetch(route.ingressUrl, {
 				method: requestMethod,
 				credentials: "omit",
-				headers: { "content-type": "application/json" },
+				headers: headers as Record<string, string>,
 				...(!["GET", "HEAD"].includes(requestMethod) ? { body: testBody } : {}),
 			});
-			setRequestResult({ status: response.status, body: await response.text() });
+			setRequestResult({
+				status: response.status,
+				body: await response.text(),
+				headers: Object.fromEntries(response.headers),
+			});
 		} catch (cause) {
 			failed(cause);
 		} finally {
@@ -425,7 +436,21 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 									bindings={drafts[slot].shared_bindings}
 									disabled={busy || !editable}
 									onChange={(shared_bindings) => {
-										setDrafts((previous) => (previous ? { ...previous, [slot]: { ...previous[slot], shared_bindings } } : previous));
+										setDrafts((previous) => {
+											if (!previous) return previous;
+											let body = previous[slot].body;
+											if (slot === "ingress") {
+												for (const alias of Object.keys(shared_bindings)) {
+													if (!previous[slot].shared_bindings[alias]) body = `import * as ${alias} from "@shared/${alias}";\n` + body;
+												}
+
+												for (const alias of Object.keys(previous[slot].shared_bindings)) {
+													if (!shared_bindings[alias]) body = body.replace(`import * as ${alias} from "@shared/${alias}";\n`, "");
+												}
+											}
+
+											return { ...previous, [slot]: { ...previous[slot], body, shared_bindings } };
+										});
 										setNotice("");
 									}}
 								/>
@@ -472,7 +497,7 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 				<Card>
 					<Card.Header>
 						<h2 className='text-xl font-semibold'>Send a real test request</h2>
-						<Card.Description>This goes through the published ingress handler and durable delivery queue. Use synthetic data only.</Card.Description>
+						<Card.Description>Send to the published route, then inspect its HTTP response below. Accepted events enter the delivery queue; rejected and response-only requests are recorded without delivery. Use synthetic data only.</Card.Description>
 					</Card.Header>
 					<Card.Content className='flex flex-col gap-4'>
 						<NativeSelect variant='secondary'>
@@ -486,21 +511,33 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 								<NativeSelect.Indicator />
 							</NativeSelect.Trigger>
 						</NativeSelect>
+						<label className='flex flex-col gap-2 text-sm'>
+							Request headers (JSON)
+							<TextArea aria-label='Playground request headers' variant='secondary' value={requestHeaders} onChange={(event) => setRequestHeaders(event.target.value)} rows={2} className='font-mono' />
+						</label>
 						{!["GET", "HEAD"].includes(requestMethod) && (
 							<label className='flex flex-col gap-2 text-sm'>
 								Request body
 								<TextArea variant='secondary' aria-label='Playground request body' value={testBody} onChange={(e) => setTestBody(e.target.value)} rows={6} className='font-mono' />
 							</label>
 						)}
-						<Button className='self-center sm:self-start' onPress={() => void sendRequest()} isPending={sending} isDisabled={!route.activePublicationId || sending}>
+						<Button className='self-end' onPress={() => void sendRequest()} isPending={sending} isDisabled={!route.activePublicationId || sending}>
 							Send request
 						</Button>
 						{!route.activePublicationId && <p className='text-muted text-sm'>Publish the scripts first to enable the receiving URL.</p>}
 						{requestResult && (
-							<div role='status'>
-								<p className='font-medium'>HTTP {requestResult.status}</p>
-								<pre className='bg-field mt-2 overflow-auto rounded-lg p-3 text-sm'>{requestResult.body || "Empty response body"}</pre>
-							</div>
+							<section aria-label='HTTP response' className='border-border border-t pt-4'>
+								<h3 className='mb-2 font-semibold'>Response</h3>
+								<div role='status'>
+									<p className='font-medium'>HTTP {requestResult.status}</p>
+
+									<details className='mt-2 text-sm'>
+										<summary className='cursor-pointer'>Response headers</summary>
+										<pre className='overflow-x-auto py-2 text-xs'>{JSON.stringify(requestResult.headers, null, 2)}</pre>
+									</details>
+									<pre className='bg-field mt-2 overflow-auto rounded-lg p-3 text-sm'>{requestResult.body || "Empty response body"}</pre>
+								</div>
+							</section>
 						)}
 					</Card.Content>
 				</Card>

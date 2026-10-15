@@ -7,28 +7,34 @@
 
 **Input**: A self-hostable, designed for a later edge-ingress adapter programmable event-delivery platform. Users own all provider logic, routing and middleware; Payload Bay manages execution, durable acceptance, attempts, retries and replay. Each endpoint has editable ingress logic and worker-executed processing logic, sharing ordinary helpers.
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 — Install and access the instance (Priority: P1)
+
 An operator installs a versioned container release, creates the owner once, signs in and configures the instance without a required central cloud account.
 **Independent Test**: Clean-host install, owner bootstrap, passwordless email-code login using released artifacts.
 **Acceptance Scenarios**:
+
 1. **Given** empty supported infrastructure, **When** setup completes, **Then** health/configuration are visible and owner bootstrap completes exactly once with recoverable partial failures.
 2. **Given** private administration, **When** anonymous or inactive-user access occurs, **Then** access fails without leaking credentials/private events.
 3. **Given** configured SMTP login mail, **When** the operator requests an email login code, **Then** the documented passwordless flow succeeds without revealing account existence. Public registration remains disabled.
 
 ### User Story 2 — Own and publish endpoint code (Priority: P1)
+
 An operator selects a code template or starts blank, edits ordinary TypeScript including helpers, tests it and publishes an immutable revision. Shared code is reusable across scripts.
 **Independent Test**: Publish a custom verification/response script, invoke it, edit a draft and confirm active behavior changes only on publication; roll back.
 **Acceptance Scenarios**:
+
 1. **Given** a template, **When** it is selected, **Then** its actual code/helpers are copied and remain editable; no hidden provider-specific platform behavior is activated.
 2. **Given** an active revision, **When** its draft/template/shared-module source changes, **Then** already-published behavior does not silently change.
 3. **Given** a script with its own verification/challenge logic, **When** a request arrives, **Then** published code determines the exact response under lifecycle/resource guarantees.
 
 ### User Story 3 — Accept through ingress and deliver through processing (Priority: P1)
+
 A dispatcher runs endpoint ingress code and middleware. Accepted event and processing job commit before the provider response. A worker later runs the pinned processing code/middleware, awaits destination.send and records its final outcome.
 **Independent Test**: A controlled sender receives its configured response while the processing script later sends custom payloads to an app and an analytics/chat receiver.
 **Acceptance Scenarios**:
+
 1. **Given** a valid event, **When** the script acknowledges it, **Then** original event/revision/recoverable processing work is committed before provider success; later processing does not hold open the provider response.
 2. **Given** protocol-only challenge handling, **When** code responds with plain text, **Then** bytes/status/content type are correct and a protocol response is not falsely recorded as an event delivery.
 3. **Given** verification failure or invalid script result, **When** processing runs, **Then** no unaccepted event is falsely acknowledged.
@@ -36,17 +42,21 @@ A dispatcher runs endpoint ingress code and middleware. Accepted event and proce
 5. **Given** a persistence failure, **When** acknowledgement is attempted, **Then** no success is sent and accepted data/work is rolled back.
 
 ### User Story 4 — Reuse middleware and custom routing (Priority: P1)
+
 Users configure shared middleware at instance/workspace/project/endpoint scopes with explicit order and failure policy. Code can use a default destination, configured destination or custom HTTP destination, transform payloads and fan out.
 **Independent Test**: A shared processing middleware records event metadata, then processing code sends to its selected application; required/optional failure policies are observable.
 **Acceptance Scenarios**:
+
 1. **Given** selected scoped middleware, **When** a request runs, **Then** configured revision/order is reproducible and optional failure does not silently become required failure.
 2. **Given** published routing logic, **When** event data selects a destination, **Then** user-owned code controls the decision; no finite platform provider catalog restricts it.
 3. **Given** configured localhost/LAN/100.x/public/domain/tunnel endpoints, **When** reachable from the sending runtime, **Then** address category alone does not reject them. Localhost/container topology is documented accurately.
 
 ### User Story 5 — Recover and replay (Priority: P1)
+
 Operators inspect accepted events, handler runs and individual attempts; recover temporary outages; deliberately replay retained events.
 **Independent Test**: Crash/restart a controlled run at defined boundaries, fail one destination, restore it and inspect automatic recovery/explicit replay.
 **Acceptance Scenarios**:
+
 1. **Given** successful provider acknowledgement, **When** execution dies before finishing, **Then** recoverable work remains and is retried according to a documented replay/checkpoint contract, without pretending arbitrary JS resumes at its previous instruction.
 2. **Given** a recorded successful managed send, **When** the same run recovers, **Then** stable operation identity avoids blindly creating it again; remote-success/local-record-loss remains an explicit duplicate window.
 3. **Given** terminal failure, **When** replay is requested, **Then** a new execution identity preserves previous history and recorded code/replay policy.
@@ -55,11 +65,13 @@ Operators inspect accepted events, handler runs and individual attempts; recover
 6. **Given** an explicit project/ingress-route rule with count1 and optional SMTP subscription, **When** its first matching managed delivery fails, **Then** one scoped incident appears and only authorized subscribed recipients receive its summary.
 
 ### Edge Cases
+
 Invalid/missing verification; malformed/binary bodies; exact challenge bytes; code timeout/exception/invalid result; response already sent; expired request timestamp during replay; time/random/secret/shared-module changes; direct external side effects; partial fan-out; destination timeout/failure; bounded resources; queue/database rollback; lost wake-up; stale lease; unauthorized access; private payload/secret exposure. The runtime contract must resolve recovery semantics before implementation rather than hide these cases.
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements
+
 - **FR-001**: Provide an independently installable, pinned container alpha; no mandatory central account or optional Runner dependency.
 - **FR-002**: Protect administration/private data with authenticated active-user checks; public ingress does not grant administrative/database access.
 - **FR-003**: Provide a small dashboard for endpoint code/configuration, destinations, health and event/run/attempt inspection. Administrator-code-selected HTTP/HTTPS addresses are not restricted by address category.
@@ -81,11 +93,13 @@ Invalid/missing verification; malformed/binary bodies; exact challenge bytes; co
 - **FR-019**: Support instance/workspace/project/endpoint-scoped user middleware with explicit order, versioned bindings and configurable required/optional failure behavior. Permission inheritance follows instance → workspace → project.
 
 ### Key Entities
+
 Installation/admission/grants, Workspace and Project scopes; Endpoint; Draft, StageRevision, SharedModuleRevision and Publication; MiddlewareRevision/Binding; Event/Receipt; Execution/Dispatch; ManagedOperation and DeliveryAttempt; SecretVersion, PlatformJob, Audit and ChangeRecord. Names match data-model.md and plan.md. Do not create extra repositories or speculative entity scaffolds. Default routes are optional convenience, not the only processing path.
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
+
 - **SC-001**: Clean installation, owner access/configuration and first programmable delivery pass using only documented release artifacts.
 - **SC-002**: Original JSON/binary fixture bytes remain exact; unchanged-forward fixtures stay byte-identical; explicit transformations match user-code fixtures; rejected inputs create zero accepted work; challenge responses match expected status/bytes/content type.
 - **SC-003**: All acknowledged-event crash/restart/lost-scheduling scenarios retain recoverable work and produce observable outcomes under the declared recovery contract.
@@ -94,12 +108,12 @@ Installation/admission/grants, Workspace and Project scopes; Endpoint; Draft, St
 - **SC-006**: Each applicable acceptance case has one owning executable route and complete passing final evidence; empty selections are not passes. Publish latency/load claims only after measurement.
 
 ## Assumptions
+
 Focused alpha Auth scope: one-time owner setup and email-code login via SMTP, passwords disabled by default and public registration disabled. Supported OAuth providers enable through valid environment configuration. Roles/custom permission editing are planned; instance/workspace/project grants inherit downward. Users control provider behavior through code; Payload Bay controls lifecycle and records actual outcomes. Runner/status-page integrations remain optional. Approved backend: integrated Next.js/Node.js, PostgreSQL, Better Auth and Graphile Worker; no Supabase backend mode.
 
-
 ## Behavior and delivery scope
-First alpha includes the plain editor/template/shared-code/middleware and two-stage programmable flow, plus durable acceptance/delivery/recovery and independent installation. No new provider catalogue, required external connector, general workflow designer or arbitrary infrastructure expansion is implied. Existing master is scaffolding; the Supabase spike is unmerged evidence, not a released product. Technical implementation follows design review and authorized SpecKit tasks/TDD, not this specification edit.
 
+First alpha includes the plain editor/template/shared-code/middleware and two-stage programmable flow, plus durable acceptance/delivery/recovery and independent installation. No new provider catalogue, required external connector, general workflow designer or arbitrary infrastructure expansion is implied. Existing master is scaffolding; the Supabase spike is unmerged evidence, not a released product. Technical implementation follows design review and authorized SpecKit tasks/TDD, not this specification edit.
 
 ## Confirmed application, code and access requirements
 
@@ -126,7 +140,6 @@ Success evidence adds inherited-role/OTP/API/SSE/editor tests and the fixture la
 
 Terminology: ingress route is the user-facing receiving endpoint; existing Endpoint domain/API maps to it. Destination is an outgoing target; notification inbox is alerts only. See proposals/notification-inbox.md for the modular service contract, rules, dismissal and icon research. This is design, not a built inbox.
 
-
 ### Maintainer dashboard review alignment — 2026-10-15
 
 The review confirms contextual desktop/mobile navigation, a real published-route
@@ -137,3 +150,19 @@ personal SMTP preferences and passkeys. See [the UX review](../../docs/ux-audit.
 and [navigation](../../docs/dashboard-navigation.md) for implemented interactions.
 This supersedes the body-only ingress editor description in earlier planning.
 Version alerts and endpoint health checks remain deferred.
+
+### Maintainer review clarification — 2026-10-15
+
+The authenticated home is an operational overview, not the project inventory.
+Show authorized ingress/acceptance outcomes, processing and outgoing attempt
+metrics with recent activity. Apply project UI/UX principles in
+`docs/ui-ux-rules.md`: separate global/resource navigation, contextual task groups,
+search across accessible resources/settings, ancestor breadcrumbs, mobile drawer
+hierarchy browsing, collection tables and context-preserving bounded dialogs.
+
+Persist bounded active-route requests with valid reject or response-only outcomes
+for inspection, without accepted receipts or delivery work. Accepted events retain
+atomic event/receipt/job commit. The incoming request identity stays stable;
+outgoing attempts, including retries, each have their own history row. Replaying
+for delivery is restricted to accepted events. Provider challenges remain
+response-only unless the configured script explicitly accepts them.

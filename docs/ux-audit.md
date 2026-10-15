@@ -85,3 +85,69 @@ References:
 - https://heroui.com/en/docs/react/getting-started/styling
 - https://heroui.com/en/docs/react/getting-started/composition
 - https://heroui.com/en/docs/react/getting-started/agent-skills
+
+## Maintainer review follow-up — 2026-10-15
+
+Approved reusable principles are in [ui-ux-rules.md](ui-ux-rules.md), also recorded
+in Linear's project document. This section tracks concrete corrections separately
+from those principles. Coolify source inspection informed the navigation grouping,
+collection toolbars and viewport-bounded dialog composition; it was not a browser
+verification of Coolify.
+
+Changes implemented and exercised in scoped validation:
+
+- Home is a traffic overview: exact authorized hourly aggregates, ingress
+  accept/reject/response-only totals, processing executions, outgoing attempt
+  outcomes, a graph, recent executions and project links. Project management has
+  its own page. Statistics count outgoing retries individually.
+- Global navigation is separate from grouped resource settings. Hierarchy browsing
+  in the mobile drawer preserves the working page; search can open authorized
+  projects/workspaces/pages directly. Ancestor breadcrumbs provide direct return.
+- Preview notice and opaque brand header share the fixed application shell.
+  Brand uses unchanged dark-transparent assets from merged brand PR #14; headers supply their own spacing. Account menu is personal, with a
+  danger-colored sign-out; instance administration stays in global navigation.
+- Resource creation and notification-rule editing use bounded overlays. Routes,
+  destinations and secret inventory use collection tables. Secret creation and
+  binding are separate overlay tasks rather than appended forms.
+- Helper bindings insert visible imports into full ingress source. New helper
+  names update untouched starter functions; middleware starts with indentation.
+  Sheet actions sit outside the scrolling editor body; wheel scrolling can leave
+  Monaco at the boundary. Scoped browser checks cover mobile editor save/close and narrow dialog bounds; real-device touch behavior remains a manual review item.
+- Incoming request history records reject/response-only outcomes and bounded handler failures without
+  delivery jobs. Requests and outgoing delivery attempts have separate views;
+  each attempt row opens its original request history. Both refresh through SSE.
+- Replay explains original/current published code and is available only for
+  accepted requests. Rejected requests cannot bypass ingress through replay.
+
+Ingress persistence here covers bounded requests to an active route, including
+handler/executor failures and invalid outcomes as non-accepted error records.
+Unknown/unpublished routes and transport size rejection are not retained. A
+pre-handler ledger surviving a process crash before outcome recording is not
+implemented by this change. Accepted-event and
+job creation remain atomic, including rollback on database/queue failure.
+
+The navigation guard remains a custom shared hook for linked navigation, editor
+closure and beforeunload; it is not the next-navigation-guard package. Browser
+back interception is not claimed by that hook.
+
+Verification is recorded after each actual run. Earlier acceptance counts above
+refer to the prior pushed baseline, not automatic approval of this working tree.
+
+
+### Verification for this review pass
+
+- Full dashboard acceptance: 27 passed. A subsequent five-case rerun passed after
+  the final dialog-heading changes (resource configuration, event inspection,
+  helpers/middleware, notification rules and mobile hierarchy/search).
+- Mobile/editor/bootstrap acceptance: 8 passed.
+- Ingress integration: 20 passed, followed by the additional handler-error-history
+  case passing separately. Rejected and response-only requests retain history
+  without dispatch; queue failures still roll accepted work back atomically.
+- Delivery/replay: 15 passed. Live API/SSE: 18 passed. Contracts: 27 passed.
+- Preview seed/runtime notices/reviewer protection: 3 passed.
+- ESLint, TypeScript, Prettier, test inventory and diff whitespace checks passed.
+
+These are scoped runs, not a full release certification. Generated OpenAPI/Scalar
+screen parity, published-image installation/upgrade, complete recovery/performance
+and optional host runsc release gates remain separate work. Preview verification
+is recorded with the pushed revision in Linear PAB-66.

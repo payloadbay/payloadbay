@@ -44,41 +44,68 @@ export async function receiveIngress(pool: Pool, input: IngressInput, options: I
 	if (/^Bearer pb_[A-Za-z0-9_-]{43}$/i.test(headers.authorization ?? "")) delete headers.authorization;
 	const route = (await pool.query(`SELECT e.id,e.project_id,e.priority,p.id AS publication_id,p.shared_versions,p.effective_bindings,r.bundle FROM payloadbay.endpoint e JOIN payloadbay.project pr ON pr.id=e.project_id JOIN payloadbay.workspace w ON w.id=pr.workspace_id JOIN payloadbay.publication p ON p.id=e.active_publication_id JOIN payloadbay.stage_revision r ON r.id=p.ingress_revision_id WHERE e.ingress_key=$1 AND pr.archived_at IS NULL AND w.archived_at IS NULL`, [input.key])).rows[0];
 	if (!route) throw new AppError("ingress_unavailable", 404, "Ingress route unavailable");
-	const secrets = await resolvePinnedSecrets(pool, route.project_id, route.shared_versions.ingress?.secrets ?? {}, options.encryptionKey);
-	const execution = await executePipeline({
-		bindings: route.effective_bindings ?? [],
-		run: options.run,
-		resolveSecrets: (refs) => resolvePinnedSecrets(pool, route.project_id, refs, options.encryptionKey),
-		stage: "ingress",
-		bundle: route.bundle,
-		deadlineMs: options.deadlineMs ?? 2000,
-		input: {
-			endpointId: route.id,
-			receivedAt: new Date().toISOString(),
-			secrets,
-			request: {
-				body: input.body,
-				headers,
-				contentType: headers["content-type"] ?? "application/octet-stream",
-				method: input.method,
-				url: input.url,
-			},
-		},
-	});
-	const parsed = ingressDecision.safeParse(execution.decision);
-	if (!parsed.success) throw new AppError("invalid_ingress_outcome", 502, "Ingress handler returned an invalid outcome");
-	const decision = parsed.data;
+	let decision: ReturnType<typeof ingressDecision.parse>;
 	try {
-		validateProviderResponse(decision.response, { bodyBytes: options.bodyLimit ?? 1048576, headerBytes: options.headerLimit ?? 16384 });
-	} catch {
-		throw new AppError("invalid_ingress_outcome", 502, "Ingress handler returned an invalid HTTP response");
+		const secrets = await resolvePinnedSecrets(pool, route.project_id, route.shared_versions.ingress?.secrets ?? {}, options.encryptionKey);
+		const execution = await executePipeline({
+			bindings: route.effective_bindings ?? [],
+			run: options.run,
+			resolveSecrets: (refs) => resolvePinnedSecrets(pool, route.project_id, refs, options.encryptionKey),
+			stage: "ingress",
+			bundle: route.bundle,
+			deadlineMs: options.deadlineMs ?? 2000,
+			input: {
+				endpointId: route.id,
+				receivedAt: new Date().toISOString(),
+				secrets,
+				request: {
+					body: input.body,
+					headers,
+					contentType: headers["content-type"] ?? "application/octet-stream",
+					method: input.method,
+					url: input.url,
+				},
+			},
+		});
+		const parsed = ingressDecision.safeParse(execution.decision);
+		if (!parsed.success) throw new AppError("invalid_ingress_outcome", 502, "Ingress handler returned an invalid outcome");
+		decision = parsed.data;
+		try {
+			validateProviderResponse(decision.response, { bodyBytes: options.bodyLimit ?? 1048576, headerBytes: options.headerLimit ?? 16384 });
+		} catch {
+			throw new AppError("invalid_ingress_outcome", 502, "Ingress handler returned an invalid HTTP response");
+		}
+	} catch (cause) {
+		await transaction(pool, async (db) => {
+			const recorded = (await db.query("INSERT INTO payloadbay.event(endpoint_id,publication_id,original_body,headers,content_type,accepted_body,ingress_outcome,request_method,response_status) VALUES($1,$2,$3,$4,$5,$6,'error',$7,$8) RETURNING id", [route.id, route.publication_id, Buffer.from(input.body), JSON.stringify(headers), headers["content-type"] ?? "application/octet-stream", Buffer.alloc(0), input.method, cause instanceof AppError ? cause.status : 500])).rows[0];
+			await appendChange(db, { scope: { type: "project", id: route.project_id }, kind: "event.recorded", resourceId: recorded.id });
+		});
+		throw cause;
 	}
 
-	if (decision.kind !== "accept") return decision.response;
-	const accepted = typeof decision.event.body === "string" ? Buffer.from(decision.event.body) : Buffer.from(decision.event.body);
+	const accepted = decision.kind === "accept" ? Buffer.from(decision.event.body) : Buffer.alloc(0);
 	if (accepted.byteLength > (options.bodyLimit ?? 1048576)) throw new AppError("body_too_large", 413, "Accepted event exceeds the configured limit");
 	await transaction(pool, async (db) => {
-		const event = (await db.query("INSERT INTO payloadbay.event(endpoint_id,publication_id,original_body,headers,content_type,accepted_body,metadata) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id", [route.id, route.publication_id, Buffer.from(input.body), JSON.stringify(headers), decision.event.contentType, accepted, JSON.stringify(decision.event.metadata ?? {})])).rows[0];
+		const event = (
+			await db.query("INSERT INTO payloadbay.event(endpoint_id,publication_id,original_body,headers,content_type,accepted_body,metadata,ingress_outcome,request_method,response_status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id", [
+				route.id,
+				route.publication_id,
+				Buffer.from(input.body),
+				JSON.stringify(headers),
+				decision.kind === "accept" ? decision.event.contentType : (headers["content-type"] ?? "application/octet-stream"),
+				accepted,
+				JSON.stringify(decision.kind === "accept" ? (decision.event.metadata ?? {}) : {}),
+				decision.kind,
+				input.method,
+				decision.response.status,
+			])
+		).rows[0];
+		if (decision.kind !== "accept") {
+			await appendChange(db, { scope: { type: "project", id: route.project_id }, kind: "event.recorded", resourceId: event.id });
+
+			return;
+		}
+
 		const responseBody = typeof decision.response.body === "string" ? Buffer.from(decision.response.body) : Buffer.from(decision.response.body);
 		const digest = createHash("sha256")
 			.update(JSON.stringify({ status: decision.response.status, headers: decision.response.headers ?? {} }))

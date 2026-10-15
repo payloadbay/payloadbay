@@ -45,7 +45,7 @@ export async function seedPreviewDemo(pool: Pool, config: ServerConfig, identity
 			project = await createResource(pool, actor, {
 				type: "project",
 				parentId: workspace.id,
-				name: "Webhook Playground",
+				name: "Demo integrations",
 				slug: "webhook-playground",
 			});
 		if (!(await db.query("SELECT 1 FROM payloadbay.destination WHERE project_id=$1 AND name='Demo receiver'", [project.id])).rowCount) {

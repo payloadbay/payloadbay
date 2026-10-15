@@ -147,7 +147,7 @@ export function AuthPanel({ setup = false, preview = false, initialEmail, return
 		<main className='mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-6 px-5 py-10 sm:py-16'>
 			<Card className='w-full gap-6 p-6 sm:p-8'>
 				<Link href='/' className='mx-auto block' aria-label='Payload Bay home'>
-					<Image src='/brand/payloadbay-logo-transparent-padded.svg' alt='Payload Bay' width={240} height={53} priority />
+					<Image src='/brand/payloadbay-logo-dark-transparent-padded.svg' alt='Payload Bay' width={240} height={53} priority />
 				</Link>
 				<Card.Header className='items-center gap-2 text-center'>
 					<h1 className='text-2xl font-semibold'>{sent ? "Check your email" : setup ? "Set up Payload Bay" : "Welcome back"}</h1>

@@ -49,7 +49,7 @@ test("U85 accepted binary bytes are durable before acknowledgement", async () =>
 	});
 });
 
-test("U93 reject produces no stored event or queued work", async () => {
+test("U93 reject records the inbound request without queued work", async () => {
 	await ingressFixture('return ctx.reject({status:403,body:"denied"});', async ({ pool, db, key }) => {
 		const response = await receiveIngress(
 			pool,
@@ -63,7 +63,12 @@ test("U93 reject produces no stored event or queued work", async () => {
 			options,
 		);
 		assert.equal(response.status, 403);
-		for (const table of ["event", "receipt", "execution", "dispatch"]) assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay." + table)).rows[0].n, 0, "rejected ingress must not create work");
+		const recorded = (await db.query("SELECT ingress_outcome,response_status,original_body FROM payloadbay.event")).rows;
+		assert.equal(recorded.length, 1);
+		assert.equal(recorded[0].ingress_outcome, "reject");
+		assert.equal(recorded[0].response_status, 403);
+		assert.deepEqual(recorded[0].original_body, Buffer.from([42]));
+		for (const table of ["receipt", "execution", "dispatch"]) assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay." + table)).rows[0].n, 0, "rejected ingress must not create work");
 		assert.equal((await db.query("SELECT count(*)::int AS n FROM graphile_worker.jobs")).rows[0].n, 0);
 	});
 });
@@ -389,7 +394,7 @@ test("U308 invalid native provider responses never commit accepted work", async 
 				}),
 			});
 			assert.equal(result.status, 502);
-			const counts = (await db.query("SELECT (SELECT count(*) FROM payloadbay.event) AS events,(SELECT count(*) FROM payloadbay.receipt) AS receipts,(SELECT count(*) FROM payloadbay.execution) AS executions")).rows[0];
+			const counts = (await db.query("SELECT (SELECT count(*) FROM payloadbay.event WHERE ingress_outcome='accept') AS events,(SELECT count(*) FROM payloadbay.receipt) AS receipts,(SELECT count(*) FROM payloadbay.execution) AS executions")).rows[0];
 			assert.deepEqual(counts, { events: "0", receipts: "0", executions: "0" }, "Invalid provider response must be rejected before durable acceptance");
 		}
 	});
@@ -412,5 +417,118 @@ test("U142 large resume batches remain bounded and recovery picks up the rest", 
 		assert.equal(recovered.length, 1, "The remaining old offer must be eligible immediately");
 		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.execution WHERE dispatch_generation=2")).rows[0].n, 101);
 		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.dispatch d JOIN payloadbay.execution e ON e.id=d.execution_id AND e.dispatch_generation=d.generation WHERE d.claim_deadline_at>clock_timestamp()")).rows[0].n, 101);
+	});
+});
+
+test("response-only requests remain inspectable without creating delivery work", async () => {
+	const { listEvents, eventDetails } = await import("../../packages/domain/src/events.ts");
+	const { replayEvent } = await import("../../packages/domain/src/replay.ts");
+	await ingressFixture('return ctx.respondOnly({status:200,body:"challenge"});', async ({ pool, db, key, scope }) => {
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','project',$1,'custom',ARRAY['metadata.read','events.replay'])", [scope.project]);
+		const response = await receiveIngress(
+			pool,
+			{
+				key,
+				body: Buffer.from("challenge request"),
+				headers: {},
+				method: "GET",
+				url: "https://fixture.test",
+			},
+			options,
+		);
+		assert.equal(response.body, "challenge");
+		const list = await listEvents(pool, { userId: "fixture-owner" }, { projectId: scope.project, state: "respondOnly" });
+		assert.equal(list.items.length, 1);
+		assert.equal(list.items[0].state, "respondOnly");
+		const details = await eventDetails(pool, { userId: "fixture-owner" }, list.items[0].id);
+		assert.equal(details.method, "GET");
+		assert.equal(details.responseStatus, 200);
+		assert.equal(details.executions.length, 0);
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.change_record WHERE kind='event.recorded'")).rows[0].n, 1);
+		await assert.rejects(replayEvent(pool, { userId: "fixture-owner" }, { eventId: list.items[0].id, key: "fixture-replay" }), { code: "request_not_accepted" });
+	});
+});
+
+test("overview aggregates exact traffic and keeps projects outside membership private", async () => {
+	const { dashboardOverview } = await import("../../packages/domain/src/overview.ts");
+	const { seedEvent } = await import("../helpers/domain-fixtures.ts");
+	await ingressFixture(accepting, async ({ pool, db, key, scope }) => {
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','project',$1,'custom',ARRAY['metadata.read'])", [scope.project]);
+		await receiveIngress(
+			pool,
+			{
+				key,
+				body: Buffer.from("visible"),
+				headers: {},
+				method: "POST",
+				url: "https://fixture.test",
+			},
+			options,
+		);
+		const hiddenProject = (await db.query("INSERT INTO payloadbay.project(workspace_id,name,slug,owner_user_id) VALUES($1,'Hidden','hidden','fixture-owner') RETURNING id", [scope.workspace])).rows[0].id;
+		const hiddenEndpoint = (await db.query("INSERT INTO payloadbay.endpoint(project_id,name,slug,ingress_key) VALUES($1,'Hidden','hidden',gen_random_uuid()::text) RETURNING id", [hiddenProject])).rows[0].id;
+		const hiddenPublication = (await db.query("INSERT INTO payloadbay.publication(endpoint_id,ingress_revision_id,processing_revision_id,dependency_digest,created_by) SELECT $1,ingress_revision_id,processing_revision_id,'fixture','fixture-owner' FROM payloadbay.publication WHERE id=$2 RETURNING id", [hiddenEndpoint, scope.publication])).rows[0].id;
+		const other = { endpoint: hiddenEndpoint, publication: hiddenPublication };
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await seedEvent(db, other);
+		const summary = await dashboardOverview(pool, { userId: "fixture-owner" });
+		assert.equal(summary.series.length, 24);
+		assert.equal(summary.totals.ingress, 1);
+		assert.equal(summary.totals.accepted, 1);
+		assert.equal(summary.totals.executions, 1);
+		assert.equal(summary.recent.length, 1);
+		assert.equal(summary.recent[0].project_id, scope.project);
+		const execution = summary.recent[0].id;
+		await db.query("INSERT INTO payloadbay.managed_operation(execution_id,operation_id,input_digest,destination_snapshot,generation) VALUES($1,'delivery','fixture','{}',1)", [execution]);
+		await db.query("INSERT INTO payloadbay.delivery_attempt(execution_id,operation_id,execution_attempt,generation,started_at,ended_at,status_code) VALUES($1,'delivery',1,1,now()-interval '2 seconds',now()-interval '1 second',500),($1,'delivery',2,1,now(),now(),204)", [execution]);
+		const { listEvents } = await import("../../packages/domain/src/events.ts");
+		const attempts = await listEvents(pool, { userId: "fixture-owner" }, { projectId: scope.project, view: "attempts", limit: 1 });
+		assert.equal(attempts.items.length, 1);
+		assert.equal(attempts.items[0].state, "delivered");
+		assert.ok(attempts.nextCursor);
+		const older = await listEvents(
+			pool,
+			{ userId: "fixture-owner" },
+			{
+				projectId: scope.project,
+				view: "attempts",
+				limit: 1,
+				cursor: attempts.nextCursor!,
+			},
+		);
+		assert.equal(older.items[0].state, "delivery_failed");
+		assert.notEqual(older.items[0].id, attempts.items[0].id);
+		assert.equal(older.items[0].eventId, attempts.items[0].eventId);
+		const updated = await dashboardOverview(pool, { userId: "fixture-owner" });
+		assert.equal(updated.totals.deliveries, 2);
+		assert.equal(updated.totals.delivered, 1);
+		assert.equal(updated.totals.failed, 1);
+	});
+});
+
+test("bounded handler failures remain visible without granting delivery authority", async () => {
+	const { listEvents } = await import("../../packages/domain/src/events.ts");
+	await ingressFixture('throw new Error("private runtime detail");', async ({ pool, db, key, scope }) => {
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','project',$1,'custom',ARRAY['metadata.read'])", [scope.project]);
+		await assert.rejects(
+			receiveIngress(
+				pool,
+				{
+					key,
+					body: Buffer.from("retain me"),
+					headers: {},
+					method: "POST",
+					url: "https://fixture.test",
+				},
+				options,
+			),
+		);
+		const page = await listEvents(pool, { userId: "fixture-owner" }, { projectId: scope.project, state: "error" });
+		assert.equal(page.items.length, 1);
+		assert.equal(page.items[0].state, "error");
+		assert.equal(JSON.stringify(page).includes("private runtime detail"), false);
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.execution")).rows[0].n, 0);
+		const stored = (await db.query("SELECT original_body FROM payloadbay.event")).rows[0];
+		assert.equal(stored.original_body.toString(), "retain me");
 	});
 });

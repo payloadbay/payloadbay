@@ -2398,3 +2398,25 @@ claim that every new screen was implemented through a strict test-first cycle.
 - No release migration was generated. Source schema/auth initialization changes
   are exercised by disposable development fixtures; master CI owns release
   migration generation. Optional host runsc and final release gates are separate.
+
+
+## Maintainer dashboard review follow-up — 2026-10-15
+
+This pass combines source review and post-change regression tests; it does not
+claim fabricated test-first Red cycles. General principles live in
+`docs/ui-ux-rules.md`; individual acceptance findings live in `docs/ux-audit.md`.
+
+- `bun run test:file tests/acceptance/dashboard.spec.ts`: 27 passed.
+- `bun run test:file tests/acceptance/dashboard.spec.ts --name 'U261|U292|U116|U305|overview and mobile'`: 5 passed after final accessible dialog headings.
+- `bun run test:file tests/acceptance/bootstrap.spec.ts`: 8 passed.
+- `bun run test:file tests/integration/ingress.test.ts`: 20 passed, then the added handler-error-history scenario passed separately. Exact scoped overview totals, hidden-project isolation and per-attempt pagination are covered.
+- `bun run test:file tests/integration/delivery.test.ts`: 15 passed.
+- `bun run test:file tests/integration/live-api.test.ts`: 18 passed.
+- `bun run test:file tests/unit/contracts.test.ts`: 27 passed.
+- `bun run test:file tests/integration/preview.test.ts`: 3 passed, including runtime warning visibility and protection of the seeded reviewer identity.
+- Final `bun run test:file tests/acceptance/dashboard.spec.ts --name "overview and mobile"`: 1 passed with the merged canonical non-padded header assets.
+
+Lint/typecheck/format/inventory checks passed. Source code and fixtures use
+Drizzle push; no release migration was generated. Six pre-existing Docker/build
+workflow drafts remain excluded from this review commit. The full alpha release
+gates remain open; these runs certify the scoped review only.

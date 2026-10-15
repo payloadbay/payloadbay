@@ -77,11 +77,33 @@ test("mobile dashboard keeps account actions in the avatar menu and projects in 
 					permissions,
 				},
 			],
+			"/api/v1/overview": {
+				totals: {
+					ingress: 0,
+					accepted: 0,
+					rejected: 0,
+					responded: 0,
+					errored: 0,
+					deliveries: 0,
+					delivered: 0,
+					failed: 0,
+					executions: 0,
+				},
+				series: Array.from({ length: 24 }, (_, hour) => ({
+					hour: `2026-10-15T${String(hour).padStart(2, "0")}:00:00Z`,
+					ingress: 0,
+					accepted: 0,
+					rejected: 0,
+					deliveries: 0,
+					executions: 0,
+				})),
+				recent: [],
+			},
 			"/api/v1/projects": [
 				{
 					id: "project",
-					name: "Webhook Playground",
-					slug: "webhook-playground",
+					name: "Demo integrations",
+					slug: "demo-integrations",
 					workspace_id: "workspace",
 					permissions,
 				},
@@ -98,7 +120,7 @@ test("mobile dashboard keeps account actions in the avatar menu and projects in 
 	});
 	await page.goto("/");
 	await expect(page.getByRole("grid", { name: "Projects", exact: true })).toBeVisible();
-	await expect(page.getByRole("row", { name: /Webhook Playground/ })).toBeVisible();
+	await expect(page.getByRole("row", { name: /Demo integrations/ })).toBeVisible();
 	await expect(page.getByText("long-reviewer-address@preview.payloadbay.test", { exact: true })).toHaveCount(0);
 	await page.setViewportSize({ width: 320, height: 740 });
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -106,7 +128,7 @@ test("mobile dashboard keeps account actions in the avatar menu and projects in 
 	await page.getByRole("button", { name: "Toggle navigation" }).click();
 	const navigation = page.getByRole("dialog");
 	await expect(navigation).toBeVisible();
-	await expect(navigation.getByText("Webhook Playground", { exact: true })).toBeVisible();
+	await expect(navigation.getByText("Demo integrations", { exact: true })).toBeVisible();
 	await page.keyboard.press("Escape");
 	await expect(navigation).toBeHidden();
 	await page.getByRole("button", { name: "Toggle navigation" }).click();
@@ -147,7 +169,7 @@ test.describe("unavailable and empty states", () => {
 
 	test("failed event loading offers retry instead of claiming no events exist", async ({ page }) => {
 		let unavailable = true;
-		await page.route("**/api/v1/projects/project/events", (route) => route.fulfill(unavailable ? { status: 503, json: { error: { code: "unavailable", message: "Service unavailable" } } } : { json: { items: [], nextCursor: null } }));
+		await page.route("**/api/v1/projects/project/events?*", (route) => route.fulfill(unavailable ? { status: 503, json: { error: { code: "unavailable", message: "Service unavailable" } } } : { json: { items: [], nextCursor: null } }));
 		await page.goto("/projects/project/events");
 		await expect(page.getByRole("heading", { name: "Events unavailable", exact: true })).toBeVisible();
 		await expect(page.getByRole("heading", { name: "No events yet", exact: true })).toHaveCount(0);
@@ -256,9 +278,10 @@ test("route editor has nested navigation, a scripting guide, typed method handle
 	await expect(page.getByLabel("Synthetic request body", { exact: true })).toBeHidden();
 	await page.getByRole("button", { name: "Toggle navigation" }).click();
 	const navigation = page.getByRole("dialog");
+	await navigation.getByText("Observe and troubleshoot", { exact: true }).click();
 	await expect(navigation.getByRole("row", { name: "Route events", exact: true })).toBeVisible();
 	await expect(navigation.getByRole("row", { name: "Secrets", exact: true })).toBeVisible();
-	await expect(navigation.getByRole("row", { name: "Instance members", exact: true })).toHaveCount(0);
+	await expect(navigation.getByRole("row", { name: "Instance members", exact: true })).toBeVisible();
 	await page.keyboard.press("Escape");
 	const editor = page.getByRole("textbox", { name: "Ingress code", exact: true });
 	await expect(page.locator(".monaco-editor .view-lines").first()).toBeVisible();
@@ -295,6 +318,7 @@ test("route editor has nested navigation, a scripting guide, typed method handle
 	await page.evaluate(() => window.scrollTo(0, 0));
 	await page.screenshot({ path: testInfo.outputPath("route-editor-mobile.png"), fullPage: true });
 	await page.setViewportSize({ width: 1440, height: 900 });
+	await page.getByText("Observe and troubleshoot", { exact: true }).click();
 	await expect(page.getByRole("row", { name: "Route events", exact: true })).toBeVisible();
 	await expect(page.getByRole("button", { name: "Toggle navigation" })).toBeHidden();
 	await page.getByRole("link", { name: "Back to project", exact: true }).click();

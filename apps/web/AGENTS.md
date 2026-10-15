@@ -10,6 +10,10 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## HeroUI workflow
 
+Read [Payload Bay UI/UX rules](../../docs/ui-ux-rules.md) before UI work. They
+contain the agreed reusable design principles. Feature requirements belong in
+the relevant specification.
+
 Use the project-scoped [official HeroUI React skill](../../.agents/skills/heroui-react/SKILL.md)
 for web UI work. It is vendored unchanged with its Apache-2.0 license from
 `heroui-inc/heroui`, revision `7a6cbbd6f6622f2562d26349f4728033b626706b`.

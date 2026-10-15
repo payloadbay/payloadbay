@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { Table, Switch, Button } from "@heroui/react";
 import { useDashboard } from "@components/dashboard-shell";
@@ -26,15 +26,17 @@ export default function NotificationPreferencesPage() {
 	const [attempt, setAttempt] = useState(0);
 	const [error, setError] = useState("");
 	const [busy, setBusy] = useState<string | null>(null);
+	const edits = useRef(0);
 
 	useFeedbackToast(error, "", { error: "Notification preferences error" });
 
 	useEffect(() => {
 		let active = true;
+		const revision = edits.current;
 		Promise.all([...projects.filter((project) => project.permissions.includes("notifications.read")).map((project) => api<Preference[]>("/projects/" + project.id + "/notification-subscriptions")), ...workspaces.filter((workspace) => workspace.permissions.includes("notifications.read")).map((workspace) => api<Preference[]>("/workspaces/" + workspace.id + "/notification-subscriptions"))])
 			.then(
 				(rows) => {
-					if (active) setPreferences(rows.flat());
+					if (active && revision === edits.current) setPreferences(rows.flat());
 				},
 				(cause) => {
 					if (active) setError(cause instanceof Error ? cause.message : "Could not load preferences");
@@ -50,6 +52,7 @@ export default function NotificationPreferencesPage() {
 	}, [projects, workspaces, attempt]);
 
 	async function toggle(rule: Preference, enabled: boolean) {
+		edits.current += 1;
 		setBusy(rule.id);
 		setError("");
 		try {

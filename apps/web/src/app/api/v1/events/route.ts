@@ -16,6 +16,7 @@ export async function GET(request: Request) {
 
 		return listEvents(pool, actor, {
 			...parsed.data,
+			view: query.get("view") === "attempts" ? "attempts" : "requests",
 			...(query.get("projectId") ? { projectId: uuid(query.get("projectId")!) } : {}),
 			...(query.get("workspaceId") ? { workspaceId: uuid(query.get("workspaceId")!) } : {}),
 			...(query.get("endpointId") ? { endpointId: uuid(query.get("endpointId")!) } : {}),

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { Button, Card, Checkbox, Label, NumberField, FieldError } from "@heroui/react";
-import { EmptyState, NativeSelect } from "@heroui-pro/react";
+import { EmptyState, NativeSelect, Sheet } from "@heroui-pro/react";
 import { IconBell, IconPlus, IconPencil, IconArrowLeft } from "@tabler/icons-react";
 import { api } from "@lib/api-client";
 import { useFeedbackToast } from "@lib/feedback";
@@ -141,105 +141,117 @@ export function NotificationRules({ projectId, workspaceId }: { projectId?: stri
 				</Button>
 			</header>
 			{open && (
-				<Card>
-					<Card.Header>
-						<h2 className='font-semibold'>{editing ? "Edit notification rule" : "New notification rule"}</h2>
-					</Card.Header>
-					<Card.Content>
-						<form onSubmit={save} className='flex flex-col gap-4'>
-							<Checkbox isSelected={enabled} onChange={setEnabled}>
-								<Checkbox.Content>
-									<Checkbox.Control>
-										<Checkbox.Indicator />
-									</Checkbox.Control>
-									<span>Enable failure notifications</span>
-								</Checkbox.Content>
-							</Checkbox>
-							<div className='grid gap-4 sm:grid-cols-2'>
-								<NumberField variant='secondary' minValue={1} maxValue={1000000} isRequired value={Number(count)} onChange={(value) => setCount(String(value))}>
-									<Label>Failure threshold</Label>
-									<NumberField.Group>
-										<NumberField.DecrementButton />
-										<NumberField.Input aria-label='Failure threshold' className='min-w-0 w-full' />
-										<NumberField.IncrementButton />
-									</NumberField.Group>
-									<FieldError />
-								</NumberField>
-								<NumberField variant='secondary' minValue={1} maxValue={2678400} isRequired value={Number(windowSeconds)} onChange={(value) => setWindowSeconds(String(value))}>
-									<Label>Window in seconds</Label>
-									<NumberField.Group>
-										<NumberField.DecrementButton />
-										<NumberField.Input aria-label='Failure window seconds' className='min-w-0 w-full' />
-										<NumberField.IncrementButton />
-									</NumberField.Group>
-									<FieldError />
-								</NumberField>
-								{projectId && (
-									<>
-										<NativeSelect variant='secondary' fullWidth>
-											<Label>Ingress route</Label>
-											<NativeSelect.Trigger aria-label='Rule ingress route' value={endpointId} onChange={(event) => setEndpointId(event.target.value)}>
-												<NativeSelect.Option value=''>Every route in this project</NativeSelect.Option>
-												{routes.map((route) => (
-													<NativeSelect.Option key={route.id} value={route.id}>
-														{route.name}
-													</NativeSelect.Option>
-												))}
-												<NativeSelect.Indicator />
-											</NativeSelect.Trigger>
-										</NativeSelect>
-										<NativeSelect variant='secondary' fullWidth>
-											<Label>Destination</Label>
-											<NativeSelect.Trigger aria-label='Rule destination' value={destinationId} onChange={(event) => setDestinationId(event.target.value)}>
-												<NativeSelect.Option value=''>Every managed destination</NativeSelect.Option>
-												{destinations.map((destination) => (
-													<NativeSelect.Option key={destination.id} value={destination.id}>
-														{destination.name}
-													</NativeSelect.Option>
-												))}
-												<NativeSelect.Indicator />
-											</NativeSelect.Trigger>
-										</NativeSelect>
-									</>
-								)}
-								<NativeSelect variant='secondary' fullWidth>
-									<Label>Severity</Label>
-									<NativeSelect.Trigger aria-label='Rule severity' value={severity} onChange={(event) => setSeverity(event.target.value as Rule["severity"])}>
-										<NativeSelect.Option value='info'>Information</NativeSelect.Option>
-										<NativeSelect.Option value='warning'>Warning</NativeSelect.Option>
-										<NativeSelect.Option value='critical'>Critical</NativeSelect.Option>
-										<NativeSelect.Indicator />
-									</NativeSelect.Trigger>
-								</NativeSelect>
-								<NativeSelect variant='secondary' fullWidth>
-									<Label>Recovery</Label>
-									<NativeSelect.Trigger aria-label='Rule recovery policy' value={recovery} onChange={(event) => setRecovery(event.target.value as Rule["recoveryPolicy"])}>
-										<NativeSelect.Option value='window'>Resolve when the threshold clears</NativeSelect.Option>
-										<NativeSelect.Option value='manual'>Keep active until the rule is disabled</NativeSelect.Option>
-										<NativeSelect.Indicator />
-									</NativeSelect.Trigger>
-								</NativeSelect>
-								<NumberField variant='secondary' minValue={0} maxValue={86400} isRequired value={Number(cooldown)} onChange={(value) => setCooldown(String(value))}>
-									<Label>Cooldown in seconds</Label>
-									<NumberField.Group>
-										<NumberField.DecrementButton />
-										<NumberField.Input aria-label='Rule cooldown seconds' className='min-w-0 w-full' />
-										<NumberField.IncrementButton />
-									</NumberField.Group>
-									<FieldError />
-								</NumberField>
-							</div>
-							<div className='flex flex-wrap justify-center gap-3 sm:justify-start'>
-								<Button type='submit' isDisabled={busy}>
-									Save notification rule
-								</Button>
-								<Button variant='ghost' isDisabled={busy} onPress={() => setOpen(false)}>
-									Cancel
-								</Button>
-							</div>
-						</form>
-					</Card.Content>
-				</Card>
+				<Sheet
+					isOpen={open}
+					onOpenChange={(next) => {
+						if (!busy) setOpen(next);
+					}}
+				>
+					<Sheet.Backdrop>
+						<Sheet.Content>
+							<Sheet.Dialog className='max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-y-auto'>
+								<Sheet.CloseTrigger />
+								<Sheet.Header>
+									<Sheet.Heading>{editing ? "Edit notification rule" : "New notification rule"}</Sheet.Heading>
+								</Sheet.Header>
+								<Sheet.Body>
+									<form onSubmit={save} className='flex flex-col gap-4'>
+										<Checkbox isSelected={enabled} onChange={setEnabled}>
+											<Checkbox.Content>
+												<Checkbox.Control>
+													<Checkbox.Indicator />
+												</Checkbox.Control>
+												<span>Enable failure notifications</span>
+											</Checkbox.Content>
+										</Checkbox>
+										<div className='grid gap-4 sm:grid-cols-2'>
+											<NumberField variant='secondary' minValue={1} maxValue={1000000} isRequired value={Number(count)} onChange={(value) => setCount(String(value))}>
+												<Label>Failure threshold</Label>
+												<NumberField.Group>
+													<NumberField.DecrementButton />
+													<NumberField.Input aria-label='Failure threshold' className='min-w-0 w-full' />
+													<NumberField.IncrementButton />
+												</NumberField.Group>
+												<FieldError />
+											</NumberField>
+											<NumberField variant='secondary' minValue={1} maxValue={2678400} isRequired value={Number(windowSeconds)} onChange={(value) => setWindowSeconds(String(value))}>
+												<Label>Window in seconds</Label>
+												<NumberField.Group>
+													<NumberField.DecrementButton />
+													<NumberField.Input aria-label='Failure window seconds' className='min-w-0 w-full' />
+													<NumberField.IncrementButton />
+												</NumberField.Group>
+												<FieldError />
+											</NumberField>
+											{projectId && (
+												<>
+													<NativeSelect variant='secondary' fullWidth>
+														<Label>Ingress route</Label>
+														<NativeSelect.Trigger aria-label='Rule ingress route' value={endpointId} onChange={(event) => setEndpointId(event.target.value)}>
+															<NativeSelect.Option value=''>Every route in this project</NativeSelect.Option>
+															{routes.map((route) => (
+																<NativeSelect.Option key={route.id} value={route.id}>
+																	{route.name}
+																</NativeSelect.Option>
+															))}
+															<NativeSelect.Indicator />
+														</NativeSelect.Trigger>
+													</NativeSelect>
+													<NativeSelect variant='secondary' fullWidth>
+														<Label>Destination</Label>
+														<NativeSelect.Trigger aria-label='Rule destination' value={destinationId} onChange={(event) => setDestinationId(event.target.value)}>
+															<NativeSelect.Option value=''>Every managed destination</NativeSelect.Option>
+															{destinations.map((destination) => (
+																<NativeSelect.Option key={destination.id} value={destination.id}>
+																	{destination.name}
+																</NativeSelect.Option>
+															))}
+															<NativeSelect.Indicator />
+														</NativeSelect.Trigger>
+													</NativeSelect>
+												</>
+											)}
+											<NativeSelect variant='secondary' fullWidth>
+												<Label>Severity</Label>
+												<NativeSelect.Trigger aria-label='Rule severity' value={severity} onChange={(event) => setSeverity(event.target.value as Rule["severity"])}>
+													<NativeSelect.Option value='info'>Information</NativeSelect.Option>
+													<NativeSelect.Option value='warning'>Warning</NativeSelect.Option>
+													<NativeSelect.Option value='critical'>Critical</NativeSelect.Option>
+													<NativeSelect.Indicator />
+												</NativeSelect.Trigger>
+											</NativeSelect>
+											<NativeSelect variant='secondary' fullWidth>
+												<Label>Recovery</Label>
+												<NativeSelect.Trigger aria-label='Rule recovery policy' value={recovery} onChange={(event) => setRecovery(event.target.value as Rule["recoveryPolicy"])}>
+													<NativeSelect.Option value='window'>Resolve when the threshold clears</NativeSelect.Option>
+													<NativeSelect.Option value='manual'>Keep active until the rule is disabled</NativeSelect.Option>
+													<NativeSelect.Indicator />
+												</NativeSelect.Trigger>
+											</NativeSelect>
+											<NumberField variant='secondary' minValue={0} maxValue={86400} isRequired value={Number(cooldown)} onChange={(value) => setCooldown(String(value))}>
+												<Label>Cooldown in seconds</Label>
+												<NumberField.Group>
+													<NumberField.DecrementButton />
+													<NumberField.Input aria-label='Rule cooldown seconds' className='min-w-0 w-full' />
+													<NumberField.IncrementButton />
+												</NumberField.Group>
+												<FieldError />
+											</NumberField>
+										</div>
+										<div className='flex flex-wrap justify-center gap-3 sm:justify-start'>
+											<Button type='submit' isDisabled={busy}>
+												Save notification rule
+											</Button>
+											<Button variant='ghost' isDisabled={busy} onPress={() => setOpen(false)}>
+												Cancel
+											</Button>
+										</div>
+									</form>
+								</Sheet.Body>
+							</Sheet.Dialog>
+						</Sheet.Content>
+					</Sheet.Backdrop>
+				</Sheet>
 			)}
 			{loading ? (
 				<p role='status'>Loading notification rules…</p>

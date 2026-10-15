@@ -22,12 +22,12 @@
 - [x] T004 Verify scoped whole-file checks without coverage, dependency-aware affected selection, broad fallback and owning final lanes in scripts/tests/run.ts and scripts/tests/inventory.ts; test deliberate missing-test inventory and coverage-threshold failures, unloaded-file coverage and Bun metric limitations; reuse reports rather than rerunning suites.
 - [x] T005 After genuine commands execute, run $speckit-tdd-setup to write .specify/memory/tdd-profile.md; then $speckit-tdd-plan to derive tdd/test-list.md and baseline tdd/cycle-log.md for this feature. Preserve task IDs/order and leave implementation checkboxes open; missing tooling is an explicit prerequisite, never a fictional green baseline.
 - [x] T006 Verify default runc startup, explicit runtime validation and missing-runsc creation failure in deploy/compose.dev.yml, scripts/tests/runtime.ts and scripts/tests/sandbox.ts; record mode/host-verification limits in docs/deployment/executor.md. Default startup and missing-runtime behaviour verified2026-10-14; optional actual gVisor execution remains unavailable and is not claimed.
+
 ## Phase 2: Foundation — contracts, storage, isolation and recovery primitives
 
 **Goal**: Prove shared technical boundaries before delivering user stories.
 
 **Independent check**: Real PostgreSQL rollback/fencing, fixed lifecycle ABI, resource containment and scoped API primitives pass independently of dashboard flows.
-
 
 ### Configuration and public contracts
 
@@ -64,12 +64,12 @@
 - [x] T022 Red: Add transport/origin/CSRF, body limits, canonical error shape and optimistic conflict cases in tests/integration/live-api.test.ts; trace FR002/020. Behavior markers: [U36] [U37] [U38] [U39].
 - [x] T023 Green: Implement packages/domain/src/request-context.ts, packages/contracts/src/api.ts and apps/web/src/app/api/v1/_lib/handler.ts plus apps/web/src/app/lib/api-client.ts; shared server-only services, correlation IDs, no routes calling Server Actions. (after T022). Behavior markers: [U36] [U37] [U38] [U39].
 - [x] T024 Refactor/verify: Run HTTP boundary tests on Node in tests/integration/live-api.test.ts and verify contracts remain independent of table layout; refactor reusable handlers without weakening permission checks. (after T023). Behavior markers: [U36] [U37] [U38] [U39].
+
 ## Phase 3: US1 — install and access the instance (P1)
 
 **Goal**: A single operator can install, bootstrap once, sign in and configure scoped access.
 
 **Independent check**: Clean release-profile installation plus SMTP OTP succeeds; parallel bootstrap yields exactly one owner; anonymous/inactive users cannot access private data. US1 is an internal milestone, not a releasable alpha.
-
 
 ### Owner bootstrap and passwordless identity
 
@@ -88,6 +88,7 @@
 - [x] T031 [US1] Red: Add setup/login/workspace navigation/member customization and configuration-error scenarios in tests/acceptance/dashboard.spec.ts; trace US1/FR003/023/026. Behavior markers: [U60] [U61] [U62] [U63] [U64].
 - [ ] T032 [US1] Green: Implement HeroUI Pro pages in apps/web/src/app/(auth)/login/page.tsx, apps/web/src/app/setup/page.tsx and apps/web/src/app/(dashboard)/layout.tsx; scoped resource/member/ownership/settings routes under apps/web/src/app/api/v1/ backed by packages/domain/src/ services. (after T031). Behavior markers: [U60] [U61] [U62] [U63] [U64].
 - [ ] T033 [US1] Refactor/verify: Verify keyboard/focus/error/loading states and canonical local theme in tests/acceptance/dashboard.spec.ts; confirm metadata/payload/code/secret permissions remain distinct. (after T032). Behavior markers: [U60] [U61] [U62] [U63] [U64].
+
 ### Story acceptance completion gates
 
 - [ ] T086 [US1] [A1] Verify acceptance US1.1 through its real entrypoint in tests/deployment/installation.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: An empty supported installation completes exactly one owner bootstrap.
@@ -99,7 +100,6 @@
 **Goal**: Edit and test two script bodies, copy templates/helpers and activate immutable revisions.
 
 **Independent check**: Create endpoint, publish custom HMAC/challenge code, change draft/helper source without changing active behavior, then activate rollback; invalid publication leaves active version intact.
-
 
 ### Drafts, revisions and publication transactions
 
@@ -124,6 +124,7 @@
 - [ ] T043 [US2] Red: Add browser cases for fixed signatures, API-level wrapper bypass rejection, shared imports, test diagnostics, publish conflict and rollback in tests/acceptance/dashboard.spec.ts; trace US2/FR024. Behavior markers: [U80] [U81] [U82] [U83] [U84].
 - [ ] T044 [US2] Green: Implement apps/web/src/app/components/script-editor.tsx and apps/web/src/app/(dashboard)/projects/[projectId]/endpoints/[endpointId]/page.tsx with Ingress/Processing/Shared/Test tabs, read-only signature chrome, generated preview and matching SDK types; notification integration uses T111 shared inbox rather than a separate isolation component; implement scoped drafts/publications routes in apps/web/src/app/api/v1/endpoints/. (after T043). Behavior markers: [U80] [U81] [U82] [U83] [U84].
 - [ ] T045 [US2] Refactor/verify: Verify function-name changes cannot break stage registration and source errors point to editable lines in tests/acceptance/dashboard.spec.ts; retain body-only public edit representation. (after T044). Behavior markers: [U80] [U81] [U82] [U83] [U84].
+
 ### Story acceptance completion gates
 
 - [ ] T089 [US2] [A4] Verify acceptance US2.1 through its real entrypoint in tests/acceptance/dashboard.spec.ts; observed passing output and the complete affected story checks are required before closing this criterion: Selecting a template copies its editable source and helpers.
@@ -135,7 +136,6 @@
 **Goal**: Complete receive → atomic storage/work → processing → tracked HTTP delivery.
 
 **Independent check**: JSON/binary fixtures retain bytes, challenge response is exact, rollback never acknowledges, and app-required/chat-optional sends expose actual independent results.
-
 
 ### Atomic webhook ingress
 
@@ -160,6 +160,7 @@
 - [ ] T055 [US3] Red: Add destination configure/test, raw/derived event/attempt visibility and optional-send failure display in tests/acceptance/dashboard.spec.ts; trace FR003/005/010/015. Behavior markers: [U115] [U116] [U117] [U118] [U119] [U120].
 - [ ] T056 [US3] Green: Implement scoped destination/events/execution/attempt routes under apps/web/src/app/api/v1/ plus apps/web/src/app/(dashboard)/projects/[projectId]/destinations/page.tsx and apps/web/src/app/(dashboard)/projects/[projectId]/events/page.tsx; bounded cursor list default50/max200, separate payload-read permission and immutable history. (after T055). Behavior markers: [U115] [U116] [U117] [U118] [U119] [U120].
 - [ ] T057 [US3] Refactor/verify: Verify event list/detail authorization, escaped payload rendering and handler-versus-attempt outcomes in tests/acceptance/dashboard.spec.ts; use shared API client services. (after T056). Behavior markers: [U115] [U116] [U117] [U118] [U119] [U120].
+
 ### Story acceptance completion gates
 
 - [ ] T092 [US3] [A7] Verify acceptance US3.1 through its real entrypoint in tests/integration/ingress.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: Provider success is observable only after event and recoverable work commit.
@@ -173,7 +174,6 @@
 **Goal**: Reuse ordered scope-aware code and support administrator-authored routing/fan-out.
 
 **Independent check**: Pinned middleware executes instance→workspace→project→endpoint; optional failure retains last valid context; authorized copies/overrides and custom destinations work without provider-specific modes.
-
 
 ### Middleware ordering, patches and override policy
 
@@ -192,6 +192,7 @@
 - [ ] T064 [US4] Red: Add browser inherited provenance/order/failure-policy/custom routing and forbidden override flows in tests/acceptance/dashboard.spec.ts; trace US4/FR018/019. Behavior markers: [U131] [U132] [U133].
 - [ ] T065 [US4] Green: Implement apps/web/src/app/components/middleware-bindings.tsx and apps/web/src/app/(dashboard)/projects/[projectId]/shared-code/page.tsx with effective/inherited bindings, copy/edit/publish actions and permission-aware controls. (after T064). Behavior markers: [U131] [U132] [U133].
 - [ ] T066 [US4] Refactor/verify: Verify atomic publication after changes and consistent error/focus states in tests/acceptance/dashboard.spec.ts; no extra lifecycle hooks/workflow designer. (after T065). Behavior markers: [U131] [U132] [U133].
+
 ### Story acceptance completion gates
 
 - [ ] T097 [US4] [A12] Verify acceptance US4.1 through its real entrypoint in tests/integration/middleware.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: Scoped middleware applies the published order and declared optional-failure policy.
@@ -203,7 +204,6 @@
 **Goal**: Retain events through outages/crashes, pause safely and replay with distinct history.
 
 **Independent check**: Crash at claim/send/result boundaries, partition or suspend old worker, restore destination and replay terminal/successful events; stale generations cannot send/write and prior success is reused.
-
 
 ### Whole-worker/executor recovery
 
@@ -228,6 +228,7 @@
 - [ ] T076 [US5] Red: Add live status/reconnect/replay/pause and privileged job/queue-age/metrics inspection flows in tests/acceptance/dashboard.spec.ts; trace US5/FR003/010/021/025. Behavior markers: [U157] [U158] [U159] [U160].
 - [ ] T077 [US5] Green: Implement apps/web/src/app/components/event-timeline.tsx, apps/web/src/app/components/live-subscription.tsx and apps/web/src/app/(dashboard)/admin/jobs/page.tsx; scoped event replay/pause routes under apps/web/src/app/api/v1/, installation health/audit/settings, factual configured isolation mode; notification attention control is implemented through the shared T104–T112 backbone, plus explicit metric denominators/time windows. (after T076). Behavior markers: [U157] [U158] [U159] [U160].
 - [ ] T078 [US5] Refactor/verify: Verify successful-event replay creates a new timeline, stale client refresh is safe, lower permissions conceal payload/admin controls and offline destination history remains inspectable in tests/acceptance/dashboard.spec.ts. (after T077). Behavior markers: [U157] [U158] [U159] [U160].
+
 ### Modular notification inbox and opt-in rules (FR027–028)
 
 - [ ] T104 [US5] Red: Add typed producer incident/deduplication/resolution, scoped API/SSE recipients and restart-persistent dismissal cases in tests/integration/notifications.test.ts; no React-only environment branch. Behavior markers: [U169] [U170] [U171] [U172] [U173] [U181].
@@ -283,13 +284,13 @@ Setup → Foundation → US1 → US2 → US3 → US4 → US5 → Final validatio
 
 Final documentation and graph refresh may run independently after behavior is stable. Within stories, different files may be prepared concurrently only after the shared prerequisite and relevant Red cycle are satisfied; no same-file test ownership conflicts. No subagents are launched by this task-generation command.
 
-| Story | Conditional parallel example |
-|---|---|
-| US1 | After auth/grant Green: login UI in `apps/web/src/app/(auth)/login/page.tsx` and permissions documentation in `docs/permissions.md`. |
-| US2 | After publication service Green: Monaco presentation in `apps/web/src/app/components/script-editor.tsx` and template fixtures in `packages/script-sdk/src/templates/`. |
-| US3 | After ingress/delivery Green: destination UI and events UI under separate `apps/web/src/app/(dashboard)/projects/[projectId]/` routes. |
-| US4 | After policy Green: binding presentation in `components/middleware-bindings.tsx` and topology docs in `docs/deployment/networking.md`. |
-| US5 | After live/replay Green: event timeline component and privileged admin jobs page. |
+| Story | Conditional parallel example                                                                                                                                           |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| US1   | After auth/grant Green: login UI in `apps/web/src/app/(auth)/login/page.tsx` and permissions documentation in `docs/permissions.md`.                                   |
+| US2   | After publication service Green: Monaco presentation in `apps/web/src/app/components/script-editor.tsx` and template fixtures in `packages/script-sdk/src/templates/`. |
+| US3   | After ingress/delivery Green: destination UI and events UI under separate `apps/web/src/app/(dashboard)/projects/[projectId]/` routes.                                 |
+| US4   | After policy Green: binding presentation in `components/middleware-bindings.tsx` and topology docs in `docs/deployment/networking.md`.                                 |
+| US5   | After live/replay Green: event timeline component and privileged admin jobs page.                                                                                      |
 
 These examples describe possible future division of work; numbered tasks preserve safe sequential execution and prerequisites. Final isolated lanes can run concurrently only within their verified resource budget.
 
@@ -310,3 +311,14 @@ No before_tasks hook is registered. The optional after_tasks `$speckit-tdd-plan`
 Total:114 tasks; original T001–T103 preserved, notification extension T104–T114 added. Counts: Phase1:6, Phase2:18, US1:12, US2:15, US3:17, US4:12, US5:27, Phase8:7. Original task IDs T001–T085 are preserved; new IDs T086–T103 are unique acceptance gates; document order carries dependencies, including T040–T042 before T037–T039. Every task includes an implementation or evidence path. T001/T003/T004/T005/T006 completed with bootstrap evidence; T002 remains partial (clean licensed CI build/worker image pending; release gate, not a foundation blocker), T006 default mode and missing-runsc failure verified; optional gVisor execution unverified. All product tasks remain open. Notification backbone/rules are design only; no default delivery-alert policy is enabled.
 
 Confirmed UI dependency: install `@tabler/icons-react` when implementing the dashboard/notification UI; use locally bundled static imports, outline by default and available filled variants for emphasis.
+
+## Maintainer UI review follow-up — 2026-10-15
+
+Tracked in Linear PAB-66; this is a continuation of the alpha, not a release.
+
+- [x] Record approved reusable UI/UX principles, including breadcrumbs and direct cross-resource search, in repository guidance and Linear.
+- [x] Add scoped hourly overview aggregates and recent execution data; verify metadata isolation and individual outgoing-attempt counts in PostgreSQL.
+- [x] Retain valid rejected/response-only ingress outcomes without queued delivery work; verify response-only replay is refused.
+- [x] Verify the revised dashboard hierarchy/search/breadcrumbs, collection/modals, playground and mobile editor/dialog flow against production browser acceptance. Full dashboard 27 passed; mobile/editor/bootstrap 8 passed; final five-case dialog/navigation rerun passed.
+- [x] Refresh scoped delivery/live/seed integration coverage after the history changes and record remaining limits accurately. Delivery/replay 15, live API 18 and preview seed/runtime 3 passed. See docs/ux-audit.md for history limits.
+- [x] Deliver verified review changes through existing alpha PR #13; keep the alpha draft and unreleased. Remote deployment evidence is tracked in Linear PAB-66.

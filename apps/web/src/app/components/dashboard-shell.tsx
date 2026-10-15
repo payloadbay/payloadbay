@@ -5,9 +5,10 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
-import { Avatar, Button, Dropdown, Header, Label } from "@heroui/react";
+import { Avatar, Button, Dropdown, Header, Label, Breadcrumbs, TextField, Input } from "@heroui/react";
 import { AppLayout, Sidebar } from "@heroui-pro/react";
-import { IconHome, IconFolder, IconUsers, IconLogout, IconCode, IconSettings, IconInbox, IconBell, IconArrowLeft, IconKey, IconFlask, IconHistory, IconRoute } from "@tabler/icons-react";
+import { IconHome, IconFolder, IconUsers, IconLogout, IconCode, IconSettings, IconInbox, IconBell, IconKey, IconFlask, IconHistory, IconRoute } from "@tabler/icons-react";
+import { PreviewNotice } from "@components/preview-notice";
 import { NotificationInbox } from "@components/notification-inbox";
 import { api, ApiFailure } from "@lib/api-client";
 import type { MeProfile, WorkspaceSummary, ProjectSummary } from "@types";
@@ -29,7 +30,7 @@ export function useDashboard() {
 	return state;
 }
 
-export function DashboardShell({ children }: { children: ReactNode }) {
+export function DashboardShell({ children, preview = false }: { children: ReactNode; preview?: boolean }) {
 	const router = useRouter();
 
 	const pathname = usePathname();
@@ -37,6 +38,8 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 
 	const [data, setData] = useState<Omit<DashboardState, "reload"> | null>(null);
 	const [error, setError] = useState("");
+	const [navigationQuery, setNavigationQuery] = useState("");
+	const [browse, setBrowse] = useState<{ type: "instance" | "workspace" | "project"; id?: string } | null>(null);
 
 	useFeedbackToast(error, "", { error: "Dashboard error", success: "Success" });
 
@@ -48,6 +51,8 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 
 	const receive = useCallback((next: Omit<DashboardState, "reload">) => {
 		setData(next);
+		setBrowse(null);
+		setNavigationQuery("");
 		setError("");
 	}, []);
 
@@ -118,10 +123,12 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 	}
 
 	const projectId = pathname.match(/^\/projects\/([^/]+)/)?.[1] ?? pathname.match(/^\/code\/project\/([^/]+)/)?.[1] ?? (pathname.startsWith("/code/endpoint/") ? search.get("projectId") : undefined);
-	const project = data.projects.find((item) => item.id === projectId);
-	const workspaceId = pathname.match(/^\/workspaces\/([^/]+)/)?.[1] ?? pathname.match(/^\/code\/workspace\/([^/]+)/)?.[1] ?? project?.workspace_id;
-	const workspace = data.workspaces.find((item) => item.id === workspaceId);
-	const workspaceContext = !project && Boolean(workspace);
+	const currentProject = data.projects.find((item) => item.id === projectId);
+	const project = browse ? data.projects.find((item) => browse.type === "project" && item.id === browse.id) : currentProject;
+	const workspaceId = pathname.match(/^\/workspaces\/([^/]+)/)?.[1] ?? pathname.match(/^\/code\/workspace\/([^/]+)/)?.[1] ?? currentProject?.workspace_id;
+	const currentWorkspace = data.workspaces.find((item) => item.id === workspaceId);
+	const workspace = browse ? data.workspaces.find((item) => item.id === (project?.workspace_id ?? (browse.type === "workspace" ? browse.id : undefined))) : currentWorkspace;
+
 	const projectLinks = project
 		? [
 				{
@@ -166,7 +173,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 	const routeSection = pathname.startsWith("/code/endpoint/") ? "middleware" : (search.get("section") ?? "code");
 	const routeAddress = routeId && project ? "/projects/" + project.id + "/routes/" + routeId : "";
 	const routeLinks =
-		routeId && project
+		!browse && routeId && project
 			? [
 					{
 						id: "overview",
@@ -212,143 +219,272 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 					},
 				]
 			: [];
+
+	const globalLinks = [
+		{
+			id: "workspaces",
+			label: "Workspaces",
+			href: "/workspaces",
+			icon: IconFolder,
+			visible: true,
+		},
+		{
+			id: "home",
+			label: "Overview",
+			href: "/",
+			icon: IconHome,
+			visible: true,
+		},
+		{
+			id: "projects",
+			label: "Projects",
+			href: "/projects",
+			icon: IconFolder,
+			visible: true,
+		},
+		{
+			id: "events",
+			label: "All events",
+			href: "/events",
+			icon: IconInbox,
+			visible: true,
+		},
+		{
+			id: "instance-code",
+			label: "Instance code and middleware",
+			href: "/code/instance/" + data.me.instanceId,
+			icon: IconCode,
+			visible: data.me.permissions.includes("code.read"),
+		},
+		{
+			id: "instance-members",
+			label: "Instance members",
+			href: "/admin/members",
+			icon: IconUsers,
+			visible: admin,
+		},
+	];
+	const workspaceLinks = workspace
+		? [
+				{
+					id: "workspace",
+					label: "Workspace overview",
+					href: "/workspaces/" + workspace.id,
+					icon: IconFolder,
+					visible: true,
+				},
+				{
+					id: "workspace-members",
+					label: "Workspace members",
+					href: "/workspaces/" + workspace.id + "/members",
+					icon: IconUsers,
+					visible: workspace.permissions.includes("members.manage"),
+				},
+				{
+					id: "workspace-code",
+					label: "Code and middleware",
+					href: "/code/workspace/" + workspace.id,
+					icon: IconCode,
+					visible: workspace.permissions.includes("code.read"),
+				},
+				{
+					id: "workspace-rules",
+					label: "Notification rules",
+					href: "/workspaces/" + workspace.id + "/notifications",
+					icon: IconBell,
+					visible: workspace.permissions.includes("notifications.rules.manage"),
+				},
+			]
+		: [];
+	const middlewareLink =
+		routeId && project
+			? {
+					id: "middleware",
+					label: "Middleware",
+					href: "/code/endpoint/" + routeId + "?projectId=" + project.id,
+					icon: IconCode,
+					visible: project.permissions.includes("code.read"),
+				}
+			: null;
+	const contextualLinks = !browse && routeId ? [...routeLinks.map((item) => ({ ...item, href: routeAddress + "?section=" + item.id })), ...(middlewareLink ? [middlewareLink] : [])] : project ? projectLinks : workspace ? workspaceLinks : [];
+	const groups = [
+		{ label: "Settings", items: contextualLinks.filter((item) => ["code", "helpers", "secrets", "middleware", "project-overview", "project-code", "project-members", "workspace", "workspace-members", "workspace-code"].includes(item.id)) },
+		{ label: "Observe and troubleshoot", items: contextualLinks.filter((item) => ["events", "project-events", "overview", "test"].includes(item.id)) },
+		{ label: "Publish and history", items: contextualLinks.filter((item) => item.id === "history") },
+		{ label: "Automation", items: contextualLinks.filter((item) => ["project-notifications", "workspace-rules"].includes(item.id)) },
+	];
+	const searchItems = [
+		...globalLinks.filter((item) => item.visible),
+		{
+			id: "account",
+			label: "Account settings",
+			href: "/account",
+			icon: IconSettings,
+		},
+		{
+			id: "personal-notifications",
+			label: "Your notification preferences",
+			href: "/account/notifications",
+			icon: IconBell,
+		},
+		...data.workspaces.flatMap((item) => [
+			{
+				id: "w-" + item.id,
+				label: item.name + " · Workspace",
+				href: "/workspaces/" + item.id,
+				icon: IconFolder,
+			},
+			...(item.permissions.includes("members.manage")
+				? [
+						{
+							id: "wm-" + item.id,
+							label: item.name + " · Workspace members",
+							href: "/workspaces/" + item.id + "/members",
+							icon: IconUsers,
+						},
+					]
+				: []),
+		]),
+		...data.projects.flatMap((item) => [
+			{
+				id: item.id,
+				label: item.name + " · Project",
+				href: "/projects/" + item.id,
+				icon: IconFolder,
+			},
+			...(item.permissions.includes("members.manage")
+				? [
+						{
+							id: "pm-" + item.id,
+							label: item.name + " · Project members",
+							href: "/projects/" + item.id + "/members",
+							icon: IconUsers,
+						},
+					]
+				: []),
+		]),
+		...contextualLinks.filter((item) => item.visible).map((item) => ({ ...item, id: "context-" + item.id })),
+	];
 	const navigationContent = (
 		<>
 			<Sidebar.Header>
-				<Link href='/' className='text-accent px-3 py-4 text-lg font-semibold'>
+				<Link href='/' className='px-3 py-4 text-lg font-semibold'>
 					Payload Bay
 				</Link>
 			</Sidebar.Header>
 			<Sidebar.Content>
-				<Sidebar.Group>
-					{project && <Sidebar.GroupLabel>{routeId ? "Ingress route" : project.name}</Sidebar.GroupLabel>}
-					<Sidebar.Menu aria-label='Dashboard navigation'>
-						<Sidebar.MenuItem id='overview' href='/' isCurrent={pathname === "/"} textValue={project ? "All projects" : "Overview"}>
-							<Sidebar.MenuIcon>
-								<IconHome size={18} />
-							</Sidebar.MenuIcon>
-							<Sidebar.MenuLabel>{project ? "All projects" : "Overview"}</Sidebar.MenuLabel>
-						</Sidebar.MenuItem>
-						{!project &&
-							!workspaceContext &&
-							data.projects.map((project) => (
-								<Sidebar.MenuItem id={project.id} key={project.id} href={"/projects/" + project.id} textValue={project.name} isCurrent={pathname.startsWith("/projects/" + project.id)}>
-									<Sidebar.MenuIcon>
-										<IconFolder size={18} />
-									</Sidebar.MenuIcon>
-									<Sidebar.MenuLabel>{project.name}</Sidebar.MenuLabel>
-								</Sidebar.MenuItem>
-							))}
-						{workspace && !routeId && (
-							<Sidebar.MenuItem id='workspace-overview' href={"/workspaces/" + workspace.id} textValue='Workspace settings' isCurrent={pathname === "/workspaces/" + workspace.id}>
-								<Sidebar.MenuIcon>
-									<IconSettings size={18} />
-								</Sidebar.MenuIcon>
-								<Sidebar.MenuLabel>{workspace.name}</Sidebar.MenuLabel>
-							</Sidebar.MenuItem>
-						)}
-						{workspaceContext && workspace?.permissions.includes("notifications.rules.manage") && (
-							<Sidebar.MenuItem id='workspace-notifications' href={"/workspaces/" + workspace.id + "/notifications"} textValue='Workspace notification rules' isCurrent={pathname.endsWith("/notifications")}>
-								<Sidebar.MenuIcon>
-									<IconBell size={18} />
-								</Sidebar.MenuIcon>
-								<Sidebar.MenuLabel>Notification rules</Sidebar.MenuLabel>
-							</Sidebar.MenuItem>
-						)}
-						{workspaceContext && workspace?.permissions.includes("members.manage") && (
-							<Sidebar.MenuItem id='workspace-members' href={"/workspaces/" + workspace.id + "/members"} textValue='Workspace members' isCurrent={pathname.endsWith("/members")}>
-								<Sidebar.MenuIcon>
-									<IconUsers size={18} />
-								</Sidebar.MenuIcon>
-								<Sidebar.MenuLabel>Workspace members</Sidebar.MenuLabel>
-							</Sidebar.MenuItem>
-						)}
-						{workspaceContext && workspace?.permissions.includes("code.read") && (
-							<Sidebar.MenuItem id='workspace-code' href={"/code/workspace/" + workspace.id} textValue='Workspace code and middleware' isCurrent={pathname.startsWith("/code/workspace/")}>
-								<Sidebar.MenuIcon>
-									<IconCode size={18} />
-								</Sidebar.MenuIcon>
-								<Sidebar.MenuLabel>Code and middleware</Sidebar.MenuLabel>
-							</Sidebar.MenuItem>
-						)}
-						{workspaceContext &&
-							data.projects
-								.filter((item) => item.workspace_id === workspace?.id)
+				<TextField aria-label='Search pages and resources' value={navigationQuery} onChange={setNavigationQuery} className='px-3 pb-3'>
+					<Input variant='secondary' placeholder='Search pages and resources…' />
+				</TextField>
+				{navigationQuery.trim() ? (
+					<Sidebar.Group>
+						<Sidebar.GroupLabel>All accessible pages and resources</Sidebar.GroupLabel>
+						<Sidebar.Menu aria-label='Search results'>
+							{searchItems
+								.filter((item) => item.label.toLowerCase().includes(navigationQuery.trim().toLowerCase()))
 								.map((item) => (
-									<Sidebar.MenuItem key={item.id} id={item.id} href={"/projects/" + item.id} textValue={item.name}>
-										<Sidebar.MenuIcon>
-											<IconFolder size={18} />
-										</Sidebar.MenuIcon>
-										<Sidebar.MenuLabel>{item.name}</Sidebar.MenuLabel>
-									</Sidebar.MenuItem>
-								))}
-
-						{!routeId &&
-							projectLinks
-								.filter((item) => item.visible)
-								.map((item) => (
-									<Sidebar.MenuItem key={item.id} id={item.id} href={item.href} textValue={item.label} isCurrent={pathname === item.href}>
+									<Sidebar.MenuItem key={item.id} id={item.id} href={item.href} textValue={item.label}>
 										<Sidebar.MenuIcon>
 											<item.icon size={18} />
 										</Sidebar.MenuIcon>
 										<Sidebar.MenuLabel>{item.label}</Sidebar.MenuLabel>
 									</Sidebar.MenuItem>
 								))}
-						{routeId && project && (
-							<Sidebar.MenuItem id='back-project' href={"/projects/" + project.id} textValue='Back to project'>
-								<Sidebar.MenuIcon>
-									<IconArrowLeft size={18} />
-								</Sidebar.MenuIcon>
-								<Sidebar.MenuLabel>{project.name}</Sidebar.MenuLabel>
-							</Sidebar.MenuItem>
-						)}
-						{routeLinks
-							.filter((item) => item.visible)
-							.map((item) => (
-								<Sidebar.MenuItem key={"route-" + item.id} id={"route-" + item.id} href={item.id === "middleware" ? "/code/endpoint/" + routeId + "?projectId=" + project?.id : routeAddress + "?section=" + item.id} textValue={item.label} isCurrent={routeSection === item.id}>
-									<Sidebar.MenuIcon>
-										<item.icon size={18} />
-									</Sidebar.MenuIcon>
-									<Sidebar.MenuLabel>{item.label}</Sidebar.MenuLabel>
-								</Sidebar.MenuItem>
-							))}
-						{!project &&
-							!workspaceContext &&
-							data.workspaces.map((item) => (
-								<Sidebar.MenuItem key={item.id} id={"workspace-" + item.id} href={"/workspaces/" + item.id} textValue={item.name + " workspace"}>
-									<Sidebar.MenuIcon>
-										<IconSettings size={18} />
-									</Sidebar.MenuIcon>
-									<Sidebar.MenuLabel>{item.name} workspace</Sidebar.MenuLabel>
-								</Sidebar.MenuItem>
-							))}
-						{!project && (
-							<Sidebar.MenuItem id='all-events' href='/events' textValue='All events' isCurrent={pathname === "/events"}>
-								<Sidebar.MenuIcon>
-									<IconInbox size={18} />
-								</Sidebar.MenuIcon>
-								<Sidebar.MenuLabel>All events</Sidebar.MenuLabel>
-							</Sidebar.MenuItem>
-						)}
+						</Sidebar.Menu>
+					</Sidebar.Group>
+				) : (
+					<>
+						<Sidebar.Group>
+							<Sidebar.GroupLabel>Global navigation</Sidebar.GroupLabel>
+							<Sidebar.Menu aria-label='Global navigation'>
+								{globalLinks
+									.filter((item) => item.visible)
+									.map((item) => (
+										<Sidebar.MenuItem key={item.id} id={item.id} href={item.href} textValue={item.label} isCurrent={pathname === item.href}>
+											<Sidebar.MenuIcon>
+												<item.icon size={18} />
+											</Sidebar.MenuIcon>
+											<Sidebar.MenuLabel>{item.label}</Sidebar.MenuLabel>
+										</Sidebar.MenuItem>
+									))}
+							</Sidebar.Menu>
+						</Sidebar.Group>
+						<Sidebar.Group closeMobileOnAction={false}>
+							<Sidebar.GroupLabel>Browse hierarchy</Sidebar.GroupLabel>
+							<div className='flex flex-wrap gap-1 px-3 pb-2'>
+								<Button size='sm' variant='ghost' onPress={() => setBrowse({ type: "instance" })}>
+									Instance
+								</Button>
+								{workspace && (
+									<Button size='sm' variant='ghost' onPress={() => setBrowse({ type: "workspace", id: workspace.id })}>
+										{workspace.name}
+									</Button>
+								)}
+								{project && (
+									<Button size='sm' variant='ghost' onPress={() => setBrowse({ type: "project", id: project.id })}>
+										{project.name}
+									</Button>
+								)}
+							</div>
+							<Sidebar.Menu aria-label='Browse resources'>
+								{!project &&
+									!workspace &&
+									data.workspaces.map((item) => (
+										<Sidebar.MenuItem key={item.id} id={item.id} textValue={item.name + " workspace"} onAction={() => setBrowse({ type: "workspace", id: item.id })}>
+											<Sidebar.MenuIcon>
+												<IconFolder size={18} />
+											</Sidebar.MenuIcon>
+											<Sidebar.MenuLabel>{item.name}</Sidebar.MenuLabel>
+										</Sidebar.MenuItem>
+									))}
+								{!project &&
+									data.projects
+										.filter((item) => !workspace || item.workspace_id === workspace.id)
+										.map((item) => (
+											<Sidebar.MenuItem key={item.id} id={item.id} textValue={item.name} onAction={() => setBrowse({ type: "project", id: item.id })}>
+												<Sidebar.MenuIcon>
+													<IconFolder size={18} />
+												</Sidebar.MenuIcon>
+												<Sidebar.MenuLabel>{item.name}</Sidebar.MenuLabel>
+											</Sidebar.MenuItem>
+										))}
+							</Sidebar.Menu>
+						</Sidebar.Group>
+						{groups
+							.filter((group) => group.items.some((item) => item.visible))
+							.map((group) => {
+								const active = (!browse && Boolean(routeId) && group.items.some((item) => item.id === routeSection)) || group.items.some((item) => item.href === pathname + (search.size ? "?" + search.toString() : "") || item.href === pathname);
 
-						{!project && !workspaceContext && data.me.permissions.includes("code.read") && (
-							<Sidebar.MenuItem id='code' href={"/code/instance/" + data.me.instanceId} textValue='Code and middleware'>
-								<Sidebar.MenuIcon>
-									<IconCode size={18} />
-								</Sidebar.MenuIcon>
-								<Sidebar.MenuLabel>Code and middleware</Sidebar.MenuLabel>
-							</Sidebar.MenuItem>
-						)}
-						{!project && !workspaceContext && admin && (
-							<Sidebar.MenuItem id='members' href='/admin/members' textValue='Instance members'>
-								<Sidebar.MenuIcon>
-									<IconUsers size={18} />
-								</Sidebar.MenuIcon>
-								<Sidebar.MenuLabel>Instance members</Sidebar.MenuLabel>
-							</Sidebar.MenuItem>
-						)}
-					</Sidebar.Menu>
-				</Sidebar.Group>
+								return (
+									<details
+										key={group.label + project?.id + workspace?.id}
+										open={active || undefined}
+										onToggle={(event) => {
+											if (active && !event.currentTarget.open) event.currentTarget.open = true;
+										}}
+										className='px-2'
+									>
+										<summary className='text-muted cursor-pointer px-2 py-3 text-xs font-semibold'>{group.label}</summary>
+										<Sidebar.Group>
+											<Sidebar.GroupLabel>{project?.name ?? workspace?.name ?? "Resource"}</Sidebar.GroupLabel>
+											<Sidebar.Menu aria-label={group.label}>
+												{group.items
+													.filter((item) => item.visible)
+													.map((item) => (
+														<Sidebar.MenuItem key={item.id} id={item.id} href={item.href} textValue={item.label} isCurrent={item.href === pathname || item.href === pathname + "?section=" + routeSection}>
+															<Sidebar.MenuIcon>
+																<item.icon size={18} />
+															</Sidebar.MenuIcon>
+															<Sidebar.MenuLabel>{item.label}</Sidebar.MenuLabel>
+														</Sidebar.MenuItem>
+													))}
+											</Sidebar.Menu>
+										</Sidebar.Group>
+									</details>
+								);
+							})}
+					</>
+				)}
 			</Sidebar.Content>
 		</>
 	);
@@ -356,6 +492,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 	return (
 		<Context.Provider value={{ ...data, reload: load }}>
 			<AppLayout
+				scrollMode='content'
 				sidebar={
 					<>
 						<Sidebar>{navigationContent}</Sidebar>
@@ -363,59 +500,72 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 					</>
 				}
 				navigate={(href) => {
-					if (window.dispatchEvent(new CustomEvent("payloadbay:before-navigate", { detail: { href }, cancelable: true }))) router.push(href);
+					if (window.dispatchEvent(new CustomEvent("payloadbay:before-navigate", { detail: { href }, cancelable: true }))) {
+						router.push(href);
+						setBrowse(null);
+						setNavigationQuery("");
+					}
 				}}
 				navbar={
-					<div className='bg-background border-border flex min-h-16 items-center justify-between gap-3 border-b px-4 sm:px-6'>
-						<div className='flex min-w-0 items-center gap-2'>
-							<AppLayout.MenuToggle aria-label='Toggle navigation' />
-							<Link href='/' aria-label='Payload Bay home' className='shrink-0'>
-								<Image src='/brand/payloadbay-logo-dark-rounded.svg' alt='Payload Bay' width={160} height={35} priority className='hidden min-[360px]:block' />
-								<Image src='/brand/payloadbay-icon-dark-rounded.svg' alt='Payload Bay' width={32} height={32} priority className='min-[360px]:hidden' />
-							</Link>
-						</div>
-						<div className='flex shrink-0 items-center gap-2'>
-							{(project?.permissions ?? workspace?.permissions ?? data.me.permissions).includes("notifications.read") && <NotificationInbox scope={{ type: project ? "project" : workspace ? "workspace" : "instance", id: project?.id ?? workspace?.id ?? data.me.instanceId }} />}
-							<Dropdown>
-								<Dropdown.Trigger aria-label='Account menu' className='rounded-full outline-offset-4'>
-									<Avatar size='sm'>
-										<Avatar.Fallback>{initials}</Avatar.Fallback>
-									</Avatar>
-								</Dropdown.Trigger>
-								<Dropdown.Popover placement='bottom end' className='w-64 max-w-[calc(100vw-2rem)]'>
-									<Dropdown.Menu aria-label='Account actions'>
-										<Dropdown.Section>
-											<Header className='flex flex-col gap-1 px-2 py-2'>
-												<span className='truncate font-medium'>{data.me.user.name}</span>
-												<span className='text-muted truncate text-xs'>{data.me.user.email}</span>
-											</Header>
-											<Dropdown.Item id='notification-preferences' textValue='Your notifications' href='/account/notifications'>
-												<IconBell size={18} aria-hidden='true' />
-												<Label>Your notifications</Label>
-											</Dropdown.Item>
-											<Dropdown.Item id='account' textValue='Account settings' href='/account'>
-												<IconSettings size={18} aria-hidden='true' />
-												<Label>Account settings</Label>
-											</Dropdown.Item>
-											{admin && (
-												<Dropdown.Item id='administration' textValue='Instance members' href='/admin/members'>
-													<IconUsers size={18} aria-hidden='true' />
-													<Label>Instance members</Label>
+					<div>
+						{preview && <PreviewNotice />}
+						<div className='bg-background border-border flex min-h-16 items-center justify-between gap-3 border-b px-4 sm:px-6'>
+							<div className='flex min-w-0 items-center gap-2'>
+								<AppLayout.MenuToggle aria-label='Toggle navigation' />
+								<Link href='/' aria-label='Payload Bay home' className='shrink-0'>
+									<Image src='/brand/payloadbay-logo-dark-transparent.svg' alt='Payload Bay' width={160} height={35} priority className='hidden min-[360px]:block' />
+									<Image src='/brand/payloadbay-icon-dark-transparent.svg' alt='Payload Bay' width={32} height={32} priority className='min-[360px]:hidden' />
+								</Link>
+							</div>
+							<div className='flex shrink-0 items-center gap-2'>
+								{(project?.permissions ?? workspace?.permissions ?? data.me.permissions).includes("notifications.read") && <NotificationInbox scope={{ type: project ? "project" : workspace ? "workspace" : "instance", id: project?.id ?? workspace?.id ?? data.me.instanceId }} />}
+								<Dropdown>
+									<Dropdown.Trigger aria-label='Account menu' className='rounded-full outline-offset-4'>
+										<Avatar size='sm'>
+											<Avatar.Fallback>{initials}</Avatar.Fallback>
+										</Avatar>
+									</Dropdown.Trigger>
+									<Dropdown.Popover placement='bottom end' className='w-64 max-w-[calc(100vw-2rem)]'>
+										<Dropdown.Menu aria-label='Account actions'>
+											<Dropdown.Section>
+												<Header className='flex flex-col gap-1 px-2 py-2'>
+													<span className='truncate font-medium'>{data.me.user.name}</span>
+													<span className='text-muted truncate text-xs'>{data.me.user.email}</span>
+												</Header>
+												<Dropdown.Item id='notification-preferences' textValue='Your notifications' href='/account/notifications'>
+													<IconBell size={18} aria-hidden='true' />
+													<Label>Your notifications</Label>
 												</Dropdown.Item>
-											)}
-											<Dropdown.Item id='sign-out' textValue='Sign out' onAction={() => void signOut()}>
-												<IconLogout size={18} aria-hidden='true' />
-												<Label>Sign out</Label>
-											</Dropdown.Item>
-										</Dropdown.Section>
-									</Dropdown.Menu>
-								</Dropdown.Popover>
-							</Dropdown>
+												<Dropdown.Item id='account' textValue='Account settings' href='/account'>
+													<IconSettings size={18} aria-hidden='true' />
+													<Label>Account settings</Label>
+												</Dropdown.Item>
+
+												<Dropdown.Item className='text-danger' id='sign-out' textValue='Sign out' onAction={() => void signOut()}>
+													<IconLogout size={18} aria-hidden='true' />
+													<Label>Sign out</Label>
+												</Dropdown.Item>
+											</Dropdown.Section>
+										</Dropdown.Menu>
+									</Dropdown.Popover>
+								</Dropdown>
+							</div>
 						</div>
 					</div>
 				}
 			>
-				<div className='mx-auto w-full min-w-0 max-w-6xl p-4 sm:p-6 lg:p-10'>{children}</div>
+				<div className='mx-auto w-full min-w-0 max-w-6xl p-4 sm:p-6 lg:p-10'>
+					<nav aria-label='Breadcrumbs' className='mb-6 overflow-x-auto'>
+						<Breadcrumbs className='min-w-max'>
+							<Breadcrumbs.Item href={pathname === "/" ? undefined : "/"}>Overview</Breadcrumbs.Item>
+							{currentWorkspace && <Breadcrumbs.Item href={pathname === "/workspaces/" + currentWorkspace.id ? undefined : "/workspaces/" + currentWorkspace.id}>{currentWorkspace.name}</Breadcrumbs.Item>}
+							{currentProject && <Breadcrumbs.Item href={pathname === "/projects/" + currentProject.id ? undefined : "/projects/" + currentProject.id}>{currentProject.name}</Breadcrumbs.Item>}
+							{routeId && <Breadcrumbs.Item>Ingress route · {routeSection}</Breadcrumbs.Item>}
+							{!currentProject && !currentWorkspace && pathname !== "/" && <Breadcrumbs.Item>{pathname === "/workspaces" ? "Workspaces" : pathname === "/projects" ? "Projects" : pathname === "/events" ? "Events" : pathname.startsWith("/account") ? "Account settings" : "Administration"}</Breadcrumbs.Item>}
+						</Breadcrumbs>
+					</nav>
+					{children}
+				</div>
 			</AppLayout>
 		</Context.Provider>
 	);

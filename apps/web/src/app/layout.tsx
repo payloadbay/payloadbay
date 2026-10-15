@@ -16,12 +16,7 @@ export default async function RootLayout({ children }: AppLayoutProps) {
 
 	return (
 		<html lang='en' data-theme='dark'>
-			<body className='flex min-h-svh flex-col'>
-				{preview && (
-					<aside aria-label='Preview mode' className='border-warning/40 bg-warning/10 border-b px-6 py-3 text-sm'>
-						<strong>Disposable PR preview.</strong> Shared demo data is reset on every redeployment. Do not use production credentials or sensitive data. Use provider test webhooks only.
-					</aside>
-				)}
+			<body className='flex min-h-svh flex-col' data-preview={preview ? "true" : undefined}>
 				{children}
 				<ToastHost />
 			</body>

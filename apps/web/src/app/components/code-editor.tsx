@@ -91,6 +91,7 @@ export function CodeEditor({ value, onChange, label, readOnly = false, stage, bi
 					tabSize: 4,
 					insertSpaces: false,
 					scrollBeyondLastLine: false,
+					scrollbar: { alwaysConsumeMouseWheel: false },
 					wordWrap: "off",
 				});
 				editor.current = instance;

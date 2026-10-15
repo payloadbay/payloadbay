@@ -10,24 +10,24 @@ Browser session cookies: secure deployment flags, origin/CSRF validation for com
 
 ## Routes and commands
 
-| Route family | Operations / permission |
-|---|---|
-| /workspaces, /workspaces/:id/projects | list/create/update/archive; scope grant and owner rules |
-| /projects/:id/endpoints | create/list/configure; endpoint configure |
-| /endpoints/:id/drafts/:stage | GET/PATCH body/shared bindings; draft read/edit |
-| /endpoints/:id/test | POST synthetic fixture dry-run; code test and relevant payload/secret use |
-| /endpoints/:id/publications | POST validate/publish; GET history; publish rollback as new activation |
-| /projects/:id/destinations | list/create/update/test; separate destination/secret rights |
-| /projects/:id/events, /events/:id | cursor list metadata; body endpoint requires payload read |
-| /events/:id/executions, /executions/:id/attempts | execution and actual destination history |
-| /events/:id/replay | POST new execution; original publication default, explicit current publication audited |
-| /endpoints/:id/pause, /endpoints/:id/resume | POST controls new processing claims; inflight may finish |
-| /scopes/:kind/:id/middleware, /shared-modules, /templates | scoped code/bindings/copies; parent override rights |
-| /scopes/:kind/:id/members, /grants, /ownership | admitted identities, preset/custom grants, scope ownership |
-| /tokens | create/list/revoke current authorized API grants; plaintext shown once |
-| /installation/settings, /health, /jobs, /audit | privileged config/health/job visibility scoped to rights |
-| /api/openapi.json, /docs/api | installation-local machine contract and Scalar; no remote credential proxy |
-| /api/v1/live | one authenticated multiplexed SSE stream |
+| Route family                                              | Operations / permission                                                                |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| /workspaces, /workspaces/:id/projects                     | list/create/update/archive; scope grant and owner rules                                |
+| /projects/:id/endpoints                                   | create/list/configure; endpoint configure                                              |
+| /endpoints/:id/drafts/:stage                              | GET/PATCH body/shared bindings; draft read/edit                                        |
+| /endpoints/:id/test                                       | POST synthetic fixture dry-run; code test and relevant payload/secret use              |
+| /endpoints/:id/publications                               | POST validate/publish; GET history; publish rollback as new activation                 |
+| /projects/:id/destinations                                | list/create/update/test; separate destination/secret rights                            |
+| /projects/:id/events, /events/:id                         | cursor list metadata; body endpoint requires payload read                              |
+| /events/:id/executions, /executions/:id/attempts          | execution and actual destination history                                               |
+| /events/:id/replay                                        | POST new execution; original publication default, explicit current publication audited |
+| /endpoints/:id/pause, /endpoints/:id/resume               | POST controls new processing claims; inflight may finish                               |
+| /scopes/:kind/:id/middleware, /shared-modules, /templates | scoped code/bindings/copies; parent override rights                                    |
+| /scopes/:kind/:id/members, /grants, /ownership            | admitted identities, preset/custom grants, scope ownership                             |
+| /tokens                                                   | create/list/revoke current authorized API grants; plaintext shown once                 |
+| /installation/settings, /health, /jobs, /audit            | privileged config/health/job visibility scoped to rights                               |
+| /api/openapi.json, /docs/api                              | installation-local machine contract and Scalar; no remote credential proxy             |
+| /api/v1/live                                              | one authenticated multiplexed SSE stream                                               |
 
 Names describe resource families; implementation may use explicit scoped routes rather than ambiguous kind/id polymorphism, preserving these semantics. PATCH drafts/config includes If-Match/version; mismatch returns409/412, never last-write-wins. Publish request includes draft versions and expected active publication; all compilation succeeds before atomic switch. Replays accept idempotency keys scoped to actor/event; same key/different input is409. Mutations return resulting identifiers/version and correlationId.
 
@@ -35,7 +35,7 @@ Cursor pagination uses stable createdAt/id or monotonic change ID, bounded limit
 
 ## SSE
 
-Content-Type text/event-stream, no-store; event kinds event.accepted,execution.changed,attempt.completed,configuration.changed,health.changed,resync-required. Payload includes scoped resource references/minimal allowed metadata, not raw private bodies. id is durable monotonic cursor. Last-Event-ID reconnect replays authorized retained changes then streams new ones without gap; outdated cursor produces resync-required and client refreshes authorized HTTP view. Heartbeat15s, bounded output/subscribers/backfill. Never trust client-supplied scope without permission checks; role/token revocation terminates stream and blocks backfill. NOTIFY/polling wakeups do not replace durable change records. Validate TLS proxy buffering/timeouts. Multiple tab/session behavior bounded.
+Content-Type text/event-stream, no-store; event kinds event.recorded,event.accepted,execution.changed,attempt.completed,configuration.changed,health.changed,resync-required. Payload includes scoped resource references/minimal allowed metadata, not raw private bodies. id is durable monotonic cursor. Last-Event-ID reconnect replays authorized retained changes then streams new ones without gap; outdated cursor produces resync-required and client refreshes authorized HTTP view. Heartbeat15s, bounded output/subscribers/backfill. Never trust client-supplied scope without permission checks; role/token revocation terminates stream and blocks backfill. NOTIFY/polling wakeups do not replace durable change records. Validate TLS proxy buffering/timeouts. Multiple tab/session behavior bounded.
 
 ## Acceptance evidence
 
@@ -44,7 +44,6 @@ Generated OpenAPI agrees with actual schemas/routes and Scalar executes local to
 ## Notification API design extension
 
 /api/v1/notifications provides authorized cursor list/detail and per-user read/dismiss. Project rule routes configure opt-in count/window/signal/severity and eligible SMTP subscriptions with optimistic version checks. No rule creation or email subscription is implicit. notification.changed SSE carries authorized incident references/redacted metadata. Instance notices never leak to project-only users. Producer schemas are server-only, registered/versioned and validated; notification inbox components never poll environment flags as a parallel condition system. See proposals/notification-inbox.md.
-
 
 ## Dashboard review additions — 2026-10-15
 
@@ -64,3 +63,8 @@ Generated OpenAPI agrees with actual schemas/routes and Scalar executes local to
 - Member GET at instance scope lists active admitted identities. Workspace/project
   lists include direct and inherited grants. Editing a local grant cannot remove
   inherited access, and membership versions still protect concurrent changes.
+
+Review additions (2026-10-15): GET /api/v1/overview returns authorized 24-hour
+hourly traffic aggregates and recent executions. Event lists accept
+view=requests|attempts; attempts have a distinct row ID and eventId linking the
+original request. Non-accepted history cannot be replayed for delivery.
