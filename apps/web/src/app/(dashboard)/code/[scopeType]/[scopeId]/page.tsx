@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Button, Card, Form, TextField, Label, Input, FieldError, Tabs } from "@heroui/react";
 import { EmptyState, Sheet } from "@heroui-pro/react";
 import { IconCode, IconPlus, IconCopy, IconLock, IconArrowLeft, IconCheck } from "@tabler/icons-react";
+import { formatScript } from "@lib/script-document";
 import { CodeEditor } from "@components/code-editor";
 import { api, ApiFailure } from "@lib/api-client";
 import { useDashboard } from "@components/dashboard-shell";
@@ -220,13 +221,15 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 		setError("");
 		setDiagnostics([]);
 		try {
+			const formatted = await formatScript(body, tab === "middleware" ? (stage === "ingress" ? "ingress_middleware" : "processing_middleware") : undefined, sharedBindings);
+			setBody(formatted);
 			if (tab === "modules") {
 				await api("/shared-code", {
 					method: "POST",
 					json: {
 						scope,
 						name,
-						source: body,
+						source: formatted,
 						...(editingModule ? { originRevisionId: editingModule.id } : {}),
 					},
 				});
@@ -234,7 +237,7 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 			} else {
 				const value = {
 					name,
-					body,
+					body: formatted,
 					position: Number(position),
 					failurePolicy: failure,
 					overridePolicy: override,
@@ -422,7 +425,7 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 								<Sheet.Heading>{tab === "modules" ? "Shared helper source" : "Middleware configuration"}</Sheet.Heading>
 							</Sheet.Header>
 							<Sheet.Body>
-								<Form className='flex flex-col gap-4' onSubmit={save}>
+								<Form id='code-editor-form' className='flex flex-col gap-4' onSubmit={save}>
 									{diagnostics.map((diagnostic, index) => (
 										<p key={index} role='alert' className='text-danger font-mono text-xs'>
 											{diagnostic.sourceId}:{diagnostic.line}:{diagnostic.column} — {diagnostic.message}
@@ -477,13 +480,18 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 													Enabled for new publications
 												</label>
 											)}
-											<pre aria-label='Middleware fixed signature' className='border-border bg-field rounded-lg border p-3 font-mono text-xs'>
-												async function middleware(ctx: {stage === "ingress" ? "IngressMiddlewareContext" : "ProcessingMiddlewareContext"})
-											</pre>
 										</>
 									)}
 									{tab === "middleware" && origin && <p className='text-muted text-sm'>Local override of {origin.slice(0, 8)}. The parent stays unchanged; this copy replaces it when an affected route is published.</p>}
-									<CodeEditor label={tab === "modules" ? "Shared helper code" : "Middleware code"} value={body} onChange={setBody} readOnly={busy || !canEdit || (tab === "middleware" && !canPublish)} />
+									<CodeEditor
+										label={tab === "modules" ? "Shared helper code" : "Middleware code"}
+										value={body}
+										stage={tab === "middleware" ? (stage === "ingress" ? "ingress_middleware" : "processing_middleware") : undefined}
+										bindings={sharedBindings}
+										onSave={!busy && canEdit && (tab === "modules" || canPublish) ? () => (document.getElementById("code-editor-form") as HTMLFormElement | null)?.requestSubmit() : undefined}
+										onChange={setBody}
+										readOnly={busy || !canEdit || (tab === "middleware" && !canPublish)}
+									/>
 									{canEdit && (tab === "modules" || canPublish) && (
 										<Button type='submit' isDisabled={busy}>
 											<IconCheck size={16} />

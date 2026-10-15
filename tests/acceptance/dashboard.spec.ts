@@ -209,10 +209,10 @@ test("U80 route editor separates ingress and processing bodies", async ({ page }
 	await page.goto("/projects/" + project.id + "/routes/" + route.id);
 	await expect(page.getByRole("tab", { name: "Ingress", exact: true }), "Separate lifecycle editor tabs must exist").toBeVisible();
 	await expect(page.getByRole("tab", { name: "Ingress", exact: true })).toHaveAttribute("aria-selected", "true");
-	await expect(page.getByLabel("Ingress fixed signature")).toContainText("async function ingress(ctx: IngressContext)");
+	await expect(page.locator(".monaco-editor .view-lines").first()).toContainText("async function ingress(ctx: IngressContext)");
 	await expect(page.getByRole("textbox", { name: "Ingress code", exact: true })).toBeVisible();
 	await page.getByRole("tab", { name: "Processing", exact: true }).click();
-	await expect(page.getByLabel("Processing fixed signature")).toContainText("async function processEvent(ctx: ProcessingContext)");
+	await expect(page.locator(".monaco-editor .view-lines").first()).toContainText("async function processEvent(ctx: ProcessingContext)");
 	await expect(page.getByRole("textbox", { name: "Processing code", exact: true })).toBeVisible();
 	await expect(page.getByRole("textbox", { name: "Ingress code", exact: true })).toHaveCount(0);
 });
@@ -237,7 +237,7 @@ test("U75 copied template remains editable and leaves future copies unchanged", 
 	await page.keyboard.press("ControlOrMeta+A");
 	await page.keyboard.insertText('return ctx.respondOnly({status:200,body:"my custom copy"});');
 	await page.getByRole("button", { name: "Save draft", exact: true }).click();
-	await expect(page.getByRole("alertdialog", { name: "Script status", exact: true })).toContainText("Draft saved");
+	await expect(page.getByText("Draft saved · Not published", { exact: true })).toBeVisible();
 	const saved = await (await page.request.get("/api/v1/endpoints/" + first.id + "/drafts/ingress")).json();
 	expect(saved.body).toContain("my custom copy");
 	expect(saved.body).not.toBe(unverifiedTemplate.body);
@@ -245,9 +245,9 @@ test("U75 copied template remains editable and leaves future copies unchanged", 
 	await page.getByLabel("Ingress template").selectOption("unverified");
 	await expect(page.getByRole("textbox", { name: "Ingress code", exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "Save draft", exact: true }).click();
-	await expect(page.getByRole("alertdialog", { name: "Script status", exact: true })).toContainText("Draft saved");
+	await expect(page.getByText("Draft saved · Not published", { exact: true })).toBeVisible();
 	const another = await (await page.request.get("/api/v1/endpoints/" + second.id + "/drafts/ingress")).json();
-	expect(another.body, "New template copies must keep the original editable source").toBe(unverifiedTemplate.body);
+	expect(another.body.replace(/\s/g, ""), "New template copies must preserve source while applying project formatting").toBe(unverifiedTemplate.body.replace(/\s/g, ""));
 });
 
 test("U265 route editor binds an encrypted signing secret version", async ({ page }) => {
@@ -260,6 +260,7 @@ test("U265 route editor binds an encrypted signing secret version", async ({ pag
 	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Signed route", slug: "signed" } })).json();
 	await page.goto("/projects/" + project.id + "/routes/" + route.id);
 	await page.getByLabel("Ingress template").selectOption("hmac");
+	await page.getByRole("button", { name: "Helpers and secrets", exact: true }).click();
 	await expect(page.getByRole("button", { name: "Create a secret version", exact: true }), "Secret version controls must be available").toBeVisible();
 	await page.getByRole("button", { name: "Create a secret version", exact: true }).click();
 	await page.getByLabel("Secret name").fill("Signing key");
@@ -268,7 +269,7 @@ test("U265 route editor binds an encrypted signing secret version", async ({ pag
 	await expect(page.getByRole("alertdialog", { name: "Secret status", exact: true })).toContainText("Secret version created");
 	await page.getByRole("button", { name: "Bind secret version", exact: true }).click();
 	await page.getByRole("button", { name: "Save draft", exact: true }).click();
-	await expect(page.getByRole("alertdialog", { name: "Script status", exact: true })).toContainText("Draft saved");
+	await expect(page.getByText("Draft saved · Not published", { exact: true })).toBeVisible();
 	const draft = await (await page.request.get("/api/v1/endpoints/" + route.id + "/drafts/ingress")).json();
 	const versions = await (await page.request.get("/api/v1/secrets?scopeType=project&scopeId=" + project.id)).json();
 	expect(draft.secret_bindings.SIGNING_SECRET).toBe(versions[0].id);
@@ -377,7 +378,7 @@ test("U292 project code page creates helper version and processing middleware", 
 	await page.getByRole("tab", { name: "Middleware", exact: true }).click();
 	await page.getByRole("button", { name: "Create middleware", exact: true }).click();
 	await page.getByLabel("Middleware name", { exact: true }).fill("Project policy");
-	await expect(page.getByLabel("Middleware fixed signature")).toContainText("ProcessingMiddlewareContext");
+	await expect(page.locator(".monaco-editor .view-lines").first()).toContainText("ProcessingMiddlewareContext");
 	await page.getByRole("button", { name: "Save middleware", exact: true }).click();
 	await expect(page.getByRole("alertdialog", { name: "Code status", exact: true })).toContainText("Middleware saved");
 	await expect(page.getByRole("heading", { name: "Project policy", exact: true })).toBeVisible();
@@ -399,10 +400,11 @@ test("U83 route editor binds helper version and shows generated imports above bo
 	expect(created.status()).toBe(200);
 	const helper = await created.json();
 	await page.goto("/projects/" + project.id + "/routes/" + route.id);
+	await page.getByRole("button", { name: "Helpers and secrets", exact: true }).click();
 	await expect(page.getByLabel("Shared helper version"), "Shared helper controls must exist").toBeVisible();
 	await page.getByLabel("Shared helper version").selectOption(helper.id);
-	await page.getByRole("button", { name: "Bind helper version", exact: true }).click();
-	await expect(page.getByLabel("Ingress fixed signature")).toContainText('import * as Helpers from "@shared/Helpers";');
+	await page.getByRole("button", { name: "Add import", exact: true }).click();
+	await expect(page.locator(".monaco-editor .view-lines").first()).toContainText('import * as Helpers from "@shared/Helpers";');
 	const code = page.getByRole("textbox", { name: "Ingress code", exact: true });
 	await code.focus();
 	await page.keyboard.press("ControlOrMeta+A");
@@ -423,8 +425,7 @@ test("U293 project navigation opens scoped code management", async ({ page }) =>
 	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: me.instanceId, name: "Navigation workspace", slug: "navigation-workspace" } })).json();
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Navigation project", slug: "navigation-project" } })).json();
 	await page.goto("/projects/" + project.id);
-	await expect(page.getByRole("link", { name: "Code and middleware", exact: true }), "Project code navigation must exist").toBeVisible();
-	await page.getByRole("link", { name: "Code and middleware", exact: true }).click();
+	await page.getByRole("row", { name: "Code and middleware", exact: true }).click();
 	await expect(page).toHaveURL(new RegExp("/code/project/" + project.id + "$"));
 	await expect(page.getByRole("heading", { name: "Code and middleware", exact: true })).toBeVisible();
 });
@@ -437,7 +438,7 @@ test("U296 project member navigation uses project scope", async ({ page }) => {
 	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: me.instanceId, name: "Member workspace", slug: "member-workspace" } })).json();
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Member project", slug: "member-project" } })).json();
 	await page.goto("/projects/" + project.id);
-	await page.getByRole("link", { name: "Project members", exact: true }).click();
+	await page.getByRole("row", { name: "Project members", exact: true }).click();
 	await expect(page.getByRole("heading", { name: "Project members", exact: true }), "Project member page must exist").toBeVisible();
 	await expect(page.getByRole("heading", { name: "Browser owner", exact: true })).toBeVisible();
 	await expect(page.getByRole("heading", { name: "Instance members", exact: true })).toHaveCount(0);
@@ -470,6 +471,7 @@ test("U300 route editor tests unsaved ingress with synthetic fixture", async ({ 
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Test project", slug: "test-project" } })).json();
 	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Test route", slug: "test-route" } })).json();
 	await page.goto("/projects/" + project.id + "/routes/" + route.id);
+	await page.getByRole("button", { name: "Test this script", exact: true }).click();
 	await expect(page.getByRole("button", { name: "Test ingress (dry)", exact: true }), "Route editor synthetic test must exist").toBeVisible();
 	const code = page.getByRole("textbox", { name: "Ingress code", exact: true });
 	await code.focus();

@@ -7,7 +7,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import { Avatar, Button, Dropdown, Header, Label } from "@heroui/react";
 import { AppLayout, Sidebar } from "@heroui-pro/react";
-import { IconHome, IconFolder, IconUsers, IconLogout, IconCode, IconSettings } from "@tabler/icons-react";
+import { IconHome, IconFolder, IconUsers, IconLogout, IconCode, IconSettings, IconInbox, IconBell } from "@tabler/icons-react";
 import { NotificationInbox } from "@components/notification-inbox";
 import { api, ApiFailure } from "@lib/api-client";
 import type { MeProfile, WorkspaceSummary, ProjectSummary } from "@types";
@@ -116,6 +116,48 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 		}
 	}
 
+	const projectId = pathname.match(/^\/projects\/([^/]+)/)?.[1] ?? pathname.match(/^\/code\/project\/([^/]+)/)?.[1];
+	const project = data.projects.find((item) => item.id === projectId);
+	const projectLinks = project
+		? [
+				{
+					id: "project-overview",
+					label: "Routes and destinations",
+					href: "/projects/" + project.id,
+					icon: IconFolder,
+					visible: true,
+				},
+				{
+					id: "project-events",
+					label: "Events",
+					href: "/projects/" + project.id + "/events",
+					icon: IconInbox,
+					visible: project.permissions.includes("metadata.read"),
+				},
+				{
+					id: "project-code",
+					label: "Code and middleware",
+					href: "/code/project/" + project.id,
+					icon: IconCode,
+					visible: project.permissions.includes("code.read"),
+				},
+				{
+					id: "project-notifications",
+					label: "Notification rules",
+					href: "/projects/" + project.id + "/notifications",
+					icon: IconBell,
+					visible: project.permissions.includes("notifications.rules.manage"),
+				},
+				{
+					id: "project-members",
+					label: "Project members",
+					href: "/projects/" + project.id + "/members",
+					icon: IconUsers,
+					visible: project.permissions.includes("members.manage"),
+				},
+			]
+		: [];
+
 	const navigationContent = (
 		<>
 			<Sidebar.Header>
@@ -125,22 +167,34 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 			</Sidebar.Header>
 			<Sidebar.Content>
 				<Sidebar.Group>
+					{project && <Sidebar.GroupLabel>{project.name}</Sidebar.GroupLabel>}
 					<Sidebar.Menu aria-label='Dashboard navigation'>
-						<Sidebar.MenuItem id='overview' href='/' isCurrent={pathname === "/"} textValue='Overview'>
+						<Sidebar.MenuItem id='overview' href='/' isCurrent={pathname === "/"} textValue={project ? "All projects" : "Overview"}>
 							<Sidebar.MenuIcon>
 								<IconHome size={18} />
 							</Sidebar.MenuIcon>
-							<Sidebar.MenuLabel>Overview</Sidebar.MenuLabel>
+							<Sidebar.MenuLabel>{project ? "All projects" : "Overview"}</Sidebar.MenuLabel>
 						</Sidebar.MenuItem>
-						{data.projects.map((project) => (
-							<Sidebar.MenuItem id={project.id} key={project.id} href={"/projects/" + project.id} textValue={project.name} isCurrent={pathname.startsWith("/projects/" + project.id)}>
-								<Sidebar.MenuIcon>
-									<IconFolder size={18} />
-								</Sidebar.MenuIcon>
-								<Sidebar.MenuLabel>{project.name}</Sidebar.MenuLabel>
-							</Sidebar.MenuItem>
-						))}
-						{data.me.permissions.includes("code.read") && (
+						{!project &&
+							data.projects.map((project) => (
+								<Sidebar.MenuItem id={project.id} key={project.id} href={"/projects/" + project.id} textValue={project.name} isCurrent={pathname.startsWith("/projects/" + project.id)}>
+									<Sidebar.MenuIcon>
+										<IconFolder size={18} />
+									</Sidebar.MenuIcon>
+									<Sidebar.MenuLabel>{project.name}</Sidebar.MenuLabel>
+								</Sidebar.MenuItem>
+							))}
+						{projectLinks
+							.filter((item) => item.visible)
+							.map((item) => (
+								<Sidebar.MenuItem key={item.id} id={item.id} href={item.href} textValue={item.label} isCurrent={pathname === item.href}>
+									<Sidebar.MenuIcon>
+										<item.icon size={18} />
+									</Sidebar.MenuIcon>
+									<Sidebar.MenuLabel>{item.label}</Sidebar.MenuLabel>
+								</Sidebar.MenuItem>
+							))}
+						{!project && data.me.permissions.includes("code.read") && (
 							<Sidebar.MenuItem id='code' href={"/code/instance/" + data.me.instanceId} textValue='Code and middleware'>
 								<Sidebar.MenuIcon>
 									<IconCode size={18} />
@@ -148,7 +202,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 								<Sidebar.MenuLabel>Code and middleware</Sidebar.MenuLabel>
 							</Sidebar.MenuItem>
 						)}
-						{admin && (
+						{!project && admin && (
 							<Sidebar.MenuItem id='members' href='/admin/members' textValue='Instance members'>
 								<Sidebar.MenuIcon>
 									<IconUsers size={18} />
@@ -182,7 +236,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 							</Link>
 						</div>
 						<div className='flex shrink-0 items-center gap-2'>
-							{data.me.permissions.includes("notifications.read") && <NotificationInbox scope={{ type: "instance", id: data.me.instanceId }} />}
+							{(project?.permissions ?? data.me.permissions).includes("notifications.read") && <NotificationInbox scope={{ type: project ? "project" : "instance", id: project?.id ?? data.me.instanceId }} />}
 							<Dropdown>
 								<Dropdown.Trigger aria-label='Account menu' className='rounded-full outline-offset-4'>
 									<Avatar size='sm'>

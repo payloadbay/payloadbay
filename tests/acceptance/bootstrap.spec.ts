@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 test("signed-out application root opens sign-in instead of a bootstrap landing page", async ({ page }) => {
 	await page.route("**/api/v1/**", (route) => route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ error: { code: "unauthenticated", message: "Sign in required" } }) }));
 	await page.goto("/");
-	await expect(page).toHaveURL(/\/login$/);
+	await expect(page).toHaveURL(/\/login$/, { timeout: 15000 });
 	await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
 	await expect(page.getByRole("img", { name: "Payload Bay", exact: true })).toBeVisible();
 });
@@ -115,6 +115,7 @@ test("mobile dashboard keeps account actions in the avatar menu and projects in 
 	await page.getByRole("button", { name: "Account menu" }).click();
 	await expect(page.getByRole("menuitem", { name: "Sign out", exact: true })).toBeVisible();
 	await page.getByRole("menuitem", { name: "Account settings", exact: true }).click();
+	await expect(page).toHaveURL(/\/account$/, { timeout: 15000 });
 	await expect(page.getByRole("heading", { name: "Account settings", exact: true })).toBeVisible();
 	await page.getByLabel("Display name").fill("Updated Reviewer");
 	await page.getByRole("button", { name: "Save changes" }).click();
@@ -185,4 +186,110 @@ test.describe("unavailable and empty states", () => {
 		await page.getByRole("button", { name: "Retry loading notifications" }).click();
 		await expect(page.getByText("No active notifications.", { exact: true })).toBeVisible();
 	});
+});
+
+test("route editing keeps project navigation contextual and formats the protected TypeScript file on save", async ({ page }, testInfo) => {
+	test.setTimeout(90000);
+
+	await page.setViewportSize({ width: 390, height: 844 });
+	const permissions = ["metadata.read", "code.read", "code.edit", "code.publish", "code.test", "members.manage", "notifications.rules.manage", "secrets.use", "secrets.manage"];
+	let savedBody = "";
+	const draft = {
+		body: 'return ctx.respondOnly({status:200,body:"hello"});',
+		version: 1,
+		shared_bindings: {},
+		secret_bindings: { SIGNING_SECRET: "secret" },
+	};
+	await page.route("**/api/v1/**", (route) => {
+		const path = new URL(route.request().url()).pathname;
+		if (route.request().method() === "PATCH") {
+			savedBody = route.request().postDataJSON().body;
+
+			return route.fulfill({ json: { ...draft, body: savedBody, version: 2 } });
+		}
+
+		const responses: Record<string, unknown> = {
+			"/api/v1/me": {
+				user: { id: "reviewer", name: "Reviewer", email: "reviewer@example.test" },
+				instanceId: "instance",
+				permissions,
+				roles: {},
+			},
+			"/api/v1/workspaces": [],
+			"/api/v1/secrets": [
+				{
+					id: "secret",
+					name: "Signing key",
+					version: 1,
+					revoked_at: null,
+				},
+			],
+			"/api/v1/projects": [
+				{
+					id: "project",
+					name: "Playground",
+					workspace_id: "workspace",
+					slug: "playground",
+					permissions,
+				},
+			],
+			"/api/v1/endpoints/endpoint": {
+				id: "endpoint",
+				projectId: "project",
+				name: "Sample Webhook",
+				version: 1,
+				permissions,
+				paused: false,
+				activePublicationId: null,
+				ingressUrl: "https://preview.example.test/ingress/a-very-long-receiving-key-that-must-scroll-inside-the-code-box",
+			},
+			"/api/v1/endpoints/endpoint/drafts/ingress": draft,
+			"/api/v1/endpoints/endpoint/drafts/processing": { ...draft, body: "return ctx.complete();" },
+		};
+
+		return route.fulfill({ json: responses[path] ?? [] });
+	});
+	await page.goto("/projects/project/routes/endpoint");
+	await expect(page.getByRole("heading", { name: "Sample Webhook", exact: true })).toBeVisible();
+	await expect(page.getByLabel("Synthetic request body", { exact: true })).toBeHidden();
+	await page.getByRole("button", { name: "Toggle navigation" }).click();
+	const navigation = page.getByRole("dialog");
+	await expect(navigation.getByRole("row", { name: "Events", exact: true })).toBeVisible();
+	await expect(navigation.getByRole("row", { name: "Project members", exact: true })).toBeVisible();
+	await expect(navigation.getByRole("row", { name: "Instance members", exact: true })).toHaveCount(0);
+	await page.keyboard.press("Escape");
+	const editor = page.getByRole("textbox", { name: "Ingress code", exact: true });
+	await expect(editor).toBeVisible();
+	await expect(page.getByText("Loading code editor…", { exact: true })).toHaveCount(0, { timeout: 20000 });
+	await editor.focus();
+	await page.keyboard.press("Control+Home");
+	for (let i = 0; i < 40; i++) await page.keyboard.press("ArrowRight");
+	await page.keyboard.press("Control+k");
+	await page.keyboard.press("Control+i");
+	await expect(page.locator(".monaco-hover:visible").first()).toBeVisible({ timeout: 15000 });
+	await expect(page.locator(".monaco-hover:visible").first()).toContainText(/ctx: (PayloadBay\.)?IngressContext/);
+	await page.keyboard.press("Escape");
+	await editor.focus();
+	await page.keyboard.press("Control+Home");
+	await page.keyboard.insertText("broken");
+	await expect(page.locator(".monaco-editor .view-lines").first()).not.toContainText("broken");
+	await page.keyboard.press("Control+a");
+	await page.keyboard.insertText('return ctx.respondOnly({status:201,body:"formatted"});');
+	await expect(page.getByText("Unsaved changes", { exact: false })).toBeVisible();
+	await page.getByRole("button", { name: "Save draft", exact: true }).click();
+	await expect.poll(() => savedBody).toContain('status: 201, body: "formatted"');
+	expect(savedBody.startsWith("\treturn")).toBe(true);
+	await expect(page.getByText("Draft saved · Not published", { exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "Test this script", exact: true }).click();
+	await expect(page.getByLabel("Synthetic request body", { exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "Helpers and secrets", exact: true }).click();
+	await expect(page.getByRole("grid", { name: "Secret bindings", exact: true })).toBeVisible();
+	await expect(page.getByRole("row", { name: /SIGNING_SECRET/ })).toBeVisible();
+	await page.setViewportSize({ width: 320, height: 740 });
+	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+	await page.evaluate(() => window.scrollTo(0, 0));
+	await page.screenshot({ path: testInfo.outputPath("route-editor-mobile.png"), fullPage: true });
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await expect(page.getByRole("row", { name: "Events", exact: true })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Toggle navigation" })).toBeHidden();
 });

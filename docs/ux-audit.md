@@ -23,13 +23,32 @@ management operation has passed end-to-end browser acceptance.
 - Mobile navigation now mounts HeroUI Sidebar.Mobile as well as the desktop sidebar; browser coverage opens, dismisses and navigates through the drawer.
 - Dashboard scope/settings structure is drafted in [dashboard-navigation.md](dashboard-navigation.md), with existing coverage and missing pages distinguished.
 
+## Script and project flow follow-up
+
+- Project navigation is contextual in the sidebar/mobile drawer; project links
+  are removed from the overview header and notifications follow project scope.
+- Receiving URLs scroll within a single-line box beside the Copy button.
+- Lifecycle signatures and pinned helper imports appear inside Monaco. Their
+  generated lines stay protected; function bodies and shared-helper files remain
+  editable. Ctrl/Cmd+A selects the editable body in lifecycle files.
+- Monaco now loads its TypeScript service with the generated SDK declarations
+  for hover, completion and signature help. Server compilation remains authoritative.
+- Save/publish uses Prettier’s browser build and the same distributed formatting
+  configuration as the repository. Ctrl/Cmd+S saves; formatting is also available
+  through the editor. Invalid syntax prevents saving rather than losing edits.
+- Bindings use HeroUI tables and fields. Helpers/secrets and synthetic testing are
+  secondary disclosure panels. Saving has a persistent saved/unsaved indicator,
+  replacing a redundant toast that obstructed mobile controls.
+- Preview seeding includes a real same-preview HTTP destination; see the preview
+  walkthrough for deliberate publication and queued delivery testing.
+
 ## Remaining findings
 
 | Priority | Source | Finding and recommended change |
 | --- | --- | --- |
-| Medium | Code/middleware, shared/secret bindings, notification rules and route test forms | Hand-styled native selects, number fields, checkbox and textareas bypass matching HeroUI controls. Review Select/NativeSelect, NumberField, Checkbox/Switch, TextArea and TextField per interaction. Native elements are not inherently inaccessible; preserve constraints and controlled behavior during replacement. |
-| Medium | `apps/web/src/app/components/shared-bindings.tsx` and route/replay controls | Short internal IDs and implementation terms often carry primary context. Lead with resource names and plain-language outcomes, keeping IDs in secondary details. |
-| Medium | `apps/web/src/app/components/secret-bindings.tsx` | Unsaved binding changes are announced only through an expiring toast. Show persistent unsaved/published state near editor actions. |
+| Medium | Code/middleware, shared/secret bindings, notification rules and route test forms | Route test textareas and binding controls now use HeroUI. Code-management and notification-rule forms still have native controls. Review Select/NativeSelect, NumberField, Checkbox/Switch, TextArea and TextField per interaction. Native elements are not inherently inaccessible; preserve constraints and controlled behavior during replacement. |
+| Medium | `apps/web/src/app/components/shared-bindings.tsx` and route/replay controls | Helper and secret tables now lead with names. Review remaining route/replay controls and version selectors for internal IDs and implementation jargon. |
+| Medium | `apps/web/src/app/components/secret-bindings.tsx` | Route-stage bindings now participate in a persistent unsaved/saved indication. Broader code-management dirty-state and leave-page protection still need review. |
 | Medium | `apps/web/src/app/(dashboard)/projects/[projectId]/events/page.tsx` | Five-column hand-styled event table depends on horizontal overflow at small widths. Review HeroUI Table/DataGrid and readable mobile status/inspect actions. |
 
 These findings are follow-up implementation work under the existing alpha scope,

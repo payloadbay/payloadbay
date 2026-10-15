@@ -6,7 +6,11 @@ in the UI. Account settings belong to the person, outside that hierarchy.
 
 Desktop uses a sidebar; mobile uses the same navigation inside HeroUI's drawer.
 The top bar keeps the brand, mobile menu, scoped notifications and account avatar.
-Selecting a navigation item closes the mobile drawer. The avatar owns account
+Selecting a navigation item closes the mobile drawer. Within a project, the same
+sidebar/drawer shows Routes and destinations, Events, Code and middleware,
+Notification rules and Project members according to that project’s permissions.
+Those links no longer sit in the project page header. Project notifications use
+the current project scope; instance notifications apply outside projects. The avatar owns account
 settings and sign-out; it should not become a second full navigation tree.
 
 ## Proposed structure and current coverage
@@ -37,8 +41,8 @@ the whole settings area.
 ## Implementation order
 
 1. Fix and test the mobile drawer using the existing working destinations.
-2. Add scope switching and project navigation using existing pages, with clear
-   active states and names instead of IDs.
+2. Project navigation is contextual using existing pages. Workspace switching
+   and dedicated workspace management remain follow-up work.
 3. Implement actual workspace/project settings and membership flows against the
    existing authorization contracts, then expose their links.
 

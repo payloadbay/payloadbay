@@ -5,9 +5,8 @@ import Link from "next/link";
 import { use, useState, useEffect, useCallback, type FormEvent } from "react";
 import { Button, Card, Form, TextField, Label, Input, FieldError } from "@heroui/react";
 import { EmptyState } from "@heroui-pro/react";
-import { IconInbox, IconRoute, IconPlus, IconArrowRight, IconPlugConnected, IconUsers, IconCode, IconBell } from "@tabler/icons-react";
+import { IconRoute, IconPlus, IconArrowRight, IconPlugConnected } from "@tabler/icons-react";
 import { api } from "@lib/api-client";
-import { NotificationInbox } from "@components/notification-inbox";
 import type { ProjectSummary } from "@types";
 
 type IngressRoute = {
@@ -123,29 +122,6 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 					<h1 className='text-3xl font-semibold'>{project.name}</h1>
 					<p className='text-muted mt-2'>Set a destination, publish an ingress route, then receive your first event.</p>
 				</div>
-				<Link className='text-accent flex items-center gap-2' href={"/projects/" + projectId + "/events"}>
-					<IconInbox size={18} />
-					View events
-				</Link>
-				{project.permissions.includes("code.read") && (
-					<Link className='text-accent flex items-center gap-2' href={"/code/project/" + projectId}>
-						<IconCode size={18} />
-						Code and middleware
-					</Link>
-				)}
-				{project.permissions.includes("notifications.rules.manage") && (
-					<Link className='text-accent flex items-center gap-2' href={"/projects/" + projectId + "/notifications"}>
-						<IconBell size={18} />
-						Notification rules
-					</Link>
-				)}
-				{project.permissions.includes("notifications.read") && <NotificationInbox scope={{ type: "project", id: projectId }} label='Project notifications' />}
-				{project.permissions.includes("members.manage") && (
-					<Link className='text-accent flex items-center gap-2' href={"/projects/" + projectId + "/members"}>
-						<IconUsers size={18} />
-						Project members
-					</Link>
-				)}
 			</header>
 
 			{form && (

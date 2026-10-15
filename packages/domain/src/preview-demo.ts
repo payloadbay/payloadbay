@@ -3,6 +3,8 @@ import type { ServerConfig } from "./config.ts";
 import type { createAuth } from "./auth-runtime.ts";
 import { bootstrapOwner } from "./bootstrap.ts";
 import { createResource } from "./resources.ts";
+import { createDestination } from "./destinations.ts";
+import { unverifiedTemplate } from "../../script-sdk/src/templates/unverified.ts";
 import { createEndpoint } from "./endpoints.ts";
 import { previewReviewerEmail } from "./preview.ts";
 
@@ -41,7 +43,19 @@ export async function seedPreviewDemo(pool: Pool, config: ServerConfig, identity
 				name: "Webhook Playground",
 				slug: "webhook-playground",
 			});
-		if (!(await db.query("SELECT 1 FROM payloadbay.endpoint WHERE project_id=$1 AND slug='sample-webhook'", [project.id])).rowCount) await createEndpoint(pool, actor, { projectId: project.id, name: "Sample Webhook", slug: "sample-webhook" });
+		if (!(await db.query("SELECT 1 FROM payloadbay.destination WHERE project_id=$1 AND name='Demo receiver'", [project.id])).rowCount) {
+			await createDestination(pool, actor, {
+				projectId: project.id,
+				name: "Demo receiver",
+				url: new URL("/api/preview/receiver", config.publicUrl).href,
+				isDefault: true,
+			});
+		}
+
+		if (!(await db.query("SELECT 1 FROM payloadbay.endpoint WHERE project_id=$1 AND slug='sample-webhook'", [project.id])).rowCount) {
+			const endpoint = await createEndpoint(pool, actor, { projectId: project.id, name: "Sample Webhook", slug: "sample-webhook" });
+			await db.query("UPDATE payloadbay.draft SET body=$2 WHERE endpoint_id=$1 AND stage='ingress'", [endpoint.id, unverifiedTemplate.body]);
+		}
 	} finally {
 		await db.query("SELECT pg_advisory_unlock(hashtext('payloadbay:preview-seed:v1'))").catch(() => {});
 		db.release();

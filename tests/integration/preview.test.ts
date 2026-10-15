@@ -23,6 +23,11 @@ test("U320 preview seed provisions a repeatable admitted demo owner and project"
 			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.workspace")).rows[0].count, 1);
 			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.project")).rows[0].count, 1);
 			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.endpoint")).rows[0].count, 1);
+			const destinations = (await f.db.query("SELECT name,http_config,is_default FROM payloadbay.destination")).rows;
+			assert.equal(destinations.length, 1, "Repeated seeding must not duplicate the demo target");
+			assert.equal(destinations[0].name, "Demo receiver");
+			assert.equal(destinations[0].http_config.url, "http://localhost:3000/api/preview/receiver");
+			assert.equal(destinations[0].is_default, true);
 			await identity.api.sendVerificationOTP({ body: { email: users[0].email, type: "sign-in" } });
 			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.platform_job WHERE kind='otp_mail'")).rows[0].count, 1, "reviewers can use real queued OTP email without a maintainer account");
 		} finally {
@@ -38,6 +43,7 @@ test("U321 preview warning is shown by runtime mode and absent outside previews"
 		async (f) => {
 			const html = await (await fetch(f.url + "/login")).text();
 			assert.match(html, /Disposable PR preview/);
+			assert.equal((await fetch(f.url + "/api/preview/receiver", { method: "POST", body: "synthetic event" })).status, 204);
 			assert.match(html, /Do not use production credentials or sensitive data/);
 		},
 		{ preview: true },
@@ -45,6 +51,7 @@ test("U321 preview warning is shown by runtime mode and absent outside previews"
 	await nextFixture(async (f) => {
 		const html = await (await fetch(f.url + "/login")).text();
 		assert.doesNotMatch(html, /Disposable PR preview/);
+		assert.equal((await fetch(f.url + "/api/preview/receiver", { method: "POST" })).status, 404);
 	});
 });
 

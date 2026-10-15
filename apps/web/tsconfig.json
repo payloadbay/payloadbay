@@ -26,7 +26,8 @@
 			"@api/*": ["./src/app/lib/api/*"],
 			"@contracts/*": ["../../packages/contracts/src/*"],
 			"@domain/*": ["../../packages/domain/src/*"],
-			"@sdk/*": ["../../packages/script-sdk/src/*"]
+			"@sdk/*": ["../../packages/script-sdk/src/*"],
+			"@formatting": ["../../.github/tooling/prettier/base.mjs"]
 		},
 		"allowImportingTsExtensions": true
 	},

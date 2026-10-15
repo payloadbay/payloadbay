@@ -2,7 +2,8 @@
 
 import { useFeedbackToast } from "@lib/feedback";
 import { useState, useEffect, useCallback, type FormEvent } from "react";
-import { Button, Card, Form, TextField, Label, Input, FieldError } from "@heroui/react";
+import { Button, Card, Form, TextField, Label, Input, FieldError, Table } from "@heroui/react";
+import { NativeSelect } from "@heroui-pro/react";
 import { IconKey, IconX } from "@tabler/icons-react";
 import { api } from "@lib/api-client";
 
@@ -78,7 +79,7 @@ export function SecretBindings({ projectId, bindings, onChange, canUse, canManag
 		}
 
 		onChange({ ...bindings, [binding]: selected });
-		setNotice("Binding changed locally. Save and publish to activate it.");
+		setNotice("");
 		setError("");
 	}
 
@@ -113,57 +114,76 @@ export function SecretBindings({ projectId, bindings, onChange, canUse, canManag
 				<Card.Description>Bind exact versions to names such as SIGNING_SECRET. Secret values are injected only during execution.</Card.Description>
 			</Card.Header>
 			<Card.Content className='flex flex-col gap-4'>
-				{Object.keys(bindings).length > 0 && (
-					<ul className='flex flex-col gap-2'>
-						{Object.entries(bindings).map(([key, id]) => {
-							const secret = versions.find((version) => version.id === id);
+				{Object.keys(bindings).length ? (
+					<Table>
+						<Table.ScrollContainer>
+							<Table.Content aria-label='Secret bindings'>
+								<Table.Header>
+									<Table.Column isRowHeader>Binding</Table.Column>
+									<Table.Column className='hidden sm:table-cell'>Secret version</Table.Column>
+									<Table.Column aria-label='Actions' />
+								</Table.Header>
+								<Table.Body>
+									{Object.entries(bindings).map(([key, id]) => {
+										const secret = versions.find((item) => item.id === id);
 
-							return (
-								<li key={key} className='flex items-center justify-between gap-3 text-sm'>
-									<span>
-										<code>{key}</code> → {secret ? `${secret.name} · v${secret.version}${secret.revoked_at ? " · Revoked" : ""}` : id}
-									</span>
-									{canUse && (
-										<Button
-											isIconOnly
-											size='sm'
-											variant='ghost'
-											aria-label={"Remove binding " + key}
-											isDisabled={disabled || busy}
-											onPress={() => {
-												const next = { ...bindings };
-												delete next[key];
-												onChange(next);
-											}}
-										>
-											<IconX size={16} />
-										</Button>
-									)}
-								</li>
-							);
-						})}
-					</ul>
+										return (
+											<Table.Row key={key} id={key}>
+												<Table.Cell>
+													<code className='break-all'>{key}</code>
+													<span className='text-muted mt-1 block text-xs sm:hidden'>{secret ? `${secret.name} · v${secret.version}${secret.revoked_at ? " · Revoked" : ""}` : "Unavailable version"}</span>
+												</Table.Cell>
+												<Table.Cell className='hidden sm:table-cell'>{secret ? `${secret.name} · v${secret.version}${secret.revoked_at ? " · Revoked" : ""}` : "Unavailable version"}</Table.Cell>
+												<Table.Cell>
+													{canUse && (
+														<Button
+															isIconOnly
+															size='sm'
+															variant='ghost'
+															aria-label={"Remove binding " + key}
+															isDisabled={disabled || busy}
+															onPress={() => {
+																const next = { ...bindings };
+																delete next[key];
+																onChange(next);
+															}}
+														>
+															<IconX size={16} />
+														</Button>
+													)}
+												</Table.Cell>
+											</Table.Row>
+										);
+									})}
+								</Table.Body>
+							</Table.Content>
+						</Table.ScrollContainer>
+					</Table>
+				) : (
+					<p className='text-muted text-sm'>No secrets bound. Add one only if your script needs it.</p>
 				)}
+
 				{canUse && (
-					<Form onSubmit={bind} className='flex flex-wrap items-end gap-3'>
+					<Form onSubmit={bind} className='flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end'>
 						<TextField isRequired value={binding} onChange={setBinding} isDisabled={disabled || busy} pattern='[A-Za-z_][A-Za-z0-9_]*'>
 							<Label>Binding name</Label>
 							<Input variant='secondary' />
 							<FieldError />
 						</TextField>
-						<label className='flex min-w-56 flex-col gap-2 text-sm'>
-							Secret version
-							<select aria-label='Secret version' className='border-border bg-field rounded-lg border p-2' value={selected} onChange={(event) => setSelected(event.target.value)} disabled={disabled || busy} required>
-								<option value=''>Choose a version</option>
+						<NativeSelect variant='secondary' className='min-w-0 w-full sm:w-auto'>
+							<Label>Secret version</Label>
+							<NativeSelect.Trigger aria-label='Secret version' value={selected} onChange={(event) => setSelected(event.target.value)} disabled={disabled || busy} required>
+								<NativeSelect.Option value=''>Choose a version</NativeSelect.Option>
 								{versions
 									.filter((version) => !version.revoked_at)
 									.map((version) => (
-										<option key={version.id} value={version.id}>
+										<NativeSelect.Option key={version.id} value={version.id}>
 											{version.name} · v{version.version}
-										</option>
+										</NativeSelect.Option>
 									))}
-							</select>
-						</label>
+								<NativeSelect.Indicator />
+							</NativeSelect.Trigger>
+						</NativeSelect>
 						<Button type='submit' variant='secondary' isDisabled={disabled || busy || !selected}>
 							Bind secret version
 						</Button>

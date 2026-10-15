@@ -2,7 +2,8 @@
 
 import { useFeedbackToast } from "@lib/feedback";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Button, Card } from "@heroui/react";
+import { Button, Card, Form, TextField, Input, Label, FieldError, Table } from "@heroui/react";
+import { NativeSelect } from "@heroui-pro/react";
 import { IconCode, IconX } from "@tabler/icons-react";
 import { api } from "@lib/api-client";
 
@@ -60,53 +61,75 @@ export function SharedBindings({ projectId, bindings, onChange, disabled }: Shar
 					<IconCode size={18} />
 					Shared helper imports
 				</h3>
-				<Card.Description>Bind exact versions. Imports are generated above the fixed signature.</Card.Description>
+				<Card.Description>Choose a saved helper version. Its import appears inside the script editor.</Card.Description>
 			</Card.Header>
 			<Card.Content className='flex flex-col gap-3'>
-				<ul className='flex flex-col gap-2'>
-					{Object.entries(bindings).map(([name, id]) => (
-						<li key={name} className='border-border flex items-center justify-between rounded-lg border p-2 text-sm'>
-							<code>
-								{name} · {id.slice(0, 8)}
-							</code>
-							{!disabled && (
-								<Button
-									size='sm'
-									variant='ghost'
-									aria-label={"Remove helper binding " + name}
-									onPress={() => {
-										const next = { ...bindings };
-										delete next[name];
-										onChange(next);
-									}}
-								>
-									<IconX size={16} />
-								</Button>
-							)}
-						</li>
-					))}
-				</ul>
+				{Object.keys(bindings).length ? (
+					<Table>
+						<Table.ScrollContainer>
+							<Table.Content aria-label='Helper imports'>
+								<Table.Header>
+									<Table.Column isRowHeader>Import</Table.Column>
+									<Table.Column>Helper</Table.Column>
+									<Table.Column aria-label='Actions' />
+								</Table.Header>
+								<Table.Body>
+									{Object.entries(bindings).map(([name, id]) => (
+										<Table.Row key={name} id={name}>
+											<Table.Cell>
+												<code>{name}</code>
+											</Table.Cell>
+											<Table.Cell>{versions.find((item) => item.id === id)?.name ?? "Unavailable version"}</Table.Cell>
+											<Table.Cell>
+												{!disabled && (
+													<Button
+														isIconOnly
+														size='sm'
+														variant='ghost'
+														aria-label={"Remove helper binding " + name}
+														onPress={() => {
+															const next = { ...bindings };
+															delete next[name];
+															onChange(next);
+														}}
+													>
+														<IconX size={16} />
+													</Button>
+												)}
+											</Table.Cell>
+										</Table.Row>
+									))}
+								</Table.Body>
+							</Table.Content>
+						</Table.ScrollContainer>
+					</Table>
+				) : (
+					<p className='text-muted text-sm'>No helper imports. Your script can define its own functions directly.</p>
+				)}
+
 				{!disabled && (
-					<form onSubmit={bind} className='flex flex-wrap gap-3'>
-						<label className='flex min-w-32 flex-1 flex-col gap-1 text-sm'>
-							Import name
-							<input aria-label='Shared helper import name' value={alias} onChange={(event) => setAlias(event.target.value)} className='border-border bg-field rounded-lg border p-2' />
-						</label>
-						<label className='flex min-w-48 flex-1 flex-col gap-1 text-sm'>
-							Version
-							<select aria-label='Shared helper version' value={selected} onChange={(event) => setSelected(event.target.value)} className='border-border bg-field rounded-lg border p-2'>
-								<option value=''>Choose a version</option>
+					<Form onSubmit={bind} className='flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end'>
+						<TextField isRequired value={alias} onChange={setAlias} pattern='[A-Za-z_$][A-Za-z0-9_$]*'>
+							<Label>Import name</Label>
+							<Input aria-label='Shared helper import name' variant='secondary' />
+							<FieldError />
+						</TextField>
+						<NativeSelect variant='secondary' className='min-w-0 w-full sm:w-auto'>
+							<Label>Helper version</Label>
+							<NativeSelect.Trigger aria-label='Shared helper version' value={selected} onChange={(event) => setSelected(event.target.value)}>
+								<NativeSelect.Option value=''>Choose a version</NativeSelect.Option>
 								{versions.map((version) => (
-									<option key={version.id} value={version.id}>
+									<NativeSelect.Option key={version.id} value={version.id}>
 										{version.name} · {version.scope.type} · {version.id.slice(0, 8)}
-									</option>
+									</NativeSelect.Option>
 								))}
-							</select>
-						</label>
-						<Button type='submit' variant='secondary' className='self-end' isDisabled={!selected}>
-							Bind helper version
+								<NativeSelect.Indicator />
+							</NativeSelect.Trigger>
+						</NativeSelect>
+						<Button type='submit' variant='secondary' isDisabled={!selected}>
+							Add import
 						</Button>
-					</form>
+					</Form>
 				)}
 			</Card.Content>
 		</Card>

@@ -134,3 +134,17 @@ completed, while HeroUI Pro installation failed with an opaque vendor CLI error.
 The operator confirmed that `HEROUI_AUTH_TOKEN` contains the HeroUI dashboard
 CI/CD token. The installer failure is not yet diagnosed; do not assume a wrong
 token type from the opaque error. No custom installer diagnostics are retained.
+
+## Seeded delivery walkthrough
+
+The synthetic Webhook Playground includes a default **Demo receiver** destination
+pointing to this preview's `/api/preview/receiver`. It accepts POST and returns
+HTTP 204 without forwarding or retaining request bodies. The receiver returns
+404 outside preview mode. It adds no container or external dependency.
+
+The new Sample Webhook draft explicitly accepts unverified demo requests and
+uses the ordinary default-destination processing template. Open the route,
+review the code, and **Publish both stages**. Copy its receiving URL and POST
+a synthetic event to it; open Events through the contextual project navigation
+to inspect the real queued delivery. Publication remains deliberate; seeding does
+not silently activate incoming endpoints or overwrite edited drafts.
