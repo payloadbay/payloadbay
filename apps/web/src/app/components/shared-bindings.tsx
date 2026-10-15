@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useFeedbackToast } from "@lib/feedback";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Button, Card, Form, TextField, Input, Label, FieldError, Table } from "@heroui/react";
@@ -61,7 +62,13 @@ export function SharedBindings({ projectId, bindings, onChange, disabled }: Shar
 					<IconCode size={18} />
 					Shared helper imports
 				</h3>
-				<Card.Description>Choose a saved helper version. Its import appears inside the script editor.</Card.Description>
+				<Card.Description>
+					Bind a saved helper version, then import it from <code>@shared/ImportName</code>.{" "}
+					<Link className='text-accent underline' href={"/code/project/" + projectId}>
+						Create or edit helper files
+					</Link>
+					.
+				</Card.Description>
 			</Card.Header>
 			<Card.Content className='flex flex-col gap-3'>
 				{Object.keys(bindings).length ? (
@@ -77,7 +84,9 @@ export function SharedBindings({ projectId, bindings, onChange, disabled }: Shar
 									{Object.entries(bindings).map(([name, id]) => (
 										<Table.Row key={name} id={name}>
 											<Table.Cell>
-												<code>{name}</code>
+												<code className='break-all text-xs'>
+													import * as {name} from &quot;@shared/{name}&quot;;
+												</code>
 											</Table.Cell>
 											<Table.Cell>{versions.find((item) => item.id === id)?.name ?? "Unavailable version"}</Table.Cell>
 											<Table.Cell>

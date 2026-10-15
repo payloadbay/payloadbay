@@ -23,37 +23,51 @@ management operation has passed end-to-end browser acceptance.
 - Mobile navigation now mounts HeroUI Sidebar.Mobile as well as the desktop sidebar; browser coverage opens, dismisses and navigates through the drawer.
 - Dashboard scope/settings structure is drafted in [dashboard-navigation.md](dashboard-navigation.md), with existing coverage and missing pages distinguished.
 
-## Script and project flow follow-up
+## Completed follow-up from the maintainer's review
 
-- Project navigation is contextual in the sidebar/mobile drawer; project links
-  are removed from the overview header and notifications follow project scope.
-- Receiving URLs scroll within a single-line box beside the Copy button.
-- Lifecycle signatures and pinned helper imports appear inside Monaco. Their
-  generated lines stay protected; function bodies and shared-helper files remain
-  editable. Ctrl/Cmd+A selects the editable body in lifecycle files.
-- Monaco now loads its TypeScript service with the generated SDK declarations
-  for hover, completion and signature help. Server compilation remains authoritative.
-- Save/publish uses Prettier’s browser build and the same distributed formatting
-  configuration as the repository. Ctrl/Cmd+S saves; formatting is also available
-  through the editor. Invalid syntax prevents saving rather than losing edits.
-- Bindings use HeroUI tables and fields. Helpers/secrets and synthetic testing are
-  secondary disclosure panels. Saving has a persistent saved/unsaved indicator,
-  replacing a redundant toast that obstructed mobile controls.
-- Preview seeding includes a real same-preview HTTP destination; see the preview
-  walkthrough for deliberate publication and queued delivery testing.
+- Login uses the canonical transparent logo inside its card. OTP paste strips
+  non-digits, including surrounding whitespace. Normal email → code progression
+  does not toast. Action feedback remains at the bottom of the viewport.
+- The header has an opaque background. Desktop keeps the contextual sidebar;
+  mobile uses its drawer. Route navigation separates scripts, middleware, helper
+  imports, secrets, dry testing, published-request playground, events and history.
+  Workspace views expose their own projects, members, code and notification rules.
+- Receiving URL labels sit outside the URL/copy row. The URL scrolls horizontally
+  within that row. Save/publish actions center on narrow screens.
+- Editable ingress files export named uppercase HTTP methods; unsupported methods
+  return 405. Processing and middleware keep protected lifecycle signatures.
+  Monaco uses Web Worker/ES libraries, horizontally scrolling source, SDK hover
+  information and bound helper source. A scripting guide explains the lifecycle.
+- Template selection stays visible after applying its editable code. Saving runs
+  the repository Prettier settings. Shared-code and route editors warn before
+  linked navigation, reload, or editor closure discards changed source.
+- Helpers have real source files and pinned bindings (`@shared/ImportName`). The
+  preview includes DemoHelpers. Secret and helper bindings use tables; empty
+  secret inventories explain that a version must be created before binding.
+- A real playground sends the selected HTTP method to the published ingress URL.
+  Dry tests select stage/method and use synthetic secrets with simulated managed
+  delivery. The two paths are explicitly distinguished in the UI.
+- Event tables work across authorized projects, with workspace/project/state
+  filters, authenticated SSE, and route-specific inspection. Metadata visibility
+  does not grant payload visibility. Preview seeding publishes the sample route
+  and runs two synthetic events through real ingress, receipts and queued jobs.
+- Membership tables include inherited access. Instance views list admitted users;
+  workspace/project views list applicable memberships. Invitations retain chosen
+  scope, roles and customized permissions while pending, support cancellation,
+  and apply access only after verified sign-in and acceptance. New admission
+  requires instance permission; project invitations do not grant workspace access.
+- Personal SMTP subscriptions are separate from workspace/project failure rules.
+  Workspace rules aggregate descendant failures; project rules can target a route
+  or destination. No failure rule or email subscription is enabled by default.
+  Forms use HeroUI NumberField, NativeSelect and Checkbox controls.
+- Account security supports actual Better Auth passkey registration, sign-in,
+  listing and removal, with email-code recovery. Authentication checks active
+  admission when creating sessions, including passkey sessions.
 
-## Remaining findings
-
-| Priority | Source | Finding and recommended change |
-| --- | --- | --- |
-| Medium | Code/middleware, shared/secret bindings, notification rules and route test forms | Route test textareas and binding controls now use HeroUI. Code-management and notification-rule forms still have native controls. Review Select/NativeSelect, NumberField, Checkbox/Switch, TextArea and TextField per interaction. Native elements are not inherently inaccessible; preserve constraints and controlled behavior during replacement. |
-| Medium | `apps/web/src/app/components/shared-bindings.tsx` and route/replay controls | Helper and secret tables now lead with names. Review remaining route/replay controls and version selectors for internal IDs and implementation jargon. |
-| Medium | `apps/web/src/app/components/secret-bindings.tsx` | Route-stage bindings now participate in a persistent unsaved/saved indication. Broader code-management dirty-state and leave-page protection still need review. |
-| Medium | `apps/web/src/app/(dashboard)/projects/[projectId]/events/page.tsx` | Five-column hand-styled event table depends on horizontal overflow at small widths. Review HeroUI Table/DataGrid and readable mobile status/inspect actions. |
-
-These findings are follow-up implementation work under the existing alpha scope,
-not already completed fixes. Verify error, empty, loading and populated states for
-each affected route when addressing them.
+Verification is recorded with the implementing PR. Unit/integration checks and
+actual browser flows are required; this list does not declare the entire alpha
+release complete. Update/version alerts and endpoint health checks remain
+explicitly deferred product features, as agreed with the maintainer.
 
 ## Guidance ownership
 

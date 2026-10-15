@@ -2,7 +2,22 @@
 
 ## Editor/publication input
 
-Endpoint owns two stage slots: ingress and processing. API/editor source is {stage,body,sharedModuleBindings,draftVersion}. Platform generates frozen default-export wrapper and typed ctx; user edits body/helper modules only. Shared module imports are generated above wrapper, exposed as typed namespaces; no static import inside function body, arbitrary module/path imports or shell/native install scripts. Compilation/type/policy validation and runtime tagged-result validation enforce the contract even for API submissions. Source maps convert generated line errors to sourceId/line/column; stage names are registry identity, not mutable user function names.
+Endpoint owns two stage slots: ingress and processing. API source remains
+`{stage, body, sharedBindings, draftVersion}`. Following the maintainer's
+2026-10-15 review, ingress `body` is a complete editable TypeScript module with
+named exports such as `export async function POST(ctx: IngressContext)` and
+`GET`. Supported methods are GET, POST, PUT, PATCH, DELETE, HEAD and OPTIONS.
+The generated default dispatcher selects the incoming method; unexported methods
+return 405 with Allow. Default exports are platform-owned. The module must export
+at least one supported method, and all handler signatures/results are type-checked.
+
+Processing and middleware retain protected generated lifecycle wrappers, with
+editable bodies. Bound helper versions use `@shared/ImportName`; ingress modules
+write ordinary imports, while body editors display generated pinned imports.
+Arbitrary module/path imports, dynamic-import bypasses and install scripts remain
+unsupported. Monaco shows SDK/helper type information and a scripting guide;
+server compilation and runtime validation enforce the contract independently of
+the editor. Source maps report sourceId/line/column.
 
 Publication pins both bodies, source maps, resolved middleware/shared revisions, dependency bundle digest and SDK version. Draft edits never mutate published/queued behavior. Test uses synthetic fixtures and dry-run managed operations by default; actual sends/secrets require explicit authorized test mode and audit. Secrets never included in returned compilation data.
 

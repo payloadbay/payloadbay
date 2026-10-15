@@ -3,11 +3,11 @@
 import { useFeedbackToast } from "@lib/feedback";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import { Avatar, Button, Dropdown, Header, Label } from "@heroui/react";
 import { AppLayout, Sidebar } from "@heroui-pro/react";
-import { IconHome, IconFolder, IconUsers, IconLogout, IconCode, IconSettings, IconInbox, IconBell } from "@tabler/icons-react";
+import { IconHome, IconFolder, IconUsers, IconLogout, IconCode, IconSettings, IconInbox, IconBell, IconArrowLeft, IconKey, IconFlask, IconHistory, IconRoute } from "@tabler/icons-react";
 import { NotificationInbox } from "@components/notification-inbox";
 import { api, ApiFailure } from "@lib/api-client";
 import type { MeProfile, WorkspaceSummary, ProjectSummary } from "@types";
@@ -33,6 +33,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 	const router = useRouter();
 
 	const pathname = usePathname();
+	const search = useSearchParams();
 
 	const [data, setData] = useState<Omit<DashboardState, "reload"> | null>(null);
 	const [error, setError] = useState("");
@@ -116,8 +117,11 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 		}
 	}
 
-	const projectId = pathname.match(/^\/projects\/([^/]+)/)?.[1] ?? pathname.match(/^\/code\/project\/([^/]+)/)?.[1];
+	const projectId = pathname.match(/^\/projects\/([^/]+)/)?.[1] ?? pathname.match(/^\/code\/project\/([^/]+)/)?.[1] ?? (pathname.startsWith("/code/endpoint/") ? search.get("projectId") : undefined);
 	const project = data.projects.find((item) => item.id === projectId);
+	const workspaceId = pathname.match(/^\/workspaces\/([^/]+)/)?.[1] ?? pathname.match(/^\/code\/workspace\/([^/]+)/)?.[1] ?? project?.workspace_id;
+	const workspace = data.workspaces.find((item) => item.id === workspaceId);
+	const workspaceContext = !project && Boolean(workspace);
 	const projectLinks = project
 		? [
 				{
@@ -158,6 +162,56 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 			]
 		: [];
 
+	const routeId = pathname.match(/^\/projects\/[^/]+\/routes\/([^/]+)/)?.[1] ?? pathname.match(/^\/code\/endpoint\/([^/]+)/)?.[1];
+	const routeSection = pathname.startsWith("/code/endpoint/") ? "middleware" : (search.get("section") ?? "code");
+	const routeAddress = routeId && project ? "/projects/" + project.id + "/routes/" + routeId : "";
+	const routeLinks =
+		routeId && project
+			? [
+					{
+						id: "overview",
+						label: "Playground",
+						icon: IconRoute,
+						visible: true,
+					},
+					{
+						id: "code",
+						label: "Scripts",
+						icon: IconCode,
+						visible: project.permissions.includes("code.read"),
+					},
+					{
+						id: "helpers",
+						label: "Helper imports",
+						icon: IconCode,
+						visible: project.permissions.includes("code.read"),
+					},
+					{
+						id: "secrets",
+						label: "Secrets",
+						icon: IconKey,
+						visible: project.permissions.includes("secrets.use") || project.permissions.includes("secrets.manage"),
+					},
+					{
+						id: "test",
+						label: "Script test",
+						icon: IconFlask,
+						visible: project.permissions.includes("code.test"),
+					},
+					{
+						id: "events",
+						label: "Route events",
+						icon: IconInbox,
+						visible: true,
+					},
+					{
+						id: "history",
+						label: "Publications",
+						icon: IconHistory,
+						visible: project.permissions.includes("code.read"),
+					},
+				]
+			: [];
 	const navigationContent = (
 		<>
 			<Sidebar.Header>
@@ -167,7 +221,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 			</Sidebar.Header>
 			<Sidebar.Content>
 				<Sidebar.Group>
-					{project && <Sidebar.GroupLabel>{project.name}</Sidebar.GroupLabel>}
+					{project && <Sidebar.GroupLabel>{routeId ? "Ingress route" : project.name}</Sidebar.GroupLabel>}
 					<Sidebar.Menu aria-label='Dashboard navigation'>
 						<Sidebar.MenuItem id='overview' href='/' isCurrent={pathname === "/"} textValue={project ? "All projects" : "Overview"}>
 							<Sidebar.MenuIcon>
@@ -176,6 +230,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 							<Sidebar.MenuLabel>{project ? "All projects" : "Overview"}</Sidebar.MenuLabel>
 						</Sidebar.MenuItem>
 						{!project &&
+							!workspaceContext &&
 							data.projects.map((project) => (
 								<Sidebar.MenuItem id={project.id} key={project.id} href={"/projects/" + project.id} textValue={project.name} isCurrent={pathname.startsWith("/projects/" + project.id)}>
 									<Sidebar.MenuIcon>
@@ -184,17 +239,99 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 									<Sidebar.MenuLabel>{project.name}</Sidebar.MenuLabel>
 								</Sidebar.MenuItem>
 							))}
-						{projectLinks
+						{workspace && !routeId && (
+							<Sidebar.MenuItem id='workspace-overview' href={"/workspaces/" + workspace.id} textValue='Workspace settings' isCurrent={pathname === "/workspaces/" + workspace.id}>
+								<Sidebar.MenuIcon>
+									<IconSettings size={18} />
+								</Sidebar.MenuIcon>
+								<Sidebar.MenuLabel>{workspace.name}</Sidebar.MenuLabel>
+							</Sidebar.MenuItem>
+						)}
+						{workspaceContext && workspace?.permissions.includes("notifications.rules.manage") && (
+							<Sidebar.MenuItem id='workspace-notifications' href={"/workspaces/" + workspace.id + "/notifications"} textValue='Workspace notification rules' isCurrent={pathname.endsWith("/notifications")}>
+								<Sidebar.MenuIcon>
+									<IconBell size={18} />
+								</Sidebar.MenuIcon>
+								<Sidebar.MenuLabel>Notification rules</Sidebar.MenuLabel>
+							</Sidebar.MenuItem>
+						)}
+						{workspaceContext && workspace?.permissions.includes("members.manage") && (
+							<Sidebar.MenuItem id='workspace-members' href={"/workspaces/" + workspace.id + "/members"} textValue='Workspace members' isCurrent={pathname.endsWith("/members")}>
+								<Sidebar.MenuIcon>
+									<IconUsers size={18} />
+								</Sidebar.MenuIcon>
+								<Sidebar.MenuLabel>Workspace members</Sidebar.MenuLabel>
+							</Sidebar.MenuItem>
+						)}
+						{workspaceContext && workspace?.permissions.includes("code.read") && (
+							<Sidebar.MenuItem id='workspace-code' href={"/code/workspace/" + workspace.id} textValue='Workspace code and middleware' isCurrent={pathname.startsWith("/code/workspace/")}>
+								<Sidebar.MenuIcon>
+									<IconCode size={18} />
+								</Sidebar.MenuIcon>
+								<Sidebar.MenuLabel>Code and middleware</Sidebar.MenuLabel>
+							</Sidebar.MenuItem>
+						)}
+						{workspaceContext &&
+							data.projects
+								.filter((item) => item.workspace_id === workspace?.id)
+								.map((item) => (
+									<Sidebar.MenuItem key={item.id} id={item.id} href={"/projects/" + item.id} textValue={item.name}>
+										<Sidebar.MenuIcon>
+											<IconFolder size={18} />
+										</Sidebar.MenuIcon>
+										<Sidebar.MenuLabel>{item.name}</Sidebar.MenuLabel>
+									</Sidebar.MenuItem>
+								))}
+
+						{!routeId &&
+							projectLinks
+								.filter((item) => item.visible)
+								.map((item) => (
+									<Sidebar.MenuItem key={item.id} id={item.id} href={item.href} textValue={item.label} isCurrent={pathname === item.href}>
+										<Sidebar.MenuIcon>
+											<item.icon size={18} />
+										</Sidebar.MenuIcon>
+										<Sidebar.MenuLabel>{item.label}</Sidebar.MenuLabel>
+									</Sidebar.MenuItem>
+								))}
+						{routeId && project && (
+							<Sidebar.MenuItem id='back-project' href={"/projects/" + project.id} textValue='Back to project'>
+								<Sidebar.MenuIcon>
+									<IconArrowLeft size={18} />
+								</Sidebar.MenuIcon>
+								<Sidebar.MenuLabel>{project.name}</Sidebar.MenuLabel>
+							</Sidebar.MenuItem>
+						)}
+						{routeLinks
 							.filter((item) => item.visible)
 							.map((item) => (
-								<Sidebar.MenuItem key={item.id} id={item.id} href={item.href} textValue={item.label} isCurrent={pathname === item.href}>
+								<Sidebar.MenuItem key={"route-" + item.id} id={"route-" + item.id} href={item.id === "middleware" ? "/code/endpoint/" + routeId + "?projectId=" + project?.id : routeAddress + "?section=" + item.id} textValue={item.label} isCurrent={routeSection === item.id}>
 									<Sidebar.MenuIcon>
 										<item.icon size={18} />
 									</Sidebar.MenuIcon>
 									<Sidebar.MenuLabel>{item.label}</Sidebar.MenuLabel>
 								</Sidebar.MenuItem>
 							))}
-						{!project && data.me.permissions.includes("code.read") && (
+						{!project &&
+							!workspaceContext &&
+							data.workspaces.map((item) => (
+								<Sidebar.MenuItem key={item.id} id={"workspace-" + item.id} href={"/workspaces/" + item.id} textValue={item.name + " workspace"}>
+									<Sidebar.MenuIcon>
+										<IconSettings size={18} />
+									</Sidebar.MenuIcon>
+									<Sidebar.MenuLabel>{item.name} workspace</Sidebar.MenuLabel>
+								</Sidebar.MenuItem>
+							))}
+						{!project && (
+							<Sidebar.MenuItem id='all-events' href='/events' textValue='All events' isCurrent={pathname === "/events"}>
+								<Sidebar.MenuIcon>
+									<IconInbox size={18} />
+								</Sidebar.MenuIcon>
+								<Sidebar.MenuLabel>All events</Sidebar.MenuLabel>
+							</Sidebar.MenuItem>
+						)}
+
+						{!project && !workspaceContext && data.me.permissions.includes("code.read") && (
 							<Sidebar.MenuItem id='code' href={"/code/instance/" + data.me.instanceId} textValue='Code and middleware'>
 								<Sidebar.MenuIcon>
 									<IconCode size={18} />
@@ -202,7 +339,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 								<Sidebar.MenuLabel>Code and middleware</Sidebar.MenuLabel>
 							</Sidebar.MenuItem>
 						)}
-						{!project && admin && (
+						{!project && !workspaceContext && admin && (
 							<Sidebar.MenuItem id='members' href='/admin/members' textValue='Instance members'>
 								<Sidebar.MenuIcon>
 									<IconUsers size={18} />
@@ -225,9 +362,11 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 						<Sidebar.Mobile aria-label='Dashboard navigation'>{navigationContent}</Sidebar.Mobile>
 					</>
 				}
-				navigate={(href) => router.push(href)}
+				navigate={(href) => {
+					if (window.dispatchEvent(new CustomEvent("payloadbay:before-navigate", { detail: { href }, cancelable: true }))) router.push(href);
+				}}
 				navbar={
-					<header className='border-border flex min-h-16 items-center justify-between gap-3 border-b px-4 sm:px-6'>
+					<div className='bg-background border-border flex min-h-16 items-center justify-between gap-3 border-b px-4 sm:px-6'>
 						<div className='flex min-w-0 items-center gap-2'>
 							<AppLayout.MenuToggle aria-label='Toggle navigation' />
 							<Link href='/' aria-label='Payload Bay home' className='shrink-0'>
@@ -236,7 +375,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 							</Link>
 						</div>
 						<div className='flex shrink-0 items-center gap-2'>
-							{(project?.permissions ?? data.me.permissions).includes("notifications.read") && <NotificationInbox scope={{ type: project ? "project" : "instance", id: project?.id ?? data.me.instanceId }} />}
+							{(project?.permissions ?? workspace?.permissions ?? data.me.permissions).includes("notifications.read") && <NotificationInbox scope={{ type: project ? "project" : workspace ? "workspace" : "instance", id: project?.id ?? workspace?.id ?? data.me.instanceId }} />}
 							<Dropdown>
 								<Dropdown.Trigger aria-label='Account menu' className='rounded-full outline-offset-4'>
 									<Avatar size='sm'>
@@ -250,6 +389,10 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 												<span className='truncate font-medium'>{data.me.user.name}</span>
 												<span className='text-muted truncate text-xs'>{data.me.user.email}</span>
 											</Header>
+											<Dropdown.Item id='notification-preferences' textValue='Your notifications' href='/account/notifications'>
+												<IconBell size={18} aria-hidden='true' />
+												<Label>Your notifications</Label>
+											</Dropdown.Item>
 											<Dropdown.Item id='account' textValue='Account settings' href='/account'>
 												<IconSettings size={18} aria-hidden='true' />
 												<Label>Account settings</Label>
@@ -269,10 +412,10 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 								</Dropdown.Popover>
 							</Dropdown>
 						</div>
-					</header>
+					</div>
 				}
 			>
-				<main className='mx-auto w-full min-w-0 max-w-6xl p-4 sm:p-6 lg:p-10'>{children}</main>
+				<div className='mx-auto w-full min-w-0 max-w-6xl p-4 sm:p-6 lg:p-10'>{children}</div>
 			</AppLayout>
 		</Context.Provider>
 	);

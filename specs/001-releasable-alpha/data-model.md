@@ -8,6 +8,8 @@ Design artifact; no migrations applied. PostgreSQL domain schema is separate fro
 |---|---|---|
 | Installation | id, bootstrapState, configVersion, mail/provider configuration references | Exactly one successful bootstrap; operator environment secrets never returned |
 | Identity/Session | Better Auth user/session IDs, normalized email, active, expiresAt | Identity does not imply domain membership; public signup disabled |
+| Passkey | Better Auth credential ID/public key/counter, userId, device metadata | Auth-library-owned; private keys stay on the authenticator; active admission required for a session |
+| Invitation | id, installationId, primary scope, normalized email, tokenDigest, pending grants, creator, expiry/state | Hash-only token; grants applied after matching verified acceptance/current authority checks; cancellation auditable |
 | Admission | installationId,userId,active | Unique pair; ordinary admission grants no global role |
 | Workspace | id,installationId,name,slug,ownerUserId,archivedAt | Unique live slug per installation; owner admitted/active; last-owner protection |
 | Project | id,workspaceId,name,slug,ownerUserId,archivedAt | Unique live slug per workspace; explicit scoped ownership |
@@ -22,7 +24,7 @@ Owner transfer and last-owner changes occur transactionally and audit the actor.
 | Entity | Key fields / relationships | Invariants |
 |---|---|---|
 | Endpoint | id,projectId,slug,activePublicationId,paused,priority,configVersion | Multiple endpoints per project; publication switch atomic |
-| Draft | id,endpointId,stage,body,sharedBindings,version | Optimistic concurrency; only bodies edited, wrapper not user-owned |
+| Draft | id,endpointId,stage,body,sharedBindings,version | Optimistic concurrency; ingress body is a named-method module; processing/middleware wrappers stay platform-owned |
 | StageRevision | id,stage,bodyDigest,body,SDKVersion,bundleDigest,sourceMapRef | Immutable validated ingress/processing source |
 | SharedModuleRevision | id,scopeId,name,sourceDigest,bundleDigest | Frozen imports/dependencies; copy creates local provenance |
 | MiddlewareRevision/Binding | codeRevisionId,scopeId,stage,order,failurePolicy,overridePolicy,originBindingId | Deterministic resolved order; authorized override only |
@@ -65,3 +67,10 @@ Drizzle owns append-only domain migrations; Better Auth and Graphile schema upda
 | NotificationDispatch | incidentId,generation,userId,channel,state,platformJobId | Unique incident-generation/user/channel; current permission/preferences rechecked before SMTP |
 
 Incident changes append authorized ChangeRecord in the same transaction. No arbitrary HTML/private webhook bodies in notification data. Existing Endpoint IDs represent UI ingress-route filters. Version-check/probe producers remain future scope.
+
+
+2026-10-15 review: NotificationRule has exactly one of projectId or workspaceId.
+Workspace rules do not bind a route/destination and aggregate their descendant
+projects. NotificationSubscription remains per rule/user/channel with SMTP off by
+default. Invitation and passkey tables are covered by development initialization;
+release migration files remain CI-generated after merge.

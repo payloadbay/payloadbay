@@ -17,7 +17,7 @@ try {
 		await migrate(fixture.databaseUrl);
 		const pool = database(fixture.databaseUrl);
 		const executor = await executorFixture();
-		const env = fixtureEnvironment(fixture, "http://127.0.0.1:" + process.env.PAB_TEST_PORT);
+		const env = fixtureEnvironment(fixture, "http://localhost:" + process.env.PAB_TEST_PORT);
 		env.EXECUTOR_URL = executor.url;
 		const worker = await run({
 			pgPool: pool,

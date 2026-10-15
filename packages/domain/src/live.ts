@@ -4,8 +4,13 @@ import { requirePermission, actorPermissions, scopeAncestry } from "./membership
 import { AppError } from "../../contracts/src/errors.ts";
 import type { Permission } from "../../contracts/src/permissions.ts";
 
-export async function readChanges(pool: Pool, actor: Actor, input: { scope: ScopeRef; after: string; limit?: number }) {
-	await requirePermission(pool, actor, input.scope, "metadata.read");
+export type LiveScope = ScopeRef | { type: "accessible"; id: string };
+
+export async function readChanges(pool: Pool, actor: Actor, input: { scope: LiveScope; after: string; limit?: number }) {
+	if (input.scope.type === "accessible") {
+		const admitted = await pool.query("SELECT 1 FROM payloadbay.admission WHERE installation_id=$1 AND user_id=$2 AND active", [input.scope.id, actor.userId]);
+		if (!admitted.rowCount) throw new AppError("forbidden", 403, "Instance access required");
+	} else await requirePermission(pool, actor, input.scope, "metadata.read");
 	if (!/^\d{1,20}$/.test(input.after) || BigInt(input.after) > BigInt("9223372036854775807")) throw new AppError("invalid_cursor", 400, "Live cursor is invalid");
 	const limit = input.limit ?? 200;
 	if (!Number.isInteger(limit) || limit < 1 || limit > 500) throw new AppError("invalid_pagination", 400, "Live backfill limit is invalid");
@@ -19,11 +24,13 @@ export async function readChanges(pool: Pool, actor: Actor, input: { scope: Scop
 			resyncRequired: true,
 		};
 	const scopeFilter =
-		input.scope.type === "project"
-			? "c.scope_type='project' AND c.scope_id=$3::uuid"
-			: input.scope.type === "workspace"
-				? "((c.scope_type='workspace' AND c.scope_id=$3::uuid) OR(c.scope_type='project' AND EXISTS(SELECT 1 FROM payloadbay.project p WHERE p.id=c.scope_id AND p.workspace_id=$3::uuid)))"
-				: "((c.scope_type='instance' AND c.scope_id=$3::uuid) OR(c.scope_type='workspace' AND EXISTS(SELECT 1 FROM payloadbay.workspace w WHERE w.id=c.scope_id AND w.installation_id=$3::uuid)) OR(c.scope_type='project' AND EXISTS(SELECT 1 FROM payloadbay.project p JOIN payloadbay.workspace w ON w.id=p.workspace_id WHERE p.id=c.scope_id AND w.installation_id=$3::uuid)))";
+		input.scope.type === "accessible"
+			? "$3::uuid IS NOT NULL"
+			: input.scope.type === "project"
+				? "c.scope_type='project' AND c.scope_id=$3::uuid"
+				: input.scope.type === "workspace"
+					? "((c.scope_type='workspace' AND c.scope_id=$3::uuid) OR(c.scope_type='project' AND EXISTS(SELECT 1 FROM payloadbay.project p WHERE p.id=c.scope_id AND p.workspace_id=$3::uuid)))"
+					: "((c.scope_type='instance' AND c.scope_id=$3::uuid) OR(c.scope_type='workspace' AND EXISTS(SELECT 1 FROM payloadbay.workspace w WHERE w.id=c.scope_id AND w.installation_id=$3::uuid)) OR(c.scope_type='project' AND EXISTS(SELECT 1 FROM payloadbay.project p JOIN payloadbay.workspace w ON w.id=p.workspace_id WHERE p.id=c.scope_id AND w.installation_id=$3::uuid)))";
 	const rows = (await pool.query(`SELECT c.cursor::text,c.scope_type,c.scope_id,c.kind,c.resource_id,c.metadata FROM payloadbay.change_record c WHERE c.cursor>$1::bigint AND c.created_at>clock_timestamp()-interval '24 hours' AND (${scopeFilter}) ORDER BY c.cursor LIMIT $2`, [input.after, limit, input.scope.id])).rows;
 	const items = [];
 	let last = input.after;
@@ -38,7 +45,7 @@ export async function readChanges(pool: Pool, actor: Actor, input: { scope: Scop
 			continue;
 		}
 
-		if (!ancestry.some((parent) => parent.type === input.scope.type && parent.id === input.scope.id)) continue;
+		if (input.scope.type === "accessible" ? ancestry[0].id !== input.scope.id : !ancestry.some((parent) => parent.type === input.scope.type && parent.id === input.scope.id)) continue;
 		const key = scope.type + ":" + scope.id;
 		let held = permissions.get(key);
 		if (!held) {
@@ -73,7 +80,7 @@ const subscribers = new Map<string, number>();
 let subscriberCount = 0;
 
 /** HTTP polling is internal: browsers receive pushed SSE frames, never a polling API. */
-export async function streamChanges(pool: Pool, actor: Actor, scope: ScopeRef, after: string, signal: AbortSignal, options: { pollMs?: number; heartbeatMs?: number } = {}) {
+export async function streamChanges(pool: Pool, actor: Actor, scope: LiveScope, after: string, signal: AbortSignal, options: { pollMs?: number; heartbeatMs?: number } = {}) {
 	const initial = await readChanges(pool, actor, { scope, after });
 	if (signal.aborted) throw new AppError("request_aborted", 499, "Request disconnected");
 	const key = actor.userId;

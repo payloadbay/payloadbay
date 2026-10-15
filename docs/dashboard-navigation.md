@@ -1,50 +1,38 @@
-# Dashboard navigation draft
+# Dashboard navigation
 
-The application hierarchy is **instance → workspace → project → route**.
-“Organization” in the discussion means a workspace; use one label consistently
-in the UI. Account settings belong to the person, outside that hierarchy.
+The hierarchy is **instance → workspace → project → ingress route**. Use
+“workspace” consistently rather than alternating with organization. Account
+settings belong to the person.
 
-Desktop uses a sidebar; mobile uses the same navigation inside HeroUI's drawer.
-The top bar keeps the brand, mobile menu, scoped notifications and account avatar.
-Selecting a navigation item closes the mobile drawer. Within a project, the same
-sidebar/drawer shows Routes and destinations, Events, Code and middleware,
-Notification rules and Project members according to that project’s permissions.
-Those links no longer sit in the project page header. Project notifications use
-the current project scope; instance notifications apply outside projects. The avatar owns account
-settings and sign-out; it should not become a second full navigation tree.
+Desktop keeps a contextual sidebar; mobile puts the same destinations in the
+burger drawer. The opaque header contains the brand, scoped notification inbox
+and avatar account menu. The avatar exposes account security, personal email
+notification preferences and sign-out.
 
-## Proposed structure and current coverage
+| Context | Working destinations |
+| --- | --- |
+| Instance | All projects, all accessible events, workspaces, instance members, instance shared code/middleware |
+| Workspace | Workspace overview/projects, members, shared code/middleware, workspace-wide notification rules |
+| Project | Routes/destinations, events, shared code/middleware, members, project notification rules, workspace link |
+| Route | Scripts, middleware, helper imports, secrets, dry test, published-request playground, route events, publication history; back to project/all projects |
+| Person | Display name, passkeys, personal SMTP preferences |
 
-| Scope | Navigation | Current coverage |
-| --- | --- | --- |
-| Personal | Account settings; sign out | Working avatar actions; display-name editing |
-| Instance | Workspaces/overview; members; shared code and middleware; settings | Overview, members and instance code exist. General instance settings need a page. |
-| Workspace | Projects; members and roles; shared code/middleware; settings | Project list can filter by workspace. Dedicated workspace management pages/navigation still need implementation. |
-| Project | Overview/routes and destinations; events; code/middleware; members; notification rules; settings | Existing project pages cover these operational areas; routes/destinations currently live in the overview. General settings need a dedicated page. |
-| Route | Ingress and processing scripts; publications/test; delivery configuration | Route editor exists; keep route context visible rather than listing every route in the global sidebar. |
+Do not add placeholder settings links. Workspace/project configuration is exposed
+through working operational pages rather than an empty general settings screen.
+Method dispatch belongs to the editable ingress file; the project can contain
+multiple ingress routes with independent published handlers.
 
-The sidebar should evolve toward a workspace selector, that workspace's projects,
-and contextual navigation for the selected project. Project context should show
-its workspace and a clear way back to the project list. Instance administration
-belongs in a separate permission-gated group, rather than mixing it into project
-operations. Do not add placeholder settings links before their pages work.
+## Access
 
-## Permission behavior
+Only list resources returned by authorized APIs. Instance grants inherit to all
+workspaces/projects; workspace grants inherit to their projects; project grants
+stay within that project. Navigation visibility supplements server authorization.
+Member tables include inherited rights, and local edits cannot remove them.
+Invitations remain pending until the matching verified identity accepts; they can
+assign selected projects without granting the containing workspace or instance.
+Instance admission is separate from resource permissions.
 
-Only list resources returned by the authorized API. Scope actions to the selected
-instance, workspace or project; project membership alone must not expose instance
-administration. Effective roles inherit downwards as specified in the alpha
-permission model. Navigation visibility supplements server authorization and is
-never an authorization boundary. Permission-gate each management action, not just
-the whole settings area.
-
-## Implementation order
-
-1. Fix and test the mobile drawer using the existing working destinations.
-2. Project navigation is contextual using existing pages. Workspace switching
-   and dedicated workspace management remain follow-up work.
-3. Implement actual workspace/project settings and membership flows against the
-   existing authorization contracts, then expose their links.
-
-This is an information-architecture draft, not a claim that settings pages or
-workspace administration have already been implemented.
+Workspace notification rules count across its projects. Project rules can target
+a specific route or destination. Personal settings subscribe the current person
+to selected rule emails; they do not change shared thresholds. Version checks and
+endpoint health checks are deferred, with no placeholder menu entries.

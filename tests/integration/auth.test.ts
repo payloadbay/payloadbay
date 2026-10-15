@@ -617,3 +617,73 @@ test("U235 request authentication denies anonymous and inactive sessions", async
 		}
 	});
 });
+
+test("invitations keep project access pending until verified acceptance and support cancellation", async () => {
+	const { seedScope } = await import("../helpers/domain-fixtures.ts");
+	const { rolePermissions } = await import("../../packages/domain/src/authorization.ts");
+	const { createInvitation, acceptInvitation, cancelInvitation, invitationDetails, listInvitations } = await import("../../packages/domain/src/invitations.ts");
+	const { decryptPrivate } = await import("../../packages/domain/src/private-crypto.ts");
+	const { actorPermissions } = await import("../../packages/domain/src/membership.ts");
+	const { mailTask } = await import("../../apps/worker/src/tasks/mail.ts");
+	await authFixture(async (f) => {
+		const config = fixtureConfig(f);
+		const service = createAuth(f.pool, config);
+		try {
+			const scope = await seedScope(f.db);
+			await f.db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+			await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, rolePermissions.owner]);
+			const actor = { userId: "fixture-owner" };
+			const project = { type: "project" as const, id: scope.project };
+			const invite = await createInvitation(f.pool, actor, { scope: project, email: "invited@example.test", grants: [{ scope: project, role: "operator", permissions: rolePermissions.operator }] }, service, config.encryptionKey, config.publicUrl);
+			const user = (await f.db.query('SELECT id FROM auth."user" WHERE email=$1', [invite.email])).rows[0];
+			assert.equal((await f.db.query("SELECT count(*)::int AS n FROM payloadbay.grant_record WHERE user_id=$1", [user.id])).rows[0].n, 0);
+			assert.equal((await listInvitations(f.pool, actor, project)).length, 1);
+			const job = (await f.db.query("SELECT * FROM payloadbay.platform_job WHERE kind='invitation_mail'")).rows[0];
+			const data = decryptPrivate<{ url: string }>(job.encrypted_payload, config.encryptionKey);
+			const token = new URL(data.url).pathname.split("/").at(-1)!;
+			assert.equal((await invitationDetails(f.pool, token)).email, invite.email);
+			await mailTask(f.pool, config)({ jobId: job.id, generation: job.generation });
+			assert.equal((await f.db.query("SELECT state FROM payloadbay.platform_job WHERE id=$1", [job.id])).rows[0].state, "succeeded");
+			await assert.rejects(acceptInvitation(f.pool, { userId: user.id }, token), { code: "invitation_identity" });
+			await f.db.query('UPDATE auth."user" SET "emailVerified"=true WHERE id=$1', [user.id]);
+			await acceptInvitation(f.pool, { userId: user.id }, token);
+			assert.equal((await actorPermissions(f.pool, { userId: user.id }, project)).has("events.replay"), true);
+			assert.equal((await actorPermissions(f.pool, { userId: user.id }, { type: "instance", id: scope.installation })).size, 0);
+			await assert.rejects(acceptInvitation(f.pool, { userId: user.id }, token), { code: "invitation_identity" });
+			const cancelled = await createInvitation(f.pool, actor, { scope: project, email: "cancelled@example.test", grants: [{ scope: project, role: "viewer", permissions: rolePermissions.viewer }] }, service, config.encryptionKey, config.publicUrl);
+			await cancelInvitation(f.pool, actor, cancelled.id);
+			assert.equal((await listInvitations(f.pool, actor, project)).length, 0);
+			assert.equal((await f.db.query('SELECT a.active FROM payloadbay.admission a JOIN auth."user" u ON u.id=a.user_id WHERE u.email=$1', [cancelled.email])).rows[0].active, false);
+		} finally {
+			await service.close();
+		}
+	});
+});
+
+test("invitation acceptance rechecks the issuer's authority and cannot cross the chosen scope", async () => {
+	const { seedScope } = await import("../helpers/domain-fixtures.ts");
+	const { rolePermissions } = await import("../../packages/domain/src/authorization.ts");
+	const { createInvitation, acceptInvitation } = await import("../../packages/domain/src/invitations.ts");
+	const { decryptPrivate } = await import("../../packages/domain/src/private-crypto.ts");
+	await authFixture(async (f) => {
+		const config = fixtureConfig(f);
+		const service = createAuth(f.pool, config);
+		try {
+			const scope = await seedScope(f.db);
+			await f.db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+			await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, rolePermissions.owner]);
+			const project = { type: "project" as const, id: scope.project };
+			const actor = { userId: "fixture-owner" };
+			await assert.rejects(createInvitation(f.pool, actor, { scope: project, email: "wrong@example.test", grants: [{ scope: { type: "instance", id: scope.installation }, role: "owner", permissions: rolePermissions.owner }] }, service, config.encryptionKey, config.publicUrl), { code: "invalid_scope" });
+			await createInvitation(f.pool, actor, { scope: project, email: "later@example.test", grants: [{ scope: project, role: "viewer", permissions: rolePermissions.viewer }] }, service, config.encryptionKey, config.publicUrl);
+			const job = (await f.db.query("SELECT encrypted_payload FROM payloadbay.platform_job WHERE kind='invitation_mail'")).rows[0];
+			const token = new URL(decryptPrivate<{ url: string }>(job.encrypted_payload, config.encryptionKey).url).pathname.split("/").at(-1)!;
+			const user = (await f.db.query('UPDATE auth."user" SET "emailVerified"=true WHERE email=$1 RETURNING id', ["later@example.test"])).rows[0];
+			await f.db.query("UPDATE payloadbay.grant_record SET permissions=ARRAY['metadata.read'] WHERE user_id='fixture-owner'");
+			await assert.rejects(acceptInvitation(f.pool, { userId: user.id }, token), { code: "forbidden" });
+			assert.equal((await f.db.query("SELECT count(*)::int AS n FROM payloadbay.grant_record WHERE user_id=$1", [user.id])).rows[0].n, 0);
+		} finally {
+			await service.close();
+		}
+	});
+});

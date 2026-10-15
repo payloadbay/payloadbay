@@ -21,6 +21,7 @@ export const scriptTestInput = z
 			.object({
 				body: z.string().refine((value) => Buffer.byteLength(value) <= 1048576),
 				contentType: z.string().min(1).max(256).default("application/json"),
+				method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]).default("POST"),
 				headers: z
 					.record(z.string(), z.string())
 					.refine((value) => Buffer.byteLength(JSON.stringify(value)) <= 16384)
@@ -65,7 +66,7 @@ export async function testDraftDry(pool: Pool, actor: Actor, endpointId: string,
 						body,
 						headers: data.fixture.headers,
 						contentType: data.fixture.contentType,
-						method: "POST",
+						method: data.fixture.method,
 						url: "https://synthetic.invalid/ingress",
 					},
 					endpointId,

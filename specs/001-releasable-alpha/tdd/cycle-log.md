@@ -2365,3 +2365,36 @@ A5 transport Green correction: the web TypeScript lib set lacked DOM.AsyncIterab
 - Owning integration file: 3 passed, 0 failed. Authorization regression file: 11 passed, 0 failed. Real Docker Compose parser checks seeded startup, ephemeral PostgreSQL and authenticated Mailpit. Clean remote deployment and reset behavior are not claimed by these local runs.
 - Preview reset configuration: force recreation; schema then guarded seed; PostgreSQL tmpfs. No release migration is generated or committed.
 - Contributor guidance records synthetic identity, Mailpit, shared edits, data reset, test-only payloads and the public functional-review goal. Public hostile-publisher hardening remains unverified; gVisor alone is not an outbound network policy.
+
+## Maintainer dashboard review follow-up — 2026-10-15
+
+This batch completes the maintainer's functional review, rather than only recording
+an audit. Regression coverage was added alongside implementation; this is not a
+claim that every new screen was implemented through a strict test-first cycle.
+
+- Functional fixes: contextual route/workspace navigation, transparent login brand,
+  padded OTP paste, horizontal Monaco source and SDK/helper resolution, retained
+  template selection, formatted saves, unsaved-edit protection, bindings tables,
+  actual published HTTP playground, aggregate/route events and scoped live updates.
+- Access: pending invitation mail/accept/cancel with issuer reauthorization and
+  verified recipient matching; instance admission remains separate from child
+  grants. Member lists include inherited access. Actual Better Auth passkeys retain
+  email-code recovery. WebAuthn browser fixtures use localhost, not an IP RP ID.
+- Notifications: workspace and project rules share one editor and durable producer;
+  personal SMTP subscriptions are separate and opt-in. Tests caught a missing
+  Switch.Content composition and the playground's unassociated method label.
+- A wider auth run caught the earlier base-URL trailing slash producing malformed
+  double-slash paths/Origin values. Normalization now preserves the base contract;
+  all 33 auth integration cases pass, including OTP expiry/attempt boundaries.
+- Green: dashboard acceptance 26 passed (actual Next.js build, PostgreSQL, Mailpit,
+  worker and workerd); mobile/editor regression checks 8 passed against the built
+  app with controlled API responses; contracts 27 passed; live API 18 passed;
+  notifications 13 passed; expanded U320 preview seed passed. The seed compiles and
+  executes synthetic ingress, stores real receipts/jobs, and preserves edited
+  routes on reruns. These are scoped checks, not the full alpha release suite.
+- ESLint, TypeScript, Prettier and test inventory checks pass. Browser artifact
+  paths now resolve under the intended root test-results directory, keeping traces
+  out of source checks. Existing misplaced traces were preserved, not deleted.
+- No release migration was generated. Source schema/auth initialization changes
+  are exercised by disposable development fixtures; master CI owns release
+  migration generation. Optional host runsc and final release gates are separate.

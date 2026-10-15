@@ -5,7 +5,8 @@ export const notificationSubscriptionInput = z.object({ enabled: z.boolean() }).
 export const notificationRuleOutput = z
 	.object({
 		id: z.uuid(),
-		projectId: z.uuid(),
+		projectId: z.uuid().nullable(),
+		workspaceId: z.uuid().nullable().default(null),
 		endpointId: z.uuid().nullable(),
 		destinationId: z.uuid().nullable(),
 		enabled: z.boolean(),

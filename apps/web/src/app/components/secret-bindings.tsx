@@ -163,7 +163,7 @@ export function SecretBindings({ projectId, bindings, onChange, canUse, canManag
 					<p className='text-muted text-sm'>No secrets bound. Add one only if your script needs it.</p>
 				)}
 
-				{canUse && (
+				{canUse && versions.some((version) => !version.revoked_at) && (
 					<Form onSubmit={bind} className='flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end'>
 						<TextField isRequired value={binding} onChange={setBinding} isDisabled={disabled || busy} pattern='[A-Za-z_][A-Za-z0-9_]*'>
 							<Label>Binding name</Label>
@@ -189,6 +189,7 @@ export function SecretBindings({ projectId, bindings, onChange, canUse, canManag
 						</Button>
 					</Form>
 				)}
+				{!versions.some((version) => !version.revoked_at) && <p className='text-muted text-sm'>No secret versions exist yet.{canManage ? " Create one below, then bind it to your script." : " Ask a project administrator to create one."}</p>}
 				{canManage &&
 					(creating ? (
 						<Form onSubmit={create} className='border-border flex flex-col gap-3 border-t pt-4'>

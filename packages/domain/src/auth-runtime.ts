@@ -1,3 +1,4 @@
+import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
 import { admin, emailOTP } from "better-auth/plugins";
 import { createAuthMiddleware, APIError } from "better-auth/api";
@@ -27,6 +28,16 @@ export function createAuth(pool: Pool, config: ServerConfig) {
 		socialProviders: config.oauth,
 		account: { accountLinking: { enabled: true, requireLocalEmailVerified: true, allowDifferentEmails: false } },
 		databaseHooks: {
+			session: {
+				create: {
+					before: async (session) => {
+						const installation = (await pool.query("SELECT id FROM payloadbay.installation WHERE singleton AND bootstrap_state='complete'")).rows[0];
+						if (installation && !(await pool.query("SELECT 1 FROM payloadbay.admission WHERE installation_id=$1 AND user_id=$2 AND active", [installation.id, session.userId])).rowCount) throw new APIError("FORBIDDEN", { message: "Your instance access is not active" });
+
+						return { data: session };
+					},
+				},
+			},
 			user: {
 				create: {
 					before: async (user, ctx) => {
@@ -39,6 +50,7 @@ export function createAuth(pool: Pool, config: ServerConfig) {
 		},
 		plugins: [
 			admin(),
+			passkey({ rpID: new URL(config.publicUrl).hostname, rpName: "Payload Bay", origin: new URL(config.publicUrl).origin }),
 			emailOTP({
 				disableSignUp: true,
 				expiresIn: 300,

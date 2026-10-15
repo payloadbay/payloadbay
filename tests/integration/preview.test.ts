@@ -28,6 +28,10 @@ test("U320 preview seed provisions a repeatable admitted demo owner and project"
 			assert.equal(destinations[0].name, "Demo receiver");
 			assert.equal(destinations[0].http_config.url, "http://localhost:3000/api/preview/receiver");
 			assert.equal(destinations[0].is_default, true);
+			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.shared_module_revision WHERE name='DemoHelpers'")).rows[0].count, 1);
+			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.event")).rows[0].count, 2);
+			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.receipt")).rows[0].count, 2);
+			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.execution WHERE state='queued'")).rows[0].count, 2);
 			await identity.api.sendVerificationOTP({ body: { email: users[0].email, type: "sign-in" } });
 			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.platform_job WHERE kind='otp_mail'")).rows[0].count, 1, "reviewers can use real queued OTP email without a maintainer account");
 		} finally {

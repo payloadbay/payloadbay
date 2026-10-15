@@ -97,8 +97,10 @@ verification once its build succeeds.
 
 The known synthetic account is `reviewer@preview.payloadbay.test`; it is admitted
 and provisioned through Better Auth, then assigned the demo instance owner role.
-The seed creates a sample workspace, project and unpublished ingress draft through
-normal domain commands and is repeatable within a fresh demo. It refuses production
+The seed creates a sample workspace, project, helper file and published sample
+ingress route through normal domain commands. It executes two synthetic requests
+through workerd and durable ingress, leaving real queued executions for the worker.
+Seeding is repeatable without duplicating those samples within a fresh demo. It refuses production
 mode and will not overwrite a completed non-demo installation.
 
 Mailpit exposes HTTP port 8025 through the proxy, without authentication, for
@@ -144,7 +146,9 @@ HTTP 204 without forwarding or retaining request bodies. The receiver returns
 
 The new Sample Webhook draft explicitly accepts unverified demo requests and
 uses the ordinary default-destination processing template. Open the route,
-review the code, and **Publish both stages**. Copy its receiving URL and POST
+review the pre-published code, or edit and **Publish both stages** to replace it.
+The Events view starts with two synthetic queued requests. Copy its receiving URL and POST
 a synthetic event to it; open Events through the contextual project navigation
-to inspect the real queued delivery. Publication remains deliberate; seeding does
-not silently activate incoming endpoints or overwrite edited drafts.
+to inspect the real queued delivery. Only this fixed synthetic preview route is
+auto-published; new routes still require deliberate publication. Re-running the
+seed does not overwrite edited drafts or replace an existing publication.

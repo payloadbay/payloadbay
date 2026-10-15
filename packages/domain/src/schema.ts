@@ -416,9 +416,8 @@ export const notificationRule = domain.table(
 	"notification_rule",
 	{
 		id: id(),
-		projectId: uuid("project_id")
-			.notNull()
-			.references((): AnyPgColumn => project.id),
+		projectId: uuid("project_id").references((): AnyPgColumn => project.id),
+		workspaceId: uuid("workspace_id").references((): AnyPgColumn => workspace.id),
 		endpointId: uuid("endpoint_id"),
 		destinationId: uuid("destination_id"),
 		enabled: boolean("enabled").notNull().default(false),
@@ -433,6 +432,7 @@ export const notificationRule = domain.table(
 	(t) => [
 		foreignKey({ name: "notification_rule_endpoint", columns: [t.endpointId, t.projectId], foreignColumns: [endpoint.id as AnyPgColumn, endpoint.projectId as AnyPgColumn] }),
 		foreignKey({ name: "notification_rule_destination", columns: [t.destinationId, t.projectId], foreignColumns: [destination.id as AnyPgColumn, destination.projectId as AnyPgColumn] }),
+		check("notification_rule_scope", sql`num_nonnulls(${t.projectId},${t.workspaceId})=1 AND (${t.workspaceId} IS NULL OR (${t.endpointId} IS NULL AND ${t.destinationId} IS NULL))`),
 		check("notification_rule_signal", sql`${t.signal} IN ('failed_operation','terminal_execution')`),
 		check("notification_rule_count", sql`${t.count}>0`),
 		check("notification_rule_window", sql`${t.windowSeconds}>0`),
@@ -526,3 +526,27 @@ export const replayKey = domain.table(
 );
 
 export const authRequestWindow = domain.table("auth_request_window", { key: text("key").primaryKey(), windowStartedAt: time("window_started_at").notNull(), count: integer("count").notNull() }, (t) => [check("auth_request_window_count", sql`${t.count}>=0`)]);
+
+export const invitation = domain.table(
+	"invitation",
+	{
+		id: id(),
+		installationId: uuid("installation_id")
+			.notNull()
+			.references(() => installation.id),
+		scopeType: text("scope_type").notNull(),
+		scopeId: uuid("scope_id").notNull(),
+		email: text("email").notNull(),
+		tokenDigest: text("token_digest").notNull().unique(),
+		grants: jsonb("grants").notNull(),
+		createdBy: text("created_by").notNull(),
+		acceptedBy: text("accepted_by"),
+		newlyAdmitted: boolean("newly_admitted").notNull().default(false),
+		state: text("state").notNull().default("pending"),
+		expiresAt: time("expires_at")
+			.notNull()
+			.default(sql`now() + interval '7 days'`),
+		createdAt: time("created_at").notNull().defaultNow(),
+	},
+	(t) => [check("invitation_state", sql`${t.state} IN ('pending','accepted','cancelled')`), check("invitation_scope", sql`${t.scopeType} IN ('instance','workspace','project')`), index("invitation_by_scope").on(t.scopeType, t.scopeId, t.state)],
+);

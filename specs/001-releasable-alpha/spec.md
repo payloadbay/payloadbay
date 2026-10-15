@@ -105,9 +105,9 @@ First alpha includes the plain editor/template/shared-code/middleware and two-st
 
 - **FR-020**: Provide a versioned API-first dashboard/API using Zod schemas and locally bundled Scalar/OpenAPI, shared server-only authorization, cookie/token transport and future MCP-compatible capability scopes.
 - **FR-021**: Provide one authenticated SSE change subscription with reconnect/backfill and permission revocation; do not require polling to see event/job updates.
-- **FR-022**: Default to SMTP email-code sign-in, public registration/passwords disabled; support atomic owner bootstrap and scoped invitations. Supported OAuth providers enable only from complete operator configuration.
+- **FR-022**: Default to SMTP email-code sign-in, public registration/passwords disabled; support atomic owner bootstrap, scoped invitation acceptance/cancellation, and optional user-registered passkeys with email-code recovery. Supported OAuth providers enable only from complete operator configuration.
 - **FR-023**: Role/custom-permission grants inherit instance → every workspace/project, workspace → child projects, project → itself. Admission alone grants no global data access; protect last-owner/transfer and grant escalation.
-- **FR-024**: Each endpoint binds separate Ingress and Processing bodies with immutable platform wrappers. Monaco diagnostics and server publication validation prevent renamed/missing entrypoints; shared modules/middleware are versioned and pinned.
+- **FR-024**: Each endpoint binds a complete editable Ingress module with named HTTP method exports and a separate Processing body with a protected lifecycle wrapper. The generated dispatcher returns 405 for unsupported methods. Monaco diagnostics and server publication validation reject missing/invalid entrypoints; shared modules/middleware are versioned and pinned.
 - **FR-025**: Prompt delivery to healthy destinations is independently measured from provider acknowledgement. Continuous workers, critical priority/reserved capacity and visible queue age prevent bulk background backlog from silently delaying critical events for minutes.
 - **FR-026**: Use the saved HeroUI Pro theme via canonical brand CSS with provenance, bundled fonts/assets and no runtime theme/font-CDN requirement.
 
@@ -122,6 +122,18 @@ Success evidence adds inherited-role/OTP/API/SSE/editor tests and the fixture la
 ## Notification inbox foundation (confirmed2026-10-14)
 
 - **FR-027**: Provide a reusable scoped notification backbone with typed producers, durable deduplicated incidents, per-user read/dismiss state, authorized SSE and severity/count presentation. Initial isolation advice must use this backbone, not hard-coded conditional UI. Instance-only notices stay instance-admin-only.
-- **FR-028**: Delivery failure notifications have no active global/project defaults. Explicit project/ingress-route/optional-destination rules select failure signal, count/window/severity and opt-in SMTP recipients; count1 can alert on its first matching failure. Repeated conditions/retries do not flood users, and access is checked before email sending. Version checks and active endpoint probes are later producers.
+- **FR-028**: Delivery failure notifications have no active global/project defaults. Explicit workspace-wide or project/ingress-route/optional-destination rules select failure signal, count/window/severity and opt-in SMTP recipients; count1 can alert on its first matching failure. Repeated conditions/retries do not flood users, and access is checked before email sending. Version checks and active endpoint probes are later producers.
 
 Terminology: ingress route is the user-facing receiving endpoint; existing Endpoint domain/API maps to it. Destination is an outgoing target; notification inbox is alerts only. See proposals/notification-inbox.md for the modular service contract, rules, dismissal and icon research. This is design, not a built inbox.
+
+
+### Maintainer dashboard review alignment — 2026-10-15
+
+The review confirms contextual desktop/mobile navigation, a real published-route
+playground separated from synthetic tests, aggregate authorized events with
+workspace/project/state filters, named HTTP-method ingress scripts, helper/secret
+tables, pending invitations with verified acceptance, workspace-wide rules,
+personal SMTP preferences and passkeys. See [the UX review](../../docs/ux-audit.md)
+and [navigation](../../docs/dashboard-navigation.md) for implemented interactions.
+This supersedes the body-only ingress editor description in earlier planning.
+Version alerts and endpoint health checks remain deferred.

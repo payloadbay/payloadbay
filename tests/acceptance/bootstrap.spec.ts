@@ -24,7 +24,7 @@ test("email entry advances to accessible OTP entry without a success toast", asy
 	await code.fill("123");
 	await expect(submit).toBeDisabled();
 	await code.fill("");
-	await page.evaluate(() => navigator.clipboard.writeText("654321"));
+	await page.evaluate(() => navigator.clipboard.writeText(" 654 321\n"));
 	await code.focus();
 	await code.press("Control+V");
 	await expect(code).toHaveValue("654321");
@@ -90,6 +90,7 @@ test("mobile dashboard keeps account actions in the avatar menu and projects in 
 
 		return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(responses[path] ?? []) });
 	});
+	await page.route("**/api/auth/passkey/list-user-passkeys", (route) => route.fulfill({ json: [] }));
 	await page.route("**/api/auth/update-user", (route) => {
 		name = route.request().postDataJSON().name;
 
@@ -117,7 +118,7 @@ test("mobile dashboard keeps account actions in the avatar menu and projects in 
 	await page.getByRole("menuitem", { name: "Account settings", exact: true }).click();
 	await expect(page).toHaveURL(/\/account$/, { timeout: 15000 });
 	await expect(page.getByRole("heading", { name: "Account settings", exact: true })).toBeVisible();
-	await page.getByLabel("Display name").fill("Updated Reviewer");
+	await page.getByRole("textbox", { name: /^Display name/ }).fill("Updated Reviewer");
 	await page.getByRole("button", { name: "Save changes" }).click();
 	await expect(page.getByRole("alertdialog", { name: "Account saved", exact: true })).toBeVisible();
 	expect(name).toBe("Updated Reviewer");
@@ -157,6 +158,7 @@ test.describe("unavailable and empty states", () => {
 
 	test("failed member loading offers retry instead of claiming no members exist", async ({ page }) => {
 		let unavailable = true;
+		await page.route("**/api/v1/invitations?*", (route) => route.fulfill({ json: [] }));
 		await page.route("**/api/v1/members?*", (route) => route.fulfill(unavailable ? { status: 503, json: { error: { code: "unavailable", message: "Service unavailable" } } } : { json: [] }));
 		await page.goto("/admin/members");
 		await expect(page.getByRole("heading", { name: "Members unavailable", exact: true })).toBeVisible();
@@ -188,14 +190,14 @@ test.describe("unavailable and empty states", () => {
 	});
 });
 
-test("route editing keeps project navigation contextual and formats the protected TypeScript file on save", async ({ page }, testInfo) => {
+test("route editor has nested navigation, a scripting guide, typed method handlers and formatted saves", async ({ page }, testInfo) => {
 	test.setTimeout(90000);
 
 	await page.setViewportSize({ width: 390, height: 844 });
 	const permissions = ["metadata.read", "code.read", "code.edit", "code.publish", "code.test", "members.manage", "notifications.rules.manage", "secrets.use", "secrets.manage"];
 	let savedBody = "";
 	const draft = {
-		body: 'return ctx.respondOnly({status:200,body:"hello"});',
+		body: 'export async function POST(ctx: IngressContext): Promise<IngressDecision> { return ctx.respondOnly({status:200,body:"hello"}); }',
 		version: 1,
 		shared_bindings: {},
 		secret_bindings: { SIGNING_SECRET: "secret" },
@@ -254,16 +256,16 @@ test("route editing keeps project navigation contextual and formats the protecte
 	await expect(page.getByLabel("Synthetic request body", { exact: true })).toBeHidden();
 	await page.getByRole("button", { name: "Toggle navigation" }).click();
 	const navigation = page.getByRole("dialog");
-	await expect(navigation.getByRole("row", { name: "Events", exact: true })).toBeVisible();
-	await expect(navigation.getByRole("row", { name: "Project members", exact: true })).toBeVisible();
+	await expect(navigation.getByRole("row", { name: "Route events", exact: true })).toBeVisible();
+	await expect(navigation.getByRole("row", { name: "Secrets", exact: true })).toBeVisible();
 	await expect(navigation.getByRole("row", { name: "Instance members", exact: true })).toHaveCount(0);
 	await page.keyboard.press("Escape");
 	const editor = page.getByRole("textbox", { name: "Ingress code", exact: true });
-	await expect(editor).toBeVisible();
+	await expect(page.locator(".monaco-editor .view-lines").first()).toBeVisible();
 	await expect(page.getByText("Loading code editor…", { exact: true })).toHaveCount(0, { timeout: 20000 });
 	await editor.focus();
 	await page.keyboard.press("Control+Home");
-	for (let i = 0; i < 40; i++) await page.keyboard.press("ArrowRight");
+	for (let i = 0; i < 28; i++) await page.keyboard.press("ArrowRight");
 	await page.keyboard.press("Control+k");
 	await page.keyboard.press("Control+i");
 	await expect(page.locator(".monaco-hover:visible").first()).toBeVisible({ timeout: 15000 });
@@ -271,18 +273,21 @@ test("route editing keeps project navigation contextual and formats the protecte
 	await page.keyboard.press("Escape");
 	await editor.focus();
 	await page.keyboard.press("Control+Home");
-	await page.keyboard.insertText("broken");
-	await expect(page.locator(".monaco-editor .view-lines").first()).not.toContainText("broken");
 	await page.keyboard.press("Control+a");
-	await page.keyboard.insertText('return ctx.respondOnly({status:201,body:"formatted"});');
+	await page.keyboard.insertText('export async function POST(ctx: IngressContext): Promise<IngressDecision> { return ctx.respondOnly({status:201,body:"formatted"}); }');
 	await expect(page.getByText("Unsaved changes", { exact: false })).toBeVisible();
 	await page.getByRole("button", { name: "Save draft", exact: true }).click();
 	await expect.poll(() => savedBody).toContain('status: 201, body: "formatted"');
-	expect(savedBody.startsWith("\treturn")).toBe(true);
+	expect(savedBody.startsWith("export async function POST")).toBe(true);
 	await expect(page.getByText("Draft saved · Not published", { exact: true })).toBeVisible();
-	await page.getByRole("button", { name: "Test this script", exact: true }).click();
-	await expect(page.getByLabel("Synthetic request body", { exact: true })).toBeVisible();
-	await page.getByRole("button", { name: "Helpers and secrets", exact: true }).click();
+	await page.getByRole("button", { name: "Scripting guide", exact: true }).click();
+	await expect(page.getByRole("dialog", { name: "Writing Payload Bay scripts" })).toBeVisible();
+	await expect(page.getByRole("dialog").getByText(/Only exported methods run/)).toBeVisible();
+	await page.getByRole("button", { name: "Got it" }).click();
+	await page.getByLabel("Ingress template", { exact: true }).selectOption("unverified");
+	await expect(page.getByLabel("Ingress template", { exact: true })).toHaveValue("unverified");
+	await page.getByRole("button", { name: "Toggle navigation" }).click();
+	await page.getByRole("dialog").getByRole("row", { name: "Secrets", exact: true }).click();
 	await expect(page.getByRole("grid", { name: "Secret bindings", exact: true })).toBeVisible();
 	await expect(page.getByRole("row", { name: /SIGNING_SECRET/ })).toBeVisible();
 	await page.setViewportSize({ width: 320, height: 740 });
@@ -290,6 +295,10 @@ test("route editing keeps project navigation contextual and formats the protecte
 	await page.evaluate(() => window.scrollTo(0, 0));
 	await page.screenshot({ path: testInfo.outputPath("route-editor-mobile.png"), fullPage: true });
 	await page.setViewportSize({ width: 1440, height: 900 });
-	await expect(page.getByRole("row", { name: "Events", exact: true })).toBeVisible();
+	await expect(page.getByRole("row", { name: "Route events", exact: true })).toBeVisible();
 	await expect(page.getByRole("button", { name: "Toggle navigation" })).toBeHidden();
+	await page.getByRole("link", { name: "Back to project", exact: true }).click();
+	await expect(page.getByRole("dialog", { name: "Discard unsaved changes?" })).toBeVisible();
+	await page.getByRole("button", { name: "Keep editing", exact: true }).click();
+	await expect(page.getByRole("grid", { name: "Secret bindings" })).toBeVisible();
 });

@@ -4,7 +4,12 @@ import type { createAuth } from "./auth-runtime.ts";
 import { bootstrapOwner } from "./bootstrap.ts";
 import { createResource } from "./resources.ts";
 import { createDestination } from "./destinations.ts";
-import { unverifiedTemplate } from "../../script-sdk/src/templates/unverified.ts";
+import { unverifiedHttpTemplate } from "../../script-sdk/src/templates/unverified.ts";
+import { createSharedVersion } from "./shared-code.ts";
+import { publish } from "./publication.ts";
+import { receiveIngress } from "./ingress.ts";
+import { execute } from "../../../apps/executor/src/supervisor.ts";
+import { compile } from "../../../apps/executor/src/compiler.ts";
 import { createEndpoint } from "./endpoints.ts";
 import { previewReviewerEmail } from "./preview.ts";
 
@@ -52,9 +57,48 @@ export async function seedPreviewDemo(pool: Pool, config: ServerConfig, identity
 			});
 		}
 
+		if (!(await db.query("SELECT 1 FROM payloadbay.shared_module_revision WHERE scope_type='project' AND scope_id=$1 AND name='DemoHelpers'", [project.id])).rowCount) {
+			await createSharedVersion(pool, actor, {
+				scope: { type: "project", id: project.id },
+				name: "DemoHelpers",
+				source: 'export function describe(body: Uint8Array): string { return "Received: " + new TextDecoder().decode(body).slice(0, 120); }',
+				compile,
+			});
+		}
+
+		let createdSample = false;
 		if (!(await db.query("SELECT 1 FROM payloadbay.endpoint WHERE project_id=$1 AND slug='sample-webhook'", [project.id])).rowCount) {
+			createdSample = true;
 			const endpoint = await createEndpoint(pool, actor, { projectId: project.id, name: "Sample Webhook", slug: "sample-webhook" });
-			await db.query("UPDATE payloadbay.draft SET body=$2 WHERE endpoint_id=$1 AND stage='ingress'", [endpoint.id, unverifiedTemplate.body]);
+			await db.query("UPDATE payloadbay.draft SET body=$2 WHERE endpoint_id=$1 AND stage='ingress'", [endpoint.id, unverifiedHttpTemplate.source]);
+		}
+
+		const endpoint = (await db.query("SELECT id,ingress_key,config_version,active_publication_id FROM payloadbay.endpoint WHERE project_id=$1 AND slug='sample-webhook'", [project.id])).rows[0];
+		if (createdSample && !endpoint.active_publication_id) {
+			const drafts = (await db.query("SELECT stage,version FROM payloadbay.draft WHERE endpoint_id=$1", [endpoint.id])).rows;
+			await publish(pool, actor, {
+				endpointId: endpoint.id,
+				expectedVersion: endpoint.config_version,
+				draftVersions: Object.fromEntries(drafts.map((draft) => [draft.stage, draft.version])) as { ingress: number; processing: number },
+				compile,
+			});
+		}
+
+		const publication = (await db.query("SELECT effective_bindings FROM payloadbay.publication WHERE id=(SELECT active_publication_id FROM payloadbay.endpoint WHERE id=$1)", [endpoint.id])).rows[0];
+		if (createdSample && (publication?.effective_bindings ?? []).length === 0 && !(await db.query("SELECT 1 FROM payloadbay.event WHERE endpoint_id=$1", [endpoint.id])).rowCount) {
+			for (const type of ["demo.purchase.completed", "demo.account.created"]) {
+				await receiveIngress(
+					pool,
+					{
+						key: endpoint.ingress_key,
+						method: "POST",
+						url: new URL("/ingress/" + endpoint.ingress_key, config.publicUrl).href,
+						headers: { "content-type": "application/json" },
+						body: new TextEncoder().encode(JSON.stringify({ type, synthetic: true, source: "Payload Bay preview" })),
+					},
+					{ encryptionKey: config.encryptionKey, deadlineMs: 10000, run: execute },
+				);
+			}
 		}
 	} finally {
 		await db.query("SELECT pg_advisory_unlock(hashtext('payloadbay:preview-seed:v1'))").catch(() => {});

@@ -60,7 +60,7 @@ const serverSchema = z.object({
 export function readServerConfig(env: Record<string, string | undefined>) {
 	let publicUrl: string;
 	try {
-		publicUrl = resolveBaseUrl(env).href;
+		publicUrl = resolveBaseUrl(env).href.replace(/\/$/, "");
 	} catch {
 		throw new AppError("configuration_required", 503, "Server configuration requires attention");
 	}

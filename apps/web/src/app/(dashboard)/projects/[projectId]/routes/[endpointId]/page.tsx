@@ -2,12 +2,15 @@
 
 import { useFeedbackToast } from "@lib/feedback";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { EventBrowser } from "@components/event-browser";
+import { useUnsavedChanges } from "@components/unsaved-changes";
+import { ScriptingGuide } from "@components/scripting-guide";
 import { use, useState, useEffect, useCallback } from "react";
-import { Button, Card, Tabs, Accordion, TextArea, Label } from "@heroui/react";
-import { IconArrowLeft, IconCheck, IconUpload, IconPlayerPause, IconPlayerPlay, IconCopy, IconChevronDown } from "@tabler/icons-react";
+import { Button, Card, Tabs, TextArea, Label } from "@heroui/react";
+import { IconArrowLeft, IconCheck, IconUpload, IconPlayerPause, IconPlayerPlay, IconCopy } from "@tabler/icons-react";
 import { NativeSelect } from "@heroui-pro/react";
 import { formatScript } from "@lib/script-document";
-import { ScriptingGuide } from "@components/scripting-guide";
 import { CodeEditor } from "@components/code-editor";
 import { SharedBindings } from "@components/shared-bindings";
 import { SecretBindings } from "@components/secret-bindings";
@@ -39,11 +42,16 @@ type Publication = { id: string; created_at: string };
 
 export default function RoutePage({ params }: { params: Promise<{ projectId: string; endpointId: string }> }) {
 	const { projectId, endpointId } = use(params);
+	const section = useSearchParams().get("section") ?? "code";
 
 	const [route, setRoute] = useState<Route | null>(null);
 	const [drafts, setDrafts] = useState<Record<Stage, Draft> | null>(null);
 	const [savedDrafts, setSavedDrafts] = useState<Record<Stage, Draft> | null>(null);
 	const [history, setHistory] = useState<Publication[]>([]);
+
+	const { dialog: unsavedDialog } = useUnsavedChanges(Boolean(drafts && savedDrafts && JSON.stringify(drafts) !== JSON.stringify(savedDrafts)));
+
+	const [templates, setTemplates] = useState<Partial<Record<Stage, string>>>({});
 	const [stage, setStage] = useState<Stage>("ingress");
 	const [loading, setLoading] = useState(true);
 	const [busy, setBusy] = useState(false);
@@ -53,10 +61,33 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 
 	useFeedbackToast(error, notice, { error: "Script configuration error", success: "Script status" });
 
-	const [testBody, setTestBody] = useState("{}");
+	const [testBody, setTestBody] = useState('{"type":"purchase.completed","data":{"orderId":"demo-001","amount":4900,"currency":"EUR"}}');
+	const [requestMethod, setRequestMethod] = useState("POST");
+	const [sending, setSending] = useState(false);
+	const [requestResult, setRequestResult] = useState<{ status: number; body: string } | null>(null);
 	const [testHeaders, setTestHeaders] = useState("{}");
 	const [testSecrets, setTestSecrets] = useState("{}");
 	const [testResult, setTestResult] = useState<unknown>(null);
+
+	async function sendRequest() {
+		if (!route?.ingressUrl) return;
+		setSending(true);
+		setError("");
+		setRequestResult(null);
+		try {
+			const response = await fetch(route.ingressUrl, {
+				method: requestMethod,
+				credentials: "omit",
+				headers: { "content-type": "application/json" },
+				...(!["GET", "HEAD"].includes(requestMethod) ? { body: testBody } : {}),
+			});
+			setRequestResult({ status: response.status, body: await response.text() });
+		} catch (cause) {
+			failed(cause);
+		} finally {
+			setSending(false);
+		}
+	}
 
 	async function testSynthetic() {
 		if (!drafts) return;
@@ -75,6 +106,7 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 					sharedBindings: drafts[stage].shared_bindings,
 					fixture: {
 						body: testBody,
+						method: requestMethod,
 						contentType: "application/json",
 						headers: JSON.parse(testHeaders),
 						secrets: JSON.parse(testSecrets),
@@ -82,7 +114,6 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 				},
 			});
 			setTestResult(result);
-			setNotice("Synthetic test completed. External HTTP is blocked; managed sends simulate HTTP 204. No event was stored.");
 		} catch (cause) {
 			failed(cause);
 		} finally {
@@ -247,6 +278,7 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 
 	return (
 		<section className='flex min-w-0 flex-col gap-6'>
+			{unsavedDialog}
 			<Link href={"/projects/" + projectId} className='text-accent flex items-center gap-2 text-sm'>
 				<IconArrowLeft size={16} />
 				Back to project
@@ -268,10 +300,14 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 			</header>
 			{route.ingressUrl && (
 				<Card>
-					<Card.Content className='flex min-w-0 flex-row items-center gap-3 py-4'>
+					<Card.Header>
+						<Card.Description>Receiving URL</Card.Description>
+					</Card.Header>
+					<Card.Content className='flex min-w-0 flex-row items-center gap-3 pb-4'>
 						<div className='min-w-0 flex-1 overflow-hidden'>
-							<p className='text-muted text-xs'>Receiving URL</p>
-							<code className='bg-field mt-1 block overflow-x-auto whitespace-nowrap rounded-lg px-3 py-2 text-sm'>{route.ingressUrl}</code>
+							<code aria-label='Receiving URL' className='bg-field block overflow-x-auto whitespace-nowrap rounded-lg px-3 py-2 text-sm'>
+								{route.ingressUrl}
+							</code>
 						</div>
 						<Button
 							size='sm'
@@ -309,7 +345,7 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 					))}
 				</ul>
 			)}
-			{drafts ? (
+			{drafts && ["code", "helpers", "secrets"].includes(section) ? (
 				<Tabs
 					className='min-w-0 w-full'
 					selectedKey={stage}
@@ -334,18 +370,18 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 						<Tabs.Panel key={slot} id={slot} className='flex min-w-0 flex-col gap-4 pt-4'>
 							<div className='flex flex-wrap items-center justify-between gap-3'>
 								<p className='text-muted text-sm'>{slot === "ingress" ? "Verify the raw request and return accept, reject, or a protocol-only response." : "Send to destinations or use bounded fetch, then choose complete, retry, or fail."}</p>
-								{editable && (
+								{editable && section === "code" && (
 									<NativeSelect className='w-full sm:w-auto' variant='secondary'>
 										<Label>Start from a template</Label>
 										<NativeSelect.Trigger
 											aria-label={slot === "ingress" ? "Ingress template" : "Processing template"}
-											defaultValue=''
+											value={templates[slot] ?? ""}
 											onChange={(event) => {
 												const selected = event.target.value;
+												setTemplates((previous) => ({ ...previous, [slot]: selected }));
 												if (selected === "hmac") void change(hmacHttpTemplate.source);
 												else if (selected === "unverified") void change(unverifiedHttpTemplate.source);
 												else if (selected === "delivery") void change(deliveryTemplate.body);
-												event.target.value = "";
 											}}
 										>
 											<NativeSelect.Option value=''>Choose editable template</NativeSelect.Option>
@@ -362,63 +398,54 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 									</NativeSelect>
 								)}
 							</div>
-							<div className='min-w-0'>
-								<div className='mb-3 flex flex-wrap items-center justify-between gap-2'>
-									<p className='text-muted max-w-prose text-sm'>{slot === "ingress" ? "Export a handler for each HTTP method you want this route to receive. Choose whether to queue the event or just reply." : "Process queued events and decide whether delivery is complete, should retry, or has failed."}</p>
-									<ScriptingGuide />
+							{section === "code" && (
+								<div className='min-w-0'>
+									<div className='mb-3 flex flex-wrap items-center justify-between gap-2'>
+										<p className='text-muted max-w-prose text-sm'>{slot === "ingress" ? "Export a handler for each HTTP method you want this route to receive. Choose whether to queue the event or just reply." : "Process queued events and decide whether delivery is complete, should retry, or has failed."}</p>
+										<ScriptingGuide />
+									</div>
+									<CodeEditor
+										key={slot}
+										label={slot === "ingress" ? "Ingress code" : "Processing code"}
+										value={drafts[slot].body}
+										stage={slot === "ingress" ? undefined : slot}
+										bindings={drafts[slot].shared_bindings}
+										onSave={editable && !busy ? () => void save() : undefined}
+										onChange={(body) => {
+											setNotice("");
+											setDrafts((previous) => (previous ? { ...previous, [slot]: { ...previous[slot], body } } : previous));
+										}}
+										readOnly={!editable || busy}
+									/>
 								</div>
-								<CodeEditor
-									key={slot}
-									label={slot === "ingress" ? "Ingress code" : "Processing code"}
-									value={drafts[slot].body}
-									stage={slot === "ingress" ? undefined : slot}
+							)}
+							{section === "helpers" && (
+								<SharedBindings
+									projectId={projectId}
 									bindings={drafts[slot].shared_bindings}
-									onSave={editable && !busy ? () => void save() : undefined}
-									onChange={(body) => {
+									disabled={busy || !editable}
+									onChange={(shared_bindings) => {
+										setDrafts((previous) => (previous ? { ...previous, [slot]: { ...previous[slot], shared_bindings } } : previous));
 										setNotice("");
-										setDrafts((previous) => (previous ? { ...previous, [slot]: { ...previous[slot], body } } : previous));
 									}}
-									readOnly={!editable || busy}
 								/>
-							</div>
-							<Accordion>
-								<Accordion.Item id='bindings'>
-									<Accordion.Heading>
-										<Accordion.Trigger>
-											Helpers and secrets
-											<Accordion.Indicator>
-												<IconChevronDown />
-											</Accordion.Indicator>
-										</Accordion.Trigger>
-									</Accordion.Heading>
-									<Accordion.Panel>
-										<Accordion.Body className='flex flex-col gap-4'>
-											<SharedBindings
-												projectId={projectId}
-												bindings={drafts[slot].shared_bindings}
-												disabled={busy || !editable}
-												onChange={(shared_bindings) => {
-													setDrafts((previous) => (previous ? { ...previous, [slot]: { ...previous[slot], shared_bindings } } : previous));
-													setNotice("");
-												}}
-											/>
-											<SecretBindings
-												projectId={projectId}
-												bindings={drafts[slot].secret_bindings}
-												canUse={route.permissions.includes("secrets.use")}
-												canManage={route.permissions.includes("secrets.manage")}
-												disabled={!editable || busy}
-												onChange={(bindings) => {
-													setNotice("");
-													setDrafts((previous) => (previous ? { ...previous, [slot]: { ...previous[slot], secret_bindings: bindings } } : previous));
-												}}
-											/>
-										</Accordion.Body>
-									</Accordion.Panel>
-								</Accordion.Item>
-							</Accordion>
+							)}
+							{section === "secrets" && (
+								<SecretBindings
+									projectId={projectId}
+									bindings={drafts[slot].secret_bindings}
+									canUse={route.permissions.includes("secrets.use")}
+									canManage={route.permissions.includes("secrets.manage")}
+									disabled={!editable || busy}
+									onChange={(bindings) => {
+										setNotice("");
+										setDrafts((previous) => (previous ? { ...previous, [slot]: { ...previous[slot], secret_bindings: bindings } } : previous));
+									}}
+								/>
+							)}
+
 							{editable && (
-								<div className='flex flex-wrap items-center gap-3'>
+								<div className='flex flex-wrap items-center justify-center gap-3 sm:justify-start'>
 									<Button variant='secondary' isDisabled={busy} onPress={() => void save()}>
 										<IconCheck size={16} />
 										Save draft
@@ -437,58 +464,105 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 						</Tabs.Panel>
 					))}
 				</Tabs>
-			) : (
+			) : !drafts && section === "code" ? (
 				<p className='text-muted'>You need code-reading permission to inspect these scripts.</p>
+			) : null}
+			{section === "events" && <EventBrowser projectId={projectId} endpointId={endpointId} embedded />}
+			{section === "overview" && (
+				<Card>
+					<Card.Header>
+						<h2 className='text-xl font-semibold'>Send a real test request</h2>
+						<Card.Description>This goes through the published ingress handler and durable delivery queue. Use synthetic data only.</Card.Description>
+					</Card.Header>
+					<Card.Content className='flex flex-col gap-4'>
+						<NativeSelect variant='secondary'>
+							<Label>HTTP method</Label>
+							<NativeSelect.Trigger aria-label='HTTP method' value={requestMethod} onChange={(e) => setRequestMethod(e.target.value)}>
+								{["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].map((method) => (
+									<NativeSelect.Option key={method} value={method}>
+										{method}
+									</NativeSelect.Option>
+								))}
+								<NativeSelect.Indicator />
+							</NativeSelect.Trigger>
+						</NativeSelect>
+						{!["GET", "HEAD"].includes(requestMethod) && (
+							<label className='flex flex-col gap-2 text-sm'>
+								Request body
+								<TextArea variant='secondary' aria-label='Playground request body' value={testBody} onChange={(e) => setTestBody(e.target.value)} rows={6} className='font-mono' />
+							</label>
+						)}
+						<Button className='self-center sm:self-start' onPress={() => void sendRequest()} isPending={sending} isDisabled={!route.activePublicationId || sending}>
+							Send request
+						</Button>
+						{!route.activePublicationId && <p className='text-muted text-sm'>Publish the scripts first to enable the receiving URL.</p>}
+						{requestResult && (
+							<div role='status'>
+								<p className='font-medium'>HTTP {requestResult.status}</p>
+								<pre className='bg-field mt-2 overflow-auto rounded-lg p-3 text-sm'>{requestResult.body || "Empty response body"}</pre>
+							</div>
+						)}
+					</Card.Content>
+				</Card>
 			)}
-			{drafts && route.permissions.includes("code.test") && (
-				<Accordion>
-					<Accordion.Item id='script-test'>
-						<Accordion.Heading>
-							<Accordion.Trigger>
-								Test this script
-								<Accordion.Indicator>
-									<IconChevronDown />
-								</Accordion.Indicator>
-							</Accordion.Trigger>
-						</Accordion.Heading>
-						<Accordion.Panel>
-							<Accordion.Body>
-								<Card>
-									<Card.Header>
-										<h2 className='text-lg font-semibold'>Synthetic script test</h2>
-										<Card.Description>Test the current {stage} body without saving or publishing. Real secrets are not loaded. Direct fetch is blocked; managed sends are simulated as HTTP 204.</Card.Description>
-									</Card.Header>
-									<Card.Content className='flex flex-col gap-4'>
-										<label className='flex flex-col gap-2 text-sm'>
-											Synthetic request body
-											<TextArea variant='secondary' aria-label='Synthetic request body' value={testBody} onChange={(event) => setTestBody(event.target.value)} className='min-h-24 font-mono' />
-										</label>
-										<div className='grid gap-4 sm:grid-cols-2'>
-											<label className='flex flex-col gap-2 text-sm'>
-												Synthetic headers (JSON)
-												<TextArea variant='secondary' aria-label='Synthetic headers' value={testHeaders} onChange={(event) => setTestHeaders(event.target.value)} className='font-mono' />
-											</label>
-											<label className='flex flex-col gap-2 text-sm'>
-												Synthetic secrets (JSON)
-												<TextArea variant='secondary' aria-label='Synthetic secrets' value={testSecrets} onChange={(event) => setTestSecrets(event.target.value)} className='font-mono' />
-											</label>
-										</div>
-										<Button variant='secondary' isDisabled={busy} onPress={() => void testSynthetic()}>
-											Test {stage} (dry)
-										</Button>
-										{testResult !== null && (
-											<pre aria-label='Synthetic test result' className='bg-field max-h-96 overflow-auto rounded-lg p-4 font-mono text-sm'>
-												{JSON.stringify(testResult, null, 2)}
-											</pre>
-										)}
-									</Card.Content>
-								</Card>
-							</Accordion.Body>
-						</Accordion.Panel>
-					</Accordion.Item>
-				</Accordion>
+
+			{section === "test" && drafts && route.permissions.includes("code.test") && (
+				<Card>
+					<Card.Header>
+						<h2 className='text-lg font-semibold'>Synthetic script test</h2>
+						<Card.Description>Test the current {stage} body without saving or publishing. Real secrets are not loaded. Direct fetch is blocked; managed sends are simulated as HTTP 204.</Card.Description>
+					</Card.Header>
+					<Card.Content className='flex flex-col gap-4'>
+						<div className='grid gap-4 sm:grid-cols-2'>
+							<NativeSelect variant='secondary'>
+								<Label>Script stage</Label>
+								<NativeSelect.Trigger aria-label='Script stage' value={stage} onChange={(event) => setStage(event.target.value as Stage)}>
+									<NativeSelect.Option value='ingress'>Ingress</NativeSelect.Option>
+									<NativeSelect.Option value='processing'>Processing</NativeSelect.Option>
+									<NativeSelect.Indicator />
+								</NativeSelect.Trigger>
+							</NativeSelect>
+							{stage === "ingress" && (
+								<NativeSelect variant='secondary'>
+									<Label>Synthetic HTTP method</Label>
+									<NativeSelect.Trigger aria-label='Synthetic HTTP method' value={requestMethod} onChange={(event) => setRequestMethod(event.target.value)}>
+										{["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].map((method) => (
+											<NativeSelect.Option key={method} value={method}>
+												{method}
+											</NativeSelect.Option>
+										))}
+										<NativeSelect.Indicator />
+									</NativeSelect.Trigger>
+								</NativeSelect>
+							)}
+						</div>
+						<label className='flex flex-col gap-2 text-sm'>
+							Synthetic request body
+							<TextArea variant='secondary' aria-label='Synthetic request body' value={testBody} onChange={(event) => setTestBody(event.target.value)} className='min-h-24 font-mono' />
+						</label>
+						<div className='grid gap-4 sm:grid-cols-2'>
+							<label className='flex flex-col gap-2 text-sm'>
+								Synthetic headers (JSON)
+								<TextArea variant='secondary' aria-label='Synthetic headers' value={testHeaders} onChange={(event) => setTestHeaders(event.target.value)} className='font-mono' />
+							</label>
+							<label className='flex flex-col gap-2 text-sm'>
+								Synthetic secrets (JSON)
+								<TextArea variant='secondary' aria-label='Synthetic secrets' value={testSecrets} onChange={(event) => setTestSecrets(event.target.value)} className='font-mono' />
+							</label>
+						</div>
+						<Button variant='secondary' isDisabled={busy} onPress={() => void testSynthetic()}>
+							Test {stage} (dry)
+						</Button>
+						{testResult !== null && (
+							<pre aria-label='Synthetic test result' className='bg-field max-h-96 overflow-auto rounded-lg p-4 font-mono text-sm'>
+								{JSON.stringify(testResult, null, 2)}
+							</pre>
+						)}
+					</Card.Content>
+				</Card>
 			)}
-			{drafts && history.length > 0 && (
+			{section === "history" && drafts && history.length === 0 && <p className='text-muted'>Nothing published yet. Save and publish both scripts to activate this route.</p>}
+			{section === "history" && drafts && history.length > 0 && (
 				<Card>
 					<Card.Header>
 						<h2 className='text-lg font-semibold'>Publication history</h2>

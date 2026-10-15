@@ -6,9 +6,9 @@ import { encryptPrivate } from "./private-crypto.ts";
 /** Durable per-incident/per-recipient dispatch; producer repetitions cannot resend mail. */
 export async function queueIncidentEmail(pool: Pool, incidentId: string, encryptionKey: string): Promise<number> {
 	return transaction(pool, async (db) => {
-		const incident = (await db.query("SELECT * FROM payloadbay.notification_incident WHERE id=$1 AND status='active' AND kind='delivery.failure-threshold' AND scope_type='project' FOR UPDATE", [incidentId])).rows[0];
+		const incident = (await db.query("SELECT * FROM payloadbay.notification_incident WHERE id=$1 AND status='active' AND kind='delivery.failure-threshold' AND scope_type IN ('project','workspace') FOR UPDATE", [incidentId])).rows[0];
 		if (!incident) return 0;
-		const rule = (await db.query("SELECT id FROM payloadbay.notification_rule WHERE id=$1 AND project_id=$2 AND enabled AND version::text=$3", [incident.redacted_data.ruleId, incident.scope_id, incident.revision])).rows[0];
+		const rule = (await db.query("SELECT id FROM payloadbay.notification_rule WHERE id=$1 AND COALESCE(project_id,workspace_id)=$2 AND enabled AND version::text=$3", [incident.redacted_data.ruleId, incident.scope_id, incident.revision])).rows[0];
 		if (!rule) return 0;
 		const subscribers = (
 			await db.query(
@@ -20,7 +20,7 @@ export async function queueIncidentEmail(pool: Pool, incidentId: string, encrypt
 		for (const subscriber of subscribers) {
 			let allowed = false;
 			try {
-				allowed = (await actorPermissions(db, { userId: subscriber.user_id }, { type: "project", id: incident.scope_id })).has("notifications.read");
+				allowed = (await actorPermissions(db, { userId: subscriber.user_id }, { type: incident.scope_type, id: incident.scope_id })).has("notifications.read");
 			} catch (error) {
 				if (!(error instanceof Error) || !["unauthenticated", "not_found", "forbidden"].includes((error as { code?: string }).code ?? "")) throw error;
 			}

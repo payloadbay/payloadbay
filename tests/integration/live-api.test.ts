@@ -338,3 +338,31 @@ test("U152 slow SSE consumer is disconnected at bounded output", async () => {
 		}
 	});
 });
+
+test("accessible event lists and live changes include project grants without granting workspace access", async () => {
+	const { authFixture } = await import("../helpers/auth-fixtures.ts");
+	const { seedScope, seedEvent } = await import("../helpers/domain-fixtures.ts");
+	const { listEvents } = await import("../../packages/domain/src/events.ts");
+	const { appendChange } = await import("../../packages/domain/src/changes.ts");
+	const { readChanges } = await import("../../packages/domain/src/live.ts");
+	await authFixture(async ({ pool, db }) => {
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','project',$1,'viewer',ARRAY['metadata.read'])", [scope.project]);
+		const id = await seedEvent(db, scope);
+		await appendChange(db, { scope: { type: "project", id: scope.project }, kind: "event.accepted", resourceId: id });
+		const actor = { userId: "fixture-owner" };
+		const events = await listEvents(pool, actor, {});
+		assert.equal(events.items.length, 1);
+		assert.equal(events.items[0].projectId, scope.project);
+		assert.equal((await listEvents(pool, actor, { workspaceId: scope.workspace })).items.length, 1);
+		const changes = await readChanges(pool, actor, { scope: { type: "accessible", id: scope.installation }, after: "0" });
+		assert.equal(changes.items.length, 1);
+		assert.equal(changes.items[0].resourceId, id);
+		await db.query("DELETE FROM payloadbay.grant_record WHERE user_id='fixture-owner'");
+		assert.equal((await listEvents(pool, actor, {})).items.length, 0);
+		assert.equal((await readChanges(pool, actor, { scope: { type: "accessible", id: scope.installation }, after: "0" })).items.length, 0);
+		await db.query("UPDATE payloadbay.admission SET active=false");
+		await assert.rejects(readChanges(pool, actor, { scope: { type: "accessible", id: scope.installation }, after: "0" }), { code: "forbidden" });
+	});
+});

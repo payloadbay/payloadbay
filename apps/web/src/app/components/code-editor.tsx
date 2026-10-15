@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { scriptFrame, formatScript, type ScriptStage } from "@lib/script-document";
+import { api } from "@lib/api-client";
 import { sdkDeclarations } from "@sdk/declarations.generated";
 import type { editor as MonacoEditor } from "monaco-editor";
 
@@ -62,14 +63,22 @@ export function CodeEditor({ value, onChange, label, readOnly = false, stage, bi
 				typescript.typescriptDefaults.setCompilerOptions({
 					target: typescript.ScriptTarget.ESNext,
 					module: typescript.ModuleKind.ESNext,
+					moduleResolution: typescript.ModuleResolutionKind.NodeJs,
 					strict: true,
-					lib: ["es2022", "webworker"],
+					lib: ["lib.es2022.d.ts", "lib.webworker.d.ts"],
 				});
 				typescript.typescriptDefaults.setModeConfiguration({ ...typescript.typescriptDefaults.modeConfiguration, documentRangeFormattingEdits: false, onTypeFormattingEdits: false });
 				typescript.typescriptDefaults.setDiagnosticsOptions({ noSemanticValidation: false, noSyntaxValidation: false });
 				const contextTypes = ["IngressContext", "ProcessingContext", "IngressDecision", "ProcessingDecision", "IngressMiddlewareContext", "ProcessingMiddlewareContext", "IngressMiddlewareDecision", "ProcessingMiddlewareDecision"];
 				const declarations = `declare namespace PayloadBay {\n${sdkDeclarations}\n}\n` + contextTypes.map((name) => `type ${name} = PayloadBay.${name};`).join("\n");
 				const sdk = typescript.typescriptDefaults.addExtraLib(declarations, "file:///payloadbay-sdk.d.ts");
+				await Promise.all(
+					Object.entries(bindings ?? {}).map(async ([name, id]) => {
+						const helper = await api<{ source: string }>("/shared-code/" + encodeURIComponent(id));
+						if (disposed) return;
+						cleanups.push(typescript.typescriptDefaults.addExtraLib(helper.source, "file:///node_modules/@shared/" + name + "/index.ts"));
+					}),
+				);
 				cleanups.push(sdk);
 				const instance = monaco.editor.create(container.current, {
 					model: monaco.editor.createModel(current.current, "typescript", monaco.Uri.parse("file:///scripts/" + crypto.randomUUID() + ".ts")),
@@ -82,7 +91,7 @@ export function CodeEditor({ value, onChange, label, readOnly = false, stage, bi
 					tabSize: 4,
 					insertSpaces: false,
 					scrollBeyondLastLine: false,
-					wordWrap: "on",
+					wordWrap: "off",
 				});
 				editor.current = instance;
 				cleanups.push(

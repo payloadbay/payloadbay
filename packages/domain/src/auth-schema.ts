@@ -1,3 +1,4 @@
+import { passkey } from "@better-auth/passkey";
 import type { BetterAuthOptions } from "better-auth";
 import { admin, emailOTP } from "better-auth/plugins";
 import type { Pool } from "pg";
@@ -8,6 +9,7 @@ export function authSchemaOptions(pool: Pool): BetterAuthOptions {
 		emailAndPassword: { enabled: false },
 		plugins: [
 			admin(),
+			passkey(),
 			emailOTP({
 				disableSignUp: true,
 				expiresIn: 300,

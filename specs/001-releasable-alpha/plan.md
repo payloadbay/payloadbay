@@ -44,18 +44,28 @@ Protocol-only challenges do not create a delivery job unless explicitly accepted
 
 ## 4. Code editing model: two bodies, fixed signatures
 
-Each project can have multiple endpoints, each binding **Ingress** and **Processing** revisions. The endpoint editor has tabs for Ingress, Processing, Shared modules and Test. Each stage is one editable TypeScript function body, with arbitrary ordinary helper functions allowed inside it. Shared-module bindings generate imports above the read-only wrapper and expose typed namespaces; static import declarations cannot be placed inside a function body. Dynamic imports cannot bypass the published dependency graph. There is no giant file containing every lifecycle hook.
-
-The platform generates and owns this wrapper:
+Each project can have multiple endpoints, each binding **Ingress** and
+**Processing** revisions. The 2026-10-15 maintainer review changes ingress to a
+complete editable TypeScript module with exported HTTP-method handlers:
 
 ```ts
-// Read-only platform wrapper, not editable user source.
-export default async function ingress(
-  ctx: IngressContext,
-): Promise<IngressDecision> {
-  // User's Ingress body is inserted here.
+export async function POST(ctx: IngressContext): Promise<IngressDecision> {
+  return ctx.accept({
+    event: { body: ctx.request.body, contentType: ctx.request.contentType },
+    response: { status: 202, body: "Accepted" },
+  });
+}
+
+export async function GET(ctx: IngressContext): Promise<IngressDecision> {
+  return ctx.respondOnly({ status: 200, body: "Ready" });
 }
 ```
+
+GET/POST/PUT/PATCH/DELETE/HEAD/OPTIONS are supported; missing methods return
+405 with Allow. A generated default export dispatches to the selected method.
+Ingress imports pinned helper modules explicitly from `@shared/ImportName`.
+Processing and middleware retain protected body wrappers and generated imports.
+There is no giant module mixing every lifecycle stage.
 
 The Processing wrapper is likewise fixed:
 
@@ -67,9 +77,17 @@ export default async function processEvent(
 }
 ```
 
-Show signature/header/footer as read-only chrome and a full generated-source preview. Monaco edits only the body/helper modules. The stage registry invokes a generated default export; it never discovers lifecycle functions by arbitrary user-chosen names. Users cannot accidentally rename `ingress` to `ingress2`. Renaming helper parameters is harmless and does not change registration.
+Processing/middleware headers and closing lines stay protected inside Monaco;
+ingress handlers and shared helper modules are ordinary source files. Hover
+information comes from SDK/helper declarations. A scripting-guide modal explains
+responses, durable acceptance, processing, helpers/secrets, testing and publishing.
 
-API editing uses the same structured `{ stage, body, sharedModuleBindings }` representation. It cannot bypass the wrapper via a raw replacement module. Server-side compilation, lint/type checks, module/dependency policy and runtime result validation gate publication. Editor diagnostics are assistance, not the enforcement boundary. Source maps translate generated-source errors to body/helper lines. Drafts never affect published executions.
+API editing uses the same stage/body/binding representation. The ingress body is
+a complete method module; processing/middleware remain body-only. Server-side
+compilation, type/dependency policy and tagged-result validation gate publication.
+Editor diagnostics assist rather than enforce the boundary. Save formats with
+the repository's Prettier settings; drafts never affect published executions.
+
 
 ### Ingress body example
 
@@ -256,3 +274,21 @@ Additional owner: tests/integration/notifications.test.ts owns incident reconcil
   evidence. No deployed or committed release migration is rewritten.
 - The first CI-generated release artifact and its image upgrade/install gates
   remain unverified until the workflow runs; missing artifacts fail readiness.
+
+
+## Maintainer dashboard review addendum — 2026-10-15
+
+The implemented follow-up is recorded in [the UX review](../../docs/ux-audit.md).
+Account security includes optional passkeys through Better Auth (HTTPS hostname
+or localhost required by WebAuthn), with SMTP codes retained for recovery.
+Invitations keep selected scoped grants pending until the matching verified
+identity accepts, rechecking current issuer authority; cancellation is supported.
+Instance views include admitted users, while workspace/project tables show direct
+and inherited memberships. No project invitation grants parent access.
+
+Notification rules can belong to a workspace (aggregate descendant operations)
+or project (optionally route/destination-specific). Personal SMTP opt-in is
+separate from shared thresholds. No failure notifications or subscriptions are
+implicitly enabled. Preview seeding publishes only its fixed demo route, executes
+synthetic ingress through workerd and stores real receipts/jobs; reruns preserve
+existing edited source/publications. CI still owns release migration generation.

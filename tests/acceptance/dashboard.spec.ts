@@ -96,7 +96,7 @@ test("U62 dashboard hides projects outside inherited access", async ({ page }) =
 	await signInBrowser(page, "viewer@example.test");
 	await page.goto("/");
 	await expect(page.getByRole("heading", { name: "Projects", exact: true })).toBeVisible();
-	await expect(page.getByRole("row", { name: /Visible project/ })).toBeVisible();
+	await expect(page.getByRole("grid", { name: "Projects", exact: true }).getByRole("row", { name: /Visible project/ })).toBeVisible();
 	await expect(page.getByText("Hidden project", { exact: true })).toHaveCount(0);
 	await expect(page.getByRole("button", { name: "Create workspace" })).toHaveCount(0);
 	await expect(page.getByRole("button", { name: "Create project" })).toHaveCount(0);
@@ -209,17 +209,17 @@ test("U80 route editor separates ingress and processing bodies", async ({ page }
 	await page.goto("/projects/" + project.id + "/routes/" + route.id);
 	await expect(page.getByRole("tab", { name: "Ingress", exact: true }), "Separate lifecycle editor tabs must exist").toBeVisible();
 	await expect(page.getByRole("tab", { name: "Ingress", exact: true })).toHaveAttribute("aria-selected", "true");
-	await expect(page.locator(".monaco-editor .view-lines").first()).toContainText("async function ingress(ctx: IngressContext)");
-	await expect(page.getByRole("textbox", { name: "Ingress code", exact: true })).toBeVisible();
+	await expect(page.locator(".monaco-editor .view-lines").first()).toContainText("async function POST(ctx: IngressContext)");
+	await expect(page.getByRole("textbox", { name: "Ingress code", exact: true })).toBeAttached();
 	await page.getByRole("tab", { name: "Processing", exact: true }).click();
 	await expect(page.locator(".monaco-editor .view-lines").first()).toContainText("async function processEvent(ctx: ProcessingContext)");
-	await expect(page.getByRole("textbox", { name: "Processing code", exact: true })).toBeVisible();
+	await expect(page.getByRole("textbox", { name: "Processing code", exact: true })).toBeAttached();
 	await expect(page.getByRole("textbox", { name: "Ingress code", exact: true })).toHaveCount(0);
 });
 
 test("U75 copied template remains editable and leaves future copies unchanged", async ({ page }) => {
 	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
-	const { unverifiedTemplate } = await import("../../packages/script-sdk/src/templates/unverified.ts");
+	const { unverifiedHttpTemplate } = await import("../../packages/script-sdk/src/templates/unverified.ts");
 	await ensureBrowserOwner(page);
 	const headers = commandHeaders();
 	const me = await (await page.request.get("/api/v1/me")).json();
@@ -235,19 +235,19 @@ test("U75 copied template remains editable and leaves future copies unchanged", 
 	const code = page.getByRole("textbox", { name: "Ingress code", exact: true });
 	await code.focus();
 	await page.keyboard.press("ControlOrMeta+A");
-	await page.keyboard.insertText('return ctx.respondOnly({status:200,body:"my custom copy"});');
+	await page.keyboard.insertText('export async function POST(ctx: IngressContext): Promise<IngressDecision> { return ctx.respondOnly({status:200,body:"my custom copy"}); }');
 	await page.getByRole("button", { name: "Save draft", exact: true }).click();
 	await expect(page.getByText("Draft saved · Not published", { exact: true })).toBeVisible();
 	const saved = await (await page.request.get("/api/v1/endpoints/" + first.id + "/drafts/ingress")).json();
 	expect(saved.body).toContain("my custom copy");
-	expect(saved.body).not.toBe(unverifiedTemplate.body);
+	expect(saved.body).not.toBe(unverifiedHttpTemplate.source);
 	await page.goto("/projects/" + project.id + "/routes/" + second.id);
 	await page.getByLabel("Ingress template").selectOption("unverified");
-	await expect(page.getByRole("textbox", { name: "Ingress code", exact: true })).toBeVisible();
+	await expect(page.getByRole("textbox", { name: "Ingress code", exact: true })).toBeAttached();
 	await page.getByRole("button", { name: "Save draft", exact: true }).click();
 	await expect(page.getByText("Draft saved · Not published", { exact: true })).toBeVisible();
 	const another = await (await page.request.get("/api/v1/endpoints/" + second.id + "/drafts/ingress")).json();
-	expect(another.body.replace(/\s/g, ""), "New template copies must preserve source while applying project formatting").toBe(unverifiedTemplate.body.replace(/\s/g, ""));
+	expect(another.body.replace(/\s/g, ""), "New template copies must preserve source while applying project formatting").toBe(unverifiedHttpTemplate.source.replace(/\s/g, ""));
 });
 
 test("U265 route editor binds an encrypted signing secret version", async ({ page }) => {
@@ -260,7 +260,7 @@ test("U265 route editor binds an encrypted signing secret version", async ({ pag
 	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Signed route", slug: "signed" } })).json();
 	await page.goto("/projects/" + project.id + "/routes/" + route.id);
 	await page.getByLabel("Ingress template").selectOption("hmac");
-	await page.getByRole("button", { name: "Helpers and secrets", exact: true }).click();
+	await page.getByRole("row", { name: "Secrets", exact: true }).click();
 	await expect(page.getByRole("button", { name: "Create a secret version", exact: true }), "Secret version controls must be available").toBeVisible();
 	await page.getByRole("button", { name: "Create a secret version", exact: true }).click();
 	await page.getByLabel("Secret name").fill("Signing key");
@@ -299,7 +299,7 @@ test("U116 event inspector displays HTML payload as escaped text", async ({ page
 	}
 
 	await page.goto("/projects/" + project.id + "/events");
-	await expect(page.getByRole("table", { name: "Stored events" }), "Event inspection screen must exist").toBeVisible();
+	await expect(page.getByRole("grid", { name: "Stored events" }), "Event inspection screen must exist").toBeVisible();
 	await page.getByRole("button", { name: /Inspect event/ }).click();
 	await expect(page.getByLabel("Original request body")).toHaveText(body);
 	await expect(page.getByLabel("Accepted event body")).toHaveText(body);
@@ -338,7 +338,7 @@ test("U275 stored event appears through authenticated live updates", async ({ pa
 		await pool.end();
 	}
 
-	await expect(page.getByRole("table", { name: "Stored events" }), "Committed events must appear without manual refresh").toBeVisible({ timeout: 6000 });
+	await expect(page.getByRole("grid", { name: "Stored events" }), "Committed events must appear without manual refresh").toBeVisible({ timeout: 6000 });
 	await expect(page.getByRole("button", { name: /Inspect event/ })).toHaveCount(1);
 });
 
@@ -388,7 +388,7 @@ test("U292 project code page creates helper version and processing middleware", 
 	expect(bindings[0].stage).toBe("processing");
 });
 
-test("U83 route editor binds helper version and shows generated imports above body", async ({ page }) => {
+test("U83 route editor binds helper version and supports editable file imports", async ({ page }) => {
 	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
 	const headers = commandHeaders();
@@ -400,21 +400,27 @@ test("U83 route editor binds helper version and shows generated imports above bo
 	expect(created.status()).toBe(200);
 	const helper = await created.json();
 	await page.goto("/projects/" + project.id + "/routes/" + route.id);
-	await page.getByRole("button", { name: "Helpers and secrets", exact: true }).click();
+	await page.getByRole("row", { name: "Helper imports", exact: true }).click();
 	await expect(page.getByLabel("Shared helper version"), "Shared helper controls must exist").toBeVisible();
 	await page.getByLabel("Shared helper version").selectOption(helper.id);
 	await page.getByRole("button", { name: "Add import", exact: true }).click();
-	await expect(page.locator(".monaco-editor .view-lines").first()).toContainText('import * as Helpers from "@shared/Helpers";');
+	await expect(page.getByRole("grid", { name: "Helper imports" })).toContainText('import * as Helpers from "@shared/Helpers";');
+	await page.getByRole("row", { name: "Scripts", exact: true }).click();
 	const code = page.getByRole("textbox", { name: "Ingress code", exact: true });
 	await code.focus();
 	await page.keyboard.press("ControlOrMeta+A");
-	await page.keyboard.insertText("return ctx.respondOnly({status:200,body:Helpers.message()});");
+	await page.keyboard.insertText('import * as Helpers from "@shared/Helpers";\nexport async function POST(ctx: IngressContext): Promise<IngressDecision> { return ctx.respondOnly({status:200,body:Helpers.message()}); }\nexport async function GET(ctx: IngressContext): Promise<IngressDecision> { return ctx.respondOnly({status:200,body:"ready"}); }');
 	await page.getByRole("button", { name: "Publish both stages", exact: true }).click();
 	await expect(page.getByRole("alertdialog", { name: "Script status", exact: true })).toContainText("Published", { timeout: 20000 });
 	const endpoint = await (await page.request.get("/api/v1/endpoints/" + route.id)).json();
 	const response = await page.request.post(endpoint.ingressUrl, { data: "fixture" });
 	expect(response.status()).toBe(200);
 	expect(await response.text()).toBe("from shared helper");
+	await page.getByRole("row", { name: "Playground", exact: true }).click();
+	await page.getByLabel("HTTP method", { exact: true }).selectOption("GET");
+	await page.getByRole("button", { name: "Send request", exact: true }).click();
+	await expect(page.getByText("HTTP 200", { exact: true })).toBeVisible();
+	await expect(page.getByText("ready", { exact: true })).toBeVisible();
 });
 
 test("U293 project navigation opens scoped code management", async ({ page }) => {
@@ -440,7 +446,7 @@ test("U296 project member navigation uses project scope", async ({ page }) => {
 	await page.goto("/projects/" + project.id);
 	await page.getByRole("row", { name: "Project members", exact: true }).click();
 	await expect(page.getByRole("heading", { name: "Project members", exact: true }), "Project member page must exist").toBeVisible();
-	await expect(page.getByRole("heading", { name: "Browser owner", exact: true })).toBeVisible();
+	await expect(page.getByRole("rowheader", { name: /Browser owner/ })).toBeVisible();
 	await expect(page.getByRole("heading", { name: "Instance members", exact: true })).toHaveCount(0);
 	await page.getByRole("link", { name: "Back to project", exact: true }).click();
 	await expect(page.getByRole("heading", { name: "Member project", exact: true })).toBeVisible();
@@ -455,10 +461,10 @@ test("U299 action feedback appears in toasts instead of inline boxes", async ({ 
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Toast project", slug: "toast-project" } })).json();
 	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Toast route", slug: "toast-route" } })).json();
 	await page.goto("/projects/" + project.id + "/routes/" + route.id);
-	await page.getByRole("button", { name: "Save draft", exact: true }).click();
-	await expect(page.getByRole("alertdialog", { name: "Script status", exact: true }), "Save success must use a toast").toBeVisible();
+	await page.getByRole("button", { name: "Pause delivery", exact: true }).click();
+	await expect(page.getByRole("alertdialog", { name: "Script status", exact: true }), "Completed delivery commands use a toast").toBeVisible();
 	await expect(page.locator("main").getByRole("status", { name: "Script status" })).toHaveCount(0);
-	await page.getByRole("button", { name: "Save draft", exact: true }).click();
+	await page.getByRole("button", { name: "Resume delivery", exact: true }).click();
 	await expect(page.getByRole("alertdialog", { name: "Script status", exact: true })).toHaveCount(1);
 });
 
@@ -471,16 +477,15 @@ test("U300 route editor tests unsaved ingress with synthetic fixture", async ({ 
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Test project", slug: "test-project" } })).json();
 	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Test route", slug: "test-route" } })).json();
 	await page.goto("/projects/" + project.id + "/routes/" + route.id);
-	await page.getByRole("button", { name: "Test this script", exact: true }).click();
-	await expect(page.getByRole("button", { name: "Test ingress (dry)", exact: true }), "Route editor synthetic test must exist").toBeVisible();
 	const code = page.getByRole("textbox", { name: "Ingress code", exact: true });
 	await code.focus();
 	await page.keyboard.press("ControlOrMeta+A");
-	await page.keyboard.insertText('return ctx.respondOnly({status:200,body:"synthetic:"+new TextDecoder().decode(ctx.request.body)});');
+	await page.keyboard.insertText('export async function POST(ctx: IngressContext): Promise<IngressDecision> { return ctx.respondOnly({status:200,body:"synthetic:"+new TextDecoder().decode(ctx.request.body)}); }');
+	await page.getByRole("row", { name: "Script test", exact: true }).click();
 	await page.getByLabel("Synthetic request body", { exact: true }).fill("hello");
 	await page.getByRole("button", { name: "Test ingress (dry)", exact: true }).click();
 	await expect(page.getByLabel("Synthetic test result", { exact: true })).toContainText("synthetic:hello", { timeout: 20000 });
-	await expect(page.locator('[data-slot="toast"]').filter({ hasText: "Synthetic test completed" })).toBeVisible();
+	await expect(page.locator('[data-slot="toast"]').filter({ hasText: "Synthetic test completed" })).toHaveCount(0);
 	const saved = await (await page.request.get("/api/v1/endpoints/" + route.id + "/drafts/ingress")).json();
 	expect(saved.version).toBe(1);
 	expect(saved.body).not.toContain("synthetic:");
@@ -505,7 +510,7 @@ test("U301 code scope picker navigates workspace and project", async ({ page }) 
 	await expect(page.getByRole("button", { name: "Create helper", exact: true })).toBeVisible();
 });
 
-test("U302 repeated saves show fresh dismissible toast feedback", async ({ page }) => {
+test("U302 repeated saves retain a clear saved state without redundant toasts", async ({ page }) => {
 	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
 	const headers = commandHeaders();
@@ -515,13 +520,10 @@ test("U302 repeated saves show fresh dismissible toast feedback", async ({ page 
 	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Repeat route", slug: "repeat-route" } })).json();
 	await page.goto("/projects/" + project.id + "/routes/" + route.id);
 	await page.getByRole("button", { name: "Save draft", exact: true }).click();
-	const toast = page.getByRole("alertdialog", { name: "Script status", exact: true });
-	await expect(toast).toContainText("Draft saved");
-	await toast.hover();
-	await toast.getByRole("button", { name: "Close", exact: true }).click();
-	await expect(toast).toHaveCount(0);
+	await expect(page.getByText("Draft saved · Not published", { exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "Save draft", exact: true }).click();
-	await expect(toast, "Repeated saves must show fresh toast feedback").toContainText("Draft saved");
+	await expect(page.getByText("Draft saved · Not published", { exact: true })).toBeVisible();
+	await expect(page.getByRole("alertdialog", { name: "Script status", exact: true })).toHaveCount(0);
 });
 
 test("U131 inherited middleware shows provenance and copies a local override", async ({ page }) => {
@@ -587,12 +589,12 @@ test("U305 project dashboard configures explicit route failure notifications", a
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Rules project", slug: "rules-project" } })).json();
 	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Stripe route", slug: "stripe" } })).json();
 	await page.goto("/projects/" + project.id);
-	await expect(page.getByRole("link", { name: "Notification rules", exact: true }), "Project notification configuration must be discoverable").toBeVisible();
-	await page.getByRole("button", { name: "Project notifications", exact: true }).click();
-	await expect(page.getByRole("heading", { name: "Project notifications", exact: true })).toBeVisible();
+	await expect(page.getByRole("row", { name: "Notification rules", exact: true }), "Project notification configuration must be discoverable").toBeVisible();
+	await page.getByRole("button", { name: "Notifications", exact: true }).click();
+	await expect(page.getByRole("heading", { name: "Notifications", exact: true })).toBeVisible();
 	await expect(page.getByText("No active notifications.", { exact: true })).toBeVisible();
 	await page.keyboard.press("Escape");
-	await page.getByRole("link", { name: "Notification rules", exact: true }).click();
+	await page.getByRole("row", { name: "Notification rules", exact: true }).click();
 	await expect(page.getByRole("heading", { name: "No failure notification rules", exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "Create notification rule", exact: true }).click();
 	const enabled = page.getByRole("checkbox", { name: "Enable failure notifications", exact: true });
@@ -639,4 +641,95 @@ test("U307 route editor pauses and resumes delivery with versioned commands", as
 	stored = await (await page.request.get("/api/v1/endpoints/" + route.id)).json();
 	expect(stored.paused).toBe(false);
 	expect(stored.version).toBe(3);
+});
+
+test("account registers a passkey, signs in with it and removes it", async ({ page, context }) => {
+	const { ensureBrowserOwner } = await import("../helpers/browser-auth.ts");
+	await ensureBrowserOwner(page);
+	const client = await context.newCDPSession(page);
+	await client.send("WebAuthn.enable");
+	await client.send("WebAuthn.addVirtualAuthenticator", {
+		options: {
+			protocol: "ctap2",
+			transport: "internal",
+			hasResidentKey: true,
+			hasUserVerification: true,
+			isUserVerified: true,
+			automaticPresenceSimulation: true,
+		},
+	});
+	await page.goto("/account");
+	await page.getByLabel("Passkey name").fill("Review device");
+	await page.getByRole("button", { name: "Add passkey", exact: true }).click();
+	await expect(page.getByRole("grid", { name: "Your passkeys" })).toContainText("Review device");
+	await page.getByRole("button", { name: "Account menu" }).click();
+	await page.getByRole("menuitem", { name: "Sign out", exact: true }).click();
+	await expect(page).toHaveURL(/\/login$/);
+	await page.getByRole("button", { name: "Sign in with a passkey", exact: true }).click();
+	await expect(page).toHaveURL(/\/$/);
+	await page.goto("/account");
+	await page.getByRole("button", { name: "Remove passkey Review device", exact: true }).click();
+	await expect(page.getByText("No passkeys registered yet.", { exact: true })).toBeVisible();
+});
+
+test("project invitations remain pending until the recipient signs in and accepts", async ({ page, context }) => {
+	const { ensureBrowserOwner, signInBrowser, commandHeaders } = await import("../helpers/browser-auth.ts");
+	await ensureBrowserOwner(page);
+	const me = await (await page.request.get("/api/v1/me")).json();
+	const headers = commandHeaders();
+	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: me.instanceId, name: "Invitation workspace", slug: "invitation-workspace" } })).json();
+	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Invited project", slug: "invited-project" } })).json();
+	await page.goto("/projects/" + project.id + "/members");
+	await page.getByRole("button", { name: "Invite someone", exact: true }).click();
+	await page.getByLabel("Email address").fill("invited-reviewer@example.test");
+	await page.getByRole("button", { name: "Send invitation", exact: true }).click();
+	await expect(page.getByRole("grid", { name: "Pending invitations" })).toContainText("invited-reviewer@example.test");
+	let invitationUrl = "";
+	await expect
+		.poll(async () => {
+			const rows = await (await page.request.get(process.env.PAB_TEST_MAIL_URL + "/api/v1/messages")).json();
+			for (const item of rows.messages) {
+				if (item.Subject !== "You're invited to Payload Bay") continue;
+				const message = await (await page.request.get(process.env.PAB_TEST_MAIL_URL + "/api/v1/message/" + item.ID)).json();
+				invitationUrl = message.Text.match(/https?:\/\/[^\s]+\/invitations\/[A-Za-z0-9_-]+/)?.[0] ?? "";
+			}
+
+			return Boolean(invitationUrl);
+		})
+		.toBe(true);
+	await context.clearCookies();
+	await page.goto(invitationUrl);
+	await expect(page.getByLabel("Email address")).toHaveValue("invited-reviewer@example.test");
+	await signInBrowser(page, "invited-reviewer@example.test");
+	await page.goto(invitationUrl);
+	await page.getByRole("button", { name: "Accept invitation", exact: true }).click();
+	await expect(page).toHaveURL(new RegExp("/projects/" + project.id + "$"));
+	const invited = await (await page.request.get("/api/v1/me")).json();
+	expect(invited.permissions).toEqual([]);
+	const visible = await (await page.request.get("/api/v1/projects")).json();
+	expect(visible.map((item: { id: string }) => item.id)).toEqual([project.id]);
+});
+
+test("workspace notification rules and personal email preferences use separate controls", async ({ page }) => {
+	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
+	await ensureBrowserOwner(page);
+	const me = await (await page.request.get("/api/v1/me")).json();
+	const workspace = await (await page.request.post("/api/v1/workspaces", { headers: commandHeaders(), data: { parentId: me.instanceId, name: "Alert workspace", slug: "alert-workspace" } })).json();
+	await page.goto("/workspaces/" + workspace.id + "/notifications");
+	await page.getByRole("button", { name: "Create notification rule", exact: true }).click();
+	await expect(page.getByLabel("Rule ingress route", { exact: true })).toHaveCount(0);
+	await page.getByText("Enable failure notifications", { exact: true }).click();
+	await page.getByRole("button", { name: "Save notification rule", exact: true }).click();
+	await expect(page.getByRole("alertdialog", { name: "Notification rule status" })).toBeVisible();
+	const rules = await (await page.request.get("/api/v1/workspaces/" + workspace.id + "/notification-rules")).json();
+	expect(rules).toHaveLength(1);
+	expect(rules[0].workspaceId).toBe(workspace.id);
+	expect(rules[0].projectId).toBeNull();
+	await page.goto("/account/notifications");
+	const email = page.getByRole("switch", { name: "Email alerts for Alert workspace: 1 failure in 60 seconds", exact: true });
+	await expect(email).not.toBeChecked();
+	await email.press("Space");
+	await expect(email).toBeChecked();
+	const preferences = await (await page.request.get("/api/v1/workspaces/" + workspace.id + "/notification-subscriptions")).json();
+	expect(preferences[0].smtpEnabled).toBe(true);
 });

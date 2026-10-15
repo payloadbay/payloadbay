@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import type { Actor } from "./authorization.ts";
+import { listResources } from "./resources.ts";
 import { requirePermission } from "./membership.ts";
 import { z } from "zod";
 import { pageQuery } from "../../contracts/src/api.ts";
@@ -22,20 +23,25 @@ export async function listEvents(
 	pool: Pool,
 	actor: Actor,
 	input: {
-		projectId: string;
+		projectId?: string;
+		workspaceId?: string;
+		state?: string;
 		endpointId?: string;
 		limit?: number;
 		cursor?: string;
 	},
 ) {
-	await requirePermission(pool, actor, { type: "project", id: input.projectId }, "metadata.read");
+	if (input.projectId) await requirePermission(pool, actor, { type: "project", id: input.projectId }, "metadata.read");
+	const projectIds = input.projectId ? [input.projectId] : (await listResources(pool, actor, "project", input.workspaceId)).map((project) => project.id);
+	if (!projectIds.length) return { items: [], nextCursor: null };
+	if (input.state && !["queued", "running", "retry_wait", "succeeded", "failed_terminal"].includes(input.state)) throw new AppError("invalid_state", 400, "Choose a valid processing state");
 	const parsed = pageQuery.safeParse({ limit: input.limit, cursor: input.cursor });
 	if (!parsed.success) throw new AppError("invalid_pagination", 400, "Choose a list limit from 1 to 200");
 	const after = cursor(parsed.data.cursor);
 	const rows = (
 		await pool.query(
-			`SELECT e.id,e.endpoint_id,e.publication_id,e.received_at,octet_length(e.original_body) AS body_bytes,ep.name AS endpoint_name,latest.id AS execution_id,latest.state,latest.attempt_number,(SELECT count(*)::int FROM payloadbay.delivery_attempt a WHERE a.execution_id=latest.id) AS delivery_attempts,to_char(e.received_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at FROM payloadbay.event e JOIN payloadbay.endpoint ep ON ep.id=e.endpoint_id LEFT JOIN LATERAL(SELECT x.id,x.state,x.attempt_number FROM payloadbay.execution x WHERE x.event_id=e.id ORDER BY x.created_at DESC,x.id DESC LIMIT 1)latest ON true WHERE ep.project_id=$1 AND ($2::uuid IS NULL OR e.endpoint_id=$2) AND ($3::timestamptz IS NULL OR (e.received_at,e.id)<($3::timestamptz,$4::uuid)) ORDER BY e.received_at DESC,e.id DESC LIMIT $5`,
-			[input.projectId, input.endpointId ?? null, after?.at ?? null, after?.id ?? null, parsed.data.limit + 1],
+			`SELECT e.id,ep.project_id,e.endpoint_id,e.publication_id,e.received_at,octet_length(e.original_body) AS body_bytes,ep.name AS endpoint_name,latest.id AS execution_id,latest.state,latest.attempt_number,(SELECT count(*)::int FROM payloadbay.delivery_attempt a WHERE a.execution_id=latest.id) AS delivery_attempts,to_char(e.received_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at FROM payloadbay.event e JOIN payloadbay.endpoint ep ON ep.id=e.endpoint_id LEFT JOIN LATERAL(SELECT x.id,x.state,x.attempt_number FROM payloadbay.execution x WHERE x.event_id=e.id ORDER BY x.created_at DESC,x.id DESC LIMIT 1)latest ON true WHERE ep.project_id=ANY($1::uuid[]) AND ($2::uuid IS NULL OR e.endpoint_id=$2) AND ($3::timestamptz IS NULL OR (e.received_at,e.id)<($3::timestamptz,$4::uuid)) AND ($6::text IS NULL OR latest.state=$6) ORDER BY e.received_at DESC,e.id DESC LIMIT $5`,
+			[projectIds, input.endpointId ?? null, after?.at ?? null, after?.id ?? null, parsed.data.limit + 1, input.state ?? null],
 		)
 	).rows;
 	const hasMore = rows.length > parsed.data.limit;
@@ -45,6 +51,7 @@ export async function listEvents(
 	return {
 		items: selected.map((row) => ({
 			id: row.id,
+			projectId: row.project_id,
 			endpointId: row.endpoint_id,
 			endpointName: row.endpoint_name,
 			publicationId: row.publication_id,

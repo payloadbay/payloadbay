@@ -14,6 +14,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ proj
 		const parsed = pageQuery.safeParse({ limit: query.get("limit") ?? undefined, cursor: query.get("cursor") ?? undefined });
 		if (!parsed.success) throw new AppError("invalid_pagination", 400, "Choose a list limit from 1 to 200");
 
-		return listEvents(pool, actor, { projectId: uuid((await params).projectId), ...parsed.data, ...(query.get("endpointId") ? { endpointId: uuid(query.get("endpointId")!) } : {}) });
+		return listEvents(pool, actor, {
+			projectId: uuid((await params).projectId),
+			...parsed.data,
+			...(query.get("state") ? { state: query.get("state")! } : {}),
+			...(query.get("endpointId") ? { endpointId: uuid(query.get("endpointId")!) } : {}),
+		});
 	});
 }

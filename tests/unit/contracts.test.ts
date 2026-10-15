@@ -249,6 +249,8 @@ test("U319 base URL follows Clipify Coolify runtime precedence", () => {
 		COOLIFY_RESOURCE_UUID: "preview-resource",
 	};
 	expect(new URL(readServerConfig(env).publicUrl).origin).toBe("https://13.preview.example.test");
+	expect(readServerConfig(env).publicUrl).toBe("https://13.preview.example.test");
+	expect(new URL(readServerConfig(serverEnv).publicUrl + "/api/auth/get-session").pathname).toBe("/api/auth/get-session");
 	expect(new URL(readServerConfig({ ...env, COOLIFY_RESOURCE_UUID: "", COOLIFY_URL: "" }).publicUrl).origin).toBe("https://stale.example.test");
 	expect(new URL(readServerConfig({ ...serverEnv, PUBLIC_URL: "localhost:4000" }).publicUrl).origin).toBe("http://localhost:4000");
 	expect(new URL(readServerConfig({ ...serverEnv, PUBLIC_URL: undefined, COOLIFY_URL: "preview.example.test:3000" }).publicUrl).origin).toBe("https://preview.example.test");

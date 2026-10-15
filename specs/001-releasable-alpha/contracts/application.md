@@ -44,3 +44,23 @@ Generated OpenAPI agrees with actual schemas/routes and Scalar executes local to
 ## Notification API design extension
 
 /api/v1/notifications provides authorized cursor list/detail and per-user read/dismiss. Project rule routes configure opt-in count/window/signal/severity and eligible SMTP subscriptions with optimistic version checks. No rule creation or email subscription is implicit. notification.changed SSE carries authorized incident references/redacted metadata. Instance notices never leak to project-only users. Producer schemas are server-only, registered/versioned and validated; notification inbox components never poll environment flags as a parallel condition system. See proposals/notification-inbox.md.
+
+
+## Dashboard review additions — 2026-10-15
+
+- GET `/api/v1/events`: aggregate authorized project events, optional workspace,
+  project, endpoint and processing-state filters. SSE `scopeType=accessible`
+  follows authorized changes without requiring instance-wide resource grants.
+- GET/POST `/api/v1/invitations`: permission-gated pending invitations by scope;
+  selected role/custom grants remain pending. DELETE `/invitations/{id}` cancels.
+  GET `/invitations/token/{token}` returns only that unguessable invitation;
+  POST `/invitations/accept` requires its matching verified signed-in recipient.
+- Workspace notification-rule and notification-subscription routes mirror project
+  routes under `/api/v1/workspaces/{workspaceId}`. Workspace-wide rules reject
+  route/destination targets. Subscription PUT remains per authenticated recipient.
+- Better Auth's official passkey plugin owns registration, verification, listing
+  and removal under `/api/auth/passkey/*`. Application authorization remains
+  independent; session creation requires active instance admission after setup.
+- Member GET at instance scope lists active admitted identities. Workspace/project
+  lists include direct and inherited grants. Editing a local grant cannot remove
+  inherited access, and membership versions still protect concurrent changes.

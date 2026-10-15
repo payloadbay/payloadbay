@@ -4,10 +4,11 @@ import { useFeedbackToast } from "@lib/feedback";
 import { use, useEffect, useCallback, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button, Card, Form, TextField, Label, Input, FieldError, Tabs } from "@heroui/react";
-import { EmptyState, Sheet } from "@heroui-pro/react";
+import { Button, Card, Form, TextField, Label, Input, FieldError, Tabs, NumberField, Checkbox } from "@heroui/react";
+import { EmptyState, Sheet, NativeSelect } from "@heroui-pro/react";
 import { IconCode, IconPlus, IconCopy, IconLock, IconArrowLeft, IconCheck } from "@tabler/icons-react";
 import { formatScript } from "@lib/script-document";
+import { useUnsavedChanges } from "@components/unsaved-changes";
 import { ScriptingGuide } from "@components/scripting-guide";
 import { CodeEditor } from "@components/code-editor";
 import { api, ApiFailure } from "@lib/api-client";
@@ -90,6 +91,20 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 	const [origin, setOrigin] = useState<string | null>(null);
 	const [sharedBindings, setSharedBindings] = useState<Record<string, string>>({});
 	const [secretBindings, setSecretBindings] = useState<Record<string, string>>({});
+	const [savedEditor, setSavedEditor] = useState("");
+
+	const editorSnapshot = JSON.stringify({
+		name,
+		body,
+		stage,
+		position,
+		failure,
+		override,
+		action,
+		enabled,
+	});
+
+	const { dialog: unsavedDialog, confirmDiscard } = useUnsavedChanges(open && Boolean(savedEditor) && editorSnapshot !== savedEditor);
 
 	useFeedbackToast(error, notice, { error: "Code error", success: "Code status" });
 
@@ -159,6 +174,18 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 		setEnabled(true);
 		setDiagnostics([]);
 		setError("");
+		setSavedEditor(
+			JSON.stringify({
+				name: "",
+				body: tab === "modules" ? "export function example(value: string) {\n  return value;\n}" : "return ctx.continue();",
+				stage: "processing",
+				position: "0",
+				failure: "required",
+				override: "allowed",
+				action: "retry",
+				enabled: true,
+			}),
+		);
 		setOpen(true);
 	}
 
@@ -169,6 +196,18 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 			setEditingBinding(null);
 			setName(full.name);
 			setBody(full.source);
+			setSavedEditor(
+				JSON.stringify({
+					name: full.name,
+					body: full.source,
+					stage,
+					position,
+					failure,
+					override,
+					action,
+					enabled,
+				}),
+			);
 			setDiagnostics([]);
 			setError("");
 			setOpen(true);
@@ -207,6 +246,18 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 			setOverride(full.overridePolicy);
 			setAction(full.requiredAction);
 			setEnabled(full.enabled);
+			setSavedEditor(
+				JSON.stringify({
+					name: full.name,
+					body: full.body,
+					stage: full.stage,
+					position: String(full.position),
+					failure: full.failurePolicy,
+					override: full.overridePolicy,
+					action: full.requiredAction,
+					enabled: full.enabled,
+				}),
+			);
 			setDiagnostics([]);
 			setError("");
 			setOpen(true);
@@ -275,6 +326,7 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 
 	return (
 		<section className='flex flex-col gap-6'>
+			{unsavedDialog}
 			<header className='flex flex-wrap items-start justify-between gap-4'>
 				<div>
 					<Link href='/' className='text-accent mb-3 flex items-center gap-2 text-sm'>
@@ -293,9 +345,9 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 				)}
 			</header>
 
-			<label className='flex max-w-lg flex-col gap-2 text-sm'>
-				Code scope
-				<select
+			<NativeSelect className='max-w-lg' fullWidth>
+				<Label>Code scope</Label>
+				<NativeSelect.Trigger
 					aria-label='Code scope'
 					value={scopeType + ":" + scopeId}
 					onChange={(event) => {
@@ -308,16 +360,16 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 						setError("");
 						router.push("/code/" + type + "/" + id);
 					}}
-					className='border-border bg-field rounded-lg border p-3'
 				>
-					{scopeType === "endpoint" && <option value={"endpoint:" + scopeId}>Ingress route · {endpointScope?.name}</option>}
+					{scopeType === "endpoint" && <NativeSelect.Option value={"endpoint:" + scopeId}>Ingress route · {endpointScope?.name}</NativeSelect.Option>}
 					{scopes.map((scope) => (
-						<option key={scope.type + ":" + scope.id} value={scope.type + ":" + scope.id}>
+						<NativeSelect.Option key={scope.type + ":" + scope.id} value={scope.type + ":" + scope.id}>
 							{scope.type} · {scope.name}
-						</option>
+						</NativeSelect.Option>
 					))}
-				</select>
-			</label>
+					<NativeSelect.Indicator />
+				</NativeSelect.Trigger>
+			</NativeSelect>
 			<Tabs selectedKey={tab} onSelectionChange={(key) => setTab(key as "modules" | "middleware")}>
 				<Tabs.List aria-label='Code category'>
 					{scopeType !== "endpoint" && (
@@ -415,7 +467,10 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 			<Sheet
 				isOpen={open}
 				onOpenChange={(next) => {
-					if (!busy) setOpen(next);
+					if (!busy) {
+						if (next) setOpen(true);
+						else confirmDiscard(() => setOpen(false));
+					}
 				}}
 			>
 				<Sheet.Backdrop>
@@ -439,47 +494,60 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 									</TextField>
 									{tab === "middleware" && (
 										<>
-											<label className='flex flex-col gap-2 text-sm'>
-												Stage
-												<select aria-label='Middleware stage' value={stage} onChange={(event) => setStage(event.target.value as typeof stage)} disabled={busy || Boolean(editingBinding)} className='border-border bg-field rounded-lg border p-2'>
-													<option value='ingress'>Ingress</option>
-													<option value='processing'>Processing</option>
-												</select>
-											</label>
-											<label className='flex flex-col gap-2 text-sm'>
-												Position
-												<input aria-label='Middleware position' type='number' min={0} max={10000} value={position} onChange={(event) => setPosition(event.target.value)} className='border-border bg-field rounded-lg border p-2' />
-											</label>
+											<NativeSelect variant='secondary' fullWidth>
+												<Label>Stage</Label>
+												<NativeSelect.Trigger aria-label='Middleware stage' value={stage} onChange={(event) => setStage(event.target.value as typeof stage)} disabled={busy || Boolean(editingBinding)}>
+													<NativeSelect.Option value='ingress'>Ingress</NativeSelect.Option>
+													<NativeSelect.Option value='processing'>Processing</NativeSelect.Option>
+													<NativeSelect.Indicator />
+												</NativeSelect.Trigger>
+											</NativeSelect>
+											<NumberField variant='secondary' value={Number(position)} onChange={(value) => setPosition(String(value))} minValue={0} maxValue={10000}>
+												<Label>Position</Label>
+												<NumberField.Group>
+													<NumberField.DecrementButton />
+													<NumberField.Input aria-label='Middleware position' />
+													<NumberField.IncrementButton />
+												</NumberField.Group>
+												<FieldError />
+											</NumberField>
 											<div className='grid gap-3 sm:grid-cols-2'>
-												<label className='flex flex-col gap-2 text-sm'>
-													Failure behavior
-													<select aria-label='Middleware failure behavior' value={failure} onChange={(event) => setFailure(event.target.value as typeof failure)} className='border-border bg-field rounded-lg border p-2'>
-														<option value='required'>Required</option>
-														<option value='optional'>Optional</option>
-													</select>
-												</label>
-												<label className='flex flex-col gap-2 text-sm'>
-													Child overrides
-													<select aria-label='Middleware child overrides' value={override} onChange={(event) => setOverride(event.target.value as typeof override)} className='border-border bg-field rounded-lg border p-2'>
-														<option value='allowed'>Allowed</option>
-														<option value='forbidden'>Locked</option>
-													</select>
-												</label>
+												<NativeSelect variant='secondary' fullWidth>
+													<Label>Failure behavior</Label>
+													<NativeSelect.Trigger aria-label='Middleware failure behavior' value={failure} onChange={(event) => setFailure(event.target.value as typeof failure)}>
+														<NativeSelect.Option value='required'>Required</NativeSelect.Option>
+														<NativeSelect.Option value='optional'>Optional</NativeSelect.Option>
+														<NativeSelect.Indicator />
+													</NativeSelect.Trigger>
+												</NativeSelect>
+												<NativeSelect variant='secondary' fullWidth>
+													<Label>Child overrides</Label>
+													<NativeSelect.Trigger aria-label='Middleware child overrides' value={override} onChange={(event) => setOverride(event.target.value as typeof override)}>
+														<NativeSelect.Option value='allowed'>Allowed</NativeSelect.Option>
+														<NativeSelect.Option value='forbidden'>Locked</NativeSelect.Option>
+														<NativeSelect.Indicator />
+													</NativeSelect.Trigger>
+												</NativeSelect>
 											</div>
 											{stage === "processing" && failure === "required" && (
-												<label className='flex flex-col gap-2 text-sm'>
-													Required failure outcome
-													<select aria-label='Middleware required failure outcome' value={action} onChange={(event) => setAction(event.target.value as typeof action)} className='border-border bg-field rounded-lg border p-2'>
-														<option value='retry'>Retry</option>
-														<option value='fail'>Terminal failure</option>
-													</select>
-												</label>
+												<NativeSelect variant='secondary' fullWidth>
+													<Label>Required failure outcome</Label>
+													<NativeSelect.Trigger aria-label='Middleware required failure outcome' value={action} onChange={(event) => setAction(event.target.value as typeof action)}>
+														<NativeSelect.Option value='retry'>Retry</NativeSelect.Option>
+														<NativeSelect.Option value='fail'>Terminal failure</NativeSelect.Option>
+														<NativeSelect.Indicator />
+													</NativeSelect.Trigger>
+												</NativeSelect>
 											)}
 											{editingBinding && (
-												<label className='flex items-center gap-2 text-sm'>
-													<input type='checkbox' checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />
-													Enabled for new publications
-												</label>
+												<Checkbox isSelected={enabled} onChange={setEnabled}>
+													<Checkbox.Content>
+														<Checkbox.Control>
+															<Checkbox.Indicator />
+														</Checkbox.Control>
+														<span>Enabled for new publications</span>
+													</Checkbox.Content>
+												</Checkbox>
 											)}
 										</>
 									)}

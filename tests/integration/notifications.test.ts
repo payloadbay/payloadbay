@@ -346,3 +346,47 @@ test("U316 continuous failure producer queues opted-in SMTP notifications", asyn
 		}
 	});
 });
+
+test("workspace rules aggregate descendant failures and keep subscriptions scoped", async () => {
+	const { createNotificationRule, evaluateFailureRules, listNotificationRules } = await import("../../packages/domain/src/notification-rules.ts");
+	const { setNotificationSubscription, listNotificationPreferences } = await import("../../packages/domain/src/notification-subscriptions.ts");
+	const { seedEvent } = await import("../helpers/domain-fixtures.ts");
+	await authFixture(async ({ pool, db }) => {
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','workspace',$1,'custom',ARRAY['notifications.read','notifications.rules.manage'])", [scope.workspace]);
+		const actor = { userId: "fixture-owner" };
+		const workspace = { type: "workspace" as const, id: scope.workspace };
+		const rule = await createNotificationRule(pool, actor, workspace, {
+			enabled: true,
+			count: 1,
+			windowSeconds: 60,
+			recoveryPolicy: "window",
+		});
+		assert.equal(rule.projectId, null);
+		assert.equal(rule.workspaceId, scope.workspace);
+		await assert.rejects(
+			createNotificationRule(pool, actor, workspace, {
+				enabled: true,
+				count: 1,
+				windowSeconds: 60,
+				endpointId: scope.endpoint,
+			}),
+			{ code: "invalid_rule_scope" },
+		);
+		const event = await seedEvent(db, scope);
+		const execution = (await db.query("INSERT INTO payloadbay.execution(event_id,endpoint_id,publication_id) VALUES($1,$2,$3) RETURNING id", [event, scope.endpoint, scope.publication])).rows[0].id;
+		await db.query("INSERT INTO payloadbay.managed_operation(execution_id,operation_id,input_digest,destination_snapshot,state,generation) VALUES($1,'primary','fixture','{}','failed',1)", [execution]);
+		await db.query("INSERT INTO payloadbay.delivery_attempt(execution_id,operation_id,execution_attempt,generation,ended_at,status_code) VALUES($1,'primary',1,1,clock_timestamp(),503)", [execution]);
+		const incidents = await evaluateFailureRules(pool);
+		assert.equal(incidents.length, 1);
+		assert.equal(incidents[0].scope_type, "workspace");
+		assert.equal(incidents[0].scope_id, scope.workspace);
+		await setNotificationSubscription(pool, actor, rule.id, { enabled: true });
+		assert.equal((await listNotificationPreferences(pool, actor, workspace))[0].smtpEnabled, true);
+		await db.query("DELETE FROM payloadbay.grant_record WHERE user_id='fixture-owner'");
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','project',$1,'custom',ARRAY['notifications.read','notifications.rules.manage'])", [scope.project]);
+		await assert.rejects(listNotificationRules(pool, actor, workspace), { code: "forbidden" });
+		await assert.rejects(setNotificationSubscription(pool, actor, rule.id, { enabled: true }), { code: "forbidden" });
+	});
+});

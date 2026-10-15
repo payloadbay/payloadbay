@@ -1,5 +1,6 @@
 "use client";
 
+import { authClient } from "@lib/auth-client";
 import { useFeedbackToast } from "@lib/feedback";
 import Link from "next/link";
 import Image from "next/image";
@@ -7,13 +8,20 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { Button, Card, Form, TextField, Label, Input, InputOTP, REGEXP_ONLY_DIGITS, Spinner, FieldError } from "@heroui/react";
 import { Stepper } from "@heroui-pro/react";
-import { IconMail, IconRefresh } from "@tabler/icons-react";
+import { IconMail, IconRefresh, IconFingerprint } from "@tabler/icons-react";
 import { api, ApiFailure } from "@lib/api-client";
 
-export function AuthPanel({ setup = false, preview = false }: { setup?: boolean; preview?: boolean }) {
+type AuthPanelProps = {
+	setup?: boolean;
+	preview?: boolean;
+	initialEmail?: string;
+	returnTo?: string;
+};
+
+export function AuthPanel({ setup = false, preview = false, initialEmail, returnTo = "/" }: AuthPanelProps) {
 	const router = useRouter();
 
-	const [email, setEmail] = useState(preview && !setup ? "reviewer@preview.payloadbay.test" : "");
+	const [email, setEmail] = useState(initialEmail ?? (preview && !setup ? "reviewer@preview.payloadbay.test" : ""));
 	const [name, setName] = useState("");
 	const [secret, setSecret] = useState("");
 	const [otp, setOtp] = useState("");
@@ -90,6 +98,21 @@ export function AuthPanel({ setup = false, preview = false }: { setup?: boolean;
 		setOtp("");
 	}
 
+	async function signInWithPasskey() {
+		setBusy(true);
+		setError("");
+		try {
+			const result = await authClient.signIn.passkey();
+			if (result.error) throw Error(result.error.message ?? "Passkey sign-in was not completed");
+			router.push(returnTo.startsWith("/") && !returnTo.startsWith("//") && !returnTo.includes("\\") ? returnTo : "/");
+			router.refresh();
+		} catch (cause) {
+			setError(cause instanceof Error ? cause.message : "Could not sign in with a passkey");
+		} finally {
+			setBusy(false);
+		}
+	}
+
 	async function submit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		setBusy(true);
@@ -111,7 +134,7 @@ export function AuthPanel({ setup = false, preview = false }: { setup?: boolean;
 			if (setup) await api("/bootstrap", { method: "POST", json: { action: "complete", secret } });
 			setSecret("");
 			setOtp("");
-			router.push("/");
+			router.push(returnTo.startsWith("/") && !returnTo.startsWith("//") && !returnTo.includes("\\") ? returnTo : "/");
 			router.refresh();
 		} catch (cause) {
 			setError(cause instanceof ApiFailure || cause instanceof Error ? cause.message : "Please try again.");
@@ -122,10 +145,10 @@ export function AuthPanel({ setup = false, preview = false }: { setup?: boolean;
 
 	return (
 		<main className='mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-6 px-5 py-10 sm:py-16'>
-			<Link href='/' className='mx-auto block' aria-label='Payload Bay home'>
-				<Image src='/brand/payloadbay-logo-dark-rounded.svg' alt='Payload Bay' width={240} height={53} priority />
-			</Link>
 			<Card className='w-full gap-6 p-6 sm:p-8'>
+				<Link href='/' className='mx-auto block' aria-label='Payload Bay home'>
+					<Image src='/brand/payloadbay-logo-transparent-padded.svg' alt='Payload Bay' width={240} height={53} priority />
+				</Link>
 				<Card.Header className='items-center gap-2 text-center'>
 					<h1 className='text-2xl font-semibold'>{sent ? "Check your email" : setup ? "Set up Payload Bay" : "Welcome back"}</h1>
 					<Card.Description>
@@ -202,7 +225,7 @@ export function AuthPanel({ setup = false, preview = false }: { setup?: boolean;
 							{sent && (
 								<div className='flex flex-col gap-2'>
 									<Label htmlFor='sign-in-code'>Sign-in code</Label>
-									<InputOTP id='sign-in-code' name='otp' aria-label='Sign-in code' value={otp} onChange={setOtp} maxLength={6} pattern={REGEXP_ONLY_DIGITS} variant='secondary' autoComplete='one-time-code' autoFocus isDisabled={busy} className='justify-center'>
+									<InputOTP id='sign-in-code' name='otp' aria-label='Sign-in code' value={otp} onChange={setOtp} maxLength={6} pasteTransformer={(text) => text.replace(/\D/g, "")} pattern={REGEXP_ONLY_DIGITS} variant='secondary' autoComplete='one-time-code' autoFocus isDisabled={busy} className='justify-center'>
 										<InputOTP.Group>
 											<InputOTP.Slot index={0} />
 											<InputOTP.Slot index={1} />
@@ -222,6 +245,12 @@ export function AuthPanel({ setup = false, preview = false }: { setup?: boolean;
 								{busy ? "Please wait…" : sent ? (setup ? "Create owner and continue" : "Sign in") : "Send sign-in code"}
 								{busy ? <Spinner size='sm' color='current' /> : !sent && <IconMail aria-hidden='true' size={18} />}
 							</Button>
+							{!setup && !sent && (
+								<Button variant='secondary' fullWidth onPress={() => void signInWithPasskey()} isDisabled={busy}>
+									<IconFingerprint size={18} />
+									Sign in with a passkey
+								</Button>
+							)}
 							{sent && (
 								<div className='flex justify-between gap-2'>
 									<Button

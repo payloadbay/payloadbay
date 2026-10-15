@@ -18,6 +18,10 @@ export function mailTask(pool: Pool, config: ServerConfig) {
 		let message: { email: string; subject: string; text: string } | null;
 		if (job.kind === "notification_mail") {
 			message = await notificationMailMessage(pool, job.id, config);
+		} else if (job.kind === "invitation_mail") {
+			const data = decryptPrivate<{ email: string; invitationId: string; url: string }>(job.encrypted_payload, config.encryptionKey);
+			const active = await pool.query("SELECT 1 FROM payloadbay.invitation WHERE id=$1 AND state='pending' AND expires_at>clock_timestamp()", [data.invitationId]);
+			message = active.rowCount ? { email: data.email, subject: "You're invited to Payload Bay", text: `You have been invited to Payload Bay. Sign in with this email to review and accept your access: ${data.url}\nThis invitation expires in seven days. If you did not expect it, you can ignore this email.` } : null;
 		} else if (job.kind === "otp_mail") {
 			const data = decryptPrivate<{
 				email: string;
