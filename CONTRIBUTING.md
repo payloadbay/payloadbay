@@ -24,14 +24,13 @@ are intentionally lost on the next deployment.
 
 Use `reviewer@preview.payloadbay.test` for email-code login. Mailpit captures login
 and other preview emails; no production SMTP provider is configured. Reviewers do
-not need GitHub maintainer access. The preview operator shares the Mailpit access
-credential with reviewers outside source control. Email codes remain real,
+not need GitHub maintainer access. Mailpit is publicly accessible without a separate login on disposable previews. Email codes remain real,
 expiring Better Auth codes; no fixed password or authentication bypass is added.
 
 The fixed reviewer identity and its instance-owner access must remain usable.
 Preview-only protections prevent demoting that account even after adding another
 owner. Better Auth email changes are not enabled. Runtime encryption/authentication
-keys, SMTP routing and Mailpit credentials belong to deployment configuration and
+keys and SMTP routing belong to deployment configuration and
 are not editable through the product dashboard. Reviewers may edit project test
 secrets, routes, scripts, destinations and other demo data.
 

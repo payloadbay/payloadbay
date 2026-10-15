@@ -101,15 +101,15 @@ The seed creates a sample workspace, project and unpublished ingress draft throu
 normal domain commands and is repeatable within a fresh demo. It refuses production
 mode and will not overwrite a completed non-demo installation.
 
-Mailpit exposes HTTP port 8025 to the proxy, not a host-published port. MP_UI_AUTH
-uses the preview-only PREVIEW_MAIL_AUTH value. The intended service mapping is
-`https://payloadbay-mail.cloud.thedannicraft.de:8025`, with a distinct PR hostname.
-The browser URL is pending Coolify's successful Compose loading/domain assignment;
-it is not live merely because the service is declared. Its shared reviewer
-credential is separate from GitHub roles and never committed. The chosen goal is public functional review without GitHub maintainer privileges.
-Before privileged access is distributed publicly, sandbox, preview egress and
-resource limits still require verification. The current mail credential is a
-temporary access control, not the final public demo experience.
+Mailpit exposes HTTP port 8025 through the proxy, without authentication, for
+reviewers to inspect synthetic login emails. Its PR URL is
+`https://13.payloadbay-mail.cloud.thedannicraft.de/` (replace 13 for other PRs).
+The disposable preview is shared: never submit real credentials, customer data
+or production webhooks. Production SMTP configuration is unaffected.
+
+The application lives at `/`, with signed-out visitors redirected to `/login`.
+The old `/dashboard` path redirects to `/`.
+
 
 
 ## Compose build interpolation

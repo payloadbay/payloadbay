@@ -9,10 +9,10 @@ import { Stepper } from "@heroui-pro/react";
 import { IconMail, IconShieldCheck, IconRefresh } from "@tabler/icons-react";
 import { api, ApiFailure } from "@lib/api-client";
 
-export function AuthPanel({ setup = false }: { setup?: boolean }) {
+export function AuthPanel({ setup = false, initialEmail = "" }: { setup?: boolean; initialEmail?: string }) {
 	const router = useRouter();
 
-	const [email, setEmail] = useState("");
+	const [email, setEmail] = useState(initialEmail);
 	const [name, setName] = useState("");
 	const [secret, setSecret] = useState("");
 	const [otp, setOtp] = useState("");
@@ -112,7 +112,7 @@ export function AuthPanel({ setup = false }: { setup?: boolean }) {
 			if (setup) await api("/bootstrap", { method: "POST", json: { action: "complete", secret } });
 			setSecret("");
 			setOtp("");
-			router.push("/dashboard");
+			router.push("/");
 			router.refresh();
 		} catch (cause) {
 			setError(cause instanceof ApiFailure || cause instanceof Error ? cause.message : "Please try again.");
@@ -174,25 +174,25 @@ export function AuthPanel({ setup = false }: { setup?: boolean }) {
 								<>
 									<TextField name='name' value={name} onChange={setName} isRequired maxLength={100}>
 										<Label>Your name</Label>
-										<Input autoComplete='name' />
+										<Input variant='secondary' autoComplete='name' />
 										<FieldError />
 									</TextField>
 									<TextField name='setup-secret' type='password' value={secret} onChange={setSecret} isRequired maxLength={512}>
 										<Label>Setup secret</Label>
-										<Input autoComplete='off' />
+										<Input variant='secondary' autoComplete='off' />
 										<FieldError />
 									</TextField>
 								</>
 							)}
 							<TextField name='email' type='email' value={email} onChange={setEmail} isRequired isReadOnly={sent} maxLength={254}>
 								<Label>Email address</Label>
-								<Input autoComplete='email' />
+								<Input variant='secondary' autoComplete='email' />
 								<FieldError />
 							</TextField>
 							{sent && (
 								<TextField name='otp' value={otp} onChange={setOtp} isRequired minLength={6} maxLength={6} pattern='[0-9]{6}'>
 									<Label>Sign-in code</Label>
-									<Input autoComplete='one-time-code' inputMode='numeric' autoFocus />
+									<Input variant='secondary' autoComplete='one-time-code' inputMode='numeric' autoFocus />
 									<FieldError />
 								</TextField>
 							)}

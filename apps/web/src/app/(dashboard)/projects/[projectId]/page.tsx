@@ -171,19 +171,19 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 								}}
 							>
 								<Label>Name</Label>
-								<Input />
+								<Input variant='secondary' />
 								<FieldError />
 							</TextField>
 							{form === "route" ? (
 								<TextField isRequired value={slug} onChange={setSlug} pattern='[a-z0-9][a-z0-9-]*'>
 									<Label>URL name</Label>
-									<Input />
+									<Input variant='secondary' />
 									<FieldError />
 								</TextField>
 							) : (
 								<TextField isRequired type='url' value={url} onChange={setUrl}>
 									<Label>Destination URL</Label>
-									<Input placeholder='https://your-app.example/events' />
+									<Input variant='secondary' placeholder='https://your-app.example/events' />
 									<FieldError />
 								</TextField>
 							)}

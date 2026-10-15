@@ -148,7 +148,7 @@ export function SecretBindings({ projectId, bindings, onChange, canUse, canManag
 					<Form onSubmit={bind} className='flex flex-wrap items-end gap-3'>
 						<TextField isRequired value={binding} onChange={setBinding} isDisabled={disabled || busy} pattern='[A-Za-z_][A-Za-z0-9_]*'>
 							<Label>Binding name</Label>
-							<Input />
+							<Input variant='secondary' />
 							<FieldError />
 						</TextField>
 						<label className='flex min-w-56 flex-col gap-2 text-sm'>
@@ -174,12 +174,12 @@ export function SecretBindings({ projectId, bindings, onChange, canUse, canManag
 						<Form onSubmit={create} className='border-border flex flex-col gap-3 border-t pt-4'>
 							<TextField isRequired value={name} onChange={setName} isDisabled={busy}>
 								<Label>Secret name</Label>
-								<Input />
+								<Input variant='secondary' />
 								<FieldError />
 							</TextField>
 							<TextField isRequired type='password' value={value} onChange={setValue} isDisabled={busy}>
 								<Label>Secret value</Label>
-								<Input autoComplete='new-password' />
+								<Input variant='secondary' autoComplete='new-password' />
 								<FieldError />
 							</TextField>
 							<p className='text-muted text-xs'>Stored encrypted in this project. Rotate by creating another version with the same name.</p>

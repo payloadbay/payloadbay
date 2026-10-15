@@ -98,14 +98,14 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 	const nav = (
 		<Sidebar>
 			<Sidebar.Header>
-				<Link href='/dashboard' className='text-accent px-3 py-4 text-lg font-semibold'>
+				<Link href='/' className='text-accent px-3 py-4 text-lg font-semibold'>
 					Payload Bay
 				</Link>
 			</Sidebar.Header>
 			<Sidebar.Content>
 				<Sidebar.Group>
 					<Sidebar.Menu aria-label='Dashboard navigation'>
-						<Sidebar.MenuItem id='overview' href='/dashboard' isCurrent={pathname === "/dashboard"} textValue='Overview'>
+						<Sidebar.MenuItem id='overview' href='/' isCurrent={pathname === "/"} textValue='Overview'>
 							<Sidebar.MenuIcon>
 								<IconHome size={18} />
 							</Sidebar.MenuIcon>
@@ -166,7 +166,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 					<header className='border-border flex min-h-16 items-center justify-between gap-4 border-b px-6'>
 						<div className='flex items-center gap-3'>
 							<Sidebar.Trigger />
-							<Link href='/dashboard' className='font-semibold'>
+							<Link href='/' className='font-semibold'>
 								Your event delivery platform
 							</Link>
 						</div>

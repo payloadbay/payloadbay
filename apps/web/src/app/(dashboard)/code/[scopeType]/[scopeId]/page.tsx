@@ -273,7 +273,7 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 		<section className='flex flex-col gap-6'>
 			<header className='flex flex-wrap items-start justify-between gap-4'>
 				<div>
-					<Link href='/dashboard' className='text-accent mb-3 flex items-center gap-2 text-sm'>
+					<Link href='/' className='text-accent mb-3 flex items-center gap-2 text-sm'>
 						<IconArrowLeft size={16} />
 						Projects
 					</Link>
@@ -430,7 +430,7 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 									))}
 									<TextField isRequired value={name} onChange={setName} maxLength={100} isDisabled={busy || !canEdit}>
 										<Label>{tab === "modules" ? "Helper name" : "Middleware name"}</Label>
-										<Input />
+										<Input variant='secondary' />
 										<FieldError />
 									</TextField>
 									{tab === "middleware" && (
