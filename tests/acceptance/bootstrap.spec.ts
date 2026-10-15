@@ -63,9 +63,29 @@ test("mobile dashboard keeps account actions in the avatar menu and projects in 
 	await page.route("**/api/v1/**", (route) => {
 		const path = new URL(route.request().url()).pathname;
 		const responses: Record<string, unknown> = {
-			"/api/v1/me": { user: { id: "reviewer", name, email: "long-reviewer-address@preview.payloadbay.test" }, instanceId: "instance", permissions, roles: {} },
-			"/api/v1/workspaces": [{ id: "workspace", name: "Preview Workspace", slug: "preview", permissions }],
-			"/api/v1/projects": [{ id: "project", name: "Webhook Playground", slug: "webhook-playground", workspace_id: "workspace", permissions }],
+			"/api/v1/me": {
+				user: { id: "reviewer", name, email: "long-reviewer-address@preview.payloadbay.test" },
+				instanceId: "instance",
+				permissions,
+				roles: {},
+			},
+			"/api/v1/workspaces": [
+				{
+					id: "workspace",
+					name: "Preview Workspace",
+					slug: "preview",
+					permissions,
+				},
+			],
+			"/api/v1/projects": [
+				{
+					id: "project",
+					name: "Webhook Playground",
+					slug: "webhook-playground",
+					workspace_id: "workspace",
+					permissions,
+				},
+			],
 		};
 
 		return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(responses[path] ?? []) });
