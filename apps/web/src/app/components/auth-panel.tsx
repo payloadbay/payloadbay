@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
-import { Button, Card, Form, TextField, Label, Input, FieldError } from "@heroui/react";
+import { Button, Card, Form, TextField, Label, Input, InputOTP, REGEXP_ONLY_DIGITS, Spinner, FieldError } from "@heroui/react";
 import { Stepper } from "@heroui-pro/react";
 import { IconMail, IconRefresh } from "@tabler/icons-react";
 import { api, ApiFailure } from "@lib/api-client";
@@ -190,16 +190,27 @@ export function AuthPanel({ setup = false, preview = false }: { setup?: boolean;
 								<FieldError />
 							</TextField>
 							{sent && (
-								<TextField name='otp' value={otp} onChange={setOtp} isRequired minLength={6} maxLength={6} pattern='[0-9]{6}'>
-									<Label>Sign-in code</Label>
-									<Input variant='secondary' autoComplete='one-time-code' inputMode='numeric' autoFocus />
-									<FieldError />
-								</TextField>
+								<div className='flex flex-col gap-2'>
+									<Label htmlFor='sign-in-code'>Sign-in code</Label>
+									<InputOTP id='sign-in-code' name='otp' aria-label='Sign-in code' value={otp} onChange={setOtp} maxLength={6} pattern={REGEXP_ONLY_DIGITS} variant='secondary' autoComplete='one-time-code' autoFocus isDisabled={busy} className='justify-center'>
+										<InputOTP.Group>
+											<InputOTP.Slot index={0} />
+											<InputOTP.Slot index={1} />
+											<InputOTP.Slot index={2} />
+										</InputOTP.Group>
+										<InputOTP.Separator />
+										<InputOTP.Group>
+											<InputOTP.Slot index={3} />
+											<InputOTP.Slot index={4} />
+											<InputOTP.Slot index={5} />
+										</InputOTP.Group>
+									</InputOTP>
+								</div>
 							)}
 
-							<Button type='submit' fullWidth className='justify-center' isDisabled={busy}>
+							<Button type='submit' fullWidth className='justify-center' isDisabled={busy || (sent && otp.length !== 6)} isPending={busy}>
 								{busy ? "Please wait…" : sent ? (setup ? "Create owner and continue" : "Sign in") : "Send sign-in code"}
-								<IconMail aria-hidden='true' size={18} />
+								{busy ? <Spinner size='sm' color='current' /> : !sent && <IconMail aria-hidden='true' size={18} />}
 							</Button>
 							{sent && (
 								<div className='flex justify-between gap-2'>

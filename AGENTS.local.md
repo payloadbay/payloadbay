@@ -101,6 +101,12 @@ Read additional material only when the task requires it:
 
 ## Dashboard source organization
 
+Before implementing UI, inspect HeroUI's component catalog and the documentation
+for the matching interaction. Prefer purpose-built controls (for example InputOTP
+for sign-in codes), use secondary fields on surfaces, and verify the installed
+package types as well as the docs. Check actual desktop/mobile behavior before
+publishing; a successful HTTP response alone is not a functional UI check.
+
 Page-specific presentation and state live directly in that route's `page.tsx`.
 Use a client page when it owns browser interaction; do not extract a one-use
 component merely to put `use client` on it. Reserve `components/` for reusable
