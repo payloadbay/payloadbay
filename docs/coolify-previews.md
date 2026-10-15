@@ -108,7 +108,7 @@ The disposable preview is shared: never submit real credentials, customer data
 or production webhooks. Production SMTP configuration is unaffected.
 
 The application lives at `/`, with signed-out visitors redirected to `/login`.
-The old `/dashboard` path redirects to `/`.
+There is no separate `/dashboard` route.
 
 
 

@@ -2,17 +2,18 @@
 
 import { useFeedbackToast } from "@lib/feedback";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { Button, Card, Form, TextField, Label, Input, FieldError } from "@heroui/react";
 import { Stepper } from "@heroui-pro/react";
-import { IconMail, IconShieldCheck, IconRefresh } from "@tabler/icons-react";
+import { IconMail, IconRefresh } from "@tabler/icons-react";
 import { api, ApiFailure } from "@lib/api-client";
 
-export function AuthPanel({ setup = false, initialEmail = "" }: { setup?: boolean; initialEmail?: string }) {
+export function AuthPanel({ setup = false, preview = false }: { setup?: boolean; preview?: boolean }) {
 	const router = useRouter();
 
-	const [email, setEmail] = useState(initialEmail);
+	const [email, setEmail] = useState(preview && !setup ? "reviewer@preview.payloadbay.test" : "");
 	const [name, setName] = useState("");
 	const [secret, setSecret] = useState("");
 	const [otp, setOtp] = useState("");
@@ -122,13 +123,12 @@ export function AuthPanel({ setup = false, initialEmail = "" }: { setup?: boolea
 	}
 
 	return (
-		<main className='mx-auto flex min-h-screen max-w-lg flex-col justify-center gap-6 px-6 py-12'>
-			<Link href='/' className='text-accent text-sm font-semibold'>
-				Payload Bay
+		<main className='mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-6 px-5 py-10 sm:py-16'>
+			<Link href='/' className='mx-auto block' aria-label='Payload Bay home'>
+				<Image src='/brand/payloadbay-logo-dark-rounded.svg' alt='Payload Bay' width={240} height={53} priority />
 			</Link>
-			<Card className='p-6 sm:p-8'>
-				<Card.Header>
-					<IconShieldCheck className='text-accent size-8' aria-hidden='true' />
+			<Card className='w-full gap-6 p-6 sm:p-8'>
+				<Card.Header className='items-center gap-2 text-center'>
 					<h1 className='text-2xl font-semibold'>{setup ? "Set up Payload Bay" : "Welcome back"}</h1>
 					<Card.Description>{setup ? "Create the first instance owner with your installation setup secret." : "Sign in with a code sent to your email. No password required."}</Card.Description>
 				</Card.Header>
@@ -169,7 +169,7 @@ export function AuthPanel({ setup = false, initialEmail = "" }: { setup?: boolea
 							Retry setup check
 						</Button>
 					) : (
-						<Form className='flex flex-col gap-4' onSubmit={submit}>
+						<Form className='flex w-full flex-col items-stretch gap-5' onSubmit={submit}>
 							{setup && !sent && (
 								<>
 									<TextField name='name' value={name} onChange={setName} isRequired maxLength={100}>
@@ -197,7 +197,7 @@ export function AuthPanel({ setup = false, initialEmail = "" }: { setup?: boolea
 								</TextField>
 							)}
 
-							<Button type='submit' isDisabled={busy}>
+							<Button type='submit' fullWidth className='justify-center' isDisabled={busy}>
 								{busy ? "Please wait…" : sent ? (setup ? "Create owner and continue" : "Sign in") : "Send sign-in code"}
 								<IconMail aria-hidden='true' size={18} />
 							</Button>
@@ -239,12 +239,14 @@ export function AuthPanel({ setup = false, initialEmail = "" }: { setup?: boolea
 					)}
 				</Card.Content>
 			</Card>
-			<p className='text-muted text-center text-sm'>
-				{setup ? "Already configured?" : "Installing your own instance?"}{" "}
-				<Link className='text-accent underline' href={setup ? "/login" : "/setup"}>
-					{setup ? "Sign in" : "Set up Payload Bay"}
-				</Link>
-			</p>
+			{!preview && (
+				<p className='text-muted text-center text-sm'>
+					{setup ? "Already configured?" : "Installing your own instance?"}{" "}
+					<Link className='text-accent underline' href={setup ? "/login" : "/setup"}>
+						{setup ? "Sign in" : "Set up Payload Bay"}
+					</Link>
+				</p>
+			)}
 		</main>
 	);
 }
