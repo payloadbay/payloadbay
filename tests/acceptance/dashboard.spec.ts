@@ -750,6 +750,13 @@ test("overview and mobile hierarchy preserve context while search opens resource
 	await expect(page.getByRole("heading", { name: "Overview", exact: true })).toBeVisible();
 	await expect(page.getByRole("img", { name: /24-hour traffic/ })).toBeVisible();
 	await expect(page.getByText("Incoming requests", { exact: true })).toBeVisible();
+	await page.setViewportSize({ width: 320, height: 740 });
+	const tick = page.locator(".line-chart .recharts-cartesian-axis-tick-value").first();
+	await expect(tick).toBeVisible();
+	await expect(tick).toHaveCSS("font-size", "12px");
+	expect((await tick.boundingBox())!.height).toBeGreaterThanOrEqual(10);
+	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+	await page.setViewportSize({ width: 390, height: 844 });
 	await page.screenshot({ path: test.info().outputPath("overview-mobile.png"), fullPage: true });
 	await page.getByRole("button", { name: "Toggle navigation" }).click();
 	const drawer = page.getByRole("dialog");

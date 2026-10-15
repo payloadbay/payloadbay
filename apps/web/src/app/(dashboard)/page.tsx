@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Button, Card, Table } from "@heroui/react";
+import { LineChart } from "@heroui-pro/react/line-chart";
 import { useDashboard } from "@components/dashboard-shell";
 import { api } from "@lib/api-client";
 import { useFeedbackToast } from "@lib/feedback";
@@ -84,8 +85,6 @@ export default function DashboardPage() {
 		};
 	}, [load, me.instanceId]);
 
-	const max = Math.max(1, ...(overview?.series.flatMap((point) => metrics.map((metric) => point[metric.key])) ?? []));
-
 	return (
 		<section className='flex flex-col gap-6'>
 			<header className='flex flex-wrap items-center justify-between gap-3'>
@@ -138,24 +137,15 @@ export default function DashboardPage() {
 									</span>
 								))}
 							</div>
-							<svg viewBox='0 0 720 200' role='img' aria-label={`24-hour traffic: ${overview.totals.ingress} incoming requests, ${overview.totals.accepted} accepted, ${overview.totals.rejected} rejected, ${overview.totals.deliveries} outgoing attempts`} className='h-48 w-full overflow-visible'>
-								{[0, 1, 2, 3].map((tick) => (
-									<g key={tick}>
-										<line x1='36' x2='708' y1={16 + tick * 48} y2={16 + tick * 48} stroke='currentColor' opacity='.1' />
-										<text x='0' y={20 + tick * 48} fill='currentColor' fontSize='10'>
-											{Math.round(max * (1 - tick / 3))}
-										</text>
-									</g>
-								))}
+							<LineChart data={overview.series.map((point) => ({ ...point, hour: point.hour.slice(11, 16) }))} height={220} role='img' aria-label={`24-hour traffic: ${overview.totals.ingress} incoming requests, ${overview.totals.accepted} accepted, ${overview.totals.rejected} rejected, ${overview.totals.deliveries} outgoing attempts`} className='min-w-0 [&_.recharts-cartesian-axis-tick-value]:text-xs'>
+								<LineChart.Grid vertical={false} />
+								<LineChart.XAxis dataKey='hour' tickMargin={8} minTickGap={32} interval='preserveStartEnd' />
+								<LineChart.YAxis allowDecimals={false} width={32} tickCount={4} tickFormatter={(value: number) => new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(value)} />
 								{metrics.map((metric) => (
-									<polyline key={metric.key} points={overview.series.map((point, index) => `${36 + index * (672 / 23)},${160 - (point[metric.key] / max) * 144}`).join(" ")} fill='none' stroke={metric.color} strokeWidth='2' />
+									<LineChart.Line key={metric.key} dataKey={metric.key} name={metric.label} stroke={metric.color} strokeWidth={2} dot={false} type='linear' isAnimationActive={false} />
 								))}
-								{[0, 6, 12, 18, 23].map((index) => (
-									<text key={index} x={36 + index * (672 / 23)} y='190' textAnchor={index === 23 ? "end" : "start"} fill='currentColor' fontSize='10'>
-										{overview.series[index]?.hour.slice(11, 16)}
-									</text>
-								))}
-							</svg>
+								<LineChart.Tooltip content={<LineChart.TooltipContent valueFormatter={(value) => Number(value).toLocaleString()} />} />
+							</LineChart>
 						</Card.Content>
 					</Card>
 					<section>

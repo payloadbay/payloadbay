@@ -2420,3 +2420,19 @@ Lint/typecheck/format/inventory checks passed. Source code and fixtures use
 Drizzle push; no release migration was generated. Six pre-existing Docker/build
 workflow drafts remain excluded from this review commit. The full alpha release
 gates remain open; these runs certify the scoped review only.
+
+
+### Live preview and chart follow-up
+
+Revision ffe8ff7 deployed successfully in Coolify. A real browser flow passed
+Mailpit OTP, overview aggregates, fixed preview/header on scroll, seeded helpers,
+320px layout, live SSE request history, accepted GET and response-only 405 PUT,
+outgoing-attempt inspection, account settings and sign-out. The seed intentionally
+exports GET and POST; the unsupported-method check correctly uses PUT.
+
+Live visual inspection found that the custom SVG axis labels became too small
+on mobile. Replaced that graph with existing HeroUI Pro LineChart, using the
+already-installed Recharts peer, responsive tick spacing and tooltips. No new
+dependency or one-use component was added. The focused overview/mobile browser
+case passed with actual 12px axis text, readable rendered bounds and no page
+width overflow at 320px; web typecheck, scoped ESLint/Prettier and diff check passed.

@@ -140,6 +140,9 @@ refer to the prior pushed baseline, not automatic approval of this working tree.
   the final dialog-heading changes (resource configuration, event inspection,
   helpers/middleware, notification rules and mobile hierarchy/search).
 - Mobile/editor/bootstrap acceptance: 8 passed.
+- Final chart follow-up uses HeroUI Pro LineChart and its existing Recharts peer.
+  Focused mobile navigation/overview acceptance passed again, asserting actual
+  12px tick text, readable rendered bounds and no page overflow at 320px.
 - Ingress integration: 20 passed, followed by the additional handler-error-history
   case passing separately. Rejected and response-only requests retain history
   without dispatch; queue failures still roll accepted work back atomically.
