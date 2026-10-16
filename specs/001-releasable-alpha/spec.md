@@ -92,6 +92,18 @@ Invalid/missing verification; malformed/binary bodies; exact challenge bytes; co
 - **FR-018**: Support shared/global code modules/functions; publishing pins dependency revisions and does not silently mutate active handlers.
 - **FR-019**: Support instance/workspace/project/endpoint-scoped user middleware with explicit order, versioned bindings and configurable required/optional failure behavior. Permission inheritance follows instance → workspace → project.
 
+### Shared deployment foundation — confirmed 2026-10-16
+
+- **FR-020**: Self-hosted, first-party hosted and demo deployments use the same product codebase, API contracts, schema/migration lineage and coordinated release artifacts. No separate hosted dashboard/backend fork. An instance is the operator boundary; a hosted customer owns a workspace with projects beneath it, without receiving instance administration.
+- **FR-021**: Self-hosted standard product features have no subscription-based workspace/project/event quotas and require no central billing account or license heartbeat. Normal capacity, payload, rate and execution safety bounds still apply. Optional enterprise licensing is a separate future capability decision; existing standard features must not be silently reclassified or gated by this foundation work.
+- **FR-022**: Future hosted subscription policy resolves per workspace in shared server-side domain services, independently of user-role authorization. The dashboard, external API, MCP and workers must not have separate plan rules. Limit definitions, prices, billing provider, metering units/periods and enterprise capabilities are deliberately not selected yet.
+- **FR-023**: Hosted limits cannot silently discard acknowledged events or cancel committed delivery/recovery work. Future concurrent quota enforcement must be atomic, and plan changes must preserve retained history and outstanding obligations. Demo reset/network policy is separate from commercial entitlement policy.
+
+This confirms the architecture boundary, not a working SaaS launch: public signup,
+subscriptions, durable usage accounting, tenant-fair scheduling, workspace-owned
+notification adapters and independently validated hostile-tenant execution remain
+hosted-release work. See [deployment policy](contracts/deployment-policy.md).
+
 ### Key Entities
 
 Installation/admission/grants, Workspace and Project scopes; Endpoint; Draft, StageRevision, SharedModuleRevision and Publication; MiddlewareRevision/Binding; Event/Receipt; Execution/Dispatch; ManagedOperation and DeliveryAttempt; SecretVersion, PlatformJob, Audit and ChangeRecord. Names match data-model.md and plan.md. Do not create extra repositories or speculative entity scaffolds. Default routes are optional convenience, not the only processing path.

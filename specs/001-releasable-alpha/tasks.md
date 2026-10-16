@@ -371,3 +371,13 @@ release gates complete. Track actual verification in `tdd/cycle-log.md` and
 - [x] R06 Add disposable preview project-admin/viewer identities, an owner-only
   comparison project and a preview-only account picker. Exercise real OTP and
   scoped authorization, and keep menu Back within accessible ancestors.
+
+- [x] R07 Record the confirmed one-codebase self-hosted/hosted/demo foundation:
+  unrestricted standard self-hosting, future workspace plan policy separate from
+  roles and runtime safety, and preservation of acknowledged work. See
+  `contracts/deployment-policy.md`. This records architecture, not billing implementation.
+- [ ] H01 Before hosted launch, implement and verify workspace entitlements,
+  durable metering/atomic quotas, onboarding, tenant fairness, workspace-owned
+  notification adapters and hostile-tenant execution/egress policy. Prices,
+  billing provider and enterprise capabilities remain unselected; this does not
+  block the self-hosted alpha or require a product fork.

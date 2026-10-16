@@ -30,6 +30,30 @@ Planned paths (create when implementation starts): `apps/web`, `apps/worker`, `a
 
 Self-hosted and hosted product use the same release artifacts. The complete hosted product includes its dashboard, not only a hosted database. Localhost destinations refer to the sending runtime; all configured HTTP/HTTPS address categories are allowed when reachable. Delivery uses installation/network-local trusted orchestration, not a mandatory edge-only sender. Future edge ingress needs a separately tested adapter and durable database round trip; Node does not imply global edge deployment.
 
+### Shared product and commercial policy
+
+The confirmed model is one product: self-hosted standard features without plan
+quotas; first-party hosted workspaces with future subscription limits; optional
+enterprise capabilities defined later. Keep authorization (who may act),
+entitlements (what the workspace plan allows), and runtime safety policy (how
+code/network execution is contained) separate. Demo restrictions do not imply a
+commercial tier. See [deployment policy](contracts/deployment-policy.md).
+
+Keep future entitlement resolution in server-only domain services so HTTP,
+dashboard, MCP and workers use the same checks. Self-hosted resolution is local
+and unrestricted by subscription, with no hosted-service dependency. Hosted
+billing adapters translate external subscriptions into local workspace policy;
+the delivery engine must not call a billing provider on each webhook. Define
+metering semantics and atomic reservation/release behavior before implementing
+hosted quotas. Never retrofit a quota by dropping already acknowledged work.
+
+The present alpha implements inherited scopes and the shared engine, not hosted
+billing or arbitrary-tenant security certification. Do not add unused tables,
+placeholder plan IDs, a license verifier or a second app while those contracts
+are undefined. Hosting the commercial service remains a separate release gate,
+with tenant fairness, workspace-owned adapters and stronger sandbox/egress
+validation required even though the product code is shared.
+
 ## 3. Request and delivery lifecycle
 
 1. Public request reaches a configured project endpoint. Capture original bytes once and resolve published revisions.
