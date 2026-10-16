@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { resolve } from "node:path";
 import { createServer } from "node:net";
 import { spawnSync } from "node:child_process";
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
@@ -52,7 +53,7 @@ for (const lane of lanes) {
 	const env: NodeJS.ProcessEnv & { PAB_TEST_ARTIFACT_DIR: string } = {
 		...process.env,
 		TZ: "UTC",
-		TSX_TSCONFIG_PATH: "tests/config/tsconfig.json",
+		TSX_TSCONFIG_PATH: resolve("tests/config/tsconfig.json"),
 		PAB_TEST_ARTIFACT_DIR: `${reports}/${lane}`,
 	};
 	mkdirSync(env.PAB_TEST_ARTIFACT_DIR, { recursive: true });
