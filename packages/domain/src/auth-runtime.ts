@@ -24,7 +24,7 @@ export function createAuth(pool: Pool, config: ServerConfig) {
 		baseURL: config.publicUrl,
 		basePath: "/api/auth",
 		trustedOrigins: [new URL(config.publicUrl).origin],
-		session: { cookieCache: { enabled: false } },
+		session: { expiresIn: 30 * 24 * 60 * 60, updateAge: 24 * 60 * 60, cookieCache: { enabled: false } },
 		socialProviders: config.oauth,
 		account: { accountLinking: { enabled: true, requireLocalEmailVerified: true, allowDifferentEmails: false } },
 		databaseHooks: {

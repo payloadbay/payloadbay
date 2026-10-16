@@ -609,6 +609,18 @@ test("U235 request authentication denies anonymous and inactive sessions", async
 			};
 			const request = new Request(config.publicUrl + "/api/v1/me", { headers });
 			assert.equal((await authenticateRequest(f.pool, service, request))?.userId, "operator");
+			const lifetime = 30 * 24 * 60 * 60 * 1000;
+			const initial = (await f.db.query('SELECT "expiresAt" FROM auth.session WHERE "userId"=$1', ["operator"])).rows[0];
+			assert.ok(Math.abs(new Date(initial.expiresAt).getTime() - Date.now() - lifetime) < 60_000);
+			await f.db.query(`UPDATE auth.session SET "expiresAt"=now()+interval '28 days', "updatedAt"=now()-interval '2 days' WHERE "userId"=$1`, ["operator"]);
+			const renewedHeaders = new Headers();
+			assert.equal((await authenticateRequest(f.pool, service, request, renewedHeaders))?.userId, "operator");
+			assert.ok(renewedHeaders.getSetCookie().some((cookie) => cookie.includes("session_token=") && cookie.includes("Max-Age=2592000")));
+			const renewed = (await f.db.query('SELECT "expiresAt" FROM auth.session WHERE "userId"=$1', ["operator"])).rows[0];
+			assert.ok(Math.abs(new Date(renewed.expiresAt).getTime() - Date.now() - lifetime) < 60_000);
+			const unchangedHeaders = new Headers();
+			await authenticateRequest(f.pool, service, request, unchangedHeaders);
+			assert.equal(unchangedHeaders.getSetCookie().length, 0);
 			await f.db.query("UPDATE payloadbay.admission SET active=false");
 			assert.equal(await authenticateRequest(f.pool, service, request), null);
 			assert.equal(await authenticateRequest(f.pool, service, new Request(request, { headers: { ...headers, authorization: "Bearer invalid" } })), null);

@@ -2500,3 +2500,18 @@ cycle: the registered overview/navigation browser flow passed with direct header
 access at 320px and desktop, query clear, result navigation and no menu entry.
 All eight mobile/editor/bootstrap cases also passed. Inspected the mobile overview
 screenshot. ESLint, web/tooling TypeScript, Prettier and diff checks passed.
+
+
+## Longer renewable browser sessions — 2026-10-16
+
+Configured Better Auth for a 30-day session lifetime and daily renewal. Protected
+API responses now forward Better Auth's renewed Set-Cookie headers, preserving
+HTTP-only cookies and database-backed revocation. No JWT refresh subsystem was
+added. The existing authentication regression now checks the initial lifetime,
+renewal of both database expiry and browser cookie, no repeated renewal within
+the daily window, and rejection after admission is disabled. This extends an
+existing regression rather than claiming a test-first Red cycle.
+
+All 33 authentication integration tests passed. Scoped ESLint and Prettier,
+and web/tooling TypeScript checks passed. Preview database resets still invalidate
+sessions; this is documented separately from session expiry.

@@ -20,6 +20,8 @@ Creating a workspace or project establishes full local ownership. The current al
 
 API tokens have an explicit scope, selected permissions, and expiry. The secret is returned once; the database stores only its SHA-256 hash. Authorization intersects the stored token permissions with the user's current inherited rights. Token scope applies downward only. Revocation, expiry, or inactive admission invalidates access immediately. A supplied invalid bearer token does not fall back to a browser cookie. Token listing never returns the secret or hash.
 
+Browser sessions expire after 30 days without renewal. Authenticated API use renews the session at most once per day and forwards the refreshed HTTP-only cookie to the browser. Admission and permission checks still run on each request, so renewal does not preserve revoked access. Signing out invalidates the session. Disposable preview rebuilds reset the database and therefore invalidate existing sessions regardless of this lifetime.
+
 Cookie-authenticated commands require the installation's configured origin and the `x-payloadbay-csrf: 1` header. Tokens are intended for external API clients and do not depend on a browser origin. All commands still pass through the same domain permission checks.
 
 Implementation status: inherited authorization, membership demotion protection, scoped creation, token handling, and their database tests exist. Public routes and dashboard administration are being implemented; this document is not a release-completion claim.
