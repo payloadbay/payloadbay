@@ -826,3 +826,13 @@ Existing behavior suites remain mandatory when affected.
 
 Do not mark these complete from prior project-only preview evidence. This planning
 update did not execute the implementation TDD run hook or generate release SQL.
+
+### Active foundation behavior cycles
+
+| ID | State | Behavior / trace | Owning test |
+| --- | --- | --- | --- |
+| FT04a | DONE | Completing one-time owner setup creates default org/workspace atomically (FR-024) | tests/integration/organizations.test.ts: owner setup |
+
+The first setup acceptance opens the outside-in foundation cycle. Related schema,
+lineage and API behaviors are split into subsequent cases before implementation;
+no F-task is completed merely because this setup case passes.

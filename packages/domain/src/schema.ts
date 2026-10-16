@@ -37,8 +37,8 @@ export const admission = domain.table(
 	(t) => [primaryKey({ columns: [t.installationId, t.userId] })],
 );
 
-export const workspace = domain.table(
-	"workspace",
+export const organization = domain.table(
+	"organization",
 	{
 		id: id(),
 		installationId: uuid("installation_id")
@@ -48,8 +48,32 @@ export const workspace = domain.table(
 		slug: text("slug").notNull(),
 		ownerUserId: text("owner_user_id").notNull(),
 		archivedAt: time("archived_at"),
+		createdAt: time("created_at").notNull().defaultNow(),
 	},
 	(t) => [
+		unique("organization_id_installation").on(t.id, t.installationId),
+		foreignKey({ name: "organization_owner_admission", columns: [t.installationId, t.ownerUserId], foreignColumns: [admission.installationId as AnyPgColumn, admission.userId as AnyPgColumn] }),
+		uniqueIndex("organization_live_slug")
+			.on(t.installationId, t.slug)
+			.where(sql`${t.archivedAt} IS NULL`),
+	],
+);
+
+export const workspace = domain.table(
+	"workspace",
+	{
+		id: id(),
+		installationId: uuid("installation_id")
+			.notNull()
+			.references((): AnyPgColumn => installation.id),
+		organizationId: uuid("organization_id"),
+		name: text("name").notNull(),
+		slug: text("slug").notNull(),
+		ownerUserId: text("owner_user_id").notNull(),
+		archivedAt: time("archived_at"),
+	},
+	(t) => [
+		foreignKey({ name: "workspace_organization_installation", columns: [t.organizationId, t.installationId], foreignColumns: [organization.id as AnyPgColumn, organization.installationId as AnyPgColumn] }),
 		foreignKey({ name: "workspace_owner_admission", columns: [t.installationId, t.ownerUserId], foreignColumns: [admission.installationId as AnyPgColumn, admission.userId as AnyPgColumn] }),
 		uniqueIndex("workspace_live_slug")
 			.on(t.installationId, t.slug)

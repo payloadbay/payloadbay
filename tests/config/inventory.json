@@ -24,7 +24,8 @@
 		"tests/integration/notifications.test.ts": "node",
 		"tests/integration/middleware.test.ts": "node",
 		"tests/deployment/preview.test.ts": "deployment",
-		"tests/integration/preview.test.ts": "node"
+		"tests/integration/preview.test.ts": "node",
+		"tests/integration/organizations.test.ts": "node"
 	},
 	"coverageSources": ["scripts/tests/policy.ts", "scripts/tests/runtime.ts", "packages/domain/src/config.ts", "apps/executor/src/compiler.ts", "packages/contracts/src/config.ts", "packages/contracts/src/api.ts", "packages/contracts/src/errors.ts", "packages/contracts/src/lifecycle.ts", "packages/domain/src/authorization.ts"],
 	"plannedProductSuites": ["tests/performance/delivery.test.ts", "tests/unit/notifications.test.ts"]

@@ -36,6 +36,7 @@ export async function seedPreviewDemo(pool: Pool, config: ServerConfig, identity
 		const installationId = instance.id ?? instance.installationId;
 		const actor = { userId: user.id };
 		let workspace = (await db.query("SELECT id FROM payloadbay.workspace WHERE installation_id=$1 AND slug='preview-demo'", [installationId])).rows[0];
+		if (!workspace) workspace = (await db.query("UPDATE payloadbay.workspace w SET name='Preview Demo',slug='preview-demo' FROM payloadbay.organization o WHERE w.organization_id=o.id AND w.installation_id=$1 AND o.slug='default' AND w.slug='default' RETURNING w.id", [installationId])).rows[0];
 		if (!workspace)
 			workspace = await createResource(pool, actor, {
 				type: "workspace",

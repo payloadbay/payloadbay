@@ -2617,3 +2617,13 @@ middleware integration suite: 9 passed. R01/R02 are verified; R03–R05 follow.
 
 - Baseline correction evidence: database suite 16/16 including U281; unit 47/47; executor 28/28; deployment 15/15. Browser baseline 35/37 initially, with compiler-unavailable/timed-navigation failures in U131 and notification publishing while deployment builds competed for resources. Rechecked both unchanged tests alone: 2/2 passed (44.4s), without tolerance/assertion changes. Initial integration lane was 196/197 and its only failure was U281; the entire owning database suite passed after the runner fix. This is combined baseline evidence, not a claim that the original full command passed.
 - Inner loop uses the already approved scoped owning-file strategy; all affected final suites will be rerun for the feature. Preexisting Docker/cache/migration-workflow drafts remain uncommitted and excluded. F01–F12 are not complete.
+
+### FT04a — default organization/workspace setup
+
+- Red command: `bun run test:file tests/integration/organizations.test.ts --name FT04a`.
+- Actual assertion: `setup must provision an organization`; `+ 'undefined' - 'string'`.
+- The acceptance was observed before organization schema/bootstrap implementation. The last focused baseline browser recheck completed green before product edits. This cycle opens setup only; F01 migration/integrity and F04 full onboarding remain incomplete.
+
+- Green FT04a: 1/1 setup acceptance; existing auth suite 34/34. Schema adds Organization and an intermediate optional workspace lineage column; required lineage enforcement is the next behavior, not claimed complete here.
+- U320 exposed the new-default fixture interaction: `2 !== 1` workspaces before the seed correction. The preview seed now renames/reuses the default workspace; unchanged U320 passed 1/1. U321/U322 passed in the owning file run; its pre-correction U320 failure remains recorded. No assertions were changed or skipped. Full Next preview rebuilding took about 215s; subsequent seed feedback used U320 only.
+- Formatting and web/tooling TypeScript checks passed. No further refactor needed for this first provisioning slice. F01/F04 remain open for integrity, migration, rollback, customer and invitation behavior.
