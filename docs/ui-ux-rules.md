@@ -24,6 +24,23 @@ are different actions. Give them distinct controls and predictable back behavior
 Keep the same information architecture across desktop and mobile, adapting its
 presentation rather than removing capabilities.
 
+## Search and command navigation
+
+Cross-application search is a dedicated command palette: a focused overlay with
+its own input, results and available actions. A search field or icon is a launcher,
+not an inline filter that replaces the navigation menu with a search list. Make
+application search accessible independently of the navigation drawer, especially
+on mobile. Keep its search interaction and results outside the menu. If launched
+while navigation is open, close the drawer before opening the palette rather
+than stacking competing overlays.
+
+Make result intent explicit, such as Jump to a resource or Run an action. Show
+enough resource type and context to distinguish destinations, provide clear/reset
+and dismiss controls, and support keyboard selection. Preserve the working page
+when search is dismissed and apply unsaved-change protection before navigation.
+Collection-local filters remain beside their collection; they are a different
+interaction from cross-application command search.
+
 ## Collections and editing
 
 Choose layout from the task: tables for scanning/comparing repeated records,
@@ -66,6 +83,13 @@ Treat persistent chrome as a coordinated layout: account for stacked notices,
 headers and content offsets. Prevent overlap and preserve useful working space.
 Do not assume desktop spacing or library defaults work unchanged on a phone.
 
+## Workflow coherence
+
+Keep closely related work in one coherent working context. Do not turn a natural
+step within a task into a prerequisite configuration screen merely because the
+implementation stores it separately. Reveal supporting tools where the task
+needs them, with clear transitions and a way back.
+
 ## Source editing
 
 Make the displayed source match the executable model. Provide useful types,
@@ -80,12 +104,25 @@ Review complete tasks, not isolated screenshots. Verify narrow mobile and deskto
 layouts, keyboard/paste, focus, back/cancel behavior, unsaved changes, scrolling,
 and loading/empty/error states. Report actual verification separately from source
 inspection. Do not call a flow complete merely because its controls render.
+For a preview handoff, push the changes, confirm the deployed revision and verify
+the actual preview before describing it as ready. State device/emulation limits
+and remaining work explicitly.
+
+## Applying review feedback
+
+Translate feedback into reusable principles and complete task flows, rather than
+only fixing the named control cosmetically. Carry an already-clear requested
+direction through implementation, verification and deployment; do not invent a
+new confirmation gate. Ask only when a material ambiguity remains. Keep concrete
+screen requirements and unfinished findings in the feature/audit documents,
+separate from these general principles.
 
 ## Reference findings
 
 The maintainer approved the Coolify-derived principles and mobile hierarchy
-drilldown on 2026-10-15. Exact screen structure and feature behavior belong in
-the relevant specification. Generalize new review findings here only when they
+drilldown on 2026-10-15. The regression-review learnings and dedicated command
+palette distinction were approved for persistence on 2026-10-16. Exact screen
+structure and feature behavior belong in the relevant specification. Generalize new review findings here only when they
 apply beyond one feature; keep individual fixes in the audit backlog.
 
 Linear mirror: [Payload Bay UI/UX principles](https://linear.app/thedannicraft/document/payload-bay-uiux-principles-2d0a0ebce882). Keep general principles here; keep screen-specific acceptance criteria in the feature specification and audit.
