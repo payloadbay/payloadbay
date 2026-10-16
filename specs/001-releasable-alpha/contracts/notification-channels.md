@@ -1,7 +1,8 @@
 # Forkable notification channels and email configuration
 
-Authorized for implementation on 2026-10-16, after the outstanding dashboard
-review fixes. This document describes the intended contract, not shipped behavior.
+Implemented on the alpha branch on 2026-10-16, after the outstanding dashboard
+review fixes. Commit `e1a5aa4` is deployed and live-verified in the PR preview; this
+is not a published alpha release.
 It extends the earlier notification-inbox proposal: its statement that no custom
 notification runtime was required described the earlier alpha scope, which the
 maintainer has now expanded.
@@ -45,7 +46,7 @@ a plain-text alternative, email-safe inline styles and dark-mode treatment.
 Reuse that approach with Payload Bay's own brand tokens and assets, not Clipify's
 purple visual identity.
 
-Proposed structure: responsive single-column card (maximum 600px), compact brand
+Shared structure: responsive single-column card (maximum 600px), compact brand
 header, clear title, body text, optional prominent selectable login code or one
 primary action, fallback action URL, then a concise reason-for-receiving footer.
 OTP, invitations and notification alerts all use this same wrapper. Render a
@@ -68,10 +69,12 @@ plain-text fallback; mobile previews; actual Mailpit OTP/invitation/alert flows;
 and the self-hosted Docker path. Update schema source with Drizzle push for
 fixtures; release migrations remain CI-owned.
 
-## Implemented contract under verification (2026-10-16)
+## Implemented contract (2026-10-16)
 
-The implementation is on the alpha branch and remains under verification until
-its commit and deployed revision are recorded. The administrator surfaces are
+The implementation was deployed as `e1a5aa4` in Coolify deployment
+`w0drpgdywb0ttzajngzxnlcd` (finished 10:52:29 UTC). The live 390px flow passed
+real HTML/plain-text OTP login, module fork/dry test/publish, synthetic preview,
+transactional module selection, real branded SMTP test delivery and reset. The administrator surfaces are
 `/admin/notification-channels` and `/admin/email`; personal opt-in remains under
 `/account/notifications`. There is no general-purpose plugin loader.
 
@@ -117,3 +120,15 @@ remote images are allowed, while scripts, forms and navigation are not. Shared
 presentation previews use synthetic content, not current OTPs or invitation URLs.
 SMTP host, sender and credentials remain deployment configuration. No extra mail
 provider, Redis, plugin process or Docker socket is introduced.
+
+## Verification
+
+Dashboard 28, bootstrap/mobile 8, authentication 33, notifications 18 and
+compiler/executor 11 scoped tests passed. The strengthened custom retry test
+passed generation/priority checks. The actual Docker worker delivered both an
+event and HTML/plain-text mail without source/host mounts. ESLint, TypeScript,
+Prettier and diff checks passed. The same live commit also passed the preceding
+review smoke: centered loading, 320px overview, scoped search/navigation, native
+helper imports/publish/HTTP execution, SSE history and failed response inspection.
+Physical Android keyboard behavior and broader published-alpha gates remain
+separate; these checks do not certify a hostile multi-tenant sandbox.

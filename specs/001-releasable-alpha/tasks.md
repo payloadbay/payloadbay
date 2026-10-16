@@ -364,7 +364,7 @@ release gates complete. Track actual verification in `tdd/cycle-log.md` and
   configuration with synthetic preview/test-send/reset. Reuse the wrapper for
   OTP, invitations and notification alerts; preserve protocol-owned recipients,
   verification/expiry and SMTP credentials in deployment secrets.
-- [ ] R05 Verify durable channel dispatch, permission changes, retries/deduplication,
+- [x] R05 Verify durable channel dispatch, permission changes, retries/deduplication,
   secret redaction, mobile email/template flows and the actual preview; update
   the audit and PR evidence. The scope is recorded in
-  `proposals/notification-channels.md`.
+  `contracts/notification-channels.md`.

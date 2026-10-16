@@ -2585,3 +2585,10 @@ middleware integration suite: 9 passed. R01/R02 are verified; R03–R05 follow.
 - Bootstrap/mobile run initially observed a transient 320px overflow immediately after changing the viewport while the responsive chart still had its old width. The assertion now polls for the ResizeObserver-driven layout to settle rather than reading the pre-resize layout synchronously; it still fails on persistent overflow. Rerun pending.
 
 - Bootstrap/mobile rerun passed 8/8 with the responsive resize assertion. ESLint, web/tooling TypeScript, Prettier and diff checks passed. The notification follow-up is locally verified; exact-commit Coolify and live checks remain the R05 deployment gate.
+
+### Notification preview deployment verification
+
+- Pushed `e1a5aa48935cb8e1a81a951e4694e52abdf2030b`; Coolify deployment `w0drpgdywb0ttzajngzxnlcd` finished 2026-10-16 10:52:29 UTC. Baseline PR checks passed.
+- Live 390px notification flow passed real HTML/plain-text OTP login, shipped module fork → synthetic dry test → publish v1 → transactional module/branding save → real Mailpit delivery → reset → personal notification settings. The email was visibly rendered inside the live page, not just in a frame-body capture.
+- The preceding review smoke passed on the same commit: centered HeroUI startup spinner, six-slot real OTP sign-in, 320px overview, sticky preview notice, valid status filters, SSE GET/PUT ingress history, outgoing HTTP503 response inspection, scope-only menus/Back, search, native helper import/publish/HTTP execution, account settings and sign-out.
+- R01–R05 are complete for this follow-up. Physical Android keyboard review, generated API-doc parity and the broader alpha release/installation/performance gates remain separate. Promoted the implemented notification document from proposals to contracts.
