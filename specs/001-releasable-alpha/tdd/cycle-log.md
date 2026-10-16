@@ -2515,3 +2515,42 @@ existing regression rather than claiming a test-first Red cycle.
 All 33 authentication integration tests passed. Scoped ESLint and Prettier,
 and web/tooling TypeScript checks passed. Preview database resets still invalidate
 sessions; this is documented separately from session expiry.
+
+## Review continuation and loading audit — 2026-10-16 (in progress)
+
+The earlier search/session commits did not include the later helper/event review.
+This continuation retains that work rather than treating those scoped pushes as
+completion. Added shared centered accessible spinner states across startup,
+pages, panels and Monaco's fixed-height loading overlay. Retried/error states
+remain distinct, and the spinner respects reduced motion.
+
+Publication integration: 21 passed before new picker coverage; added helper-picker
+import/alias/deduplication/scope regression passed. Delivery integration: 16 passed;
+a strengthened filtered-selection/bulk regression passed. Ingress/history: 21
+passed. Atomic middleware ordering regression passed after correcting an audit
+UUID/text parameter cast. Earlier browser failures found a missing HeroUI client
+boundary and table checkbox composition/selection-context issue; corrected both.
+The subsequent run passed event inspection, helper insertion plus native imports,
+and current-scope creation. Middleware provenance/mobile breadcrumb expectations
+were updated for the new table and compact parent navigation; final rerun pending.
+No synthetic Red cycle is claimed. Release and physical-device gates remain open.
+
+Live preview revision 0e0b686: real Mailpit login, traffic overview, 320px layout,
+SSE, context navigation/search, native imports/publish/HTTP response and sign-out
+passed in the full temporary browser smoke. An earlier run failed SMTP delivery,
+and one earlier immediate-resize check saw transient overflow; both are recorded
+rather than represented as successful checks. This smoke predates the new local
+review batch and does not verify it.
+
+Final local review verification: all 27 dashboard browser cases and all eight
+bootstrap/mobile cases passed. The strengthened U116 then passed actual visible
+checkbox selection → confirmation → bulk replay → new execution, plus select-all
+matching filters. Its first added run targeted the visually hidden native input;
+the corrected test clicks the visible HeroUI label and asserts the checked state.
+This is not a forced click or bypass. The bulk dialog has an explicit accessible
+name. Latest mobile inspector screenshot shows the shorter Inspect controls fit;
+project screenshot shows the compact parent trail and visible header search.
+All 23 publication integration cases passed, including import syntax preservation
+and atomic reorder. ESLint, web/tooling TypeScript, Prettier and diff checks passed.
+The six unrelated Docker/build-workflow drafts are excluded from this commit.
+The next gate is pushing and verifying this exact review batch in Coolify.

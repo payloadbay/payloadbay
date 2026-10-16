@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@components/loading-state";
 import { useFeedbackToast } from "@lib/feedback";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -7,12 +8,15 @@ import { EventBrowser } from "@components/event-browser";
 import { useUnsavedChanges } from "@components/unsaved-changes";
 import { ScriptingGuide } from "@components/scripting-guide";
 import { use, useState, useEffect, useCallback } from "react";
-import { Button, Card, Tabs, TextArea, Label } from "@heroui/react";
+import { Button, Card, Tabs, TextArea, Label, Input, Chip } from "@heroui/react";
 import { IconArrowLeft, IconCheck, IconUpload, IconPlayerPause, IconPlayerPlay, IconCopy } from "@tabler/icons-react";
 import { NativeSelect } from "@heroui-pro/react";
 import { formatScript, formatScriptForDisplay, scriptDocument } from "@lib/script-document";
+import { PublicationPicker } from "@components/publication-picker";
+import { HelperImportPicker } from "@components/helper-import-picker";
 import { CodeEditor } from "@components/code-editor";
 import { SecretBindings } from "@components/secret-bindings";
+import { unpackWire } from "@contracts/wire";
 import { api, ApiFailure } from "@lib/api-client";
 import { hmacHttpTemplate } from "@sdk/templates/hmac";
 import { unverifiedHttpTemplate } from "@sdk/templates/unverified";
@@ -39,6 +43,13 @@ type Route = {
 };
 type Publication = { id: string; created_at: string };
 
+type ScriptTestResult = {
+	mode: string;
+	decision: { kind: string; [key: string]: unknown };
+	logs: { level: string; message: string }[];
+	durationMs: number;
+};
+
 export default function RoutePage({ params }: { params: Promise<{ projectId: string; endpointId: string }> }) {
 	const { projectId, endpointId } = use(params);
 	const section = useSearchParams().get("section") ?? "code";
@@ -47,6 +58,7 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 	const [drafts, setDrafts] = useState<Record<Stage, Draft> | null>(null);
 	const [savedDrafts, setSavedDrafts] = useState<Record<Stage, Draft> | null>(null);
 	const [history, setHistory] = useState<Publication[]>([]);
+	const [historyVersion, setHistoryVersion] = useState("");
 
 	const { dialog: unsavedDialog } = useUnsavedChanges(Boolean(drafts && savedDrafts && JSON.stringify(drafts) !== JSON.stringify(savedDrafts)));
 
@@ -71,7 +83,11 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 	} | null>(null);
 	const [testHeaders, setTestHeaders] = useState("{}");
 	const [testSecrets, setTestSecrets] = useState("{}");
-	const [testResult, setTestResult] = useState<unknown>(null);
+	const [testResult, setTestResult] = useState<ScriptTestResult | null>(null);
+	const [logLevel, setLogLevel] = useState("all");
+	const [logSearch, setLogSearch] = useState("");
+
+	const visibleLogs = testResult?.logs.filter((log) => (logLevel === "all" || log.level === logLevel) && log.message.toLowerCase().includes(logSearch.toLowerCase())) ?? [];
 
 	async function sendRequest() {
 		if (!route?.ingressUrl) return;
@@ -123,7 +139,7 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 					},
 				},
 			});
-			setTestResult(result);
+			setTestResult(unpackWire(result) as ScriptTestResult);
 		} catch (cause) {
 			failed(cause);
 		} finally {
@@ -279,7 +295,7 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 		}
 	}
 
-	if (loading) return <p role='status'>Loading route configuration…</p>;
+	if (loading) return <LoadingState label='Loading route configuration…' size='page' />;
 	if (!route)
 		return (
 			<section>
@@ -418,9 +434,7 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 									<div className='mb-3 flex flex-wrap items-center justify-between gap-2'>
 										<p className='text-muted max-w-prose text-sm'>{slot === "ingress" ? "Export a handler for each HTTP method you want this route to receive. Choose whether to queue the event or just reply." : "Process queued events and decide whether delivery is complete, should retry, or has failed."}</p>
 										<div className='flex items-center gap-2'>
-											<Link className='text-accent text-sm underline' href={"/code/project/" + projectId}>
-												Helper library
-											</Link>
+											<HelperImportPicker scope={{ type: "project", id: projectId }} body={drafts[slot].body} disabled={!editable || busy} onImport={(body, name, id) => setDrafts((previous) => (previous ? { ...previous, [slot]: { ...previous[slot], body, shared_bindings: { ...previous[slot].shared_bindings, [name]: id } } } : previous))} />
 											<ScriptingGuide />
 										</div>
 									</div>
@@ -478,60 +492,99 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 			) : null}
 			{section === "events" && <EventBrowser projectId={projectId} endpointId={endpointId} embedded />}
 			{section === "overview" && (
-				<Card>
-					<Card.Header>
-						<h2 className='text-xl font-semibold'>Send a real test request</h2>
-						<Card.Description>Send to the published route, then inspect its HTTP response below. Accepted events enter the delivery queue; rejected and response-only requests are recorded without delivery. Use synthetic data only.</Card.Description>
-					</Card.Header>
-					<Card.Content className='flex flex-col gap-4'>
-						<NativeSelect variant='secondary'>
-							<Label>HTTP method</Label>
-							<NativeSelect.Trigger aria-label='HTTP method' value={requestMethod} onChange={(e) => setRequestMethod(e.target.value)}>
-								{["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].map((method) => (
-									<NativeSelect.Option key={method} value={method}>
-										{method}
-									</NativeSelect.Option>
-								))}
-								<NativeSelect.Indicator />
-							</NativeSelect.Trigger>
-						</NativeSelect>
-						<label className='flex flex-col gap-2 text-sm'>
-							Request headers (JSON)
-							<TextArea aria-label='Playground request headers' variant='secondary' value={requestHeaders} onChange={(event) => setRequestHeaders(event.target.value)} rows={2} className='font-mono' />
-						</label>
-						{!["GET", "HEAD"].includes(requestMethod) && (
-							<label className='flex flex-col gap-2 text-sm'>
-								Request body
-								<TextArea variant='secondary' aria-label='Playground request body' value={testBody} onChange={(e) => setTestBody(e.target.value)} rows={6} className='font-mono' />
-							</label>
-						)}
-						<Button className='self-end' onPress={() => void sendRequest()} isPending={sending} isDisabled={!route.activePublicationId || sending}>
-							Send request
-						</Button>
-						{!route.activePublicationId && <p className='text-muted text-sm'>Publish the scripts first to enable the receiving URL.</p>}
-						{requestResult && (
-							<section aria-label='HTTP response' className='border-border border-t pt-4'>
-								<h3 className='mb-2 font-semibold'>Response</h3>
-								<div role='status'>
-									<p className='font-medium'>HTTP {requestResult.status}</p>
-
-									<details className='mt-2 text-sm'>
-										<summary className='cursor-pointer'>Response headers</summary>
-										<pre className='overflow-x-auto py-2 text-xs'>{JSON.stringify(requestResult.headers, null, 2)}</pre>
-									</details>
-									<pre className='bg-field mt-2 overflow-auto rounded-lg p-3 text-sm'>{requestResult.body || "Empty response body"}</pre>
-								</div>
-							</section>
-						)}
-					</Card.Content>
-				</Card>
+				<section aria-label='Webhook request client' className='border-border flex min-w-0 flex-col overflow-hidden rounded-xl border'>
+					<header className='bg-surface border-border flex flex-col gap-3 border-b p-4'>
+						<h2 className='text-xl font-semibold'>Webhook playground</h2>
+						<p className='text-muted text-sm'>Send a real request to the published route. Accepted events enter the queue; all received requests remain inspectable. Use synthetic data.</p>
+						<div className='flex min-w-0 flex-wrap items-end gap-3'>
+							<NativeSelect variant='secondary' className='w-28 shrink-0'>
+								<Label>Method</Label>
+								<NativeSelect.Trigger aria-label='HTTP method' value={requestMethod} onChange={(event) => setRequestMethod(event.target.value)}>
+									{["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].map((method) => (
+										<NativeSelect.Option key={method} value={method}>
+											{method}
+										</NativeSelect.Option>
+									))}
+									<NativeSelect.Indicator />
+								</NativeSelect.Trigger>
+							</NativeSelect>
+							<Input aria-label='Request URL' readOnly value={route.ingressUrl ?? "Publish a route first"} variant='secondary' className='min-w-0 flex-1 font-mono text-sm' />
+							<Button onPress={() => void sendRequest()} isPending={sending} isDisabled={!route.activePublicationId || sending}>
+								Send request
+							</Button>
+						</div>
+					</header>
+					<div className='grid min-w-0 divide-y lg:grid-cols-2 lg:divide-x lg:divide-y-0'>
+						<section aria-label='Request' className='flex min-w-0 flex-col gap-4 p-4'>
+							<h3 className='font-semibold'>Request</h3>
+							<Tabs defaultSelectedKey='body'>
+								<Tabs.ListContainer>
+									<Tabs.List aria-label='Request sections'>
+										<Tabs.Tab id='body'>
+											Body
+											<Tabs.Indicator />
+										</Tabs.Tab>
+										<Tabs.Tab id='headers'>
+											Headers
+											<Tabs.Indicator />
+										</Tabs.Tab>
+									</Tabs.List>
+								</Tabs.ListContainer>
+								<Tabs.Panel id='body' className='pt-4'>
+									{["GET", "HEAD"].includes(requestMethod) ? <p className='text-muted text-sm'>This method sends no request body.</p> : <TextArea variant='secondary' aria-label='Playground request body' value={testBody} onChange={(event) => setTestBody(event.target.value)} rows={10} className='font-mono' />}
+								</Tabs.Panel>
+								<Tabs.Panel id='headers' className='pt-4'>
+									<TextArea aria-label='Playground request headers' variant='secondary' value={requestHeaders} onChange={(event) => setRequestHeaders(event.target.value)} rows={10} className='font-mono' />
+									<p className='text-muted mt-2 text-xs'>A JSON object of header names and values.</p>
+								</Tabs.Panel>
+							</Tabs>
+						</section>
+						<section aria-label='HTTP response' className='flex min-w-0 flex-col gap-4 p-4'>
+							<div className='flex flex-wrap items-center justify-between gap-2'>
+								<h3 className='font-semibold'>Response</h3>
+								{requestResult && <Chip color={requestResult.status < 400 ? "success" : "danger"}>HTTP {requestResult.status}</Chip>}
+							</div>
+							{sending ? (
+								<LoadingState label='Waiting for response…' />
+							) : requestResult ? (
+								<Tabs defaultSelectedKey='body'>
+									<Tabs.ListContainer>
+										<Tabs.List aria-label='Response sections'>
+											<Tabs.Tab id='body'>
+												Body
+												<Tabs.Indicator />
+											</Tabs.Tab>
+											<Tabs.Tab id='headers'>
+												Headers
+												<Tabs.Indicator />
+											</Tabs.Tab>
+										</Tabs.List>
+									</Tabs.ListContainer>
+									<Tabs.Panel id='body' className='pt-4'>
+										<pre aria-label='Response body' className='bg-field max-h-96 min-h-40 overflow-auto whitespace-pre-wrap break-all rounded-lg p-3 text-sm'>
+											{requestResult.body || "Empty response body"}
+										</pre>
+									</Tabs.Panel>
+									<Tabs.Panel id='headers' className='pt-4'>
+										<pre aria-label='Response headers' className='bg-field max-h-96 overflow-auto whitespace-pre-wrap break-all rounded-lg p-3 text-xs'>
+											{JSON.stringify(requestResult.headers, null, 2)}
+										</pre>
+									</Tabs.Panel>
+								</Tabs>
+							) : (
+								<p className='text-muted py-8 text-center text-sm'>Send a request to inspect its response here.</p>
+							)}
+						</section>
+					</div>
+					{!route.activePublicationId && <p className='text-muted p-4 text-sm'>Publish the scripts first to enable this receiving URL.</p>}
+				</section>
 			)}
 
 			{section === "test" && drafts && route.permissions.includes("code.test") && (
 				<Card>
 					<Card.Header>
 						<h2 className='text-lg font-semibold'>Synthetic script test</h2>
-						<Card.Description>Test the current {stage} body without saving or publishing. Real secrets are not loaded. Direct fetch is blocked; managed sends are simulated as HTTP 204.</Card.Description>
+						<Card.Description>Test the current {stage} handler without saving or publishing. Middleware is not evaluated in this handler-only test. Real secrets are not loaded. Direct fetch is blocked; managed sends are simulated as HTTP 204.</Card.Description>
 					</Card.Header>
 					<Card.Content className='flex flex-col gap-4'>
 						<div className='grid gap-4 sm:grid-cols-2'>
@@ -575,9 +628,42 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 							Test {stage} (dry)
 						</Button>
 						{testResult !== null && (
-							<pre aria-label='Synthetic test result' className='bg-field max-h-96 overflow-auto rounded-lg p-4 font-mono text-sm'>
-								{JSON.stringify(testResult, null, 2)}
-							</pre>
+							<section aria-label='Synthetic test result' className='border-border flex flex-col gap-4 border-t pt-4'>
+								<div className='flex flex-wrap items-center gap-3'>
+									<Chip>{testResult.decision.kind}</Chip>
+									<span className='text-muted text-sm'>{testResult.durationMs} ms · simulated effects</span>
+								</div>
+								<h3 className='font-semibold'>Handler decision</h3>
+								<pre className='bg-field max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-lg p-4 font-mono text-sm'>{JSON.stringify(testResult.decision, null, 2)}</pre>
+								<h3 className='font-semibold'>Execution logs</h3>
+								<div className='flex flex-wrap items-end gap-3'>
+									<NativeSelect variant='secondary'>
+										<Label>Log level</Label>
+										<NativeSelect.Trigger aria-label='Log level' value={logLevel} onChange={(event) => setLogLevel(event.target.value)}>
+											{["all", "debug", "info", "warn", "error"].map((level) => (
+												<NativeSelect.Option key={level} value={level}>
+													{level === "all" ? "All levels" : level}
+												</NativeSelect.Option>
+											))}
+											<NativeSelect.Indicator />
+										</NativeSelect.Trigger>
+									</NativeSelect>
+									<Input aria-label='Search execution logs' placeholder='Search logs…' variant='secondary' value={logSearch} onChange={(event) => setLogSearch(event.target.value)} className='min-w-0 flex-1' />
+								</div>
+								{visibleLogs.length ? (
+									<ul className='bg-field max-h-80 overflow-auto rounded-lg p-4 font-mono text-sm'>
+										{testResult.logs
+											.filter((log) => (logLevel === "all" || log.level === logLevel) && log.message.toLowerCase().includes(logSearch.toLowerCase()))
+											.map((log, index) => (
+												<li key={index}>
+													<span className='text-muted'>{log.level}</span> {log.message}
+												</li>
+											))}
+									</ul>
+								) : (
+									<p className='text-muted text-sm'>{testResult.logs.length ? "No logs match these filters." : "The handler did not write any logs."}</p>
+								)}
+							</section>
 						)}
 					</Card.Content>
 				</Card>
@@ -590,22 +676,13 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 						<Card.Description>Rollback changes new events; queued events retain their original publication.</Card.Description>
 					</Card.Header>
 					<Card.Content>
-						<ul className='flex flex-col gap-3'>
-							{history.map((publication) => (
-								<li key={publication.id} className='flex flex-wrap items-center justify-between gap-3'>
-									<div>
-										<code className='text-xs'>{publication.id.slice(0, 8)}</code>
-										<span className='text-muted ml-3 text-sm'>{new Date(publication.created_at).toLocaleString()}</span>
-										{publication.id === route.activePublicationId && <span className='text-success ml-3 text-xs'>Active</span>}
-									</div>
-									{publishable && publication.id !== route.activePublicationId && (
-										<Button size='sm' variant='secondary' isDisabled={busy} onPress={() => void rollback(publication.id)}>
-											Activate this version
-										</Button>
-									)}
-								</li>
-							))}
-						</ul>
+						<PublicationPicker endpointId={endpointId} value={historyVersion || route.activePublicationId || history[0]?.id || ""} onChange={setHistoryVersion} label='Published script version' />
+						<p className='text-muted my-3 text-sm'>Active handles new events. Latest is the newest publication; it may differ after a rollback. Existing executions keep their pinned version.</p>
+						{publishable && historyVersion && historyVersion !== route.activePublicationId && (
+							<Button variant='secondary' isDisabled={busy} onPress={() => void rollback(historyVersion)}>
+								Activate selected version
+							</Button>
+						)}
 					</Card.Content>
 				</Card>
 			)}

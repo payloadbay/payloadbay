@@ -27,7 +27,7 @@ export async function getSharedVersion(db: Pool | PoolClient, actor: Actor, id: 
 	if (!row) throw new AppError("not_found", 404, "Shared code unavailable");
 	await requirePermission(db, actor, { type: row.scope_type, id: row.scope_id }, "code.read");
 
-	return { ...metadata(row), source: row.source as string };
+	return { ...metadata(row), source: row.source as string, exports: helperExports(row.source as string) };
 }
 
 export async function createSharedVersion(
@@ -62,7 +62,7 @@ export async function createSharedVersion(
 			capability: "code.read",
 		});
 
-		return { ...metadata(row), source: row.source as string };
+		return { ...metadata(row), source: row.source as string, exports: helperExports(row.source as string) };
 	});
 }
 
@@ -159,4 +159,97 @@ export async function pinSourceImports(db: Pool | PoolClient, actor: Actor, scop
 	await resolveSharedModules(db, actor, scope, pinned);
 
 	return pinned;
+}
+
+export function helperExports(source: string) {
+	const file = ts.createSourceFile("helper.ts", source, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
+	const names = new Set<string>();
+	for (const node of file.statements) {
+		if (ts.isExportAssignment(node)) names.add("default");
+		if (ts.isExportDeclaration(node) && node.exportClause && ts.isNamedExports(node.exportClause)) for (const item of node.exportClause.elements) names.add(item.name.text);
+		const modifiers = ts.canHaveModifiers(node) ? ts.getModifiers(node) : undefined;
+		if (!modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)) continue;
+		if (modifiers.some((modifier) => modifier.kind === ts.SyntaxKind.DefaultKeyword)) {
+			names.add("default");
+			continue;
+		}
+
+		if (ts.isVariableStatement(node)) {
+			for (const declaration of node.declarationList.declarations) if (ts.isIdentifier(declaration.name)) names.add(declaration.name.text);
+		} else if ("name" in node && node.name && ts.isIdentifier(node.name as ts.Node)) names.add((node.name as ts.Identifier).text);
+	}
+
+	return [...names];
+}
+
+export async function prepareHelperImport(
+	pool: Pool,
+	actor: Actor,
+	input: {
+		scope: ScopeRef;
+		revisionId: string;
+		body: string;
+		exports: string[];
+	},
+) {
+	await requirePermission(pool, actor, input.scope, "code.edit");
+	const helper = await getSharedVersion(pool, actor, input.revisionId);
+	await resolveSharedModules(pool, actor, input.scope, { [helper.name]: helper.id });
+	const available = helperExports(helper.source);
+	if (!input.exports.length || input.exports.some((name) => !available.includes(name))) throw new AppError("invalid_import", 400, "Select exports provided by this helper revision");
+	const diagnostics = ts.transpileModule(input.body, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext }, reportDiagnostics: true }).diagnostics;
+	if (diagnostics?.some((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error)) throw new AppError("invalid_script", 400, "Fix the script syntax before importing a helper");
+	const file = ts.createSourceFile("script.ts", input.body, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
+	const imports = file.statements.filter(ts.isImportDeclaration);
+	const existing = new Set<string>();
+	const used = new Set<string>();
+
+	function identifiers(node: ts.Node) {
+		if (ts.isIdentifier(node)) used.add(node.text);
+		ts.forEachChild(node, identifiers);
+	}
+
+	identifiers(file);
+	for (const declaration of imports) {
+		if (!ts.isStringLiteral(declaration.moduleSpecifier) || declaration.moduleSpecifier.text !== "@shared/" + helper.name) continue;
+		if (declaration.importClause?.name) existing.add("default");
+		const bindings = declaration.importClause?.namedBindings;
+		if (bindings && ts.isNamedImports(bindings)) for (const symbol of bindings.elements) existing.add(symbol.propertyName?.text ?? symbol.name.text);
+	}
+
+	function local(name: string) {
+		let candidate = name;
+		let index = 1;
+		while (used.has(candidate)) candidate = helper.name + "_" + name + (index++ > 1 ? index : "");
+		used.add(candidate);
+
+		return ts.factory.createIdentifier(candidate);
+	}
+
+	const selected = [...new Set(input.exports)].filter((name) => !existing.has(name));
+	const statement = selected.length
+		? ts.factory.createImportDeclaration(
+				undefined,
+				ts.factory.createImportClause(
+					false,
+					selected.includes("default") ? local(helper.name) : undefined,
+					selected.some((name) => name !== "default")
+						? ts.factory.createNamedImports(
+								selected
+									.filter((name) => name !== "default")
+									.map((name) => {
+										const alias = local(name);
+
+										return ts.factory.createImportSpecifier(false, alias.text === name ? undefined : ts.factory.createIdentifier(name), alias);
+									}),
+							)
+						: undefined,
+				),
+				ts.factory.createStringLiteral("@shared/" + helper.name),
+			)
+		: null;
+	const statements = [...imports, ...(statement ? [statement] : []), ...file.statements.filter((node) => !ts.isImportDeclaration(node))];
+	const body = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed }).printFile(ts.factory.updateSourceFile(file, statements));
+
+	return { body, name: helper.name, revisionId: helper.id };
 }

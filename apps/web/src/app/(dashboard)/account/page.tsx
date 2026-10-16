@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@components/loading-state";
 import { useState, useEffect, useCallback, type FormEvent } from "react";
 import { Button, Card, FieldError, Form, Input, Label, TextField, Table } from "@heroui/react";
 import { authClient } from "@lib/auth-client";
@@ -133,7 +134,7 @@ export default function AccountPage() {
 				</Card.Header>
 				<Card.Content className='flex flex-col gap-4'>
 					{loadingKeys ? (
-						<p role='status'>Loading passkeys…</p>
+						<LoadingState label='Loading passkeys…' />
 					) : keysUnavailable ? (
 						<div>
 							<p className='text-muted text-sm'>Passkeys could not be loaded.</p>

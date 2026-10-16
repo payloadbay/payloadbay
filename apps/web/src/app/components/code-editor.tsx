@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@components/loading-state";
 import { useEffect, useRef, useState } from "react";
 import { scriptFrame, formatScript, type ScriptStage } from "@lib/script-document";
 import { api } from "@lib/api-client";
@@ -230,13 +231,15 @@ export function CodeEditor({ value, onChange, label, readOnly = false, stage, bi
 					{error}
 				</p>
 			)}
-			{!ready && !error && (
-				<p role='status' className='text-muted mb-2 text-sm'>
-					Loading code editor…
-				</p>
-			)}
 			{prefix && <p className='text-muted mb-2 text-xs'>The shaded signature stays fixed. Edit the code below; hover ctx to explore the available methods.</p>}
-			<div ref={container} className='border-border h-96 min-w-0 w-full overflow-hidden rounded-lg border' />
+			<div className='relative'>
+				{!ready && !error && (
+					<div className='bg-background absolute inset-0 z-10 flex items-center justify-center rounded-lg'>
+						<LoadingState label='Loading code editor…' />
+					</div>
+				)}
+				<div ref={container} className='border-border h-96 min-w-0 w-full overflow-hidden rounded-lg border' />
+			</div>
 		</div>
 	);
 }

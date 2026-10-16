@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@components/loading-state";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Button, Card, Table } from "@heroui/react";
@@ -97,13 +98,13 @@ export default function DashboardPage() {
 				</Link>
 			</header>
 			{!overview ? (
-				<div role='status'>
+				<div className='flex min-h-[50dvh] items-center justify-center'>
 					{error ? (
 						<Button variant='secondary' onPress={() => void load()}>
 							Retry loading overview
 						</Button>
 					) : (
-						"Loading traffic…"
+						<LoadingState label='Loading traffic…' />
 					)}
 				</div>
 			) : (

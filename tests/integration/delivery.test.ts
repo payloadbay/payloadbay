@@ -323,3 +323,34 @@ test("U146 replay keeps original publication after active version changes", asyn
 		assert.equal((await db.query("SELECT publication_id FROM payloadbay.execution WHERE id=$1", [replay.id])).rows[0].publication_id, event.publication_id, "default replay must retain original publication");
 	});
 });
+
+test("bulk replay freezes selected events, supports a chosen version and rolls back invalid batches", async () => {
+	const { replayEvents } = await import("../../packages/domain/src/replay.ts");
+	const { selectReplayEvents } = await import("../../packages/domain/src/events.ts");
+	await deliveryFixture(async ({ pool, db, authority }) => {
+		const event = (await db.query("SELECT e.event_id,e.publication_id,ep.project_id FROM payloadbay.execution e JOIN payloadbay.endpoint ep ON ep.id=e.endpoint_id WHERE e.id=$1", [authority.executionId])).rows[0];
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','project',$1,'custom',ARRAY['events.replay','metadata.read'])", [event.project_id]);
+		const second = (await db.query("INSERT INTO payloadbay.event(endpoint_id,publication_id,original_body,accepted_body,headers,content_type) VALUES($1,$2,''::bytea,''::bytea,'{}','text/plain') RETURNING id", [authority.endpointId, event.publication_id])).rows[0].id;
+		const input = {
+			eventIds: [event.event_id, second],
+			key: "bulk-fixture",
+			publicationPolicy: "selected" as const,
+			publicationId: event.publication_id,
+		};
+		const selected = await selectReplayEvents(pool, { userId: "fixture-owner" }, { projectId: event.project_id, publicationId: event.publication_id });
+		assert.deepEqual([...selected.ids].sort(), [...input.eventIds].sort());
+		assert.equal((await selectReplayEvents(pool, { userId: "fixture-owner" }, { projectId: event.project_id, publicationId: crypto.randomUUID() })).count, 0);
+		const first = await replayEvents(pool, { userId: "fixture-owner" }, input);
+		assert.equal(first.count, 2);
+		const again = await replayEvents(pool, { userId: "fixture-owner" }, input);
+		assert.deepEqual(
+			again.executions.map((item) => item.id),
+			first.executions.map((item) => item.id),
+		);
+		assert.ok(again.executions.every((item) => item.reused));
+		const before = (await db.query("SELECT count(*)::int AS n FROM payloadbay.execution")).rows[0].n;
+		await assert.rejects(replayEvents(pool, { userId: "fixture-owner" }, { ...input, key: "bad-batch", eventIds: [second, crypto.randomUUID()] }), { code: "not_found" });
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.execution")).rows[0].n, before);
+		await assert.rejects(replayEvents(pool, { userId: "fixture-owner" }, { ...input, key: "bad-version", publicationId: crypto.randomUUID() }), { code: "publication_unavailable" });
+	});
+});

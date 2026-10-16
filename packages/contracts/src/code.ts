@@ -49,3 +49,14 @@ export const middlewareUpdateInput = middlewareBindingInput
 		enabled: z.boolean().optional(),
 	})
 	.strict();
+
+export const middlewareOrderInput = z
+	.object({
+		scope: middlewareScope,
+		stage: z.enum(["ingress", "processing"]),
+		items: z
+			.array(z.object({ id: z.uuid(), version: z.number().int().positive() }).strict())
+			.min(1)
+			.max(200),
+	})
+	.strict();

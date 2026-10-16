@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@components/loading-state";
 import { useFeedbackToast } from "@lib/feedback";
 import { useEffect, useState, useCallback } from "react";
 import { Button } from "@heroui/react";
@@ -104,7 +105,7 @@ export function NotificationInbox({ scope, label = "Notifications" }: { scope: S
 							</Sheet.Header>
 							<Sheet.Body className='flex flex-col gap-4'>
 								{loading ? (
-									<p role='status'>Loading notifications…</p>
+									<LoadingState label='Loading notifications…' />
 								) : error ? (
 									<div className='flex flex-col items-start gap-3'>
 										<p>Notifications unavailable.</p>

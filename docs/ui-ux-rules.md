@@ -126,3 +126,12 @@ structure and feature behavior belong in the relevant specification. Generalize 
 apply beyond one feature; keep individual fixes in the audit backlog.
 
 Linear mirror: [Payload Bay UI/UX principles](https://linear.app/thedannicraft/document/payload-bay-uiux-principles-2d0a0ebce882). Keep general principles here; keep screen-specific acceptance criteria in the feature specification and audit.
+
+## Loading feedback
+
+Center pending-state feedback within the surface being loaded. Use a HeroUI
+spinner and a short accessible label; screen startup fills the viewport, while
+panel loading stays local and preserves useful surrounding controls. Keep loading,
+empty and failed states distinct. Stop the spinner on failure and offer recovery.
+Respect reduced-motion preferences and avoid moving the working surface when an
+editor or other embedded tool becomes ready.

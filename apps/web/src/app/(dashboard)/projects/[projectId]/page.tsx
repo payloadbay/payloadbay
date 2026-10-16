@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@components/loading-state";
 import { useFeedbackToast } from "@lib/feedback";
 import { use, useState, useEffect, useCallback, type FormEvent } from "react";
 import { Button, Table, Form, TextField, Label, Input, FieldError } from "@heroui/react";
@@ -103,7 +104,7 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 		setError("");
 	}
 
-	if (loading) return <p role='status'>Loading project…</p>;
+	if (loading) return <LoadingState label='Loading project…' size='page' />;
 	if (!project)
 		return (
 			<section>

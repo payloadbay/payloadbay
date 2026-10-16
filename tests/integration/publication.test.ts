@@ -645,3 +645,104 @@ test("native source imports resolve real exports and preserve immutable revision
 		);
 	});
 });
+
+test("helper import picker inserts real exports above code, preserves aliases and checks scope", async () => {
+	const { createSharedVersion, prepareHelperImport } = await import("../../packages/domain/src/shared-code.ts");
+	const { compile } = await import("../../apps/executor/src/compiler.ts");
+	await publicationFixture(async ({ pool, db, scope }) => {
+		const actor = { userId: "fixture-owner" };
+		const selectedScope = { type: "project" as const, id: scope.project };
+		const helper = await createSharedVersion(pool, actor, {
+			scope: selectedScope,
+			name: "Messages",
+			source: 'export const message = "hello"; export default function greeting() { return message; }',
+			compile,
+		});
+		const prepared = await prepareHelperImport(pool, actor, {
+			scope: selectedScope,
+			revisionId: helper.id,
+			body: 'const message = "local";\nexport async function POST(ctx: IngressContext): Promise<IngressDecision> { return ctx.respondOnly({status:200,body:message}); }',
+			exports: ["default", "message"],
+		});
+		assert.match(prepared.body, /^import Messages, \{ message as Messages_message \} from "@shared\/Messages";/);
+		assert.ok(prepared.body.indexOf("import ") < prepared.body.indexOf("const message"));
+		const again = await prepareHelperImport(pool, actor, {
+			scope: selectedScope,
+			revisionId: helper.id,
+			body: prepared.body,
+			exports: ["default", "message"],
+		});
+		assert.equal(again.body, prepared.body);
+		await assert.rejects(
+			prepareHelperImport(pool, actor, {
+				scope: selectedScope,
+				revisionId: helper.id,
+				body: "export async function POST( {",
+				exports: ["message"],
+			}),
+			{ code: "invalid_script" },
+		);
+		await assert.rejects(
+			prepareHelperImport(pool, actor, {
+				scope: selectedScope,
+				revisionId: helper.id,
+				body: prepared.body,
+				exports: ["missing"],
+			}),
+			{ code: "invalid_import" },
+		);
+		const other = (await db.query("INSERT INTO payloadbay.project(workspace_id,name,slug,owner_user_id) VALUES($1,'Other','picker-other','fixture-owner') RETURNING id", [scope.workspace])).rows[0].id;
+		await assert.rejects(
+			prepareHelperImport(pool, actor, {
+				scope: { type: "project", id: other },
+				revisionId: helper.id,
+				body: prepared.body,
+				exports: ["message"],
+			}),
+			{ code: "invalid_shared_binding" },
+		);
+	});
+});
+
+test("middleware reorder is atomic, version checked and restricted to one scope and stage", async () => {
+	const { createMiddlewareBinding, reorderMiddlewareBindings } = await import("../../packages/domain/src/middleware.ts");
+	const { compile } = await import("../../apps/executor/src/compiler.ts");
+	await publicationFixture(async ({ pool, db, scope }) => {
+		const actor = { userId: "fixture-owner" };
+		const selectedScope = { type: "project" as const, id: scope.project };
+
+		const create = (name: string, position: number) =>
+			createMiddlewareBinding(pool, actor, {
+				scope: selectedScope,
+				stage: "processing",
+				name,
+				position,
+				body: "return ctx.continue();",
+				failurePolicy: "required",
+				overridePolicy: "allowed",
+				compile,
+			});
+
+		const first = await create("First", 0);
+		const second = await create("Second", 1);
+		const input = {
+			scope: selectedScope,
+			stage: "processing" as const,
+			items: [
+				{ id: second.id, version: second.version },
+				{ id: first.id, version: first.version },
+			],
+		};
+		await reorderMiddlewareBindings(pool, actor, input);
+		assert.deepEqual(
+			(await db.query("SELECT name FROM payloadbay.middleware_binding ORDER BY position")).rows.map((item) => item.name),
+			["Second", "First"],
+		);
+		await assert.rejects(reorderMiddlewareBindings(pool, actor, input), { code: "version_conflict" });
+		await assert.rejects(reorderMiddlewareBindings(pool, actor, { ...input, stage: "ingress" }), { code: "version_conflict" });
+		assert.deepEqual(
+			(await db.query("SELECT name FROM payloadbay.middleware_binding ORDER BY position")).rows.map((item) => item.name),
+			["Second", "First"],
+		);
+	});
+});

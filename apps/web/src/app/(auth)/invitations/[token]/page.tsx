@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@components/loading-state";
 import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -72,12 +73,7 @@ export default function InvitationPage({ params }: { params: Promise<{ token: st
 		}
 	}
 
-	if (loading)
-		return (
-			<p role='status' className='p-8'>
-				Loading invitation…
-			</p>
-		);
+	if (loading) return <LoadingState label='Loading invitation…' size='screen' />;
 	if (unavailable || !invitation)
 		return (
 			<main className='mx-auto max-w-md p-8'>

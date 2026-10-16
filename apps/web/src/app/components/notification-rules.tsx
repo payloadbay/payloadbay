@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@components/loading-state";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { Button, Card, Checkbox, Label, NumberField, FieldError } from "@heroui/react";
@@ -254,7 +255,7 @@ export function NotificationRules({ projectId, workspaceId }: { projectId?: stri
 				</Sheet>
 			)}
 			{loading ? (
-				<p role='status'>Loading notification rules…</p>
+				<LoadingState label='Loading notification rules…' />
 			) : rules.length ? (
 				<div className='grid gap-4 md:grid-cols-2'>
 					{rules.map((rule) => (

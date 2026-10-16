@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@components/loading-state";
 import { useFeedbackToast } from "@lib/feedback";
 import Link from "next/link";
 import Image from "next/image";
@@ -132,8 +133,9 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 
 	if (!data)
 		return (
-			<main className='mx-auto max-w-lg p-8'>
-				<p role='status'>{error ? "Could not load your dashboard." : "Loading your dashboard…"}</p>
+			<main className='flex min-h-dvh flex-col items-center justify-center gap-4 p-8 text-center'>
+				{!error && <LoadingState label='Loading your dashboard…' />}
+				{error && <p role='status'>Could not load your dashboard.</p>}
 				{error && (
 					<>
 						<Button onPress={() => void load()}>Retry</Button>
@@ -357,7 +359,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 		},
 		{
 			id: "personal-notifications",
-			label: "Your notification preferences",
+			label: "Notification settings",
 			href: "/account/notifications",
 			icon: IconBell,
 		},
@@ -525,9 +527,9 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 													<span className='truncate font-medium'>{data.me.user.name}</span>
 													<span className='text-muted truncate text-xs'>{data.me.user.email}</span>
 												</Header>
-												<Dropdown.Item id='notification-preferences' textValue='Your notifications' href='/account/notifications'>
+												<Dropdown.Item id='notification-preferences' textValue='Notification settings' href='/account/notifications'>
 													<IconBell size={18} aria-hidden='true' />
-													<Label>Your notifications</Label>
+													<Label>Notification settings</Label>
 												</Dropdown.Item>
 												<Dropdown.Item id='account' textValue='Account settings' href='/account'>
 													<IconSettings size={18} aria-hidden='true' />
@@ -548,7 +550,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 				}
 			>
 				<div className='mx-auto w-full min-w-0 max-w-6xl p-4 sm:p-6 lg:p-10'>
-					<nav aria-label='Breadcrumbs' className='mb-6 overflow-x-auto'>
+					<nav aria-label='Breadcrumbs' className='mb-6 hidden overflow-x-auto sm:block'>
 						<Breadcrumbs className='min-w-max'>
 							<Breadcrumbs.Item href={pathname === "/" ? undefined : "/"}>Overview</Breadcrumbs.Item>
 							{currentWorkspace && <Breadcrumbs.Item href={pathname === "/workspaces/" + currentWorkspace.id ? undefined : "/workspaces/" + currentWorkspace.id}>{currentWorkspace.name}</Breadcrumbs.Item>}
@@ -556,6 +558,41 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 							{routeId && <Breadcrumbs.Item href={routeAddress}>{routeMetadata && routeMetadata.id === routeId ? routeMetadata.name : "Ingress route"}</Breadcrumbs.Item>}
 							{routeId && <Breadcrumbs.Item>{routeSection === "middleware" ? "Middleware" : (routeLinks.find((item) => item.id === routeSection)?.label ?? "Scripts")}</Breadcrumbs.Item>}
 							{!currentProject && !currentWorkspace && pathname !== "/" && <Breadcrumbs.Item>{pathname === "/workspaces" ? "Workspaces" : pathname === "/projects" ? "Projects" : pathname === "/events" ? "Events" : pathname.startsWith("/account") ? "Account settings" : "Administration"}</Breadcrumbs.Item>}
+						</Breadcrumbs>
+					</nav>
+					<nav aria-label='Breadcrumbs' className='mb-6 flex min-w-0 items-center gap-2 sm:hidden'>
+						{pathname !== "/" && (
+							<Dropdown>
+								<Dropdown.Trigger aria-label='Parent pages' className='button button--ghost size-9 shrink-0'>
+									…
+								</Dropdown.Trigger>
+								<Dropdown.Popover className='max-w-[calc(100vw-2rem)]'>
+									<Dropdown.Menu aria-label='Parent pages'>
+										<Dropdown.Item id='home' href='/'>
+											Overview
+										</Dropdown.Item>
+										{currentWorkspace && (
+											<Dropdown.Item id='workspace' href={"/workspaces/" + currentWorkspace.id}>
+												{currentWorkspace.name}
+											</Dropdown.Item>
+										)}
+										{currentProject && (
+											<Dropdown.Item id='project' href={"/projects/" + currentProject.id}>
+												{currentProject.name}
+											</Dropdown.Item>
+										)}
+										{routeId && (
+											<Dropdown.Item id='route' href={routeAddress}>
+												{routeMetadata?.name ?? "Ingress route"}
+											</Dropdown.Item>
+										)}
+									</Dropdown.Menu>
+								</Dropdown.Popover>
+							</Dropdown>
+						)}
+						<Breadcrumbs className='min-w-0 [&_.breadcrumbs__link]:max-w-36 [&_.breadcrumbs__link]:truncate'>
+							{routeId ? <Breadcrumbs.Item href={routeAddress}>{routeMetadata?.name ?? "Ingress route"}</Breadcrumbs.Item> : currentProject ? <Breadcrumbs.Item href={pathname === "/projects/" + currentProject.id ? undefined : "/projects/" + currentProject.id}>{currentProject.name}</Breadcrumbs.Item> : currentWorkspace ? <Breadcrumbs.Item href={pathname === "/workspaces/" + currentWorkspace.id ? undefined : "/workspaces/" + currentWorkspace.id}>{currentWorkspace.name}</Breadcrumbs.Item> : null}
+							{routeId ? <Breadcrumbs.Item>{routeSection === "middleware" ? "Middleware" : (routeLinks.find((item) => item.id === routeSection)?.label ?? "Scripts")}</Breadcrumbs.Item> : !currentProject && !currentWorkspace ? <Breadcrumbs.Item>{pathname === "/" ? "Overview" : pathname === "/workspaces" ? "Workspaces" : pathname === "/projects" ? "Projects" : pathname === "/events" ? "Events" : pathname.startsWith("/account") ? "Account settings" : "Administration"}</Breadcrumbs.Item> : null}
 						</Breadcrumbs>
 					</nav>
 					{children}

@@ -299,7 +299,7 @@ test("U116 event inspector displays HTML payload as escaped text", async ({ page
 		const event = (await pool.query("INSERT INTO payloadbay.event(endpoint_id,publication_id,original_body,accepted_body,headers,content_type) VALUES($1,$2,$3,$3,'{}','text/html') RETURNING id", [route.id, publication.id, Buffer.from(body)])).rows[0].id;
 		const execution = (await pool.query("INSERT INTO payloadbay.execution(event_id,endpoint_id,publication_id,state,final_result) VALUES($1,$2,$3,'succeeded','{\"kind\":\"complete\"}') RETURNING id", [event, route.id, publication.id])).rows[0].id;
 		await pool.query("INSERT INTO payloadbay.managed_operation(execution_id,operation_id,input_digest,destination_snapshot,generation) VALUES($1,'primary','fixture','{}',1)", [execution]);
-		await pool.query("INSERT INTO payloadbay.delivery_attempt(execution_id,operation_id,execution_attempt,generation,ended_at,status_code,response_body) VALUES($1,'primary',1,1,now(),503,$2),($1,'primary',2,1,now(),204,''::bytea)", [execution, Buffer.from("Receiver is offline")]);
+		await pool.query("INSERT INTO payloadbay.delivery_attempt(execution_id,operation_id,execution_attempt,generation,started_at,ended_at,status_code,response_body) VALUES($1,'primary',1,1,now()-interval '1 second',now(),503,$2),($1,'primary',2,1,now(),now(),204,''::bytea)", [execution, Buffer.from("Receiver is offline")]);
 	} finally {
 		await pool.end();
 	}
@@ -311,29 +311,41 @@ test("U116 event inspector displays HTML payload as escaped text", async ({ page
 	await expect(page.getByLabel("Accepted event body")).toHaveText(body);
 	await expect(page.locator('img[src="x"]')).toHaveCount(0);
 	expect(await page.evaluate(() => Boolean((globalThis as typeof globalThis & { PAYLOADBAY_ATTACKED?: boolean }).PAYLOADBAY_ATTACKED))).toBe(false);
+	await page.getByRole("tab", { name: "Processing", exact: true }).click();
 	await expect(page.getByText("Handler completed", { exact: true }).last()).toBeVisible();
-	await page.getByRole("dialog").getByRole("button", { name: /close/i }).first().click();
-	await page.getByRole("button", { name: "Delivery attempts", exact: true }).click();
+	await page.getByRole("tab", { name: "Outgoing", exact: true }).click();
+	const attempts = page.getByRole("grid", { name: "Event delivery attempts", exact: true });
+	await attempts.getByRole("row").filter({ hasText: "HTTP 503" }).click();
+	await expect(page.getByLabel("Delivery response body")).toHaveText("Receiver is offline");
+	const dialog = page.getByRole("dialog", { name: "Event inspection" });
+	const bounds = await dialog.boundingBox();
+	expect(bounds!.x).toBeGreaterThanOrEqual(0);
+	expect(bounds!.width).toBeLessThanOrEqual(390);
+	await page.screenshot({ path: test.info().outputPath("attempt-inspector-mobile.png") });
+	await dialog.getByRole("button", { name: /close/i }).first().click();
+	await expect(page.getByRole("button", { name: "Delivery attempts", exact: true })).toHaveCount(0);
 	await page.getByRole("button", { name: /History status/ }).click();
 	await page.getByRole("option", { name: "Delivery failed", exact: true }).click();
 	await page.keyboard.press("Escape");
-	const attemptRows = page.getByRole("grid", { name: "Delivery attempts", exact: true });
-	await expect(attemptRows.getByText("Delivery failed", { exact: true })).toBeVisible();
-	await expect(attemptRows.getByText("Delivered", { exact: true })).toHaveCount(0);
-	await page.getByRole("button", { name: /Inspect event/ }).click();
-	await expect(page.getByRole("dialog", { name: "Delivery attempt inspection" })).toBeVisible();
-	await expect(page.getByLabel("Delivery response body")).toHaveText("Receiver is offline");
-	const attemptDialog = await page.getByRole("dialog", { name: "Delivery attempt inspection" }).boundingBox();
-	expect(attemptDialog!.x).toBeGreaterThanOrEqual(0);
-	expect(attemptDialog!.width).toBeLessThanOrEqual(390);
-	await page.screenshot({ path: test.info().outputPath("attempt-inspector-mobile.png") });
-
-	await page.getByRole("dialog").getByRole("button", { name: /close/i }).first().click();
+	// Valid filters with no matching event are an empty result, never a validation error.
+	await expect(page.getByText("No matching entries", { exact: true })).toBeVisible();
 	await page.getByRole("button", { name: /History status/ }).click();
-	await page.getByRole("option", { name: "Delivered", exact: true }).click();
+	await page.getByRole("option", { name: "Delivery failed", exact: true }).click();
 	await page.keyboard.press("Escape");
-	await expect(attemptRows.getByText("Delivered", { exact: true })).toBeVisible();
-	await expect(attemptRows.getByText("Delivery failed", { exact: true })).toBeVisible();
+	await expect(page.getByRole("grid", { name: "Stored events" })).toBeVisible();
+	const entry = (await (await page.request.get("/api/v1/projects/" + project.id + "/events")).json()).items[0];
+	const before = (await (await page.request.get("/api/v1/events/" + entry.id)).json()).executions.length;
+	const selectVisible = page.getByRole("checkbox", { name: "Select visible replayable events", exact: true });
+	await page.locator("label").filter({ has: selectVisible }).click();
+	await expect(selectVisible).toBeChecked();
+	await page.getByRole("button", { name: "Replay selected events", exact: true }).click();
+	const replayDialog = page.getByRole("dialog", { name: "Replay selected events", exact: true });
+	await expect(replayDialog).toContainText("1 selected events");
+	await replayDialog.getByRole("button", { name: "Queue replay", exact: true }).click();
+	await expect(replayDialog).not.toBeVisible();
+	await expect.poll(async () => (await (await page.request.get("/api/v1/events/" + entry.id)).json()).executions.length).toBe(before + 1);
+	await page.getByRole("button", { name: "Select all matching replayable events", exact: true }).click();
+	await expect(page.getByText("1 selected", { exact: true })).toBeVisible();
 });
 
 test("U275 stored event appears through authenticated live updates", async ({ page }) => {
@@ -414,6 +426,24 @@ test("U292 project code page creates helper version and processing middleware", 
 	expect(bindings).toHaveLength(1);
 	expect(bindings[0].scope.id).toBe(project.id);
 	expect(bindings[0].stage).toBe("processing");
+	await expect(page.getByRole("grid", { name: "Middleware execution order" })).toBeVisible();
+	const secondResponse = await page.request.post("/api/v1/middleware", {
+		headers,
+		data: {
+			scope: { type: "project", id: project.id },
+			stage: "processing",
+			name: "Second policy",
+			body: "return ctx.continue();",
+			position: 1,
+			failurePolicy: "required",
+			overridePolicy: "allowed",
+		},
+	});
+	expect(secondResponse.ok()).toBe(true);
+	await page.reload();
+	await page.getByRole("tab", { name: "Middleware", exact: true }).click();
+	await page.getByRole("button", { name: "Move Second policy up", exact: true }).click();
+	await expect.poll(async () => (await (await page.request.get("/api/v1/middleware?scopeType=project&scopeId=" + project.id)).json())[0].name).toBe("Second policy");
 });
 
 test("U83 route editor binds helper version and supports editable file imports", async ({ page }) => {
@@ -430,6 +460,14 @@ test("U83 route editor binds helper version and supports editable file imports",
 	await page.goto("/projects/" + project.id + "/routes/" + route.id);
 	await expect(page.getByRole("row", { name: "Helper imports", exact: true })).toHaveCount(0);
 	const code = page.getByRole("textbox", { name: "Ingress code", exact: true });
+	await page.getByRole("button", { name: "Import helper", exact: true }).click();
+	const picker = page.getByRole("dialog", { name: "Import helper", exact: true });
+	await picker.getByRole("button", { name: /Helper revision/ }).click();
+	await page.getByRole("option", { name: /Messages/ }).click();
+	await picker.getByRole("button", { name: "Insert import", exact: true }).click();
+	await expect(picker).not.toBeVisible();
+	await expect(page.locator(".monaco-editor .view-lines").first()).toContainText('import { message } from "@shared/Messages"');
+
 	await code.focus();
 	await page.keyboard.press("ControlOrMeta+A");
 	await page.keyboard.insertText('import { message } from "@shared/');
@@ -531,7 +569,7 @@ test("U300 route editor tests unsaved ingress with synthetic fixture", async ({ 
 	expect(events.items).toHaveLength(0);
 });
 
-test("U301 code scope picker navigates workspace and project", async ({ page }) => {
+test("U301 code creation follows workspace and project page scope", async ({ page }) => {
 	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
 	const headers = commandHeaders();
@@ -539,12 +577,12 @@ test("U301 code scope picker navigates workspace and project", async ({ page }) 
 	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: me.instanceId, name: "Scope workspace", slug: "scope-workspace" } })).json();
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Scope project", slug: "scope-project" } })).json();
 	await page.goto("/code/project/" + project.id);
-	await expect(page.getByLabel("Code scope", { exact: true }), "Code scope picker must exist").toBeVisible();
-	await page.getByLabel("Code scope", { exact: true }).selectOption("workspace:" + workspace.id);
-	await expect(page).toHaveURL(new RegExp("/code/workspace/" + workspace.id + "$"));
+	await expect(page.getByLabel("Code scope", { exact: true })).toHaveCount(0);
+	await expect(page.getByText(/Created here: this project/)).toBeVisible();
+	await page.goto("/code/workspace/" + workspace.id);
 	await expect(page.getByRole("button", { name: "Create helper", exact: true })).toBeVisible();
-	await page.getByLabel("Code scope", { exact: true }).selectOption("project:" + project.id);
-	await expect(page).toHaveURL(new RegExp("/code/project/" + project.id + "$"));
+	await expect(page.getByLabel("Code scope", { exact: true })).toHaveCount(0);
+	await page.goto("/code/project/" + project.id);
 	await expect(page.getByRole("button", { name: "Create helper", exact: true })).toBeVisible();
 });
 
@@ -600,11 +638,16 @@ test("U131 inherited middleware shows provenance and copies a local override", a
 	expect(locked.status()).toBe(200);
 	await page.goto("/code/project/" + project.id);
 	await page.getByRole("tab", { name: "Middleware", exact: true }).click();
-	const inherited = page.getByRole("group", { name: "Middleware Parent policy", exact: true });
+	const inherited = page.getByRole("row").filter({ has: page.getByRole("heading", { name: "Parent policy", exact: true }) });
 	await expect(inherited, "Inherited scope must be visible").toContainText("workspace · Policy workspace");
 	await expect(inherited).toContainText("Inherited");
 	await expect(inherited.getByRole("button", { name: "Edit middleware", exact: true })).toHaveCount(0);
-	await expect(page.getByRole("group", { name: "Middleware Locked policy", exact: true }).getByRole("button", { name: "Create local override", exact: true })).toHaveCount(0);
+	await expect(
+		page
+			.getByRole("row")
+			.filter({ has: page.getByRole("heading", { name: "Locked policy", exact: true }) })
+			.getByRole("button", { name: "Create local override", exact: true }),
+	).toHaveCount(0);
 	await inherited.getByRole("button", { name: "Create local override", exact: true }).click();
 	await page.getByLabel("Middleware name", { exact: true }).fill("Local policy");
 	await page.getByRole("button", { name: "Save middleware", exact: true }).click();
@@ -825,7 +868,9 @@ test("overview and mobile hierarchy preserve context while search opens resource
 	await command.getByPlaceholder("Search pages and resources…").fill("Design project");
 	await command.getByRole("menuitem", { name: "Jump to Design project · Project", exact: true }).click();
 	await expect(page).toHaveURL(new RegExp("/projects/" + project.id + "$"));
-	await expect(page.getByRole("navigation", { name: "Breadcrumbs" }).getByText("Design workspace", { exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "Parent pages", exact: true }).click();
+	await expect(page.getByRole("menuitem", { name: "Design workspace", exact: true })).toBeVisible();
+	await page.keyboard.press("Escape");
 	await page.screenshot({ path: test.info().outputPath("project-mobile.png"), fullPage: true });
 	await page.getByRole("button", { name: "Toggle navigation" }).click();
 	await expect(drawer.getByRole("treegrid", { name: "Instance navigation" })).toHaveCount(0);

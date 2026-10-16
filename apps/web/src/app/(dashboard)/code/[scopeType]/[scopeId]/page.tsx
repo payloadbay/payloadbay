@@ -1,15 +1,17 @@
 "use client";
 
+import { LoadingState } from "@components/loading-state";
 import { useFeedbackToast } from "@lib/feedback";
 import { use, useEffect, useCallback, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Button, Card, Form, TextField, Label, Input, FieldError, Tabs, NumberField, Checkbox } from "@heroui/react";
+import { useDragAndDrop } from "react-aria-components";
+import { Button, Card, Form, TextField, Label, Input, FieldError, Tabs, NumberField, Checkbox, Table } from "@heroui/react";
 import { EmptyState, Sheet, NativeSelect } from "@heroui-pro/react";
-import { IconCode, IconPlus, IconCopy, IconLock, IconArrowLeft, IconCheck } from "@tabler/icons-react";
+import { IconCode, IconPlus, IconCopy, IconLock, IconArrowLeft, IconCheck, IconGripVertical, IconArrowUp, IconArrowDown } from "@tabler/icons-react";
 import { formatScript, formatScriptForDisplay, scriptDocument } from "@lib/script-document";
 import { useUnsavedChanges } from "@components/unsaved-changes";
 import { ScriptingGuide } from "@components/scripting-guide";
+import { HelperImportPicker } from "@components/helper-import-picker";
 import { CodeEditor } from "@components/code-editor";
 import { api, ApiFailure } from "@lib/api-client";
 import { useDashboard } from "@components/dashboard-shell";
@@ -54,8 +56,6 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 	const { scopeType, scopeId } = use(params);
 
 	const { me, workspaces, projects } = useDashboard();
-
-	const router = useRouter();
 
 	const scopes = [
 		...(me.permissions.includes("code.read")
@@ -147,6 +147,44 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 			failed(cause);
 		}
 	}, [fetchData, receive, failed]);
+
+	async function reorder(items: Binding[]) {
+		if (!items.length || busy) return;
+		setBusy(true);
+		setError("");
+		try {
+			await api("/middleware/reorder", { method: "POST", json: { scope, stage: items[0].stage, items: items.map((item) => ({ id: item.id, version: item.version })) } });
+			await load();
+		} catch (cause) {
+			failed(cause);
+		} finally {
+			setBusy(false);
+		}
+	}
+
+	function move(binding: Binding, offset: number) {
+		const items = bindings.filter((item) => item.editable && item.stage === binding.stage);
+		const index = items.findIndex((item) => item.id === binding.id);
+		const target = index + offset;
+		if (target < 0 || target >= items.length) return;
+		[items[index], items[target]] = [items[target], items[index]];
+		void reorder(items);
+	}
+
+	const { dragAndDropHooks } = useDragAndDrop({
+		isDisabled: busy || !canEdit || !canPublish,
+		getItems: (keys) => [...keys].filter((key) => bindings.some((item) => item.id === key && item.editable)).map((key) => ({ "text/plain": String(key) })),
+		onReorder: (event) => {
+			const target = bindings.find((item) => item.id === event.target.key);
+			const moved = bindings.filter((item) => event.keys.has(item.id));
+			if (!target?.editable || moved.some((item) => !item.editable || item.stage !== target.stage)) return;
+			const items = bindings.filter((item) => item.editable && item.stage === target.stage && !event.keys.has(item.id));
+			const index = items.findIndex((item) => item.id === target.id);
+			if (index < 0) return;
+			items.splice(index + (event.target.dropPosition === "after" ? 1 : 0), 0, ...moved);
+			void reorder(items);
+		},
+	});
 
 	useEffect(() => {
 		if (!valid) return;
@@ -332,16 +370,16 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 	}
 
 	if (!valid) return <p role='alert'>Choose a valid code scope.</p>;
-	if (loading) return <p role='status'>Loading code…</p>;
+	if (loading) return <LoadingState label='Loading code…' size='page' />;
 
 	return (
 		<section className='flex flex-col gap-6'>
 			{unsavedDialog}
 			<header className='flex flex-wrap items-start justify-between gap-4'>
 				<div>
-					<Link href='/' className='text-accent mb-3 flex items-center gap-2 text-sm'>
+					<Link href={scopeType === "project" ? "/projects/" + scopeId : scopeType === "workspace" ? "/workspaces/" + scopeId : scopeType === "endpoint" && endpointScope ? "/projects/" + endpointScope.projectId + "/routes/" + scopeId : "/"} className='text-accent mb-3 flex items-center gap-2 text-sm'>
 						<IconArrowLeft size={16} />
-						Projects
+						{scopeType === "project" ? "Back to project" : scopeType === "workspace" ? "Back to workspace" : scopeType === "endpoint" ? "Back to ingress route" : "Back to overview"}
 					</Link>
 					<p className='text-muted text-sm'>{selectedScope?.name ?? endpointScope?.name ?? "Scope"}</p>
 					<h1 className='text-3xl font-semibold'>Code and middleware</h1>
@@ -355,31 +393,9 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 				)}
 			</header>
 
-			<NativeSelect className='max-w-lg' fullWidth>
-				<Label>Code scope</Label>
-				<NativeSelect.Trigger
-					aria-label='Code scope'
-					value={scopeType + ":" + scopeId}
-					onChange={(event) => {
-						const [type, id] = event.target.value.split(":");
-						setOpen(false);
-						setLoading(true);
-						setModules([]);
-						setBindings([]);
-						setNotice("");
-						setError("");
-						router.push("/code/" + type + "/" + id);
-					}}
-				>
-					{scopeType === "endpoint" && <NativeSelect.Option value={"endpoint:" + scopeId}>Ingress route · {endpointScope?.name}</NativeSelect.Option>}
-					{scopes.map((scope) => (
-						<NativeSelect.Option key={scope.type + ":" + scope.id} value={scope.type + ":" + scope.id}>
-							{scope.type} · {scope.name}
-						</NativeSelect.Option>
-					))}
-					<NativeSelect.Indicator />
-				</NativeSelect.Trigger>
-			</NativeSelect>
+			<p className='text-muted text-sm'>
+				Created here: <strong>{scopeType === "endpoint" ? "this ingress route" : "this " + scopeType}</strong>. {scopeType !== "endpoint" ? "Helpers and middleware are available to descendant scopes; creating here does not change a parent scope." : "Route middleware applies only to this ingress route."}
+			</p>
 			<Tabs selectedKey={tab} onSelectionChange={(key) => setTab(key as "modules" | "middleware")}>
 				<Tabs.List aria-label='Code category'>
 					{scopeType !== "endpoint" && (
@@ -435,35 +451,70 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 				<div className='flex flex-col gap-3'>
 					<p className='text-muted text-sm'>Execution order: instance → workspace → project → ingress route. Optional failures keep the last valid context; required failures stop the stage.</p>
 					{bindings.length ? (
-						bindings.map((binding) => (
-							<Card key={binding.id} role='group' aria-label={"Middleware " + binding.name}>
-								<Card.Content className='flex flex-wrap items-center justify-between gap-4'>
-									<div>
-										<h2 className='flex items-center gap-2 font-semibold'>
-											{!binding.editable && <IconLock size={16} />} {binding.name}
-										</h2>
-										<p className='text-muted mt-1 text-sm'>
-											{binding.scope.type} · {scopes.find((parent) => parent.type === binding.scope.type && parent.id === binding.scope.id)?.name ?? binding.scope.id.slice(0, 8)} · {binding.stage} · position {binding.position} · {binding.failurePolicy} · {binding.enabled ? "enabled" : "disabled"} · version {binding.version}
-										</p>
-										{binding.originBindingId && <p className='text-muted mt-1 text-xs'>Local replacement of {binding.originBindingId.slice(0, 8)}</p>}
-									</div>
-									{binding.editable ? (
-										<Button size='sm' variant='secondary' onPress={() => void editBinding(binding)}>
-											Edit middleware
-										</Button>
-									) : (
-										<div className='flex flex-col gap-2'>
-											<span className='text-muted text-sm'>Inherited · {binding.overridePolicy === "forbidden" ? "overrides locked" : "managed in parent scope"}</span>
-											{canEdit && canPublish && binding.overridePolicy === "allowed" && scopes.some((parent) => parent.type === binding.scope.type && parent.id === binding.scope.id) && (
-												<Button size='sm' variant='secondary' onPress={() => void editBinding(binding, true)}>
-													Create local override
-												</Button>
-											)}
-										</div>
-									)}
-								</Card.Content>
-							</Card>
-						))
+						<Table>
+							<Table.ScrollContainer>
+								<Table.Content aria-label='Middleware execution order' dragAndDropHooks={dragAndDropHooks}>
+									<Table.Header>
+										<Table.Column aria-label='Order' />
+										<Table.Column isRowHeader>Middleware</Table.Column>
+										<Table.Column>Stage and scope</Table.Column>
+										<Table.Column>Actions</Table.Column>
+									</Table.Header>
+									<Table.Body items={bindings}>
+										{(binding) => (
+											<Table.Row id={binding.id}>
+												<Table.Cell>
+													{binding.editable ? (
+														<Button slot='drag' size='sm' variant='ghost' aria-label={"Drag " + binding.name} isDisabled={busy}>
+															<IconGripVertical size={16} />
+														</Button>
+													) : (
+														<IconLock size={16} aria-label='Inherited' />
+													)}
+												</Table.Cell>
+												<Table.Cell>
+													<h2 className='font-semibold'>{binding.name}</h2>
+													<p className='text-muted text-xs'>
+														{binding.failurePolicy} · {binding.enabled ? "enabled" : "disabled"} · version {binding.version}
+													</p>
+													{binding.originBindingId && <p className='text-muted text-xs'>Local replacement</p>}
+												</Table.Cell>
+												<Table.Cell>
+													{binding.stage}
+													<p className='text-muted text-xs'>
+														{binding.scope.type} · {scopes.find((parent) => parent.type === binding.scope.type && parent.id === binding.scope.id)?.name ?? binding.scope.id.slice(0, 8)} · position {binding.position}
+													</p>
+												</Table.Cell>
+												<Table.Cell>
+													{binding.editable ? (
+														<div className='flex items-center gap-2'>
+															<Button size='sm' variant='secondary' onPress={() => void editBinding(binding)}>
+																Edit middleware
+															</Button>
+															<Button size='sm' variant='ghost' aria-label={"Move " + binding.name + " up"} isDisabled={busy || bindings.filter((item) => item.editable && item.stage === binding.stage)[0]?.id === binding.id} onPress={() => move(binding, -1)}>
+																<IconArrowUp size={16} />
+															</Button>
+															<Button size='sm' variant='ghost' aria-label={"Move " + binding.name + " down"} isDisabled={busy || bindings.filter((item) => item.editable && item.stage === binding.stage).at(-1)?.id === binding.id} onPress={() => move(binding, 1)}>
+																<IconArrowDown size={16} />
+															</Button>
+														</div>
+													) : (
+														<div className='flex flex-col gap-2'>
+															<span className='text-muted text-sm'>Inherited · {binding.overridePolicy === "forbidden" ? "overrides locked" : "managed in parent scope"}</span>
+															{canEdit && canPublish && binding.overridePolicy === "allowed" && scopes.some((parent) => parent.type === binding.scope.type && parent.id === binding.scope.id) && (
+																<Button size='sm' variant='secondary' onPress={() => void editBinding(binding, true)}>
+																	Create local override
+																</Button>
+															)}
+														</div>
+													)}
+												</Table.Cell>
+											</Table.Row>
+										)}
+									</Table.Body>
+								</Table.Content>
+							</Table.ScrollContainer>
+						</Table>
 					) : (
 						<EmptyState className='border-border rounded-xl border border-dashed py-12'>
 							<EmptyState.Header>
@@ -589,7 +640,18 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 										</>
 									)}
 									{tab === "middleware" && origin && <p className='text-muted text-sm'>Local override of {origin.slice(0, 8)}. The parent stays unchanged; this copy replaces it when an affected route is published.</p>}
-									<div className='flex justify-end'>
+									<div className='flex flex-wrap justify-end gap-2'>
+										{tab === "middleware" && (
+											<HelperImportPicker
+												scope={scope.type === "endpoint" ? { type: "project", id: endpointScope!.projectId } : { type: scope.type, id: scope.id }}
+												body={body}
+												disabled={busy || !canEdit}
+												onImport={(next, name, id) => {
+													setBody(next);
+													setSharedBindings((previous) => ({ ...previous, [name]: id }));
+												}}
+											/>
+										)}
 										<ScriptingGuide />
 									</div>
 									<CodeEditor

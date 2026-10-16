@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@components/loading-state";
 import { useFeedbackToast } from "@lib/feedback";
 import { useEffect, useState, useCallback, type FormEvent } from "react";
 import { Button, Form, Checkbox, Table, TextField, Label, Input, FieldError } from "@heroui/react";
@@ -205,7 +206,7 @@ export function MemberManager({ scope: chosen, held: chosenHeld }: { scope?: Sco
 			</header>
 
 			{loading ? (
-				<p role='status'>Loading members…</p>
+				<LoadingState label='Loading members…' />
 			) : error && members.length === 0 ? (
 				<EmptyState>
 					<EmptyState.Header>

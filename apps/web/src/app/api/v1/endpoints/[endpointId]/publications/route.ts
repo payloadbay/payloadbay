@@ -24,9 +24,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ en
 export async function GET(request: Request, { params }: { params: Promise<{ endpointId: string }> }) {
 	return protectedRoute(request, async ({ pool }, actor) => {
 		const endpointId = uuid((await params).endpointId);
-		await endpointFor(pool, actor, endpointId, "code.read");
 		const id = new URL(request.url).searchParams.get("id");
-		if (!id) return (await pool.query("SELECT id,created_at,dependency_digest,created_by FROM payloadbay.publication WHERE endpoint_id=$1 ORDER BY created_at DESC,id DESC LIMIT 200", [endpointId])).rows;
+		await endpointFor(pool, actor, endpointId, id ? "code.read" : "metadata.read");
+		if (!id) return (await pool.query("SELECT p.id,p.created_at,p.dependency_digest,p.created_by,row_number() OVER (ORDER BY p.created_at,p.id)::int AS version_number,p.id=ep.active_publication_id AS active FROM payloadbay.publication p JOIN payloadbay.endpoint ep ON ep.id=p.endpoint_id WHERE p.endpoint_id=$1 ORDER BY p.created_at DESC,p.id DESC LIMIT 200", [endpointId])).rows;
 		const rows = (await pool.query("SELECT p.id,p.shared_versions,i.body AS ingress_body,i.bundle AS ingress_bundle,s.body AS processing_body,s.bundle AS processing_bundle FROM payloadbay.publication p JOIN payloadbay.stage_revision i ON i.id=p.ingress_revision_id JOIN payloadbay.stage_revision s ON s.id=p.processing_revision_id WHERE p.id=$1 AND p.endpoint_id=$2", [uuid(id), endpointId])).rows;
 		if (!rows.length) throw new AppError("not_found", 404, "Publication unavailable");
 

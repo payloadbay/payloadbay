@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@components/loading-state";
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { Table, Switch, Button } from "@heroui/react";
@@ -68,11 +69,11 @@ export default function NotificationPreferencesPage() {
 	return (
 		<section className='flex flex-col gap-6'>
 			<header>
-				<h1 className='text-3xl font-semibold'>Your notifications</h1>
+				<h1 className='text-3xl font-semibold'>Notification settings</h1>
 				<p className='text-muted mt-2'>Choose which configured failure rules email {me.user.email}. These choices affect only you. Thresholds belong to the project or workspace, and email delivery is off until you opt in.</p>
 			</header>
 			{loading ? (
-				<p role='status'>Loading preferences…</p>
+				<LoadingState label='Loading preferences…' />
 			) : error && preferences.length === 0 ? (
 				<div>
 					<h2 className='text-xl font-semibold'>Notification preferences unavailable</h2>

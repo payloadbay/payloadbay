@@ -19,6 +19,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ proj
 			...parsed.data,
 			view: query.get("view") === "attempts" ? "attempts" : "requests",
 			...(query.has("state") ? { states: query.getAll("state").filter(Boolean) } : {}),
+			...(query.get("publicationId") ? { publicationId: uuid(query.get("publicationId")!) } : {}),
 			...(query.get("endpointId") ? { endpointId: uuid(query.get("endpointId")!) } : {}),
 		});
 	});

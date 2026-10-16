@@ -284,3 +284,35 @@ export async function listMiddlewareBindings(pool: Pool, actor: Actor, scope: Mi
 
 	return rows.sort((a, b) => rank[a.scope_type as MiddlewareScope["type"]] - rank[b.scope_type as MiddlewareScope["type"]] || a.position - b.position || a.id.localeCompare(b.id)).map((row) => publicBinding(row, row.scope_type === scope.type && row.scope_id === scope.id && held.has("code.edit") && held.has("code.publish")));
 }
+
+/** Reorder one scope/stage atomically; parent chains and published snapshots stay unchanged. */
+export async function reorderMiddlewareBindings(
+	pool: Pool,
+	actor: Actor,
+	input: {
+		scope: MiddlewareScope;
+		stage: "ingress" | "processing";
+		items: { id: string; version: number }[];
+	},
+) {
+	if (!input.items.length || input.items.length > 200 || new Set(input.items.map((item) => item.id)).size !== input.items.length) throw new AppError("invalid_order", 400, "Choose each local middleware once");
+
+	return transaction(pool, async (db) => {
+		const domainScope = await middlewareActorScope(db, input.scope);
+		await requirePermission(db, actor, domainScope, "code.edit");
+		await requirePermission(db, actor, domainScope, "code.publish");
+		await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", ["middleware:" + input.scope.type + ":" + input.scope.id]);
+		const rows = (await db.query("SELECT id,version FROM payloadbay.middleware_binding WHERE scope_type=$1 AND scope_id=$2 AND stage=$3 ORDER BY id FOR UPDATE", [input.scope.type, input.scope.id, input.stage])).rows;
+		if (rows.length !== input.items.length || input.items.some((item) => !rows.some((row) => row.id === item.id && row.version === item.version))) throw new AppError("version_conflict", 409, "Middleware changed; reload before reordering");
+		for (const [position, item] of input.items.entries()) await db.query("UPDATE payloadbay.middleware_binding SET position=$2,version=version+1 WHERE id=$1", [item.id, position]);
+		await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation,resource_id,redacted_diff) VALUES($1,$2,$3::uuid,'middleware.reordered',$3::text,$4)", [actor.userId, domainScope.type, domainScope.id, JSON.stringify({ stage: input.stage, ids: input.items.map((item) => item.id) })]);
+		await appendChange(db, {
+			scope: domainScope,
+			kind: "configuration.changed",
+			resourceId: input.scope.id,
+			capability: "code.read",
+		});
+
+		return { reordered: input.items.length };
+	});
+}

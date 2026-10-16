@@ -1,28 +1,28 @@
 "use client";
 
-import { useFeedbackToast } from "@lib/feedback";
-import { useState, useEffect, useCallback } from "react";
-import { Button, Table, Label, Chip, Select, ListBox } from "@heroui/react";
+import { LoadingState } from "@components/loading-state";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Button, Table, Label, Chip, Select, ListBox, Checkbox, Tabs, Modal } from "@heroui/react";
 import { EmptyState, Sheet, NativeSelect } from "@heroui-pro/react";
 import { IconInbox, IconEye, IconRefresh, IconPlayerPlay } from "@tabler/icons-react";
+import { useFeedbackToast } from "@lib/feedback";
 import { useDashboard } from "@components/dashboard-shell";
+import { PublicationPicker } from "@components/publication-picker";
 import { api } from "@lib/api-client";
-import type { ProjectSummary } from "@types";
 
 type Summary = {
-	eventId?: string;
 	id: string;
 	endpointId: string;
 	projectId: string;
 	endpointName: string;
 	receivedAt: string;
 	bodyBytes: number;
-	executionId: string | null;
 	state: string | null;
-	processingAttempts: number | null;
+	deliveryState?: string | null;
+	ingressOutcome: string;
 	deliveryAttempts: number;
 };
-type Page = { items: Summary[]; nextCursor: string | null };
+type EventPage = { items: Summary[]; nextCursor: string | null };
 type Execution = {
 	id: string;
 	state: string;
@@ -32,18 +32,22 @@ type Execution = {
 };
 type Attempt = {
 	id: string;
+	execution_id: string;
 	operation_id: string;
 	status_code: number | null;
 	network_error: string | null;
 	started_at: string;
+	duration_ms: number | null;
 };
 type Detail = {
+	id: string;
+	endpointId: string;
+	projectId: string;
+	endpointName: string;
+	publicationId: string;
 	ingressOutcome: string;
 	method: string;
 	responseStatus: number | null;
-	id: string;
-	projectId: string;
-	endpointName: string;
 	contentType: string;
 	bodyBytes: number;
 	executions: Execution[];
@@ -57,14 +61,7 @@ type AttemptDetail = {
 	durationMs: number | null;
 	responseBody?: string | null;
 };
-
-type Payload = {
-	originalBody: string;
-	acceptedBody: string;
-	headers: Record<string, string>;
-	metadata: Record<string, unknown>;
-	encoding: string;
-};
+type Payload = { originalBody: string; acceptedBody: string; headers: Record<string, string> };
 
 const labels: Record<string, string> = {
 	delivered: "Delivered",
@@ -84,153 +81,182 @@ function decode(value: string) {
 	return new TextDecoder().decode(Uint8Array.from(atob(value), (character) => character.charCodeAt(0)));
 }
 
+function statusColor(state: string | null | undefined): "danger" | "success" | "warning" | "accent" {
+	return ["failed_terminal", "delivery_failed", "error", "reject"].includes(state ?? "") ? "danger" : ["succeeded", "delivered"].includes(state ?? "") ? "success" : state === "retry_wait" ? "warning" : "accent";
+}
+
 export function EventBrowser({ projectId, endpointId, embedded = false }: { projectId?: string; endpointId?: string; embedded?: boolean }) {
 	const { me, projects, workspaces } = useDashboard();
 
 	const [projectFilter, setProjectFilter] = useState("");
 	const [workspaceFilter, setWorkspaceFilter] = useState("");
-	const [stateFilter, setStateFilter] = useState<string[]>([]);
-	const [view, setView] = useState<"requests" | "attempts">("requests");
-
-	const activeProjectId = projectId ?? projectFilter;
-
-	const [project, setProject] = useState<ProjectSummary | null>(null);
-	const [page, setPage] = useState<Page>({ items: [], nextCursor: null });
+	const [routeFilter, setRouteFilter] = useState("");
+	const [versionFilter, setVersionFilter] = useState("");
+	const [states, setStates] = useState<string[]>([]);
+	const [routes, setRoutes] = useState<{ id: string; name: string }[]>([]);
+	const [page, setPage] = useState<EventPage>({ items: [], nextCursor: null });
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState("");
+	const [notice, setNotice] = useState("");
+	const [selectedIds, setSelectedIds] = useState<string[]>([]);
 	const [selected, setSelected] = useState<string | null>(null);
 	const [detail, setDetail] = useState<Detail | null>(null);
-	const [selectedAttempt, setSelectedAttempt] = useState<string | null>(null);
-	const [attemptDetail, setAttemptDetail] = useState<AttemptDetail | null>(null);
 	const [payload, setPayload] = useState<Payload | null>(null);
-	const [detailError, setDetailError] = useState("");
+	const [tab, setTab] = useState("ingress");
+	const [selectedAttempt, setSelectedAttempt] = useState<string | null>(null);
+	const [attempt, setAttempt] = useState<AttemptDetail | null>(null);
+	const response = useRef<HTMLElement>(null);
+	const [replayVersion, setReplayVersion] = useState("");
+	const [bulkOpen, setBulkOpen] = useState(false);
+	const [bulkPolicy, setBulkPolicy] = useState<"original" | "current" | "selected">("original");
+	const [bulkVersion, setBulkVersion] = useState("");
 	const [busy, setBusy] = useState(false);
-	const [notice, setNotice] = useState("");
-	const [policy, setPolicy] = useState<"original" | "current">("original");
+	const bulkKey = useRef("");
+
+	const activeProject = projectId ?? projectFilter;
+	const activeRoute = endpointId ?? routeFilter;
 
 	useFeedbackToast(error, notice, { error: "Events error", success: "Replay status" });
 
-	useFeedbackToast(detailError, "", { error: "Event inspection error" });
-
-	const fetchData = useCallback(
+	const query = useCallback(
 		(cursor?: string) => {
-			const query = new URLSearchParams();
-			if (cursor) query.set("cursor", cursor);
-			if (endpointId) query.set("endpointId", endpointId);
-			for (const state of stateFilter) query.append("state", state);
-			query.set("view", view);
-			if (!activeProjectId && workspaceFilter) query.set("workspaceId", workspaceFilter);
-			const address = activeProjectId ? "/projects/" + activeProjectId + "/events" : "/events";
+			const params = new URLSearchParams();
+			if (activeProject) params.set("projectId", activeProject);
+			else if (workspaceFilter) params.set("workspaceId", workspaceFilter);
+			if (activeRoute) params.set("endpointId", activeRoute);
+			if (versionFilter) params.set("publicationId", versionFilter);
+			for (const state of states) params.append("state", state);
+			if (cursor) params.set("cursor", cursor);
 
-			return Promise.all([activeProjectId ? api<ProjectSummary>("/projects/" + activeProjectId) : Promise.resolve(null), api<Page>(address + (query.size ? "?" + query.toString() : ""))]);
+			return params;
 		},
-		[activeProjectId, endpointId, stateFilter, workspaceFilter, view],
+		[activeProject, workspaceFilter, activeRoute, versionFilter, states],
 	);
-
-	const receive = useCallback(([p, list]: [ProjectSummary | null, Page], append = false) => {
-		setProject(p);
-		setPage((previous) => (append ? { ...list, items: [...previous.items, ...list.items] } : list));
-		setError("");
-		setLoading(false);
-	}, []);
-
-	const failed = useCallback((cause: unknown) => {
-		setError(cause instanceof Error ? cause.message : "Events unavailable");
-		setLoading(false);
-	}, []);
 
 	const load = useCallback(
-		async (cursor?: string, append = false) => {
+		async (cursor?: string) => {
 			try {
-				receive(await fetchData(cursor), append);
+				const result = await api<EventPage>((activeProject ? "/projects/" + activeProject + "/events?" : "/events?") + query(cursor));
+				setPage((previous) => (cursor ? { ...result, items: [...previous.items, ...result.items] } : result));
+				setError("");
 			} catch (cause) {
-				failed(cause);
+				setError(cause instanceof Error ? cause.message : "Could not load events");
+			} finally {
+				setLoading(false);
 			}
 		},
-		[fetchData, receive, failed],
+		[query, activeProject],
 	);
 
 	useEffect(() => {
 		let active = true;
-		fetchData().then(
-			(data) => {
-				if (active) receive(data);
-			},
-			(cause) => {
-				if (active) failed(cause);
-			},
-		);
+		api<EventPage>((activeProject ? "/projects/" + activeProject + "/events?" : "/events?") + query())
+			.then(
+				(result) => {
+					if (active) {
+						setPage(result);
+						setError("");
+					}
+				},
+				(cause) => {
+					if (active) setError(cause instanceof Error ? cause.message : "Could not load events");
+				},
+			)
+			.finally(() => {
+				if (active) setLoading(false);
+			});
 
 		return () => {
 			active = false;
 		};
-	}, [fetchData, receive, failed]);
+	}, [query, activeProject]);
 
 	useEffect(() => {
-		const scopes = activeProjectId ? [{ type: "project", id: activeProjectId }] : [{ type: "accessible", id: me.instanceId }];
-		const streams = scopes.map((scope) => new EventSource("/api/v1/changes?scopeType=" + scope.type + "&scopeId=" + encodeURIComponent(scope.id)));
-		let refresh: ReturnType<typeof setTimeout> | undefined;
-
-		const changed = () => {
-			if (refresh) return;
-			refresh = setTimeout(() => {
-				refresh = undefined;
-				void load();
-			}, 100);
-		};
-
-		for (const updates of streams) {
-			let opened = false;
-			updates.onopen = () => {
-				if (opened) changed();
-				opened = true;
-			};
-
-			for (const kind of ["event.recorded", "event.accepted", "execution.changed", "attempt.completed", "configuration.changed", "resync-required"]) updates.addEventListener(kind, changed);
-		}
-
-		return () => {
-			for (const updates of streams) updates.close();
-			if (refresh) clearTimeout(refresh);
-		};
-	}, [activeProjectId, me.instanceId, me.permissions, projects, load]);
-
-	const inspectionProject = projects.find((item) => item.id === page.items.find((event) => (event.eventId ?? event.id) === selected)?.projectId) ?? project;
-
-	useEffect(() => {
-		if (!selected || !inspectionProject) return;
+		if (!activeProject || endpointId) return;
 		let active = true;
-		Promise.all([api<Detail>("/events/" + selected), inspectionProject.permissions.includes("payload.read") ? api<Payload>("/events/" + selected + "/payload") : Promise.resolve(null)]).then(
-			([next, body]) => {
-				if (!active) return;
-				if (activeProjectId && next.projectId !== activeProjectId) {
-					setDetailError("Event does not belong to this project");
-
-					return;
-				}
-
-				setDetail(next);
-				setPayload(body);
+		api<{ id: string; name: string }[]>("/projects/" + activeProject + "/endpoints").then(
+			(rows) => {
+				if (active) setRoutes(rows);
 			},
-			(cause) => {
-				if (active) setDetailError(cause instanceof Error ? cause.message : "Event unavailable");
-			},
+			(cause) => setError(cause instanceof Error ? cause.message : "Routes unavailable"),
 		);
 
 		return () => {
 			active = false;
 		};
-	}, [selected, inspectionProject, activeProjectId, page.items]);
+	}, [activeProject, endpointId]);
+
+	useEffect(() => {
+		const stream = new EventSource("/api/v1/changes?scopeType=" + (activeProject ? "project" : "accessible") + "&scopeId=" + (activeProject || me.instanceId));
+		let timer: ReturnType<typeof setTimeout> | undefined;
+
+		const refresh = () => {
+			if (!timer)
+				timer = setTimeout(() => {
+					timer = undefined;
+					void load();
+				}, 100);
+		};
+
+		let opened = false;
+		stream.onopen = () => {
+			if (opened) refresh();
+			opened = true;
+		};
+
+		for (const kind of ["event.recorded", "event.accepted", "execution.changed", "attempt.completed", "resync-required"]) stream.addEventListener(kind, refresh);
+
+		return () => {
+			stream.close();
+			if (timer) clearTimeout(timer);
+		};
+	}, [activeProject, me.instanceId, load]);
+
+	useEffect(() => {
+		if (!selected) return;
+		let active = true;
+		api<Detail>("/events/" + selected)
+			.then(
+				async (next) => {
+					const canRead = projects.find((project) => project.id === next.projectId)?.permissions.includes("payload.read");
+					const body = canRead ? await api<Payload>("/events/" + selected + "/payload") : null;
+					if (active) {
+						setDetail(next);
+						setPayload(body);
+						setReplayVersion(next.publicationId);
+					}
+				},
+				(cause) => {
+					if (active) {
+						setSelected(null);
+						setError(cause instanceof Error ? cause.message : "Could not inspect event");
+					}
+				},
+			)
+			.catch((cause) => {
+				if (active) {
+					setSelected(null);
+					setError(cause instanceof Error ? cause.message : "Could not load payload");
+				}
+			});
+
+		return () => {
+			active = false;
+		};
+	}, [selected, projects]);
 
 	useEffect(() => {
 		if (!selectedAttempt) return;
 		let active = true;
 		api<AttemptDetail>("/delivery-attempts/" + selectedAttempt).then(
-			(next) => {
-				if (active) setAttemptDetail(next);
+			(value) => {
+				if (active) setAttempt(value);
 			},
 			(cause) => {
-				if (active) setDetailError(cause instanceof Error ? cause.message : "Attempt unavailable");
+				if (active) {
+					setSelectedAttempt(null);
+					setError(cause instanceof Error ? cause.message : "Could not inspect attempt");
+				}
 			},
 		);
 
@@ -239,36 +265,72 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 		};
 	}, [selectedAttempt]);
 
-	function inspect(id: string) {
+	useEffect(() => {
+		if (attempt) {
+			response.current?.scrollIntoView({ block: "nearest" });
+			response.current?.focus({ preventScroll: true });
+		}
+	}, [attempt]);
+
+	function inspect(id: string, section = "ingress") {
 		setSelected(id);
-		setSelectedAttempt(null);
-		setAttemptDetail(null);
 		setDetail(null);
 		setPayload(null);
-		setDetailError("");
-		setNotice("");
-		setPolicy("original");
+		setSelectedAttempt(null);
+		setAttempt(null);
+		setTab(section);
+		setError("");
 	}
 
-	async function replay() {
-		if (!selected) return;
+	function replayable(event: Summary) {
+		return event.ingressOutcome === "accept" && Boolean(projects.find((project) => project.id === event.projectId)?.permissions.includes("events.replay"));
+	}
+
+	function changeFilters() {
+		setSelectedIds([]);
+		setVersionFilter("");
+	}
+
+	async function selectMatching() {
 		setBusy(true);
-		setNotice("");
-		setDetailError("");
+		setError("");
 		try {
-			const result = await api<{ id: string }>("/events/" + selected + "/replay", { method: "POST", json: { publicationPolicy: policy }, idempotencyKey: crypto.randomUUID() });
-			setNotice("Replay queued as a new execution " + result.id.slice(0, 8) + ".");
-			setDetail(await api<Detail>("/events/" + selected));
-			await load();
+			const result = await api<{ ids: string[] }>("/events/replay-selection?" + query());
+			setSelectedIds(result.ids);
 		} catch (cause) {
-			setDetailError(cause instanceof Error ? cause.message : "Could not replay event");
+			setError(cause instanceof Error ? cause.message : "Could not select events");
 		} finally {
 			setBusy(false);
 		}
 	}
 
-	if (loading) return <p role='status'>Loading events…</p>;
-	if (error && !project)
+	async function replay(bulk: boolean) {
+		if (!bulk && !selected) return;
+		setBusy(true);
+		setError("");
+		setNotice("");
+		try {
+			if (bulk) {
+				const result = await api<{ count: number }>("/events/replay", { method: "POST", idempotencyKey: bulkKey.current, json: { eventIds: selectedIds, publicationPolicy: bulkPolicy, ...(bulkPolicy === "selected" ? { publicationId: bulkVersion } : {}) } });
+				setNotice(result.count + " events queued for replay.");
+				setBulkOpen(false);
+				setSelectedIds([]);
+			} else {
+				await api("/events/" + selected + "/replay", { method: "POST", idempotencyKey: crypto.randomUUID(), json: { publicationPolicy: "selected", publicationId: replayVersion } });
+				setNotice("Replay queued as a new execution.");
+				setDetail(await api<Detail>("/events/" + selected));
+			}
+
+			await load();
+		} catch (cause) {
+			setError(cause instanceof Error ? cause.message : "Could not replay events");
+		} finally {
+			setBusy(false);
+		}
+	}
+
+	if (loading) return <LoadingState label='Loading events…' size={embedded ? "panel" : "page"} />;
+	if (error && !page.items.length)
 		return (
 			<EmptyState>
 				<EmptyState.Header>
@@ -280,43 +342,23 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 				</Button>
 			</EmptyState>
 		);
+	const visible = page.items.filter(replayable);
+	const canReplay = projects.some((project) => project.permissions.includes("events.replay"));
 
 	return (
 		<section className='flex flex-col gap-6'>
 			<header className='flex flex-wrap items-start justify-between gap-4'>
 				<div>
-					<p className='text-muted text-sm'>{project?.name ?? "All accessible projects"}</p>
+					<p className='text-muted text-sm'>{projects.find((project) => project.id === activeProject)?.name ?? "All accessible projects"}</p>
 					<h1 className='text-3xl font-semibold'>{embedded ? "Route events" : "Events"}</h1>
-					<p className='text-muted mt-2'>Inspect stored requests and delivery attempts. Handler completion and HTTP delivery outcomes are separate.</p>
+					<p className='text-muted mt-2'>One received event, with its ingress outcome, processing executions and outgoing attempts. Updates arrive live.</p>
 				</div>
 				<Button variant='secondary' onPress={() => void load()}>
 					<IconRefresh size={18} />
 					Refresh events
 				</Button>
 			</header>
-
-			<div className='flex flex-wrap gap-2' aria-label='History view'>
-				<Button
-					variant={view === "requests" ? "primary" : "secondary"}
-					onPress={() => {
-						setView("requests");
-						setStateFilter([]);
-					}}
-				>
-					Incoming requests
-				</Button>
-				<Button
-					variant={view === "attempts" ? "primary" : "secondary"}
-					onPress={() => {
-						setView("attempts");
-						setStateFilter([]);
-					}}
-				>
-					Delivery attempts
-				</Button>
-			</div>
-			<p className='text-muted text-sm'>{view === "requests" ? "One row per received request, including rejected and response-only outcomes. Updates arrive live." : "One row per outgoing HTTP attempt. Retries appear separately and link back to the original request."}</p>
-			<div className='grid gap-3 sm:grid-cols-3'>
+			<div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
 				{!projectId && (
 					<>
 						<NativeSelect fullWidth>
@@ -324,15 +366,17 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 							<NativeSelect.Trigger
 								aria-label='Event workspace'
 								value={workspaceFilter}
-								onChange={(e) => {
-									setWorkspaceFilter(e.target.value);
+								onChange={(event) => {
+									setWorkspaceFilter(event.target.value);
 									setProjectFilter("");
+									setRouteFilter("");
+									changeFilters();
 								}}
 							>
 								<NativeSelect.Option value=''>All accessible workspaces</NativeSelect.Option>
-								{workspaces.map((item) => (
-									<NativeSelect.Option key={item.id} value={item.id}>
-										{item.name}
+								{workspaces.map((workspace) => (
+									<NativeSelect.Option key={workspace.id} value={workspace.id}>
+										{workspace.name}
 									</NativeSelect.Option>
 								))}
 								<NativeSelect.Indicator />
@@ -340,13 +384,21 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 						</NativeSelect>
 						<NativeSelect fullWidth>
 							<Label>Project</Label>
-							<NativeSelect.Trigger aria-label='Event project' value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}>
+							<NativeSelect.Trigger
+								aria-label='Event project'
+								value={projectFilter}
+								onChange={(event) => {
+									setProjectFilter(event.target.value);
+									setRouteFilter("");
+									changeFilters();
+								}}
+							>
 								<NativeSelect.Option value=''>All accessible projects</NativeSelect.Option>
 								{projects
-									.filter((item) => !workspaceFilter || item.workspace_id === workspaceFilter)
-									.map((item) => (
-										<NativeSelect.Option key={item.id} value={item.id}>
-											{item.name}
+									.filter((project) => !workspaceFilter || project.workspace_id === workspaceFilter)
+									.map((project) => (
+										<NativeSelect.Option key={project.id} value={project.id}>
+											{project.name}
 										</NativeSelect.Option>
 									))}
 								<NativeSelect.Indicator />
@@ -354,7 +406,38 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 						</NativeSelect>
 					</>
 				)}
-				<Select aria-label='History status' selectionMode='multiple' value={stateFilter} onChange={(keys) => setStateFilter(keys.map(String))} placeholder='All statuses' fullWidth>
+				{!endpointId && activeProject && (
+					<NativeSelect fullWidth>
+						<Label>Ingress route</Label>
+						<NativeSelect.Trigger
+							aria-label='Event route'
+							value={routeFilter}
+							onChange={(event) => {
+								setRouteFilter(event.target.value);
+								changeFilters();
+							}}
+						>
+							<NativeSelect.Option value=''>All routes</NativeSelect.Option>
+							{routes.map((route) => (
+								<NativeSelect.Option key={route.id} value={route.id}>
+									{route.name}
+								</NativeSelect.Option>
+							))}
+							<NativeSelect.Indicator />
+						</NativeSelect.Trigger>
+					</NativeSelect>
+				)}
+				<Select
+					aria-label='History status'
+					selectionMode='multiple'
+					value={states}
+					onChange={(keys) => {
+						setStates(keys.map(String));
+						setSelectedIds([]);
+					}}
+					placeholder='All statuses'
+					fullWidth
+				>
 					<Label>Status</Label>
 					<Select.Trigger>
 						<Select.Value />
@@ -363,56 +446,104 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 					</Select.Trigger>
 					<Select.Popover>
 						<ListBox selectionMode='multiple'>
-							{(view === "attempts" ? ["running", "delivered", "delivery_failed"] : ["queued", "running", "retry_wait", "succeeded", "failed_terminal", "reject", "respondOnly", "error"]).map((value) => (
-								<ListBox.Item key={value} id={value} textValue={labels[value]}>
-									{labels[value]}
+							{["queued", "running", "retry_wait", "succeeded", "failed_terminal", "delivered", "delivery_failed", "reject", "respondOnly", "error"].map((state) => (
+								<ListBox.Item key={state} id={state} textValue={labels[state]}>
+									{labels[state]}
 									<ListBox.ItemIndicator />
 								</ListBox.Item>
 							))}
 						</ListBox>
 					</Select.Popover>
 				</Select>
+				{activeRoute && (
+					<PublicationPicker
+						endpointId={activeRoute}
+						value={versionFilter}
+						onChange={(id) => {
+							setVersionFilter(id);
+							setSelectedIds([]);
+						}}
+						allowAll
+						label='Processing version filter'
+					/>
+				)}
 			</div>
-
+			{canReplay && (
+				<div className='flex flex-wrap items-center gap-3'>
+					<Button variant='secondary' isDisabled={busy} onPress={() => void selectMatching()}>
+						Select all matching replayable events
+					</Button>
+					<span className='text-muted text-sm'>{selectedIds.length} selected</span>
+					{selectedIds.length > 0 && (
+						<>
+							<Button variant='tertiary' onPress={() => setSelectedIds([])}>
+								Clear selection
+							</Button>
+							<Button
+								onPress={() => {
+									setBulkPolicy("original");
+									bulkKey.current = crypto.randomUUID();
+									setBulkOpen(true);
+								}}
+							>
+								Replay selected events
+							</Button>
+						</>
+					)}
+				</div>
+			)}
 			{page.items.length ? (
 				<Table>
 					<Table.ScrollContainer>
-						<Table.Content aria-label={view === "requests" ? "Stored events" : "Delivery attempts"}>
+						<Table.Content aria-label='Stored events'>
 							<Table.Header>
+								{canReplay && (
+									<Table.Column>
+										<Checkbox slot={null} aria-label='Select visible replayable events' isSelected={Boolean(visible.length) && visible.every((event) => selectedIds.includes(event.id))} onChange={(checked) => setSelectedIds((previous) => (checked ? [...new Set([...previous, ...visible.map((event) => event.id)])] : previous.filter((id) => !visible.some((event) => event.id === id))))}>
+											<Checkbox.Content>
+												<Checkbox.Control>
+													<Checkbox.Indicator />
+												</Checkbox.Control>
+											</Checkbox.Content>
+										</Checkbox>
+									</Table.Column>
+								)}
 								<Table.Column isRowHeader>Request</Table.Column>
 								<Table.Column>Status</Table.Column>
 								<Table.Column aria-label='Inspect' />
 							</Table.Header>
 							<Table.Body>
 								{page.items.map((event) => (
-									<Table.Row key={event.id} id={event.id}>
+									<Table.Row key={event.id} id={event.id} onAction={() => inspect(event.id)} className='cursor-pointer'>
+										{canReplay && (
+											<Table.Cell>
+												<Checkbox slot={null} aria-label={"Select event " + event.id.slice(0, 8)} isSelected={selectedIds.includes(event.id)} isDisabled={!replayable(event)} onChange={(checked) => setSelectedIds((previous) => (checked ? [...new Set([...previous, event.id])] : previous.filter((id) => id !== event.id)))}>
+													<Checkbox.Content>
+														<Checkbox.Control>
+															<Checkbox.Indicator />
+														</Checkbox.Control>
+													</Checkbox.Content>
+												</Checkbox>
+											</Table.Cell>
+										)}
 										<Table.Cell>
 											<span className='font-medium'>{event.endpointName}</span>
-											<p className='text-muted text-xs'>{projects.find((item) => item.id === event.projectId)?.name}</p>
+											<p className='text-muted text-xs'>{projects.find((project) => project.id === event.projectId)?.name}</p>
 											<time className='text-muted text-xs' dateTime={event.receivedAt}>
 												{new Date(event.receivedAt).toLocaleString()}
 											</time>
-											<p className='text-muted mt-1 text-xs sm:hidden'>{event.deliveryAttempts} HTTP attempts</p>
 										</Table.Cell>
 										<Table.Cell>
-											<Chip size='sm' variant='soft' color={["failed_terminal", "delivery_failed", "error", "reject"].includes(event.state ?? "") ? "danger" : ["succeeded", "delivered"].includes(event.state ?? "") ? "success" : event.state === "retry_wait" ? "warning" : "accent"}>
-												{labels[event.state ?? ""] ?? "Stored"}
+											<Chip size='sm' variant='soft' color={statusColor(event.deliveryState ?? event.state)}>
+												{labels[event.deliveryState ?? event.state ?? ""] ?? "Stored"}
 											</Chip>
+											{event.deliveryState && <p className='text-muted text-xs'>{labels[event.state ?? ""] ?? "Stored"}</p>}
 											<p className='text-muted text-xs'>
 												{event.deliveryAttempts} HTTP attempts · {event.bodyBytes} bytes
 											</p>
 										</Table.Cell>
 										<Table.Cell>
-											<Button
-												isIconOnly
-												size='sm'
-												variant='secondary'
-												aria-label={"Inspect event " + event.id.slice(0, 8)}
-												onPress={() => {
-													inspect(event.eventId ?? event.id);
-													if (view === "attempts") setSelectedAttempt(event.id);
-												}}
-											>
+											<Button isIconOnly size='sm' variant='secondary' aria-label={"Inspect event " + event.id.slice(0, 8)} onPress={() => inspect(event.id)}>
 												<IconEye size={16} />
 											</Button>
 										</Table.Cell>
@@ -423,18 +554,18 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 					</Table.ScrollContainer>
 				</Table>
 			) : (
-				<EmptyState className='border-border rounded-xl border border-dashed py-12'>
+				<EmptyState>
 					<EmptyState.Header>
 						<EmptyState.Media variant='icon'>
 							<IconInbox />
 						</EmptyState.Media>
-						<EmptyState.Title>{stateFilter.length ? "No matching entries" : "No events yet"}</EmptyState.Title>
-						<EmptyState.Description>{stateFilter.length ? "No entries match these statuses. Clear or change the status filter." : "Publish an ingress route and send a webhook to its receiving URL."}</EmptyState.Description>
+						<EmptyState.Title>{states.length || versionFilter ? "No matching entries" : "No events yet"}</EmptyState.Title>
+						<EmptyState.Description>Change the filters or send a webhook to a published ingress route.</EmptyState.Description>
 					</EmptyState.Header>
 				</EmptyState>
 			)}
 			{page.nextCursor && (
-				<Button variant='secondary' className='self-start' onPress={() => void load(page.nextCursor!, true)}>
+				<Button variant='secondary' onPress={() => void load(page.nextCursor!)}>
 					Load more events
 				</Button>
 			)}
@@ -452,133 +583,156 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 						<Sheet.Dialog className='flex max-h-[calc(100dvh-1rem)] w-full min-w-0 max-w-2xl flex-col overflow-hidden'>
 							<Sheet.CloseTrigger />
 							<Sheet.Header>
-								<Sheet.Heading>{selectedAttempt ? "Delivery attempt inspection" : "Event inspection"}</Sheet.Heading>
+								<Sheet.Heading>Event inspection</Sheet.Heading>
 								<p className='text-muted break-all text-xs'>{selected}</p>
 							</Sheet.Header>
-							<Sheet.Body className='flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto'>
-								{!detail && !detailError ? (
-									<p role='status'>Loading event history…</p>
+							<Sheet.Body className='min-h-0 flex-1 overflow-y-auto'>
+								{!detail ? (
+									<LoadingState label='Loading event history…' />
 								) : (
-									detail && (
-										<>
-											<div>
-												<h3 className='font-semibold'>{detail.endpointName}</h3>
-												<p className='text-muted mt-1 text-sm'>
-													{detail.method} · {labels[detail.ingressOutcome] ?? detail.ingressOutcome}
-													{detail.responseStatus ? ` · HTTP ${detail.responseStatus}` : ""}
-												</p>
-												<p className='text-muted text-sm'>
-													{detail.contentType} · {detail.bodyBytes} bytes
-												</p>
-											</div>
+									<Tabs selectedKey={tab} onSelectionChange={(key) => setTab(String(key))}>
+										<Tabs.ListContainer>
+											<Tabs.List aria-label='Event inspection sections'>
+												{["ingress", "processing", "outgoing"].map((section) => (
+													<Tabs.Tab key={section} id={section}>
+														{section === "ingress" ? "Ingress" : section === "processing" ? "Processing" : "Outgoing"}
+														<Tabs.Indicator />
+													</Tabs.Tab>
+												))}
+											</Tabs.List>
+										</Tabs.ListContainer>
+										<Tabs.Panel id='ingress' className='flex flex-col gap-4 pt-4'>
+											<h3 className='font-semibold'>{detail.endpointName}</h3>
+											<p>
+												{detail.method} · {labels[detail.ingressOutcome]} · HTTP {detail.responseStatus ?? "—"}
+											</p>
+											{payload ? (
+												<>
+													<h3>Original request body</h3>
+													<pre aria-label='Original request body' className='bg-field max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-lg p-3 text-xs'>
+														{decode(payload.originalBody)}
+													</pre>
+													{detail.ingressOutcome === "accept" && (
+														<>
+															<h3>Accepted event body</h3>
+															<pre aria-label='Accepted event body' className='bg-field max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-lg p-3 text-xs'>
+																{decode(payload.acceptedBody)}
+															</pre>
+														</>
+													)}
+													<h3>Request headers</h3>
+													<pre aria-label='Request headers' className='bg-field max-h-64 overflow-auto rounded-lg p-3 text-xs'>
+														{JSON.stringify(payload.headers, null, 2)}
+													</pre>
+												</>
+											) : (
+												<p className='text-muted'>Payload content requires separate payload-reading permission.</p>
+											)}
+										</Tabs.Panel>
+										<Tabs.Panel id='processing' className='flex flex-col gap-4 pt-4'>
+											<h3 className='font-semibold'>Processing executions</h3>
+											{detail.executions.map((execution) => (
+												<div key={execution.id} className='border-border rounded-lg border p-3'>
+													<Chip size='sm' color={statusColor(execution.state)}>
+														{labels[execution.state]}
+													</Chip>
+													<p className='text-muted text-xs'>
+														{execution.attempt_number} processing attempts · {execution.id.slice(0, 8)}
+													</p>
+												</div>
+											))}
+											{!detail.executions.length && <p className='text-muted'>This request has no processing executions.</p>}
+										</Tabs.Panel>
+										<Tabs.Panel id='outgoing' className='flex flex-col gap-4 pt-4'>
 											{selectedAttempt && (
-												<section aria-label='Selected delivery attempt' className='flex flex-col gap-3'>
+												<section ref={response} tabIndex={-1} aria-label='Selected delivery attempt' className='flex flex-col gap-3'>
 													<h3 className='font-semibold'>Destination response</h3>
-													{!attemptDetail ? (
-														<p role='status'>Loading attempt…</p>
+													{!attempt ? (
+														<LoadingState label='Loading attempt…' />
 													) : (
 														<>
-															<p className='break-all text-sm'>
-																{attemptDetail.operationId} · {attemptDetail.status ? `HTTP ${attemptDetail.status}` : (attemptDetail.networkError ?? "In progress")}
-																{attemptDetail.durationMs !== null ? ` · ${attemptDetail.durationMs} ms` : ""}
+															<p>
+																{attempt.operationId} · {attempt.status ? "HTTP " + attempt.status : (attempt.networkError ?? "Pending")} · {attempt.durationMs ?? "—"} ms
 															</p>
-															{attemptDetail.responseBody !== undefined ? (
+															{attempt.responseBody !== undefined ? (
 																<>
-																	<p className='text-muted text-xs'>Captured response body, up to 64 KiB. Response headers are not currently recorded.</p>
-																	<pre aria-label='Delivery response body' className='bg-field max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-lg p-3 text-xs'>
-																		{attemptDetail.responseBody === null ? "No response was captured." : decode(attemptDetail.responseBody) || "Empty response body."}
+																	<p className='text-muted text-xs'>Captured response body, up to 64 KiB. Response headers are not recorded.</p>
+																	<pre aria-label='Delivery response body' className='bg-field max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-lg p-3 text-xs'>
+																		{attempt.responseBody ? decode(attempt.responseBody) : "(empty response body)"}
 																	</pre>
 																</>
 															) : (
-																<p className='text-muted text-sm'>Response body requires payload-read permission.</p>
+																<p className='text-muted'>Response content requires payload-reading permission.</p>
 															)}
 														</>
 													)}
 												</section>
 											)}
-											<section>
-												<h3 className='mb-3 font-semibold'>Processing executions</h3>
-												<ul className='flex flex-col gap-3'>
-													{detail.executions.map((execution) => (
-														<li key={execution.id} className='border-border rounded-lg border p-3'>
-															<p>{labels[execution.state] ?? execution.state}</p>
-															<p className='text-muted mt-1 text-xs'>
-																{execution.attempt_number} processing attempts · <code>{execution.id.slice(0, 8)}</code>
-															</p>
-														</li>
-													))}
-												</ul>
-											</section>
-											<section>
-												<h3 className='mb-3 font-semibold'>Delivery attempts</h3>
-												{detail.attempts.length ? (
-													<ul className='flex flex-col gap-2'>
-														{detail.attempts.map((attempt) => (
-															<li key={attempt.id} className='border-border flex justify-between gap-3 rounded-lg border p-3 text-sm'>
-																<Button
-																	size='sm'
-																	variant='ghost'
-																	onPress={() => {
-																		setAttemptDetail(null);
-																		setSelectedAttempt(attempt.id);
-																	}}
-																	aria-label={"Inspect delivery attempt " + attempt.id.slice(0, 8)}
-																>
-																	{attempt.operation_id}
-																</Button>
-																<span className={attempt.status_code && attempt.status_code >= 200 && attempt.status_code < 300 ? "text-success" : "text-danger"}>{attempt.status_code ? "HTTP " + attempt.status_code : (attempt.network_error ?? "Outcome pending")}</span>
-															</li>
-														))}
-													</ul>
-												) : (
-													<p className='text-muted text-sm'>No tracked HTTP attempts yet.</p>
-												)}
-											</section>
-											{payload ? (
-												<section>
-													<h3 className='mb-3 font-semibold'>Original request body</h3>
-													<pre aria-label='Original request body' className='border-border bg-field max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-lg border p-4 font-mono text-xs'>
-														{decode(payload.originalBody)}
-													</pre>
-													{detail.ingressOutcome === "accept" && (
-														<>
-															<h3 className='my-3 font-semibold'>Accepted event body</h3>
-															<pre aria-label='Accepted event body' className='border-border bg-field max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-lg border p-4 font-mono text-xs'>
-																{decode(payload.acceptedBody)}
-															</pre>
-														</>
-													)}
-													<h3 className='my-3 font-semibold'>Request headers</h3>
-													<pre aria-label='Request headers' className='border-border bg-field max-h-64 overflow-auto rounded-lg border p-4 font-mono text-xs'>
-														{JSON.stringify(payload.headers, null, 2)}
-													</pre>
-												</section>
+											<h3 className='font-semibold'>Delivery attempts</h3>
+											{detail.attempts.length ? (
+												<Table>
+													<Table.ScrollContainer>
+														<Table.Content aria-label='Event delivery attempts'>
+															<Table.Header>
+																<Table.Column isRowHeader>Operation</Table.Column>
+																<Table.Column>Response</Table.Column>
+																<Table.Column>Inspect</Table.Column>
+															</Table.Header>
+															<Table.Body>
+																{detail.attempts.map((item) => (
+																	<Table.Row
+																		key={item.id}
+																		id={item.id}
+																		onAction={() => {
+																			setAttempt(null);
+																			setSelectedAttempt(item.id);
+																		}}
+																		className='cursor-pointer'
+																	>
+																		<Table.Cell>
+																			{item.operation_id}
+																			<p className='text-muted text-xs'>{new Date(item.started_at).toLocaleString()}</p>
+																		</Table.Cell>
+																		<Table.Cell>
+																			<Chip size='sm' className='whitespace-nowrap' color={item.status_code && item.status_code >= 200 && item.status_code < 300 ? "success" : "danger"}>
+																				{item.status_code ? "HTTP " + item.status_code : (item.network_error ?? "Pending")}
+																			</Chip>
+																		</Table.Cell>
+																		<Table.Cell>
+																			<Button
+																				size='sm'
+																				variant='secondary'
+																				aria-label={"Inspect delivery attempt " + item.id.slice(0, 8)}
+																				onPress={() => {
+																					setAttempt(null);
+																					setSelectedAttempt(item.id);
+																				}}
+																			>
+																				Inspect
+																			</Button>
+																		</Table.Cell>
+																	</Table.Row>
+																))}
+															</Table.Body>
+														</Table.Content>
+													</Table.ScrollContainer>
+												</Table>
 											) : (
-												<p className='text-muted text-sm'>Payload content requires separate payload-reading permission.</p>
+												<p className='text-muted'>No tracked HTTP attempts yet.</p>
 											)}
-										</>
-									)
+										</Tabs.Panel>
+									</Tabs>
 								)}
 							</Sheet.Body>
-							<Sheet.Footer>
-								{inspectionProject?.permissions.includes("events.replay") && detail?.ingressOutcome === "accept" && (
-									<div className='flex flex-col gap-3'>
-										<p className='text-muted text-xs'>Replay creates new history and may repeat external effects. The stored payload stays unchanged.</p>
-										<div className='flex flex-wrap items-center gap-3'>
-											<NativeSelect variant='secondary' fullWidth>
-												<Label>Script version for replay</Label>
-												<NativeSelect.Trigger aria-label='Replay publication' value={policy} onChange={(event) => setPolicy(event.target.value as "original" | "current")} disabled={busy}>
-													<NativeSelect.Option value='original'>Version used when received</NativeSelect.Option>
-													<NativeSelect.Option value='current'>Currently published version</NativeSelect.Option>
-													<NativeSelect.Indicator />
-												</NativeSelect.Trigger>
-											</NativeSelect>
-											<p className='text-muted text-xs'>{policy === "original" ? "Run the saved processing code and dependencies originally used for this request." : "Run today's published processing code and dependencies against the stored accepted payload."}</p>
-											<Button onPress={() => void replay()} isDisabled={busy || !detail}>
-												<IconPlayerPlay size={16} />
-												{busy ? "Queuing…" : "Replay event"}
-											</Button>
-										</div>
+							<Sheet.Footer className='shrink-0'>
+								{detail?.ingressOutcome === "accept" && projects.find((project) => project.id === detail.projectId)?.permissions.includes("events.replay") && (
+									<div className='flex w-full flex-col gap-3'>
+										<PublicationPicker endpointId={detail.endpointId} originalId={detail.publicationId} value={replayVersion} onChange={setReplayVersion} label='Script version for replay' disabled={busy} />
+										<p className='text-muted text-xs'>Active handles new events. Latest is the newest saved publication. Replay creates a new execution and may repeat external effects.</p>
+										<Button isDisabled={busy || !replayVersion} onPress={() => void replay(false)}>
+											<IconPlayerPlay size={16} />
+											Replay event
+										</Button>
 									</div>
 								)}
 							</Sheet.Footer>
@@ -586,6 +740,62 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 					</Sheet.Content>
 				</Sheet.Backdrop>
 			</Sheet>
+			<Modal
+				isOpen={bulkOpen}
+				onOpenChange={(open) => {
+					if (!busy) setBulkOpen(open);
+				}}
+			>
+				<Modal.Backdrop>
+					<Modal.Container>
+						<Modal.Dialog aria-label='Replay selected events'>
+							<Modal.CloseTrigger />
+							<Modal.Header>
+								<Modal.Heading>Replay selected events</Modal.Heading>
+							</Modal.Header>
+							<Modal.Body className='flex flex-col gap-4'>
+								<p>{selectedIds.length} selected events will get new processing executions. External effects can repeat. The selection is fixed; newly arriving events are not included.</p>
+								<NativeSelect fullWidth>
+									<Label>Version policy</Label>
+									<NativeSelect.Trigger
+										aria-label='Bulk replay version policy'
+										value={bulkPolicy}
+										onChange={(event) => {
+											bulkKey.current = crypto.randomUUID();
+											setBulkPolicy(event.target.value as typeof bulkPolicy);
+										}}
+									>
+										<NativeSelect.Option value='original'>Original version for each event</NativeSelect.Option>
+										<NativeSelect.Option value='current'>Active version for each route</NativeSelect.Option>
+										{activeRoute && <NativeSelect.Option value='selected'>Choose a specific version</NativeSelect.Option>}
+										<NativeSelect.Indicator />
+									</NativeSelect.Trigger>
+								</NativeSelect>
+								{activeRoute && bulkPolicy === "selected" && (
+									<PublicationPicker
+										endpointId={activeRoute}
+										value={bulkVersion}
+										onChange={(id) => {
+											bulkKey.current = crypto.randomUUID();
+											setBulkVersion(id);
+										}}
+										label='Bulk replay script version'
+									/>
+								)}
+								<p className='text-muted text-xs'>Up to 1000 replayable events per operation. Narrow the filters for larger collections.</p>
+							</Modal.Body>
+							<Modal.Footer>
+								<Button slot='close' variant='tertiary' isDisabled={busy}>
+									Cancel
+								</Button>
+								<Button isDisabled={busy || !selectedIds.length || (bulkPolicy === "selected" && !bulkVersion)} onPress={() => void replay(true)}>
+									{busy ? "Queuing…" : "Queue replay"}
+								</Button>
+							</Modal.Footer>
+						</Modal.Dialog>
+					</Modal.Container>
+				</Modal.Backdrop>
+			</Modal>
 		</section>
 	);
 }
