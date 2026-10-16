@@ -700,3 +700,27 @@ test("invitation acceptance rechecks the issuer's authority and cannot cross the
 		}
 	});
 });
+
+test("rotated OTP mail uses the newest verification and suppresses the old code", async () => {
+	await authFixture(async (f) => {
+		await identity(f.db, "operator");
+		const config = fixtureConfig(f);
+		const service = createAuth(f.pool, config);
+		try {
+			await service.api.sendVerificationOTP({ body: { email: "operator@example.test", type: "sign-in" } });
+			const first = (await f.db.query("SELECT id,encrypted_payload FROM payloadbay.platform_job ORDER BY created_at DESC LIMIT 1")).rows[0];
+			await service.api.sendVerificationOTP({ body: { email: "operator@example.test", type: "sign-in" } });
+			const second = (await f.db.query("SELECT id,encrypted_payload FROM payloadbay.platform_job WHERE id<>$1", [first.id])).rows[0];
+			await notificationDeliveryTask(f.pool, config)({ jobId: first.id, generation: 1 });
+			await notificationDeliveryTask(f.pool, config)({ jobId: second.id, generation: 1 });
+			assert.equal((await f.db.query("SELECT state FROM payloadbay.platform_job WHERE id=$1", [first.id])).rows[0].state, "expired");
+			assert.equal((await f.db.query("SELECT state FROM payloadbay.platform_job WHERE id=$1", [second.id])).rows[0].state, "succeeded");
+			assert.equal((await (await fetch(f.mailUrl + "/api/v1/messages")).json()).total, 1);
+			const payload = decryptPrivate<{ otp: string }>(second.encrypted_payload, config.encryptionKey);
+			const response = await service.handler(new Request(config.publicUrl + "/api/auth/sign-in/email-otp", { method: "POST", headers: { origin: config.publicUrl, "content-type": "application/json" }, body: JSON.stringify({ email: "operator@example.test", otp: payload.otp }) }));
+			assert.equal(response.status, 200);
+		} finally {
+			await service.close();
+		}
+	});
+});

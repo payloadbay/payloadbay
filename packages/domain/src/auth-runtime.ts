@@ -61,7 +61,7 @@ export function createAuth(pool: Pool, config: ServerConfig) {
 					if (type !== "sign-in") throw Error("Only sign-in codes are supported");
 					const identifier = "sign-in-otp-" + email;
 					const verificationHash = createHmac("sha256", config.authSecret).update(otp).digest("base64url");
-					const record = (await pool.query('SELECT "expiresAt" FROM auth.verification WHERE identifier=$1', [identifier])).rows[0];
+					const record = (await pool.query('SELECT "expiresAt" FROM auth.verification WHERE identifier=$1 ORDER BY "createdAt" DESC LIMIT 1', [identifier])).rows[0];
 					if (!record) throw Error("Verification state is unavailable");
 					await queueMail(
 						pool,
@@ -86,7 +86,7 @@ export function createAuth(pool: Pool, config: ServerConfig) {
 					const email = String(ctx.body?.email ?? "")
 						.trim()
 						.toLowerCase();
-					const record = (await pool.query('SELECT "expiresAt","expiresAt">clock_timestamp() AS live FROM auth.verification WHERE identifier=$1', ["sign-in-otp-" + email])).rows[0];
+					const record = (await pool.query('SELECT "expiresAt","expiresAt">clock_timestamp() AS live FROM auth.verification WHERE identifier=$1 ORDER BY "createdAt" DESC LIMIT 1', ["sign-in-otp-" + email])).rows[0];
 					if (!record?.live || new Date(record.expiresAt).getTime() <= Date.now()) throw new APIError("BAD_REQUEST", { message: "Code is invalid or expired" });
 				}
 			}),

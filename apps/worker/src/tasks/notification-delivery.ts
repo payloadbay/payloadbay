@@ -52,8 +52,8 @@ async function resolveMessage(pool: Pool, job: MailJob, data: MailPayload, confi
 		message = current.message;
 		kind = "delivery.failure-threshold";
 	} else if (job.kind === "otp_mail") {
-		const allowed = (await pool.query('SELECT value FROM auth.verification WHERE identifier=$1 AND "expiresAt">clock_timestamp()', [data.identifier])).rows[0];
-		if (!data.email || !data.otp || !data.expiresAt || !data.verificationHash || new Date(data.expiresAt).getTime() <= Date.now() || !allowed?.value.startsWith(data.verificationHash + ":")) return null;
+		const allowed = (await pool.query('SELECT value,"expiresAt">clock_timestamp() AS live FROM auth.verification WHERE identifier=$1 ORDER BY "createdAt" DESC LIMIT 1', [data.identifier])).rows[0];
+		if (!data.email || !data.otp || !data.expiresAt || !data.verificationHash || new Date(data.expiresAt).getTime() <= Date.now() || !allowed?.live || !allowed.value.startsWith(data.verificationHash + ":")) return null;
 		email = data.email;
 		kind = "auth.login-code";
 		message = {

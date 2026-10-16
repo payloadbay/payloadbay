@@ -2601,3 +2601,10 @@ middleware integration suite: 9 passed. R01/R02 are verified; R03–R05 follow.
 - Preview integration: 3/3 passed, covering repeat seeding, project-only visibility/read/write permissions, preview-only controls and owner lockout protection. New browser flow passed real project-admin/viewer sign-in, scoped collection visibility, menu Back, denied instance settings, denied private-project access and denied viewer mutation.
 - ESLint, web/tooling TypeScript and Prettier passed. Existing Docker/cache/migration-workflow drafts remain excluded. The hosted SaaS discussion is an assessment, not an enabled signup/billing feature or a runtime-policy change.
 - Existing bootstrap/mobile regression also passed 8/8 after the account-selector change.
+
+### OTP rotation found during live scoped-account verification
+
+- Live project-admin/viewer sign-in and scope checks passed, but repeated code requests exposed an existing OTP lookup mismatch. Better Auth selects the newest verification by createdAt; our scheduling, delivery guard and pre-verification expiry check selected an unspecified first record.
+- Added a real database/SMTP regression with two code requests: before the fix the superseded email incorrectly succeeded. All three lookups now use Better Auth's newest-record ordering, and the delivery guard checks that exact record is live. The regression passes: old mail expired, one current email delivered, newest code verifies.
+- The request quota and five-minute expiry are unchanged. This correction does not introduce preview-only authentication behavior.
+- Full authentication regression passed 34/34, including the new real rotation/SMTP test. ESLint, web/tooling TypeScript, Prettier and diff checks passed.
