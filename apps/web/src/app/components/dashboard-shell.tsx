@@ -256,6 +256,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 				]
 			: [];
 
+	const administrationLabel = pathname.startsWith("/admin/notification-channels/") ? "Notification module" : pathname === "/admin/notification-channels" ? "Notification modules" : pathname === "/admin/email" ? "Email settings" : "Administration";
 	const globalLinks = [
 		{
 			id: "home",
@@ -351,6 +352,22 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 	];
 	const searchItems = [
 		...globalLinks.filter((item) => item.visible),
+		...(data.me.permissions.includes("settings.manage")
+			? [
+					{
+						id: "notification-modules",
+						label: "Notification modules",
+						href: "/admin/notification-channels",
+						icon: IconBell,
+					},
+					{
+						id: "email-settings",
+						label: "Email settings",
+						href: "/admin/email",
+						icon: IconSettings,
+					},
+				]
+			: []),
 		{
 			id: "account",
 			label: "Account settings",
@@ -468,17 +485,35 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 							</details>
 						))}
 			</Sidebar.Content>
-			{admin && !scoped && (
+			{(admin || data.me.permissions.includes("settings.manage")) && !scoped && (
 				<Sidebar.Footer>
 					<Sidebar.Group>
 						<Sidebar.GroupLabel>Administration</Sidebar.GroupLabel>
 						<Sidebar.Menu aria-label='Instance administration'>
-							<Sidebar.MenuItem id='instance-members' href='/admin/members' textValue='Instance members' isCurrent={pathname === "/admin/members"}>
-								<Sidebar.MenuIcon>
-									<IconUsers size={18} />
-								</Sidebar.MenuIcon>
-								<Sidebar.MenuLabel>Instance members</Sidebar.MenuLabel>
-							</Sidebar.MenuItem>
+							{admin && (
+								<Sidebar.MenuItem id='instance-members' href='/admin/members' textValue='Instance members' isCurrent={pathname === "/admin/members"}>
+									<Sidebar.MenuIcon>
+										<IconUsers size={18} />
+									</Sidebar.MenuIcon>
+									<Sidebar.MenuLabel>Instance members</Sidebar.MenuLabel>
+								</Sidebar.MenuItem>
+							)}
+							{data.me.permissions.includes("settings.manage") && (
+								<>
+									<Sidebar.MenuItem id='notification-modules' href='/admin/notification-channels' textValue='Notification modules' isCurrent={pathname.startsWith("/admin/notification-channels")}>
+										<Sidebar.MenuIcon>
+											<IconBell size={18} />
+										</Sidebar.MenuIcon>
+										<Sidebar.MenuLabel>Notification modules</Sidebar.MenuLabel>
+									</Sidebar.MenuItem>
+									<Sidebar.MenuItem id='email-settings' href='/admin/email' textValue='Email settings' isCurrent={pathname === "/admin/email"}>
+										<Sidebar.MenuIcon>
+											<IconSettings size={18} />
+										</Sidebar.MenuIcon>
+										<Sidebar.MenuLabel>Email settings</Sidebar.MenuLabel>
+									</Sidebar.MenuItem>
+								</>
+							)}
 						</Sidebar.Menu>
 					</Sidebar.Group>
 				</Sidebar.Footer>
@@ -557,7 +592,8 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 							{currentProject && <Breadcrumbs.Item href={pathname === "/projects/" + currentProject.id ? undefined : "/projects/" + currentProject.id}>{currentProject.name}</Breadcrumbs.Item>}
 							{routeId && <Breadcrumbs.Item href={routeAddress}>{routeMetadata && routeMetadata.id === routeId ? routeMetadata.name : "Ingress route"}</Breadcrumbs.Item>}
 							{routeId && <Breadcrumbs.Item>{routeSection === "middleware" ? "Middleware" : (routeLinks.find((item) => item.id === routeSection)?.label ?? "Scripts")}</Breadcrumbs.Item>}
-							{!currentProject && !currentWorkspace && pathname !== "/" && <Breadcrumbs.Item>{pathname === "/workspaces" ? "Workspaces" : pathname === "/projects" ? "Projects" : pathname === "/events" ? "Events" : pathname.startsWith("/account") ? "Account settings" : "Administration"}</Breadcrumbs.Item>}
+							{pathname.startsWith("/admin/notification-channels/") && <Breadcrumbs.Item href='/admin/notification-channels'>Notification modules</Breadcrumbs.Item>}
+							{!currentProject && !currentWorkspace && pathname !== "/" && <Breadcrumbs.Item>{pathname === "/workspaces" ? "Workspaces" : pathname === "/projects" ? "Projects" : pathname === "/events" ? "Events" : pathname.startsWith("/account") ? "Account settings" : administrationLabel}</Breadcrumbs.Item>}
 						</Breadcrumbs>
 					</nav>
 					<nav aria-label='Breadcrumbs' className='mb-6 flex min-w-0 items-center gap-2 sm:hidden'>
@@ -568,6 +604,11 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 								</Dropdown.Trigger>
 								<Dropdown.Popover className='max-w-[calc(100vw-2rem)]'>
 									<Dropdown.Menu aria-label='Parent pages'>
+										{pathname.startsWith("/admin/notification-channels/") && (
+											<Dropdown.Item id='notification-catalog' href='/admin/notification-channels'>
+												Notification modules
+											</Dropdown.Item>
+										)}
 										<Dropdown.Item id='home' href='/'>
 											Overview
 										</Dropdown.Item>
@@ -592,7 +633,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 						)}
 						<Breadcrumbs className='min-w-0 [&_.breadcrumbs__link]:max-w-36 [&_.breadcrumbs__link]:truncate'>
 							{routeId ? <Breadcrumbs.Item href={routeAddress}>{routeMetadata?.name ?? "Ingress route"}</Breadcrumbs.Item> : currentProject ? <Breadcrumbs.Item href={pathname === "/projects/" + currentProject.id ? undefined : "/projects/" + currentProject.id}>{currentProject.name}</Breadcrumbs.Item> : currentWorkspace ? <Breadcrumbs.Item href={pathname === "/workspaces/" + currentWorkspace.id ? undefined : "/workspaces/" + currentWorkspace.id}>{currentWorkspace.name}</Breadcrumbs.Item> : null}
-							{routeId ? <Breadcrumbs.Item>{routeSection === "middleware" ? "Middleware" : (routeLinks.find((item) => item.id === routeSection)?.label ?? "Scripts")}</Breadcrumbs.Item> : !currentProject && !currentWorkspace ? <Breadcrumbs.Item>{pathname === "/" ? "Overview" : pathname === "/workspaces" ? "Workspaces" : pathname === "/projects" ? "Projects" : pathname === "/events" ? "Events" : pathname.startsWith("/account") ? "Account settings" : "Administration"}</Breadcrumbs.Item> : null}
+							{routeId ? <Breadcrumbs.Item>{routeSection === "middleware" ? "Middleware" : (routeLinks.find((item) => item.id === routeSection)?.label ?? "Scripts")}</Breadcrumbs.Item> : !currentProject && !currentWorkspace ? <Breadcrumbs.Item>{pathname === "/" ? "Overview" : pathname === "/workspaces" ? "Workspaces" : pathname === "/projects" ? "Projects" : pathname === "/events" ? "Events" : pathname.startsWith("/account") ? "Account settings" : administrationLabel}</Breadcrumbs.Item> : null}
 						</Breadcrumbs>
 					</nav>
 					{children}

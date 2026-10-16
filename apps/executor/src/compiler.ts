@@ -5,13 +5,13 @@ import { sdkDeclarations as sdk } from "../../../packages/script-sdk/src/declara
 import ts from "typescript";
 import { z } from "zod";
 
-export type Stage = "ingress" | "processing" | "ingress_middleware" | "processing_middleware";
+export type Stage = "ingress" | "processing" | "ingress_middleware" | "processing_middleware" | "notification";
 
 export type SharedModule = { source: string; revisionId: string };
 
 const inputSchema = z
 	.object({
-		stage: z.enum(["ingress", "processing", "ingress_middleware", "processing_middleware"]),
+		stage: z.enum(["ingress", "processing", "ingress_middleware", "processing_middleware", "notification"]),
 		body: z.string().max(131072),
 		sourceId: z.string().max(128).default("body"),
 		sharedModules: z.record(z.string(), z.object({ source: z.string().max(131072), revisionId: z.string() })).default({}),
@@ -63,9 +63,9 @@ export async function compile(input: unknown) {
 	}
 
 	const imports = bindings.map((name) => `import * as ${name} from ${JSON.stringify("@shared/" + name)};`).join("\n");
-	const ctxType = stage === "ingress_middleware" ? "IngressMiddlewareContext" : stage === "processing_middleware" ? "ProcessingMiddlewareContext" : stage === "ingress" ? "IngressContext" : "ProcessingContext";
-	const resultType = stage === "ingress_middleware" ? "IngressMiddlewareDecision" : stage === "processing_middleware" ? "ProcessingMiddlewareDecision" : stage === "ingress" ? "IngressDecision" : "ProcessingDecision";
-	const functionName = stage === "ingress" ? "ingress" : stage === "processing" ? "processEvent" : "middleware";
+	const ctxType = stage === "notification" ? "NotificationContext" : stage === "ingress_middleware" ? "IngressMiddlewareContext" : stage === "processing_middleware" ? "ProcessingMiddlewareContext" : stage === "ingress" ? "IngressContext" : "ProcessingContext";
+	const resultType = stage === "notification" ? "NotificationDecision" : stage === "ingress_middleware" ? "IngressMiddlewareDecision" : stage === "processing_middleware" ? "ProcessingMiddlewareDecision" : stage === "ingress" ? "IngressDecision" : "ProcessingDecision";
+	const functionName = stage === "notification" ? "sendNotification" : stage === "ingress" ? "ingress" : stage === "processing" ? "processEvent" : "middleware";
 	const parsedBody = ts.createSourceFile("ingress.ts", body, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
 	const moduleFile = parsedBody.statements.some((node) => ts.canHaveModifiers(node) && ts.getModifiers(node)?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword));
 	const httpFile = stage === "ingress" && moduleFile;

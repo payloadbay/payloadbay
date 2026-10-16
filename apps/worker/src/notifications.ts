@@ -1,9 +1,9 @@
 import type { Pool } from "pg";
-import { queueIncidentEmail } from "../../../packages/domain/src/notification-mail.ts";
+import { queueIncidentNotifications } from "../../../packages/domain/src/notification-dispatch.ts";
 import { evaluateFailureRules } from "../../../packages/domain/src/notification-rules.ts";
 
 /** One bounded producer loop per trusted worker process; incident reconciliation deduplicates peers. */
-export function startNotificationProducer(pool: Pool, options: { intervalMs?: number; encryptionKey?: string } = {}) {
+export function startNotificationProducer(pool: Pool, options: { intervalMs?: number; encryptionKey?: string; publicUrl?: string } = {}) {
 	let active: Promise<unknown> | undefined;
 	let stopped = false;
 	const interval = options.intervalMs ?? 5000;
@@ -14,7 +14,7 @@ export function startNotificationProducer(pool: Pool, options: { intervalMs?: nu
 		active = evaluateFailureRules(pool)
 			.then(async (incidents) => {
 				if (!options.encryptionKey) return;
-				for (const incident of incidents) await queueIncidentEmail(pool, incident.id, options.encryptionKey);
+				for (const incident of incidents) await queueIncidentNotifications(pool, incident.id, options.encryptionKey, options.publicUrl);
 			})
 			.catch(() => console.error("Notification producer database unavailable"))
 			.finally(() => {

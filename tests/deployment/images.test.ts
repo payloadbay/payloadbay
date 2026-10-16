@@ -108,6 +108,26 @@ test("U253 restricted worker image delivers accepted bytes through isolated exec
 			assert.equal(receipts.length, 1);
 			assert.equal(receipts[0].body, Buffer.from([0, 255, 42]).toString("base64"));
 			assert.equal((await db.query("SELECT status_code FROM payloadbay.delivery_attempt")).rows[0].status_code, 200);
+			const { identity } = await import("../helpers/auth-fixtures.ts");
+			const { permissions } = await import("../../packages/contracts/src/permissions.ts");
+			const { queueChannelTest } = await import("../../packages/domain/src/notification-testing.ts");
+			const { readServerConfig } = await import("../../packages/domain/src/config.ts");
+			await identity(db, "fixture-owner");
+			await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, permissions]);
+			const testMessage = await queueChannelTest(pool, { userId: "fixture-owner" }, "smtp", readServerConfig(env));
+			let mailState = "";
+			for (let i = 0; i < 200; i++) {
+				mailState = (await db.query("SELECT state FROM payloadbay.platform_job WHERE id=$1", [testMessage.jobId])).rows[0].state;
+				if (mailState === "succeeded") break;
+				await new Promise((resolve) => setTimeout(resolve, 50));
+			}
+
+			assert.equal(mailState, "succeeded", "The built worker image must render and deliver branded HTML email");
+			const mailbox = await (await fetch(f.mailUrl + "/api/v1/messages")).json();
+			assert.equal(mailbox.total, 1);
+			const email = await (await fetch(f.mailUrl + "/api/v1/message/" + mailbox.messages[0].ID)).json();
+			assert.match(email.HTML, /email-card/);
+			assert.match(email.Text, /synthetic notification/);
 			const container = JSON.parse(docker(["inspect", name]))[0];
 			assert.equal(container.Config.User, "node");
 			assert.deepEqual(container.Mounts, []);

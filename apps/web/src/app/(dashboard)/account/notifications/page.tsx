@@ -8,6 +8,13 @@ import { useDashboard } from "@components/dashboard-shell";
 import { api } from "@lib/api-client";
 import { useFeedbackToast } from "@lib/feedback";
 
+type Channel = {
+	id: string;
+	name: string;
+	enabled: boolean;
+	kind: string;
+};
+
 type Preference = {
 	id: string;
 	projectId: string | null;
@@ -17,11 +24,13 @@ type Preference = {
 	windowSeconds: number;
 	severity: string;
 	smtpEnabled: boolean;
+	channels: string[];
 };
 
 export default function NotificationPreferencesPage() {
 	const { projects, workspaces, me } = useDashboard();
 
+	const [channels, setChannels] = useState<Channel[]>([]);
 	const [preferences, setPreferences] = useState<Preference[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [attempt, setAttempt] = useState(0);
@@ -34,10 +43,13 @@ export default function NotificationPreferencesPage() {
 	useEffect(() => {
 		let active = true;
 		const revision = edits.current;
-		Promise.all([...projects.filter((project) => project.permissions.includes("notifications.read")).map((project) => api<Preference[]>("/projects/" + project.id + "/notification-subscriptions")), ...workspaces.filter((workspace) => workspace.permissions.includes("notifications.read")).map((workspace) => api<Preference[]>("/workspaces/" + workspace.id + "/notification-subscriptions"))])
+		Promise.all([api<Channel[]>("/notification-channels"), Promise.all([...projects.filter((project) => project.permissions.includes("notifications.read")).map((project) => api<Preference[]>("/projects/" + project.id + "/notification-subscriptions")), ...workspaces.filter((workspace) => workspace.permissions.includes("notifications.read")).map((workspace) => api<Preference[]>("/workspaces/" + workspace.id + "/notification-subscriptions"))])])
 			.then(
-				(rows) => {
-					if (active && revision === edits.current) setPreferences(rows.flat());
+				([available, rows]) => {
+					if (active && revision === edits.current) {
+						setChannels(available);
+						setPreferences(rows.flat());
+					}
 				},
 				(cause) => {
 					if (active) setError(cause instanceof Error ? cause.message : "Could not load preferences");
@@ -52,13 +64,13 @@ export default function NotificationPreferencesPage() {
 		};
 	}, [projects, workspaces, attempt]);
 
-	async function toggle(rule: Preference, enabled: boolean) {
+	async function toggle(rule: Preference, channel: string, enabled: boolean) {
 		edits.current += 1;
 		setBusy(rule.id);
 		setError("");
 		try {
-			await api("/notification-rules/" + rule.id + "/subscription", { method: "PUT", json: { enabled } });
-			setPreferences((previous) => previous.map((item) => (item.id === rule.id ? { ...item, smtpEnabled: enabled } : item)));
+			await api("/notification-rules/" + rule.id + "/subscription", { method: "PUT", json: { enabled, channel } });
+			setPreferences((previous) => previous.map((item) => (item.id === rule.id ? { ...item, smtpEnabled: channel === "smtp" ? enabled : item.smtpEnabled, channels: enabled ? [...new Set([...item.channels, channel])] : item.channels.filter((id) => id !== channel) } : item)));
 		} catch (cause) {
 			setError(cause instanceof Error ? cause.message : "Could not save preference");
 		} finally {
@@ -70,7 +82,7 @@ export default function NotificationPreferencesPage() {
 		<section className='flex flex-col gap-6'>
 			<header>
 				<h1 className='text-3xl font-semibold'>Notification settings</h1>
-				<p className='text-muted mt-2'>Choose which configured failure rules email {me.user.email}. These choices affect only you. Thresholds belong to the project or workspace, and email delivery is off until you opt in.</p>
+				<p className='text-muted mt-2'>Choose how configured failure rules notify you. Email goes to {me.user.email}; custom modules use their instance-configured destination. These choices affect only you. Thresholds belong to the project or workspace, and every channel is off until you opt in.</p>
 			</header>
 			{loading ? (
 				<LoadingState label='Loading preferences…' />
@@ -94,7 +106,7 @@ export default function NotificationPreferencesPage() {
 						<Table.Content aria-label='Your notification preferences'>
 							<Table.Header>
 								<Table.Column isRowHeader>Rule</Table.Column>
-								<Table.Column>Email</Table.Column>
+								<Table.Column>Channels</Table.Column>
 							</Table.Header>
 							<Table.Body>
 								{preferences.map((rule) => (
@@ -106,13 +118,28 @@ export default function NotificationPreferencesPage() {
 											</p>
 										</Table.Cell>
 										<Table.Cell>
-											<Switch aria-label={"Email alerts for " + (rule.workspaceId ? workspaces.find((workspace) => workspace.id === rule.workspaceId)?.name : projects.find((project) => project.id === rule.projectId)?.name) + ": " + rule.count + (rule.count === 1 ? " failure" : " failures") + " in " + rule.windowSeconds + " seconds"} isSelected={rule.smtpEnabled} isDisabled={busy !== null} onChange={(enabled) => void toggle(rule, enabled)}>
-												<Switch.Content>
-													<Switch.Control>
-														<Switch.Thumb />
-													</Switch.Control>
-												</Switch.Content>
-											</Switch>
+											<div className='flex flex-col gap-3'>
+												{channels.map((channel) => (
+													<Switch
+														key={channel.id}
+														slot={null}
+														aria-label={(channel.id === "smtp" ? "Email" : channel.name) + " alerts for " + (rule.workspaceId ? workspaces.find((workspace) => workspace.id === rule.workspaceId)?.name : projects.find((project) => project.id === rule.projectId)?.name) + ": " + rule.count + (rule.count === 1 ? " failure" : " failures") + " in " + rule.windowSeconds + " seconds"}
+														isSelected={rule.channels.includes(channel.id)}
+														isDisabled={busy !== null || (!channel.enabled && !rule.channels.includes(channel.id))}
+														onChange={(enabled) => void toggle(rule, channel.id, enabled)}
+													>
+														<Switch.Content>
+															<Switch.Control>
+																<Switch.Thumb />
+															</Switch.Control>
+														</Switch.Content>
+														<span>
+															{channel.name}
+															{!channel.enabled ? " · Paused" : ""}
+														</span>
+													</Switch>
+												))}
+											</div>
 										</Table.Cell>
 									</Table.Row>
 								))}

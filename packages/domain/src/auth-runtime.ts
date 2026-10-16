@@ -74,6 +74,7 @@ export function createAuth(pool: Pool, config: ServerConfig) {
 							expiresAt: record.expiresAt.toISOString(),
 						},
 						config.encryptionKey,
+						config.publicUrl,
 					);
 				},
 			}),

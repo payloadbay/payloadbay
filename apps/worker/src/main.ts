@@ -2,7 +2,7 @@ import { startNotificationProducer } from "./notifications.ts";
 import { run, type Runner } from "graphile-worker";
 import { readServerConfig } from "../../../packages/domain/src/config.ts";
 import { database } from "../../../packages/domain/src/db.ts";
-import { mailTask } from "./tasks/mail.ts";
+import { notificationDeliveryTask } from "./tasks/notification-delivery.ts";
 import { processEventTask } from "./tasks/process-event.ts";
 import { startRecovery } from "./recovery.ts";
 import { createBroker } from "./broker.ts";
@@ -35,7 +35,7 @@ try {
 	const executor = await fetch(new URL("/health", config.executorUrl), { signal: AbortSignal.timeout(5000) });
 	if (!executor.ok) throw Error("Executor unavailable");
 	const event = processEventTask(pool, config);
-	const mail = mailTask(pool, config);
+	const mail = notificationDeliveryTask(pool, config);
 	// Independent reserved pools prevent bulk work from consuming the critical delivery/mail slots.
 	for (const lane of [
 		{ taskList: { process_event: event }, forbiddenFlags: ["bulk", "platform"], concurrency: 2 },
@@ -56,7 +56,7 @@ try {
 		});
 	}
 
-	notificationProducer = startNotificationProducer(pool, { encryptionKey: config.encryptionKey });
+	notificationProducer = startNotificationProducer(pool, { encryptionKey: config.encryptionKey, publicUrl: config.publicUrl });
 	broker.listen(Number(process.env.PORT ?? 8081), "0.0.0.0");
 	process.on("SIGTERM", () => void shutdown(0));
 	process.on("SIGINT", () => void shutdown(0));

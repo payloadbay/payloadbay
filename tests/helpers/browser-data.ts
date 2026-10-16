@@ -5,6 +5,9 @@ export async function resetBrowserData() {
 	if (!url || !/^\/case_[0-9a-f]+$/.test(new URL(url).pathname)) throw Error("Browser reset requires a disposable case database");
 	const pool = database(url);
 	try {
+		// Browser fixtures execute mail jobs only. Replay tests intentionally queue event
+		// processing; discard those unclaimed jobs before resetting their domain rows.
+		await pool.query("SELECT graphile_worker.remove_job(key) FROM graphile_worker.jobs WHERE task_identifier='process_event' AND locked_at IS NULL AND key IS NOT NULL");
 		let idle = false;
 		for (let i = 0; i < 100; i++) {
 			const jobs = await pool.query("SELECT count(*)::int AS n FROM graphile_worker.jobs");

@@ -12,6 +12,9 @@ type AuthFixtureData = {
 	databaseUrl: string;
 	smtpPort: number;
 	mailUrl: string;
+	httpUrl: string;
+	network: string;
+	containerDatabaseUrl: string;
 };
 
 export async function authFixture(run: (f: AuthFixtureData) => Promise<void>) {

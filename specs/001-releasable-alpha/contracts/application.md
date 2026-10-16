@@ -80,3 +80,23 @@ original request. Non-accepted history cannot be replayed for delivery.
   The existing worker captures at most 64 KiB of body; headers are not recorded.
 - Native import discovery/pinning and renamable middleware default exports are
   proposals in docs/ux-review-2026-10-16.md, not changes to the compiler contract.
+
+## Notification module and email settings extension
+
+| API under `/api/v1` | Behavior / permission |
+| --- | --- |
+| `GET /notification-channels` | Admitted user's available channel metadata; paused subscribed channels remain visible for opt-out. |
+| `POST /notification-channels` | Create/fork/publish immutable source; instance `settings.manage`, `code.read`, `code.edit`, `code.publish`; instance-owned secret references require `secrets.use`. |
+| `GET /notification-channels/:key` | Built-in or custom source/history; instance `settings.manage` and `code.read`; optional `revisionId`. |
+| `PATCH /notification-channels/:id` | Explicit version activation/pause with `expectedVersion`; instance publishing permissions. |
+| `POST /notification-channels/preview` | Compile draft and dry-run with synthetic messages/secrets, no fetch/SMTP; instance settings and `code.test`. |
+| `POST /notification-channels/:key/test` | Queue a bounded real test to the current verified administrator; instance settings, `code.read`, `code.test.effects`, and bound-secret use where relevant. |
+| `GET /email-settings`, `PUT /email-settings` | Shared branding + transactional module, optimistic `expectedVersion`; instance `settings.manage`. |
+| `POST /email-settings/preview` | Render shared wrapper with synthetic login/invitation/alert content; instance settings. |
+| `PUT /notification-rules/:id/subscription` | Current recipient's explicit `channel`/`enabled` opt-in; existing scoped `notifications.read`. |
+
+`key` is `smtp` for the immutable shipped email adapter or a custom module UUID.
+Settings reset uses the ordinary version-checked PUT to select `smtp` and default
+branding; no destructive reset API is needed. SMTP transport settings stay in
+deployment secrets. This extension uses the existing durable platform-job queue,
+shared script compiler/executor and notification rule/access model.

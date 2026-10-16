@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { emailContent } from "./notification-channels.ts";
 
 const bytes = z.custom<string | Uint8Array>((value) => typeof value === "string" || value instanceof Uint8Array);
 const response = z
@@ -29,6 +30,8 @@ const event = z.object({ body: bytes, contentType: z.string().min(1), metadata: 
 export const ingressDecision = z.discriminatedUnion("kind", [z.object({ kind: z.literal("accept"), event, response }).strict(), z.object({ kind: z.literal("reject"), response }).strict(), z.object({ kind: z.literal("respondOnly"), response }).strict()]);
 
 export const processingDecision = z.discriminatedUnion("kind", [z.object({ kind: z.literal("complete") }).strict(), z.object({ kind: z.literal("retry"), reason: z.string().max(256), delayMs: z.number().int().min(0).max(3600000).optional() }).strict(), z.object({ kind: z.literal("fail"), reason: z.string().max(256) }).strict()]);
+
+export const notificationDecision = z.union([z.object({ kind: z.literal("email"), message: emailContent }).strict(), processingDecision]);
 
 const middlewareHeaders = z
 	.record(
@@ -70,7 +73,7 @@ export const processingMiddlewareDecision = z.union([
 ]);
 
 export function validateDecision(stage: string, value: unknown) {
-	const schema = stage === "ingress" ? ingressDecision : stage === "processing" ? processingDecision : stage === "ingress_middleware" ? ingressMiddlewareDecision : stage === "processing_middleware" ? processingMiddlewareDecision : undefined;
+	const schema = stage === "ingress" ? ingressDecision : stage === "processing" ? processingDecision : stage === "ingress_middleware" ? ingressMiddlewareDecision : stage === "processing_middleware" ? processingMiddlewareDecision : stage === "notification" ? notificationDecision : undefined;
 	const parsed = schema?.safeParse(value);
 	if (!parsed?.success) throw Error("Invalid stage outcome");
 

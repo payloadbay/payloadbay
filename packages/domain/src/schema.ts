@@ -390,6 +390,7 @@ export const platformJob = domain.table(
 		leaseOwner: text("lease_owner"),
 		leaseExpiry: time("lease_expiry"),
 		encryptedPayload: bytes("encrypted_payload").notNull(),
+		lastError: text("last_error"),
 		jobKey: text("job_key").notNull(),
 		claimDeadlineAt: time("claim_deadline_at")
 			.notNull()
@@ -503,7 +504,7 @@ export const notificationDispatch = domain.table(
 		state: text("state").notNull().default("queued"),
 		platformJobId: uuid("platform_job_id").references((): AnyPgColumn => platformJob.id),
 	},
-	(t) => [primaryKey({ columns: [t.incidentId, t.generation, t.userId, t.channel] }), check("notification_dispatch_channel", sql`${t.channel} IN ('inbox','smtp')`)],
+	(t) => [primaryKey({ columns: [t.incidentId, t.generation, t.userId, t.channel] }), check("notification_dispatch_channel", sql`(${t.channel} IN ('inbox','smtp') OR ${t.channel} ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')`)],
 );
 
 export const notificationSubscription = domain.table(
@@ -516,7 +517,7 @@ export const notificationSubscription = domain.table(
 		channel: text("channel").notNull(),
 		enabled: boolean("enabled").notNull().default(false),
 	},
-	(t) => [primaryKey({ columns: [t.ruleId, t.userId, t.channel] }), check("notification_subscription_channel", sql`${t.channel} IN ('inbox','smtp')`)],
+	(t) => [primaryKey({ columns: [t.ruleId, t.userId, t.channel] }), check("notification_subscription_channel", sql`(${t.channel} IN ('inbox','smtp') OR ${t.channel} ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')`)],
 );
 
 export const replayKey = domain.table(
@@ -560,3 +561,49 @@ export const invitation = domain.table(
 	},
 	(t) => [check("invitation_state", sql`${t.state} IN ('pending','accepted','cancelled')`), check("invitation_scope", sql`${t.scopeType} IN ('instance','workspace','project')`), index("invitation_by_scope").on(t.scopeType, t.scopeId, t.state)],
 );
+
+export const notificationChannel = domain.table(
+	"notification_channel",
+	{
+		id: id(),
+		installationId: uuid("installation_id")
+			.notNull()
+			.references(() => installation.id),
+		name: text("name").notNull(),
+		kind: text("kind").notNull(),
+		enabled: boolean("enabled").notNull().default(true),
+		version: integer("version").notNull().default(1),
+		activeRevisionId: uuid("active_revision_id"),
+		originKey: text("origin_key"),
+		createdAt: time("created_at").notNull().defaultNow(),
+	},
+	(t) => [check("notification_channel_kind", sql`${t.kind} IN ('email','webhook')`), check("notification_channel_version", sql`${t.version}>0`), foreignKey({ name: "notification_channel_active_revision", columns: [t.id, t.activeRevisionId], foreignColumns: [notificationChannelRevision.channelId, notificationChannelRevision.id] })],
+);
+
+export const notificationChannelRevision = domain.table(
+	"notification_channel_revision",
+	{
+		id: id(),
+		channelId: uuid("channel_id")
+			.notNull()
+			.references((): AnyPgColumn => notificationChannel.id),
+		version: integer("version").notNull(),
+		source: text("source").notNull(),
+		compiled: jsonb("compiled").notNull(),
+		sharedBindings: jsonb("shared_bindings").notNull().default({}),
+		secretBindings: jsonb("secret_bindings").notNull().default({}),
+		createdBy: text("created_by").notNull(),
+		createdAt: time("created_at").notNull().defaultNow(),
+	},
+	(t) => [unique("notification_channel_revision_version").on(t.channelId, t.version), unique("notification_channel_revision_identity").on(t.channelId, t.id), check("notification_channel_revision_positive", sql`${t.version}>0`)],
+);
+
+export const emailSettings = domain.table("email_settings", {
+	installationId: uuid("installation_id")
+		.primaryKey()
+		.references(() => installation.id),
+	channelId: uuid("channel_id").references(() => notificationChannel.id),
+	branding: jsonb("branding").notNull().default({}),
+	version: integer("version").notNull().default(1),
+	updatedBy: text("updated_by").notNull(),
+});

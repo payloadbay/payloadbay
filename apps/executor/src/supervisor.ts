@@ -144,12 +144,13 @@ export async function execute(options: ExecuteOptions): Promise<ExecutionResult>
   globalThis.fetch=async(input,init)=>{const outbound=new Request(input,init);const result=await bridge('/fetch',{url:outbound.url,method:outbound.method,headers:Object.fromEntries(outbound.headers),body:encode(await outbound.arrayBuffer())});return new Response(result.status===204||result.status===304?null:decode(result.body),{status:result.status,headers:result.headers});};
   const logs=[];let logSize=0,logExceeded=false;
   try{const input=unpackWire(await request.json());
-   const secrets=Object.values(input.secrets??{}).filter(value=>typeof value==='string'&&value.length>0);
+   const secrets=[...Object.values(input.secrets??{}),...(input.kind?.startsWith('auth.')?[input.message?.code,input.message?.action?.url]:[])].filter(value=>typeof value==='string'&&value.length>0);
    const redact=(value,depth=0)=>{if(depth>30)throw Error('log nesting limit');if(typeof value==='string'){for(const secret of secrets)value=value.split(secret).join('[redacted]');return value;}if(Array.isArray(value))return value.map(item=>redact(item,depth+1));if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value).map(([key,item])=>[redact(key),redact(item,depth+1)]));return value;};
    const emit=level=>(message,data)=>{const text=JSON.stringify({level,message:redact(String(message)),data:redact(data)});const size=new TextEncoder().encode(text).length;if(logSize+size>${options.logBytes ?? 16384}){logExceeded=true;throw Error('log quota exceeded');}logSize+=size;logs.push(JSON.parse(text));};
    input.log={info:emit('info'),warn:emit('warn'),error:emit('error')};
    input.accept=value=>({kind:'accept',...value});input.reject=response=>({kind:'reject',response});input.respondOnly=response=>({kind:'respondOnly',response});
    input.continue=patch=>({kind:'continue',...(patch===undefined?{}:{patch})});
+   input.email=message=>({kind:'email',message});
    input.complete=()=>({kind:'complete'});input.retry=value=>({kind:'retry',...value});input.fail=value=>({kind:'fail',...value});
    input.destinations={send:(target,value)=>bridge('/managed',{target,input:value})};
    console.log=input.log.info;console.info=input.log.info;console.warn=input.log.warn;console.error=input.log.error;
@@ -254,14 +255,14 @@ export async function execute(options: ExecuteOptions): Promise<ExecutionResult>
 	}
 }
 
-export function createExecutor(limits: { ingressConcurrency: number; processingConcurrency: number }) {
-	const active = { ingress: 0, processing: 0 };
-	const waiting: { ingress: { resolve: () => void; reject: (error: Error) => void }[]; processing: { resolve: () => void; reject: (error: Error) => void }[] } = { ingress: [], processing: [] };
+export function createExecutor(limits: { ingressConcurrency: number; processingConcurrency: number; notificationConcurrency?: number }) {
+	const active = { ingress: 0, processing: 0, notification: 0 };
+	const waiting: Record<keyof typeof active, { resolve: () => void; reject: (error: Error) => void }[]> = { ingress: [], processing: [], notification: [] };
 
 	return {
 		async run(options: ExecuteOptions): Promise<ExecutionResult> {
-			const lane = options.stage.startsWith("ingress") ? "ingress" : "processing";
-			const maximum = lane === "ingress" ? limits.ingressConcurrency : limits.processingConcurrency;
+			const lane = options.stage === "notification" ? "notification" : options.stage.startsWith("ingress") ? "ingress" : "processing";
+			const maximum = lane === "notification" ? (limits.notificationConcurrency ?? 1) : lane === "ingress" ? limits.ingressConcurrency : limits.processingConcurrency;
 			const started = performance.now();
 			const deadline = options.deadlineMs ?? (lane === "ingress" ? 2000 : 30000);
 			if (active[lane] >= maximum) {

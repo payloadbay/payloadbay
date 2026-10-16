@@ -5,6 +5,7 @@ import { requirePermission, scopeAncestry } from "./membership.ts";
 import { assertGrantSubset, type Actor, type ScopeRef } from "./authorization.ts";
 import { permissions as allPermissions, type Permission } from "../../contracts/src/permissions.ts";
 import { AppError } from "../../contracts/src/errors.ts";
+import { snapshotNotificationChannel } from "./email-settings.ts";
 import { encryptPrivate } from "./private-crypto.ts";
 import type { createAuth } from "./auth-runtime.ts";
 
@@ -56,7 +57,12 @@ export async function createInvitation(pool: Pool, actor: Actor, input: { scope:
 		}
 
 		const invitation = (await db.query("INSERT INTO payloadbay.invitation(installation_id,scope_type,scope_id,email,token_digest,grants,created_by,newly_admitted) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,expires_at", [ancestry[0].id, input.scope.type, input.scope.id, email, digest(token), JSON.stringify(input.grants), actor.userId, !admitted])).rows[0];
-		const payload = { email, invitationId: invitation.id, url: new URL("/invitations/" + token, publicUrl).href };
+		const payload = {
+			email,
+			invitationId: invitation.id,
+			url: new URL("/invitations/" + token, publicUrl).href,
+			channelSnapshot: await snapshotNotificationChannel(db, "smtp", publicUrl),
+		};
 		const job = (await db.query("INSERT INTO payloadbay.platform_job(kind,encrypted_payload,job_key,expiry,claim_deadline_at) VALUES('invitation_mail',$1,$2,$3,clock_timestamp()+interval '30 seconds') RETURNING id,generation", [encryptPrivate(payload, encryptionKey), "invitation:" + invitation.id, invitation.expires_at])).rows[0];
 		await db.query("SELECT payloadbay.enqueue('platform_job',$1::json,clock_timestamp(),$2,10::smallint)", [JSON.stringify({ jobId: job.id, generation: job.generation }), `platform:${job.id}:${job.generation}`]);
 		await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation,resource_id) VALUES($1,$2,$3,'invitation.created',$4)", [actor.userId, input.scope.type, input.scope.id, invitation.id]);

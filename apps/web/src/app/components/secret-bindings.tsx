@@ -15,7 +15,8 @@ type Version = {
 };
 
 type SecretBindingsProps = {
-	projectId: string;
+	projectId?: string;
+	scope?: { type: "instance" | "workspace" | "project"; id: string };
 	bindings: Record<string, string>;
 	onChange: (bindings: Record<string, string>) => void;
 	canUse: boolean;
@@ -23,7 +24,10 @@ type SecretBindingsProps = {
 	disabled: boolean;
 };
 
-export function SecretBindings({ projectId, bindings, onChange, canUse, canManage, disabled }: SecretBindingsProps) {
+export function SecretBindings({ projectId, scope, bindings, onChange, canUse, canManage, disabled }: SecretBindingsProps) {
+	const scopeType = scope?.type ?? "project";
+	const scopeId = scope?.id ?? projectId;
+
 	const [versions, setVersions] = useState<Version[]>([]);
 	const [binding, setBinding] = useState("");
 	const [selected, setSelected] = useState("");
@@ -38,7 +42,7 @@ export function SecretBindings({ projectId, bindings, onChange, canUse, canManag
 
 	useFeedbackToast(error, notice, { error: "Secret configuration error", success: "Secret status" });
 
-	const fetchData = useCallback(() => api<Version[]>("/secrets?scopeType=project&scopeId=" + projectId), [projectId]);
+	const fetchData = useCallback(() => api<Version[]>("/secrets?scopeType=" + scopeType + "&scopeId=" + scopeId), [scopeType, scopeId]);
 
 	const receive = useCallback((versions: Version[]) => {
 		setVersions(versions);
@@ -92,7 +96,7 @@ export function SecretBindings({ projectId, bindings, onChange, canUse, canManag
 		setNotice("");
 		setError("");
 		try {
-			const secret = await api<Version>("/secrets", { method: "POST", json: { scope: { type: "project", id: projectId }, name, value } });
+			const secret = await api<Version>("/secrets", { method: "POST", json: { scope: { type: scopeType, id: scopeId }, name, value } });
 			setValue("");
 			setCreating(false);
 			await load();

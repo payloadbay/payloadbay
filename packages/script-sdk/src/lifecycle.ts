@@ -72,3 +72,32 @@ export type IngressMiddlewareContext = IngressContext & { continue(patch?: Ingre
 export type ProcessingMiddlewareContext = ProcessingContext & { continue(patch?: ProcessingMiddlewarePatch): ProcessingMiddlewareDecision };
 
 export type MiddlewareDecision = IngressMiddlewareDecision | ProcessingMiddlewareDecision;
+
+export type EmailContent = {
+	subject: string;
+	title: string;
+	preview?: string;
+	paragraphs: string[];
+	code?: string;
+	action?: { label: string; url: string };
+	html?: string;
+	text?: string;
+};
+
+export type EmailDecision = { kind: "email"; message: EmailContent };
+
+export type NotificationDecision = EmailDecision | ProcessingDecision;
+
+export type NotificationContext = {
+	deliveryId: string;
+	attempt: number;
+	kind: "auth.login-code" | "auth.invitation" | "delivery.failure-threshold" | "channel.test";
+	message: EmailContent;
+	recipient: { email: string; name?: string };
+	secrets: Readonly<Record<string, string>>;
+	log: Log;
+	email(message: EmailContent): EmailDecision;
+	complete(): ProcessingDecision;
+	retry(input: { reason: string; delayMs?: number }): ProcessingDecision;
+	fail(input: { reason: string }): ProcessingDecision;
+};

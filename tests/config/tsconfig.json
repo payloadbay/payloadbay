@@ -18,7 +18,8 @@
 			"@contracts/*": ["../../apps/web/../../packages/contracts/src/*"],
 			"@domain/*": ["../../apps/web/../../packages/domain/src/*"],
 			"@sdk/*": ["../../apps/web/../../packages/script-sdk/src/*"]
-		}
+		},
+		"jsx": "react-jsx"
 	},
-	"include": ["../../scripts/**/*.ts", "../../packages/**/*.ts", "../../apps/worker/**/*.ts", "../../apps/executor/**/*.ts", "../**/*.ts"]
+	"include": ["../../scripts/**/*.ts", "../../packages/**/*.ts", "../../apps/worker/**/*.ts", "../../apps/executor/**/*.ts", "../**/*.ts", "../../packages/**/*.tsx"]
 }

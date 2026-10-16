@@ -238,14 +238,14 @@ async function notificationMailFixture(run: (fixture: NotificationMailFixtureDat
 }
 
 test("U314 active incident email dispatch is durable and deduplicated", async () => {
-	const { queueIncidentEmail } = await import("../../packages/domain/src/notification-mail.ts");
+	const { queueIncidentNotifications } = await import("../../packages/domain/src/notification-dispatch.ts");
 	await notificationMailFixture(async (fixture) => {
 		await identity(fixture.db, "unrelated-reader");
 		await fixture.db.query("INSERT INTO payloadbay.admission(installation_id,user_id) VALUES($1,'unrelated-reader')", [fixture.scope.installation]);
 		await fixture.db.query("INSERT INTO payloadbay.notification_subscription(rule_id,user_id,channel,enabled) VALUES($1,'unrelated-reader','smtp',true)", [fixture.rule.id]);
 		const encryptionKey = fixtureConfig(fixture).encryptionKey;
-		assert.equal(await queueIncidentEmail(fixture.pool, fixture.incident.id, encryptionKey), 1, "Only opted-in authorized recipients get a mail job");
-		const repeats = await Promise.all(Array.from({ length: 4 }, () => queueIncidentEmail(fixture.pool, fixture.incident.id, encryptionKey)));
+		assert.equal(await queueIncidentNotifications(fixture.pool, fixture.incident.id, encryptionKey), 1, "Only opted-in authorized recipients get a mail job");
+		const repeats = await Promise.all(Array.from({ length: 4 }, () => queueIncidentNotifications(fixture.pool, fixture.incident.id, encryptionKey)));
 		assert.deepEqual(repeats, [0, 0, 0, 0]);
 		const dispatches = (await fixture.db.query("SELECT * FROM payloadbay.notification_dispatch WHERE state='queued'")).rows;
 		assert.equal(dispatches.length, 1);
@@ -253,22 +253,24 @@ test("U314 active incident email dispatch is durable and deduplicated", async ()
 		const job = (await fixture.db.query("SELECT * FROM payloadbay.platform_job WHERE id=$1", [dispatches[0].platform_job_id])).rows[0];
 		assert.equal(job.kind, "notification_mail");
 		const { decryptPrivate } = await import("../../packages/domain/src/private-crypto.ts");
-		assert.deepEqual(decryptPrivate(job.encrypted_payload, encryptionKey), { incidentId: fixture.incident.id, incidentGeneration: fixture.incident.generation, userId: "fixture-owner" });
+		const queuedPayload = decryptPrivate<Record<string, unknown>>(job.encrypted_payload, encryptionKey);
+		assert.deepEqual({ incidentId: queuedPayload.incidentId, incidentGeneration: queuedPayload.incidentGeneration, userId: queuedPayload.userId }, { incidentId: fixture.incident.id, incidentGeneration: fixture.incident.generation, userId: "fixture-owner" });
+		assert.ok(queuedPayload.channelSnapshot, "Queue-time channel and branding are pinned");
 		assert.equal((await fixture.db.query("SELECT count(*)::int AS count FROM graphile_worker.jobs")).rows[0].count, 1);
 	});
 });
 
 test("U315 opted-in authorized recipient receives an SMTP incident summary", async () => {
-	const { queueIncidentEmail } = await import("../../packages/domain/src/notification-mail.ts");
-	const { mailTask } = await import("../../apps/worker/src/tasks/mail.ts");
+	const { queueIncidentNotifications } = await import("../../packages/domain/src/notification-dispatch.ts");
+	const { notificationDeliveryTask } = await import("../../apps/worker/src/tasks/notification-delivery.ts");
 	await notificationMailFixture(async (fixture) => {
 		const before = await (await fetch(fixture.mailUrl + "/api/v1/messages")).json();
 		const previousIds = new Set(before.messages.map((message: { ID: string }) => message.ID));
 		const config = fixtureConfig(fixture);
 		await fixture.db.query("UPDATE payloadbay.notification_incident SET redacted_data=redacted_data||$2::jsonb WHERE id=$1", [fixture.incident.id, JSON.stringify({ payload: "private-webhook-payload", secret: "fixture-private-secret" })]);
-		await queueIncidentEmail(fixture.pool, fixture.incident.id, config.encryptionKey);
+		await queueIncidentNotifications(fixture.pool, fixture.incident.id, config.encryptionKey);
 		const job = (await fixture.db.query("SELECT * FROM payloadbay.platform_job WHERE kind='notification_mail'")).rows[0];
-		await mailTask(fixture.pool, config)({ jobId: job.id, generation: job.generation });
+		await notificationDeliveryTask(fixture.pool, config)({ jobId: job.id, generation: job.generation });
 		assert.equal((await fixture.db.query("SELECT state FROM payloadbay.platform_job WHERE id=$1", [job.id])).rows[0].state, "succeeded", "Notification mail must use the real SMTP worker path");
 		let delivered: { ID: string; Subject: string; To: { Address: string }[] } | undefined;
 		for (let attempt = 0; attempt < 50 && !delivered; attempt++) {
@@ -282,23 +284,23 @@ test("U315 opted-in authorized recipient receives an SMTP incident summary", asy
 		assert.match(message.Text, new RegExp("/projects/" + fixture.scope.project + "/notifications"));
 		assert.ok(!message.Text.includes("private-webhook-payload"));
 		assert.ok(!message.Text.includes("fixture-private-secret"));
-		await mailTask(fixture.pool, config)({ jobId: job.id, generation: job.generation });
+		await notificationDeliveryTask(fixture.pool, config)({ jobId: job.id, generation: job.generation });
 		assert.equal((await fixture.db.query("SELECT state FROM payloadbay.notification_dispatch WHERE platform_job_id=$1", [job.id])).rows[0].state, "sent");
 	});
 });
 
 test("U179 revoked access prevents already queued notification email", async () => {
-	const { queueIncidentEmail } = await import("../../packages/domain/src/notification-mail.ts");
-	const { mailTask } = await import("../../apps/worker/src/tasks/mail.ts");
+	const { queueIncidentNotifications } = await import("../../packages/domain/src/notification-dispatch.ts");
+	const { notificationDeliveryTask } = await import("../../apps/worker/src/tasks/notification-delivery.ts");
 	for (const revocation of ["grant", "admission"]) {
 		await notificationMailFixture(async (fixture) => {
 			const config = fixtureConfig(fixture);
-			await queueIncidentEmail(fixture.pool, fixture.incident.id, config.encryptionKey);
+			await queueIncidentNotifications(fixture.pool, fixture.incident.id, config.encryptionKey);
 			const job = (await fixture.db.query("SELECT * FROM payloadbay.platform_job WHERE kind='notification_mail'")).rows[0];
 			const before = await (await fetch(fixture.mailUrl + "/api/v1/messages")).json();
 			if (revocation === "grant") await fixture.db.query("UPDATE payloadbay.grant_record SET permissions=ARRAY[]::text[] WHERE user_id='fixture-owner'");
 			else await fixture.db.query("UPDATE payloadbay.admission SET active=false WHERE user_id='fixture-owner'");
-			await mailTask(fixture.pool, config)({ jobId: job.id, generation: job.generation });
+			await notificationDeliveryTask(fixture.pool, config)({ jobId: job.id, generation: job.generation });
 			const current = (await fixture.db.query("SELECT state FROM payloadbay.platform_job WHERE id=$1", [job.id])).rows[0];
 			assert.equal(current.state, "expired", "Revoked recipients must not receive queued email");
 			const after = await (await fetch(fixture.mailUrl + "/api/v1/messages")).json();
@@ -310,7 +312,7 @@ test("U179 revoked access prevents already queued notification email", async () 
 
 test("U316 continuous failure producer queues opted-in SMTP notifications", async () => {
 	const { startNotificationProducer } = await import("../../apps/worker/src/notifications.ts");
-	const { mailTask } = await import("../../apps/worker/src/tasks/mail.ts");
+	const { notificationDeliveryTask } = await import("../../apps/worker/src/tasks/notification-delivery.ts");
 	const { createRequire } = await import("node:module");
 	const { run } = createRequire(new URL("../../apps/worker/package.json", import.meta.url))("graphile-worker") as typeof import("../../apps/worker/node_modules/graphile-worker");
 	const { seedEvent } = await import("../helpers/domain-fixtures.ts");
@@ -326,7 +328,7 @@ test("U316 continuous failure producer queues opted-in SMTP notifications", asyn
 			pollInterval: 50,
 			parsedCronItems: [],
 			concurrency: 1,
-			taskList: { platform_job: mailTask(fixture.pool, config) },
+			taskList: { platform_job: notificationDeliveryTask(fixture.pool, config) },
 		});
 		const producer = startNotificationProducer(fixture.pool, { intervalMs: 20, encryptionKey: config.encryptionKey });
 		try {
@@ -388,5 +390,259 @@ test("workspace rules aggregate descendant failures and keep subscriptions scope
 		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','project',$1,'custom',ARRAY['notifications.read','notifications.rules.manage'])", [scope.project]);
 		await assert.rejects(listNotificationRules(pool, actor, workspace), { code: "forbidden" });
 		await assert.rejects(setNotificationSubscription(pool, actor, rule.id, { enabled: true }), { code: "forbidden" });
+	});
+});
+
+test("instance notification channels fork built-ins into immutable custom versions", async () => {
+	const { listNotificationChannels, getNotificationChannel, publishNotificationChannel } = await import("../../packages/domain/src/notification-channels.ts");
+	const { compile } = await import("../../apps/executor/src/compiler.ts");
+	const { permissions } = await import("../../packages/contracts/src/permissions.ts");
+	await authFixture(async ({ pool, db }) => {
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, permissions]);
+		const actor = { userId: "fixture-owner" };
+		const original = await getNotificationChannel(pool, actor, "smtp");
+		assert.equal(original.builtin, true);
+		assert.match(original.source, /NotificationContext/);
+		const fork = await publishNotificationChannel(pool, actor, {
+			name: "Our email",
+			kind: "email",
+			source: original.source,
+			originKey: "smtp",
+			compile,
+		});
+		assert.notEqual(fork.id, "smtp");
+		const changed = await publishNotificationChannel(pool, actor, {
+			id: fork.id,
+			expectedVersion: fork.version,
+			name: "Our email",
+			kind: "email",
+			source: original.source.replace("ctx.email(ctx.message)", 'ctx.email({...ctx.message,title:"Custom title"})'),
+			compile,
+		});
+		assert.notEqual(changed.activeRevisionId, fork.activeRevisionId);
+		assert.equal((await getNotificationChannel(pool, actor, "smtp")).source, original.source);
+		assert.equal((await getNotificationChannel(pool, actor, fork.id, fork.activeRevisionId)).source, original.source);
+		await assert.rejects(
+			publishNotificationChannel(pool, actor, {
+				id: fork.id,
+				expectedVersion: fork.version,
+				name: "Stale",
+				kind: "email",
+				source: original.source,
+				compile,
+			}),
+			{ code: "version_conflict" },
+		);
+		assert.equal((await listNotificationChannels(pool, actor)).length, 2);
+		await identity(db, "project-channel-admin");
+		await db.query("INSERT INTO payloadbay.admission(installation_id,user_id) VALUES($1,'project-channel-admin')", [scope.installation]);
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('project-channel-admin','project',$1,'admin',$2)", [scope.project, permissions]);
+		await assert.rejects(
+			publishNotificationChannel(
+				pool,
+				{ userId: "project-channel-admin" },
+				{
+					name: "Escalated",
+					kind: "email",
+					source: original.source,
+					compile,
+				},
+			),
+			{ code: "forbidden" },
+		);
+	});
+});
+
+test("shared email rendering escapes content and provides a readable plain-text alternative", async () => {
+	const { renderEmailMessage } = await import("../../packages/domain/src/email-renderer.tsx");
+	const rendered = await renderEmailMessage(
+		{
+			subject: "Sign in",
+			title: "Your code <unsafe>",
+			paragraphs: ['Hello <img src=x onerror="alert(1)">'],
+			code: "123456",
+			action: { label: "Open dashboard", url: "https://example.test/" },
+		},
+		{
+			name: "Payload Bay",
+			accent: "#156FDE",
+			footer: "Synthetic test",
+			logoUrl: null,
+		},
+	);
+	assert.ok(!rendered.html.includes("<img src=x"));
+	assert.match(rendered.html, /&lt;unsafe&gt;/);
+	assert.match(rendered.html, /123456/);
+	assert.match(rendered.text, /123456/);
+	assert.match(rendered.text, /https:\/\/example.test/);
+	await assert.rejects(
+		renderEmailMessage(
+			{ subject: "Bad\r\nBcc:other@example.test", title: "Invalid", paragraphs: [] },
+			{
+				name: "Payload Bay",
+				accent: "#156FDE",
+				footer: "Test",
+				logoUrl: null,
+			},
+		),
+	);
+});
+
+test("queued notification delivery pins channel code and branding across later edits", async () => {
+	const { publishNotificationChannel, getNotificationChannel } = await import("../../packages/domain/src/notification-channels.ts");
+	const { saveEmailSettings, snapshotNotificationChannel } = await import("../../packages/domain/src/email-settings.ts");
+	const { runNotificationChannel } = await import("../../packages/domain/src/notification-runtime.ts");
+	const { compile } = await import("../../apps/executor/src/compiler.ts");
+	const { execute } = await import("../../apps/executor/src/supervisor.ts");
+	const { permissions } = await import("../../packages/contracts/src/permissions.ts");
+	await authFixture(async (fixture) => {
+		const scope = await seedScope(fixture.db);
+		await fixture.db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await fixture.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, permissions]);
+		const actor = { userId: "fixture-owner" };
+		const builtin = await getNotificationChannel(fixture.pool, actor, "smtp");
+		const channel = await publishNotificationChannel(fixture.pool, actor, {
+			name: "Pinned email",
+			kind: "email",
+			source: builtin.source.replace("ctx.email(ctx.message)", 'ctx.email({...ctx.message,title:"Original title"})'),
+			compile,
+		});
+		await saveEmailSettings(fixture.pool, actor, {
+			expectedVersion: 0,
+			channelKey: channel.id,
+			branding: {
+				name: "Original brand",
+				accent: "#156FDE",
+				footer: "Original footer",
+				logoUrl: null,
+			},
+		});
+		const snapshot = await snapshotNotificationChannel(fixture.pool, "smtp");
+		await publishNotificationChannel(fixture.pool, actor, {
+			id: channel.id,
+			expectedVersion: channel.version,
+			name: "Pinned email",
+			kind: "email",
+			source: builtin.source.replace("ctx.email(ctx.message)", 'ctx.email({...ctx.message,title:"Changed title"})'),
+			compile,
+		});
+		await saveEmailSettings(fixture.pool, actor, {
+			expectedVersion: 1,
+			channelKey: "smtp",
+			branding: {
+				name: "Changed brand",
+				accent: "#156FDE",
+				footer: "Changed footer",
+				logoUrl: null,
+			},
+		});
+		const result = await runNotificationChannel(
+			fixture.pool,
+			snapshot,
+			{
+				kind: "channel.test",
+				deliveryId: crypto.randomUUID(),
+				attempt: 1,
+				recipient: { email: "fixture@example.test" },
+				message: { subject: "Test", title: "Input", paragraphs: [] },
+			},
+			fixtureConfig(fixture),
+			{ run: execute },
+		);
+		assert.equal(result.kind, "email");
+		if (result.kind === "email") assert.equal(result.message.title, "Original title");
+		assert.equal(snapshot.branding.name, "Original brand");
+	});
+});
+
+test("custom HTTP notification delivery uses the isolated executor and respects pause before send", async () => {
+	const { publishNotificationChannel, updateNotificationChannel } = await import("../../packages/domain/src/notification-channels.ts");
+	const { queueChannelTest } = await import("../../packages/domain/src/notification-testing.ts");
+	const { notificationDeliveryTask } = await import("../../apps/worker/src/tasks/notification-delivery.ts");
+	const { compileSource } = await import("../../packages/domain/src/executor-client.ts");
+	const { executorFixture } = await import("../helpers/executor-fixture.ts");
+	const { permissions } = await import("../../packages/contracts/src/permissions.ts");
+	await authFixture(async (fixture) => {
+		const scope = await seedScope(fixture.db);
+		await identity(fixture.db, "fixture-owner");
+		await fixture.db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await fixture.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, permissions]);
+		const executor = await executorFixture({ network: fixture.network });
+		try {
+			const config = { ...fixtureConfig(fixture), executorUrl: executor.url };
+			const actor = { userId: "fixture-owner" };
+			const module = await publishNotificationChannel(fixture.pool, actor, {
+				name: "Custom HTTP test",
+				kind: "webhook",
+				source: 'export default async function sendNotification(ctx: NotificationContext): Promise<NotificationDecision> { const response = await fetch("http://http:8080/notification", {method:"POST",body:JSON.stringify({title:ctx.message.title,attempt:ctx.attempt,deliveryId:ctx.deliveryId})}); return response.ok ? ctx.complete() : ctx.retry({reason:"HTTP failed"}); }',
+				compile: (input) => compileSource(config, input),
+			});
+			const queued = await queueChannelTest(fixture.pool, actor, module.id, config);
+			const job = (await fixture.db.query("SELECT generation FROM payloadbay.platform_job WHERE id=$1", [queued.jobId])).rows[0];
+			await notificationDeliveryTask(fixture.pool, config)({ jobId: queued.jobId, generation: job.generation });
+			assert.equal((await fixture.db.query("SELECT state FROM payloadbay.platform_job WHERE id=$1", [queued.jobId])).rows[0].state, "succeeded");
+			const receipts = await (await fetch(fixture.httpUrl + "/receipts")).json();
+			assert.equal(receipts.length, 1);
+			const body = JSON.parse(Buffer.from(receipts[0].body, "base64").toString());
+			assert.equal(body.deliveryId, queued.jobId);
+			assert.equal(body.attempt, 1);
+			const paused = await queueChannelTest(fixture.pool, actor, module.id, config);
+			await updateNotificationChannel(fixture.pool, actor, module.id, { expectedVersion: module.version, enabled: false });
+			await notificationDeliveryTask(fixture.pool, config)({ jobId: paused.jobId, generation: 1 });
+			assert.equal((await fixture.db.query("SELECT state FROM payloadbay.platform_job WHERE id=$1", [paused.jobId])).rows[0].state, "expired");
+			assert.equal((await (await fetch(fixture.httpUrl + "/receipts")).json()).length, 1);
+			assert.equal((await (await fetch(fixture.mailUrl + "/api/v1/messages")).json()).total, 0, "HTTP notifications must not also send SMTP mail");
+			const retrying = await publishNotificationChannel(fixture.pool, actor, {
+				name: "Retry test",
+				kind: "webhook",
+				source: 'export default async function sendNotification(ctx: NotificationContext): Promise<NotificationDecision> { return ctx.attempt < 2 ? ctx.retry({reason:"Try again",delayMs:1}) : ctx.complete(); }',
+				compile: (input) => compileSource(config, input),
+			});
+			const retryJob = await queueChannelTest(fixture.pool, actor, retrying.id, config);
+			await notificationDeliveryTask(fixture.pool, config)({ jobId: retryJob.jobId, generation: 1 });
+			const pending = (await fixture.db.query("SELECT state,generation,attempt_number FROM payloadbay.platform_job WHERE id=$1", [retryJob.jobId])).rows[0];
+			assert.deepEqual(pending, { state: "queued", generation: 2, attempt_number: 1 });
+			const scheduled = (await fixture.db.query("SELECT priority FROM graphile_worker.jobs WHERE key=$1", [`platform:${retryJob.jobId}:2`])).rows[0];
+			assert.equal(scheduled.priority, 30, "Notification retries must not gain authentication-mail priority");
+			await notificationDeliveryTask(fixture.pool, config)({ jobId: retryJob.jobId, generation: 2 });
+			assert.equal((await fixture.db.query("SELECT state FROM payloadbay.platform_job WHERE id=$1", [retryJob.jobId])).rows[0].state, "succeeded");
+		} finally {
+			await executor.stop();
+		}
+	});
+});
+
+test("custom channel subscriptions queue immutable code pins and deduplicate each recipient/channel", async () => {
+	const { publishNotificationChannel, updateNotificationChannel } = await import("../../packages/domain/src/notification-channels.ts");
+	const { setNotificationSubscription, listNotificationPreferences } = await import("../../packages/domain/src/notification-subscriptions.ts");
+	const { queueIncidentNotifications } = await import("../../packages/domain/src/notification-dispatch.ts");
+	const { decryptPrivate } = await import("../../packages/domain/src/private-crypto.ts");
+	const { compile } = await import("../../apps/executor/src/compiler.ts");
+	const { permissions } = await import("../../packages/contracts/src/permissions.ts");
+	await notificationMailFixture(async (fixture) => {
+		await fixture.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [fixture.scope.installation, permissions]);
+		const actor = { userId: "fixture-owner" };
+		const channel = await publishNotificationChannel(fixture.pool, actor, {
+			name: "Custom alerts",
+			kind: "webhook",
+			source: "export default async function sendNotification(ctx: NotificationContext): Promise<NotificationDecision> { return ctx.complete(); }",
+			compile,
+		});
+		await setNotificationSubscription(fixture.pool, actor, fixture.rule.id, { channel: "smtp", enabled: false });
+		await setNotificationSubscription(fixture.pool, actor, fixture.rule.id, { channel: channel.id, enabled: true });
+		const config = fixtureConfig(fixture);
+		assert.equal(await queueIncidentNotifications(fixture.pool, fixture.incident.id, config.encryptionKey), 1);
+		assert.equal(await queueIncidentNotifications(fixture.pool, fixture.incident.id, config.encryptionKey), 0);
+		const dispatch = (await fixture.db.query("SELECT * FROM payloadbay.notification_dispatch")).rows[0];
+		assert.equal(dispatch.channel, channel.id);
+		const payload = decryptPrivate<{ channelSnapshot: { channelId: string; revisionId: string } }>((await fixture.db.query("SELECT encrypted_payload FROM payloadbay.platform_job WHERE id=$1", [dispatch.platform_job_id])).rows[0].encrypted_payload, config.encryptionKey);
+		assert.equal(payload.channelSnapshot.channelId, channel.id);
+		assert.equal(payload.channelSnapshot.revisionId, channel.activeRevisionId);
+		assert.deepEqual((await listNotificationPreferences(fixture.pool, actor, fixture.scope.project))[0].channels, [channel.id]);
+		await updateNotificationChannel(fixture.pool, actor, channel.id, { expectedVersion: channel.version, enabled: false });
+		await setNotificationSubscription(fixture.pool, actor, fixture.rule.id, { channel: channel.id, enabled: false });
+		assert.deepEqual((await listNotificationPreferences(fixture.pool, actor, fixture.scope.project))[0].channels, []);
 	});
 });

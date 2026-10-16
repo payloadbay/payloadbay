@@ -77,7 +77,7 @@ const server = createServer(async (request, response) => {
 		}
 
 		if (payload.wire === 1) payload.input = unpackWire(payload.input);
-		if (!["ingress", "processing", "ingress_middleware", "processing_middleware"].includes(payload.stage) || typeof payload.bundle !== "string" || Buffer.byteLength(payload.bundle) > 1048576 || !payload.input || typeof payload.input !== "object") {
+		if (!["ingress", "processing", "ingress_middleware", "processing_middleware", "notification"].includes(payload.stage) || typeof payload.bundle !== "string" || Buffer.byteLength(payload.bundle) > 1048576 || !payload.input || typeof payload.input !== "object") {
 			response.writeHead(400).end();
 
 			return;

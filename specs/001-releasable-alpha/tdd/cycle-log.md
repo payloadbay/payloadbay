@@ -2554,3 +2554,34 @@ All 23 publication integration cases passed, including import syntax preservatio
 and atomic reorder. ESLint, web/tooling TypeScript, Prettier and diff checks passed.
 The six unrelated Docker/build-workflow drafts are excluded from this commit.
 The next gate is pushing and verifying this exact review batch in Coolify.
+
+
+Deployment verification: Coolify a4h4wqjgwuzhq0mxac79wxhd finished at 09:49:04 UTC
+on exact commit 3b17ec4. Real preview passed SMTP/OTP, traffic/mobile chrome,
+SSE request history, unified outgoing response inspection, helper modal insertion,
+native import/publish/actual HTTP execution, scoped menus/search/Back/viewport
+restore, account settings and sign-out. A separate held-request browser check
+confirmed the centered HeroUI spinner and label; its subsequent cleanup hit a
+temporary Playwright route-continuation error, not a product error. Existing
+middleware integration suite: 9 passed. R01/R02 are verified; R03–R05 follow.
+
+### Forkable notification modules: implementation in progress
+
+- Added immutable instance channel versions, explicit activation/pause, copying the shipped email source, queue-time code/branding pins, Zod contracts and a typed workerd notification stage. The baseline email adapter remains trusted platform code; custom copies use workerd.
+- Shared React Email wrapper now renders OTP, invitation and incident content with HTML/plain-text alternatives. A3's real SMTP test first failed on absent HTML, then passed after wiring the renderer.
+- Notification integration suite: 16/16 passed after updating the expected encrypted payload to include its channel snapshot. New executor test verifies the typed email result and authentication-code log redaction.
+- Real custom HTTP module test passed through the executor container and disposable HTTP receiver: delivery ID/attempt reached the receiver, success was persisted, pausing before a subsequent send prevented effects, and HTTP delivery did not also send email.
+- Worker Docker image built successfully with the frozen workspace lock and renderer dependencies. Startup/runtime and browser flows remain under verification.
+
+- Full authentication suite: 33 passed after shared-wrapper changes. Full compiler/executor suite: 11 passed, including notification results and auth-code log redaction. Custom subscription test passed: opt-in dispatch deduplicates by incident generation/recipient/channel, pins the immutable revision and permits unsubscribing from a paused module.
+- Strengthened U253 passed with the actual built worker container: accepted event bytes were delivered and a queued notification rendered branded HTML plus plain text and arrived in Mailpit. No source mount or Node alias loader was required.
+- The first notification browser pass caught a malformed compiler request in the draft-preview route (`source` instead of `body`). The corrected route uses the same structured body/sourceId/sharedModules request as publication. A rerun is required; earlier backend passes do not establish the UI flow.
+
+- Corrected notification browser flow passed on a production Next build at 390px: shipped source → fork → effect-free preview → publish v1 → shared branding preview → choose fork for transactional messages → save → actual Mailpit delivery → reset while preserving the custom module. Full notification suite now passes 18/18; full dashboard regression is pending.
+
+- Wider dashboard regression initially exposed fixture contamination: bulk replay intentionally leaves `process_event` jobs, but the browser fixture only executes `platform_job`. Its reset now removes only unclaimed, keyed `process_event` jobs through Graphile Worker's `remove_job`, then still waits for active/mail work before truncating the disposable case database. The complete rerun passed 28/28, including custom modules and existing notification preferences.
+- Strengthened real custom-module retry passed: the first attempt creates queued generation 2 at notification priority 30, and the next attempt succeeds. Notification retries do not acquire OTP/invitation priority.
+
+- Bootstrap/mobile run initially observed a transient 320px overflow immediately after changing the viewport while the responsive chart still had its old width. The assertion now polls for the ResizeObserver-driven layout to settle rather than reading the pre-resize layout synchronously; it still fails on persistent overflow. Rerun pending.
+
+- Bootstrap/mobile rerun passed 8/8 with the responsive resize assertion. ESLint, web/tooling TypeScript, Prettier and diff checks passed. The notification follow-up is locally verified; exact-commit Coolify and live checks remain the R05 deployment gate.

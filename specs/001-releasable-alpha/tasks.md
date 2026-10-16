@@ -351,16 +351,16 @@ These additions extend the dashboard review; they do not mark the original alpha
 release gates complete. Track actual verification in `tdd/cycle-log.md` and
 `docs/ux-review-2026-10-16.md`.
 
-- [ ] R01 Finish and verify shared centered loading states, helper-import modal,
+- [x] R01 Finish and verify shared centered loading states, helper-import modal,
   unified event inspector, publication picker, filtered/bulk replay and scoped
   code creation; push and check the exact preview revision.
-- [ ] R02 Finish middleware table with accessible atomic ordering, connected
+- [x] R02 Finish middleware table with accessible atomic ordering, connected
   request/response playground, decoded dry-test results/log filters and compact
   mobile breadcrumbs. Verify provenance, stale edits and mobile navigation.
-- [ ] R03 Implement the forkable notification-channel catalog, immutable published
+- [x] R03 Implement the forkable notification-channel catalog, immutable published
   versions, instance-admin editing and isolated adapter execution. Ship email as
   the first channel; custom adapters use the same catalog and runtime.
-- [ ] R04 Implement shared branded email rendering and instance-admin template
+- [x] R04 Implement shared branded email rendering and instance-admin template
   configuration with synthetic preview/test-send/reset. Reuse the wrapper for
   OTP, invitations and notification alerts; preserve protocol-owned recipients,
   verification/expiry and SMTP credentials in deployment secrets.

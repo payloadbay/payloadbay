@@ -53,7 +53,7 @@ test("failed sign-in request shows a bottom toast without advancing the form", a
 			return Boolean(bounds && bounds.y > 844 / 2 && bounds.y + bounds.height <= 844);
 		})
 		.toBe(true);
-	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+	await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
 test("mobile dashboard keeps account actions in the avatar menu and projects in a compact table", async ({ page }) => {
@@ -123,7 +123,7 @@ test("mobile dashboard keeps account actions in the avatar menu and projects in 
 	await expect(page.getByRole("row", { name: /Demo integrations/ })).toBeVisible();
 	await expect(page.getByText("long-reviewer-address@preview.payloadbay.test", { exact: true })).toHaveCount(0);
 	await page.setViewportSize({ width: 320, height: 740 });
-	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+	await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.getByRole("button", { name: "Toggle navigation" }).click();
 	const navigation = page.getByRole("dialog");
@@ -146,7 +146,7 @@ test("mobile dashboard keeps account actions in the avatar menu and projects in 
 	await page.getByRole("button", { name: "Save changes" }).click();
 	await expect(page.getByRole("alertdialog", { name: "Account saved", exact: true })).toBeVisible();
 	expect(name).toBe("Updated Reviewer");
-	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+	await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
 test.describe("unavailable and empty states", () => {
@@ -316,7 +316,7 @@ test("route editor has nested navigation, a scripting guide, typed method handle
 	await expect(page.getByRole("grid", { name: "Secret bindings", exact: true })).toBeVisible();
 	await expect(page.getByRole("row", { name: /SIGNING_SECRET/ })).toBeVisible();
 	await page.setViewportSize({ width: 320, height: 740 });
-	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+	await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 	await page.evaluate(() => window.scrollTo(0, 0));
 	await page.screenshot({ path: testInfo.outputPath("route-editor-mobile.png"), fullPage: true });
 	await page.setViewportSize({ width: 1440, height: 900 });

@@ -73,3 +73,6 @@ END $$;
 REVOKE ALL ON FUNCTION payloadbay.append_change(text,uuid,text,text,jsonb) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION payloadbay.append_change(text,uuid,text,text,jsonb) TO payloadbay_app,payloadbay_worker;
 REVOKE INSERT ON payloadbay.change_record FROM payloadbay_app,payloadbay_worker;
+
+DROP TRIGGER IF EXISTS immutable_notification_channel_revision ON payloadbay.notification_channel_revision;
+CREATE TRIGGER immutable_notification_channel_revision BEFORE UPDATE OR DELETE ON payloadbay.notification_channel_revision FOR EACH ROW EXECUTE FUNCTION payloadbay.reject_history_mutation();

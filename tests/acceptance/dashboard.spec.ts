@@ -909,3 +909,53 @@ test("overview and mobile hierarchy preserve context while search opens resource
 	await expect(page.getByRole("menuitem", { name: "Instance members" })).toHaveCount(0);
 	await expect(page.getByRole("menuitem", { name: "Sign out" })).toHaveClass(/text-danger/);
 });
+
+test("instance notification modules fork, preview, publish and deliver branded email", async ({ page, request }) => {
+	const { ensureBrowserOwner } = await import("../helpers/browser-auth.ts");
+	await ensureBrowserOwner(page);
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/admin/notification-channels");
+	await expect(page.getByRole("heading", { name: "Notification modules", exact: true })).toBeVisible();
+	await page.getByRole("link", { name: "View and fork" }).click();
+	await expect(page.getByText("Shipped · read-only", { exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "Fork module", exact: true }).click();
+	await page.getByLabel("Module name", { exact: true }).fill("Review email module");
+	const previewResponse = page.waitForResponse((response) => response.url().endsWith("/notification-channels/preview") && response.request().method() === "POST");
+	await page.getByRole("button", { name: "Test without external effects" }).click();
+	const previewReply = await previewResponse;
+	expect(await previewReply.json()).toMatchObject({ decision: { kind: "email" } });
+	await expect(page.getByText("Test result: email", { exact: true })).toBeVisible();
+	await expect(page.frameLocator('iframe[title="Notification email preview"]').getByRole("heading", { name: "Delivery failure threshold reached" })).toBeVisible();
+	await page.getByRole("button", { name: "Publish version", exact: true }).click();
+	await expect(page).toHaveURL(/\/admin\/notification-channels\/[0-9a-f-]{36}$/);
+	await expect(page.getByRole("combobox", { name: "Module version" })).toContainText("v1 · Active · Latest");
+	await page.goto("/admin/email");
+	await page.getByLabel("Brand name", { exact: true }).fill("Review brand");
+	await page.getByRole("combobox", { name: "Transactional email module" }).selectOption({ label: "Review email module · v1" });
+	await page.getByRole("button", { name: "Preview email", exact: true }).click();
+	await expect(page.frameLocator('iframe[title="Branded email preview"]').getByRole("img", { name: "Review brand", exact: true })).toBeVisible();
+	await expect(page.frameLocator('iframe[title="Branded email preview"]').getByRole("heading", { name: "Your sign-in code", exact: true })).toBeVisible();
+	await expect(page.frameLocator('iframe[title="Branded email preview"]').getByText("123456", { exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "Save email settings", exact: true }).click();
+	await expect(page.getByRole("button", { name: "Save email settings", exact: true })).toBeDisabled();
+	const before = await (await request.get(process.env.PAB_TEST_MAIL_URL + "/api/v1/messages")).json();
+	await page.getByRole("button", { name: "Send test to my email", exact: true }).click();
+	await expect.poll(async () => (await (await request.get(process.env.PAB_TEST_MAIL_URL + "/api/v1/messages")).json()).total).toBeGreaterThan(before.total);
+	const messages = await (await request.get(process.env.PAB_TEST_MAIL_URL + "/api/v1/messages")).json();
+	const message = await (await request.get(process.env.PAB_TEST_MAIL_URL + "/api/v1/message/" + messages.messages[0].ID)).json();
+	expect(message.HTML).toContain("Review brand");
+	expect(message.Text).toContain("synthetic notification");
+	await expect(page.locator("main")).toBeVisible();
+	await page.locator('iframe[title="Branded email preview"]').scrollIntoViewIfNeeded();
+	await page.screenshot({ path: test.info().outputPath("email-settings-mobile.png") });
+	await page
+		.frameLocator('iframe[title="Branded email preview"]')
+		.locator("body")
+		.screenshot({ path: test.info().outputPath("email-body-mobile.png") });
+	await page.getByRole("button", { name: "Reset to shipped defaults", exact: true }).click();
+	await expect(page.getByRole("dialog")).toBeVisible();
+	await page.getByRole("button", { name: "Reset settings", exact: true }).click();
+	await expect(page.getByLabel("Brand name", { exact: true })).toHaveValue("Payload Bay");
+	const channels = await (await page.request.get("/api/v1/notification-channels")).json();
+	expect(channels.some((channel: { name: string }) => channel.name === "Review email module")).toBeTruthy();
+});

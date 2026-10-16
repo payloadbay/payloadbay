@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const compiledStageSchema = z
 	.object({
-		stage: z.enum(["ingress", "processing", "ingress_middleware", "processing_middleware"]),
+		stage: z.enum(["ingress", "processing", "ingress_middleware", "processing_middleware", "notification"]),
 		body: z.string(),
 		sourceId: z.string(),
 		generated: z.string(),

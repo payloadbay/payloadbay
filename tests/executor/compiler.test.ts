@@ -246,3 +246,28 @@ test("full lifecycle modules support real named and default imports with contrac
 	await assert.rejects(compile({ stage: "processing", body: body.replace("ctx.complete()", '"wrong"'), sharedModules }));
 	await assert.rejects(compile({ stage: "processing", body: body.replace("export default", "export"), sharedModules }));
 });
+
+test("notification modules return typed email content and redact authentication data from logs", async () => {
+	const { compile } = await import("../../apps/executor/src/compiler.ts");
+	const { execute } = await import("../../apps/executor/src/supervisor.ts");
+	const compiled = await compile({ stage: "notification", body: 'export default async function sendNotification(ctx: NotificationContext): Promise<NotificationDecision> {ctx.log.info(ctx.message.code ?? "none");return ctx.email(ctx.message);}' });
+	const result = await execute({
+		stage: "notification",
+		bundle: compiled.bundle,
+		input: {
+			kind: "auth.login-code",
+			deliveryId: "fixture",
+			attempt: 1,
+			recipient: { email: "fixture@example.test" },
+			message: {
+				subject: "Sign in",
+				title: "Your code",
+				paragraphs: [],
+				code: "654321",
+			},
+		},
+	});
+	assert.equal((result.decision as { kind: string }).kind, "email");
+	assert.ok(!JSON.stringify(result.logs).includes("654321"));
+	assert.match(JSON.stringify(result.logs), /redacted/);
+});
