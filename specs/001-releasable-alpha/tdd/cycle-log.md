@@ -2458,3 +2458,35 @@ The large scope-only navigation/search/native-import/reordering redesign remains
 proposed pending the maintainer's requested review of the refreshed Coolify findings.
 Real Android keyboard/toolbar transitions are not certified by viewport emulation.
 No release migration or unrelated Docker/build draft was added to this pass.
+
+
+## Scope-only navigation and native source imports — 2026-10-16
+
+The maintainer corrected the prior deferral: the changes were already requested
+and the confirmation was not received. Implemented the structural behavior rather
+than adding another approval gate. This is a regression pass, not a fabricated
+Red-first implementation.
+
+- Publication integration: 21 passed. Added actual named/default helper execution
+  with no prebinding form, preservation across a newer helper revision, unknown
+  import rejection and out-of-project pin rejection. Strengthened native-source
+  case rerun passed after adding the latter assertion.
+- Middleware integration: 9 passed. Compiler/executor: 10 passed, including native
+  processing imports and invalid lifecycle result/default-export rejection.
+- Final six dashboard browser cases passed. They cover real Monaco module and
+  exported-symbol completion, manual import/publish/HTTP execution, full source
+  middleware save, separate stages, scoped code/members navigation and mobile
+  menu/search/Back/viewport restoration. The first run found an exact accessible
+  search-label mismatch; the result now has an explicit Jump to accessible name.
+- Inspected the generated project-navigation-mobile.png: resource-only controls,
+  task groups expanded, no duplicate hierarchy or global list, full viewport bounds.
+
+The drawer follows visualViewport resize/scroll rather than retaining a keyboard
+inline height. The resize regression is emulated, not physical Android evidence.
+Broader middleware ordering/request-client presentation remains separately tracked.
+No release migrations or unrelated Docker/build drafts are included.
+
+Final mobile/editor/bootstrap rerun: 8 passed. ESLint, web/tooling TypeScript,
+Prettier and diff checks passed. The old root-resource Browse hierarchy expectation
+was updated to assert the requested instance-only list; route scope excludes
+instance administration and exposes menu-only Back.

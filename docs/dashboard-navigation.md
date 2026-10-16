@@ -14,7 +14,7 @@ notification preferences and sign-out.
 | Instance  | Traffic overview, projects, workspaces, all accessible events, instance members, instance shared code/middleware                                      |
 | Workspace | Workspace overview/projects, members, shared code/middleware, workspace-wide notification rules                                                       |
 | Project   | Routes/destinations, events, shared code/middleware, members, project notification rules, workspace link                                              |
-| Route     | Scripts, middleware, helper imports, secrets, dry test, published-request playground, route events, publication history; back to project/all projects |
+| Route     | Scripts with native helper imports, middleware, secrets, dry test, published-request playground, route events, publication history; back to project/all projects |
 | Person    | Display name, passkeys, personal SMTP preferences                                                                                                     |
 
 Do not add placeholder settings links. Workspace/project configuration is exposed
@@ -39,11 +39,22 @@ endpoint health checks are deferred, with no placeholder menu entries.
 
 ## Approved composition follow-up
 
-The global menu remains separate from grouped resource settings. Settings groups
+The current workspace/project/route replaces the global list with its own grouped
+controls. There is no Browse hierarchy block: breadcrumbs expose ancestry, and a
+Back control changes only the menu scope. Global navigation appears at instance scope. Settings groups
 follow task intent (Settings, Observe and troubleshoot, Publish and history,
-Automation), and the active group stays open. Mobile hierarchy browsing changes
+Automation), and groups start open. Mobile hierarchy browsing changes
 the drawer context without navigating the working page; explicit page links and
 search results navigate. Breadcrumbs show navigable ancestors. Search includes
 authorized workspace/project destinations, current settings and personal pages.
-The main content scrolls within the fixed shell so preview notice and header stay
-together. Creation dialogs preserve the collection behind them.
+The document owns main-page scrolling; the preview notice and header remain
+coordinated sticky chrome. The drawer scrolls within the visual viewport and updates
+on viewport resize/scroll so keyboard closure cannot retain a stale reduced height. Creation dialogs preserve the collection behind them.
+
+
+Scripts import real helper exports using `import { describe } from
+"@shared/DemoHelpers"` or a default import where the module exports one. Monaco
+loads authorized module sources for types/export completion and suggests module
+paths. Draft saving resolves a newly imported name to the nearest authorized scope,
+pins its immutable revision and preserves existing pins. There is no separate
+Helper imports navigation page or prerequisite binding form.

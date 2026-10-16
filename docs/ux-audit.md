@@ -160,5 +160,6 @@ is recorded with the pushed revision in Linear PAB-66.
 
 The maintainer's new findings, refreshed Coolify source index, confirmed defects,
 and proposed coherent navigation/editor pass are in
-[ux-review-2026-10-16.md](ux-review-2026-10-16.md). Keep the structural proposal
-separate from the approved general principles and already-implemented corrections.
+[ux-review-2026-10-16.md](ux-review-2026-10-16.md). The maintainer clarified the
+scope/native-import changes were already requested; that implementation and its
+verification are now recorded there separately from remaining review follow-ups.

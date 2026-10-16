@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from "pg";
+import ts from "typescript";
 import { createHash, randomUUID } from "node:crypto";
 import { transaction } from "./db.ts";
 import { requirePermission, scopeAncestry, actorPermissions } from "./membership.ts";
@@ -117,4 +118,45 @@ export async function listSharedVersions(pool: Pool, actor: Actor, scope: ScopeR
 	});
 
 	return (await pool.query("SELECT id,name,scope_type,scope_id,source_digest,bundle_digest,origin_revision_id,created_at FROM payloadbay.shared_module_revision WHERE " + clauses.join(" OR ") + " ORDER BY created_at DESC,id DESC LIMIT 200", parameters)).rows.map(metadata);
+}
+
+/** Resolve literal source imports once; existing immutable pins survive subsequent saves. */
+export async function pinSourceImports(db: Pool | PoolClient, actor: Actor, scope: ScopeRef, source: string, existing: Record<string, string> = {}) {
+	const file = ts.createSourceFile("script.ts", source, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
+	const names = new Set<string>();
+	for (const statement of file.statements) {
+		if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
+		const specifier = statement.moduleSpecifier.text;
+		if (!specifier.startsWith("@shared/")) throw new AppError("invalid_shared_binding", 400, "Only imports from @shared/HelperName are supported");
+		const name = specifier.slice(8);
+		if (!/^[A-Za-z_$][\w$]{0,99}$/.test(name)) throw new AppError("invalid_shared_binding", 400, "Choose a saved helper module name");
+		names.add(name);
+	}
+
+	if (names.size > 32) throw new AppError("shared_code_limit", 413, "At most 32 helper imports are supported");
+	const ancestry = await scopeAncestry(db, scope);
+	const pinned: Record<string, string> = Object.create(null);
+	for (const name of names) {
+		if (Object.hasOwn(existing, name)) {
+			pinned[name] = existing[name];
+			continue;
+		}
+
+		// Nearest visible scope wins; revisions are immutable and newest-first.
+		const first = actor.token ? ancestry.findIndex((parent) => parent.type === actor.token!.scope.type && parent.id === actor.token!.scope.id) : 0;
+		for (const parent of ancestry.slice(first).reverse()) {
+			if (!(await actorPermissions(db, actor, parent)).has("code.read")) continue;
+			const row = (await db.query("SELECT id FROM payloadbay.shared_module_revision WHERE scope_type=$1 AND scope_id=$2 AND name=$3 ORDER BY created_at DESC,id DESC LIMIT 1", [parent.type, parent.id, name])).rows[0];
+			if (row) {
+				pinned[name] = row.id;
+				break;
+			}
+		}
+
+		if (!pinned[name]) throw new AppError("invalid_shared_binding", 400, `Helper ${name} is unavailable in this scope`);
+	}
+
+	await resolveSharedModules(db, actor, scope, pinned);
+
+	return pinned;
 }

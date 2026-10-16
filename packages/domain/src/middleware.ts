@@ -4,7 +4,7 @@ import { requirePermission, scopeAncestry } from "./membership.ts";
 import type { Actor, ScopeRef } from "./authorization.ts";
 import { AppError } from "../../contracts/src/errors.ts";
 import { appendChange } from "./changes.ts";
-import { resolveSharedModules } from "./shared-code.ts";
+import { resolveSharedModules, pinSourceImports } from "./shared-code.ts";
 import { secretForUse } from "./secrets.ts";
 import type { compile } from "../../../apps/executor/src/compiler.ts";
 import type { PinnedMiddleware } from "./pipeline.ts";
@@ -63,7 +63,8 @@ async function compileBinding(db: PoolClient, actor: Actor, input: BindingInput)
 		secrets[name] = id;
 	}
 
-	const sharedModules = await resolveSharedModules(db, actor, domainScope, input.sharedBindings ?? {});
+	const bindings = /^\s*(?:import|export)\s/m.test(input.body) ? await pinSourceImports(db, actor, domainScope, input.body, input.sharedBindings) : (input.sharedBindings ?? {});
+	const sharedModules = await resolveSharedModules(db, actor, domainScope, bindings);
 	const compiled = await input.compile({
 		stage: input.stage + "_middleware",
 		body: input.body,

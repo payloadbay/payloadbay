@@ -14,13 +14,17 @@ type CodeEditorProps = {
 	stage?: ScriptStage;
 	bindings?: Record<string, string>;
 	onSave?: () => void;
+	helperScope?: { type: "instance" | "workspace" | "project"; id: string };
 };
 
-export function CodeEditor({ value, onChange, label, readOnly = false, stage, bindings, onSave }: CodeEditorProps) {
+export function CodeEditor({ value, onChange, label, readOnly = false, stage, bindings, onSave, helperScope }: CodeEditorProps) {
+	const helperType = helperScope?.type;
+	const helperId = helperScope?.id;
+
 	const container = useRef<HTMLDivElement>(null);
 	const editor = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
 
-	const frame = scriptFrame(stage, bindings);
+	const frame = scriptFrame(/^\s*(?:import|export)\s/m.test(value) ? undefined : stage, bindings);
 	const prefix = frame.prefix;
 	const suffix = frame.suffix;
 
@@ -72,14 +76,40 @@ export function CodeEditor({ value, onChange, label, readOnly = false, stage, bi
 				const contextTypes = ["IngressContext", "ProcessingContext", "IngressDecision", "ProcessingDecision", "IngressMiddlewareContext", "ProcessingMiddlewareContext", "IngressMiddlewareDecision", "ProcessingMiddlewareDecision"];
 				const declarations = `declare namespace PayloadBay {\n${sdkDeclarations}\n}\n` + contextTypes.map((name) => `type ${name} = PayloadBay.${name};`).join("\n");
 				const sdk = typescript.typescriptDefaults.addExtraLib(declarations, "file:///payloadbay-sdk.d.ts");
+				const available: { id: string; name: string; scope: { type: string } }[] = helperType && helperId ? await api("/shared-code?scopeType=" + helperType + "&scopeId=" + helperId) : [];
+				const ranks: Record<string, number> = { instance: 0, workspace: 1, project: 2 };
+				const modules = new Map<string, string>();
+				for (const helper of [...available].sort((a, b) => ranks[b.scope.type] - ranks[a.scope.type])) if (!modules.has(helper.name)) modules.set(helper.name, helper.id);
+				for (const [name, id] of Object.entries(bindings ?? {})) modules.set(name, id);
 				await Promise.all(
-					Object.entries(bindings ?? {}).map(async ([name, id]) => {
+					[...modules.entries()].map(async ([name, id]) => {
 						const helper = await api<{ source: string }>("/shared-code/" + encodeURIComponent(id));
 						if (disposed) return;
 						cleanups.push(typescript.typescriptDefaults.addExtraLib(helper.source, "file:///node_modules/@shared/" + name + "/index.ts"));
 					}),
 				);
 				cleanups.push(sdk);
+				cleanups.push(
+					monaco.languages.registerCompletionItemProvider("typescript", {
+						triggerCharacters: ["/", '"', "'"],
+						provideCompletionItems: (model, position) => {
+							if (model.uri.toString() !== editor.current?.getModel()?.uri.toString()) return { suggestions: [] };
+							const line = model.getLineContent(position.lineNumber).slice(0, position.column - 1);
+							const match = /(?:from\s*|import\s*)["']([^"']*)$/.exec(line);
+							if (!match) return { suggestions: [] };
+
+							return {
+								suggestions: [...modules.keys()].map((name) => ({
+									label: "@shared/" + name,
+									insertText: "@shared/" + name,
+									kind: monaco.languages.CompletionItemKind.Module,
+									detail: "Saved helper module",
+									range: new monaco.Range(position.lineNumber, position.column - match[1].length, position.lineNumber, position.column),
+								})),
+							};
+						},
+					}),
+				);
 				const instance = monaco.editor.create(container.current, {
 					model: monaco.editor.createModel(current.current, "typescript", monaco.Uri.parse("file:///scripts/" + crypto.randomUUID() + ".ts")),
 					theme: theme(),
@@ -191,7 +221,7 @@ export function CodeEditor({ value, onChange, label, readOnly = false, stage, bi
 			model?.dispose();
 			editor.current = null;
 		};
-	}, [label, prefix, suffix, stage, bindings]);
+	}, [label, prefix, suffix, stage, bindings, helperType, helperId]);
 
 	return (
 		<div className='min-w-0 w-full'>
@@ -205,7 +235,7 @@ export function CodeEditor({ value, onChange, label, readOnly = false, stage, bi
 					Loading code editor…
 				</p>
 			)}
-			{stage && <p className='text-muted mb-2 text-xs'>The shaded signature stays fixed. Edit the code below; hover ctx to explore the available methods.</p>}
+			{prefix && <p className='text-muted mb-2 text-xs'>The shaded signature stays fixed. Edit the code below; hover ctx to explore the available methods.</p>}
 			<div ref={container} className='border-border h-96 min-w-0 w-full overflow-hidden rounded-lg border' />
 		</div>
 	);

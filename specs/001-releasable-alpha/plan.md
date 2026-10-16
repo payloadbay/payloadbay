@@ -42,7 +42,7 @@ Self-hosted and hosted product use the same release artifacts. The complete host
 
 Protocol-only challenges do not create a delivery job unless explicitly accepted. Rejects create no accepted event/work. Bounded diagnostic records may remain subject to redaction/retention. Database failure never produces a false successful acceptance.
 
-## 4. Code editing model: two bodies, fixed signatures
+## 4. Code editing model: two stage modules, checked lifecycle contracts
 
 Each project can have multiple endpoints, each binding **Ingress** and
 **Processing** revisions. The 2026-10-15 maintainer review changes ingress to a
@@ -63,25 +63,29 @@ export async function GET(ctx: IngressContext): Promise<IngressDecision> {
 
 GET/POST/PUT/PATCH/DELETE/HEAD/OPTIONS are supported; missing methods return
 405 with Allow. A generated default export dispatches to the selected method.
-Ingress imports pinned helper modules explicitly from `@shared/ImportName`.
-Processing and middleware retain protected body wrappers and generated imports.
+All stage modules import real helper exports from `@shared/HelperName`. The
+2026-10-16 maintainer clarification extends native source editing to processing
+and middleware, with immutable revisions resolved/pinned on draft save. Existing
+pins remain stable; publishing snapshots the dependency manifest.
 There is no giant module mixing every lifecycle stage.
 
-The Processing wrapper is likewise fixed:
+Processing uses a checked async default lifecycle function:
 
 ```ts
 export default async function processEvent(ctx: ProcessingContext): Promise<ProcessingDecision> {
-	// User's Processing body is inserted here.
+	return ctx.complete();
 }
 ```
 
-Processing/middleware headers and closing lines stay protected inside Monaco;
-ingress handlers and shared helper modules are ordinary source files. Hover
+The default export gives processing/middleware a stable lifecycle identity while
+allowing descriptive function names and native imports. Monaco edits complete
+modules; the server checks context/result signatures and method dispatch. Hover
 information comes from SDK/helper declarations. A scripting-guide modal explains
 responses, durable acceptance, processing, helpers/secrets, testing and publishing.
 
 API editing uses the same stage/body/binding representation. The ingress body is
-a complete method module; processing/middleware remain body-only. Server-side
+a complete method module; processing/middleware also use complete modules in the
+dashboard. Internal body-based compiler callers still receive generated wrappers. Server-side
 compilation, type/dependency policy and tagged-result validation gate publication.
 Editor diagnostics assist rather than enforce the boundary. Save formats with
 the repository's Prettier settings; drafts never affect published executions.

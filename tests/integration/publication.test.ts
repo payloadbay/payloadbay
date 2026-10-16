@@ -563,3 +563,85 @@ test("U130 queued events retain helper code after parent version changes", async
 		assert.equal(retained.publication_id, first.id);
 	});
 });
+
+test("native source imports resolve real exports and preserve immutable revision pins", async () => {
+	const { createSharedVersion } = await import("../../packages/domain/src/shared-code.ts");
+	const { saveDraft, publish } = await import("../../packages/domain/src/publication.ts");
+	const { compile } = await import("../../apps/executor/src/compiler.ts");
+	const { execute } = await import("../../apps/executor/src/supervisor.ts");
+	await publicationFixture(async ({ pool, db, scope }) => {
+		const actor = { userId: "fixture-owner" };
+		const helper = await createSharedVersion(pool, actor, {
+			scope: { type: "project", id: scope.project },
+			name: "Messages",
+			source: 'export function message(){return "pinned";} export default function greeting(){return "hello";}',
+			compile,
+		});
+		const source = 'import greeting, { message } from "@shared/Messages";\nexport async function POST(ctx: IngressContext): Promise<IngressDecision> { return ctx.respondOnly({status:200,body:greeting()+" "+message()}); }';
+		const saved = await saveDraft(pool, actor, {
+			endpointId: scope.endpoint,
+			stage: "ingress",
+			body: source,
+			expectedVersion: 1,
+		});
+		assert.equal(saved.shared_bindings.Messages, helper.id);
+		const otherProject = (await db.query("INSERT INTO payloadbay.project(workspace_id,name,slug,owner_user_id) VALUES($1,'Other','other','fixture-owner') RETURNING id", [scope.workspace])).rows[0].id;
+		const outside = await createSharedVersion(pool, actor, {
+			scope: { type: "project", id: otherProject },
+			name: "Outside",
+			source: 'export const value = "outside";',
+			compile,
+		});
+		await assert.rejects(
+			saveDraft(pool, actor, {
+				endpointId: scope.endpoint,
+				stage: "ingress",
+				body: source.replace("@shared/Messages", "@shared/Outside"),
+				sharedBindings: { Outside: outside.id },
+				expectedVersion: saved.version,
+			}),
+			{ code: "invalid_shared_binding" },
+		);
+
+		await createSharedVersion(pool, actor, {
+			scope: { type: "project", id: scope.project },
+			name: "Messages",
+			source: 'export function message(){return "changed";} export default function greeting(){return "changed";}',
+			compile,
+		});
+		const again = await saveDraft(pool, actor, {
+			endpointId: scope.endpoint,
+			stage: "ingress",
+			body: source,
+			expectedVersion: saved.version,
+		});
+		assert.equal(again.shared_bindings.Messages, helper.id);
+		const published = await publish(pool, actor, {
+			endpointId: scope.endpoint,
+			expectedVersion: 1,
+			draftVersions: { ingress: again.version, processing: 1 },
+			compile,
+		});
+		const revision = (await db.query("SELECT r.bundle FROM payloadbay.publication p JOIN payloadbay.stage_revision r ON r.id=p.ingress_revision_id WHERE p.id=$1", [published.id])).rows[0];
+		const result = await execute({ stage: "ingress", bundle: revision.bundle, input: { request: { method: "POST" } } });
+		assert.equal((result.decision as { response: { body: string } }).response.body, "hello pinned");
+		await assert.rejects(
+			saveDraft(pool, actor, {
+				endpointId: scope.endpoint,
+				stage: "ingress",
+				body: source.replace("@shared/Messages", "@shared/Missing"),
+				expectedVersion: again.version,
+			}),
+			{ code: "invalid_shared_binding" },
+		);
+		await assert.rejects(
+			saveDraft(pool, actor, {
+				endpointId: scope.endpoint,
+				stage: "ingress",
+				body: source.replace("@shared/Messages", "https://example.com/script"),
+				expectedVersion: again.version,
+			}),
+			{ code: "invalid_shared_binding" },
+		);
+	});
+});

@@ -234,3 +234,15 @@ test("U309 executor wire budget preserves maximum escaped and binary bodies", as
 		await executor.stop();
 	}
 });
+
+test("full lifecycle modules support real named and default imports with contract validation", async () => {
+	const { compile } = await import("../../apps/executor/src/compiler.ts");
+	const { execute } = await import("../../apps/executor/src/supervisor.ts");
+	const sharedModules = { Messages: { source: 'export const message = "hello"; export default function suffix(){return "world";}', revisionId: "immutable-fixture" } };
+	const body = 'import suffix, { message } from "@shared/Messages";\nexport default async function deliverPurchase(ctx: ProcessingContext): Promise<ProcessingDecision> { ctx.log.info(message+suffix()); return ctx.complete(); }';
+	const compiled = await compile({ stage: "processing", body, sharedModules });
+	const result = await execute({ stage: "processing", bundle: compiled.bundle, input: {} });
+	assert.equal((result.decision as { kind: string }).kind, "complete");
+	await assert.rejects(compile({ stage: "processing", body: body.replace("ctx.complete()", '"wrong"'), sharedModules }));
+	await assert.rejects(compile({ stage: "processing", body: body.replace("export default", "export"), sharedModules }));
+});

@@ -13,3 +13,20 @@ body {
 	color: var(--foreground);
 	font-family: var(--font-sans);
 }
+
+/* Vaul's keyboard inline height must not outlive the visual viewport resize. */
+.sidebar__mobile-sheet {
+	top: var(--dashboard-viewport-top, 0px) !important;
+	bottom: auto !important;
+	height: var(--dashboard-viewport-height, 100dvh) !important;
+	max-height: var(--dashboard-viewport-height, 100dvh) !important;
+}
+
+.sidebar__mobile-dialog {
+	min-height: 0;
+}
+
+.sidebar__mobile [data-slot="sidebar-menu-label-text"] {
+	white-space: normal;
+	overflow-wrap: anywhere;
+}

@@ -14,7 +14,10 @@ and resources, as well as contextual settings; label its scope explicitly.
 
 Make the current scope obvious. Place settings beside the resource they affect,
 and distinguish personal preferences from shared administration. Reveal relevant
-choices progressively instead of mixing every scope into a flat menu.
+choices progressively instead of mixing every scope into a flat menu. A resource
+context replaces irrelevant global controls; do not repeat its ancestry as a
+second navigation block when breadcrumbs already provide that path. Default
+resource task groups open and distinguish menu Back from page navigation.
 
 Browsing a navigation hierarchy, opening a destination and jumping within a page
 are different actions. Give them distinct controls and predictable back behavior.
@@ -67,7 +70,9 @@ Do not assume desktop spacing or library defaults work unchanged on a phone.
 
 Make the displayed source match the executable model. Provide useful types,
 formatting, discoverable guidance and visible dependencies. Protect lifecycle
-contracts without making the editor feel like disconnected form fragments.
+contracts without making the editor feel like disconnected form fragments. Prefer
+native language imports and real exported symbols over separate forms that invent
+a different dependency model. Explain and preserve immutable version pins.
 
 ## Verification
 

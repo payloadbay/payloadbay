@@ -5,9 +5,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
-import { Avatar, Button, Dropdown, Header, Label, Breadcrumbs, TextField, Input } from "@heroui/react";
-import { AppLayout, Sidebar } from "@heroui-pro/react";
-import { IconHome, IconFolder, IconUsers, IconLogout, IconCode, IconSettings, IconInbox, IconBell, IconKey, IconFlask, IconHistory, IconRoute, IconLibrary } from "@tabler/icons-react";
+import { Avatar, Button, Dropdown, Header, Label, Breadcrumbs } from "@heroui/react";
+import { AppLayout, Sidebar, Command } from "@heroui-pro/react";
+import { IconHome, IconFolder, IconUsers, IconLogout, IconCode, IconSettings, IconInbox, IconBell, IconKey, IconFlask, IconHistory, IconRoute, IconBuilding, IconArrowLeft, IconSearch } from "@tabler/icons-react";
 import { PreviewNotice } from "@components/preview-notice";
 import { NotificationInbox } from "@components/notification-inbox";
 import { api, ApiFailure } from "@lib/api-client";
@@ -39,6 +39,11 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 	const [data, setData] = useState<Omit<DashboardState, "reload"> | null>(null);
 	const [error, setError] = useState("");
 	const [navigationQuery, setNavigationQuery] = useState("");
+	const [searchOpen, setSearchOpen] = useState(false);
+
+	const rawRouteId = pathname.match(/^\/projects\/[^/]+\/routes\/([^/]+)/)?.[1] ?? pathname.match(/^\/code\/endpoint\/([^/]+)/)?.[1];
+
+	const [routeMetadata, setRouteMetadata] = useState<{ id: string; name: string } | null>(null);
 	const [browse, setBrowse] = useState<{ type: "instance" | "workspace" | "project"; id?: string } | null>(null);
 
 	useFeedbackToast(error, "", { error: "Dashboard error", success: "Success" });
@@ -89,6 +94,41 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 			active = false;
 		};
 	}, [fetchData, receive, failed, pathname]);
+
+	useEffect(() => {
+		if (!rawRouteId) return;
+		let active = true;
+		api<{ id: string; name: string }>("/endpoints/" + rawRouteId)
+			.then((value) => {
+				if (active) setRouteMetadata(value);
+			})
+			.catch(failed);
+
+		return () => {
+			active = false;
+		};
+	}, [rawRouteId, failed]);
+
+	useEffect(() => {
+		const viewport = window.visualViewport;
+		if (!viewport) return;
+
+		const update = () => {
+			document.documentElement.style.setProperty("--dashboard-viewport-height", viewport.height + "px");
+			document.documentElement.style.setProperty("--dashboard-viewport-top", viewport.offsetTop + "px");
+		};
+
+		update();
+		viewport.addEventListener("resize", update);
+		viewport.addEventListener("scroll", update);
+
+		return () => {
+			viewport.removeEventListener("resize", update);
+			viewport.removeEventListener("scroll", update);
+			document.documentElement.style.removeProperty("--dashboard-viewport-height");
+			document.documentElement.style.removeProperty("--dashboard-viewport-top");
+		};
+	}, []);
 
 	if (!data)
 		return (
@@ -171,7 +211,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 
 	const routeId = pathname.match(/^\/projects\/[^/]+\/routes\/([^/]+)/)?.[1] ?? pathname.match(/^\/code\/endpoint\/([^/]+)/)?.[1];
 	const routeSection = pathname.startsWith("/code/endpoint/") ? "middleware" : (search.get("section") ?? "code");
-	const routeAddress = routeId && project ? "/projects/" + project.id + "/routes/" + routeId : "";
+	const routeAddress = routeId && currentProject ? "/projects/" + currentProject.id + "/routes/" + routeId : "";
 	const routeLinks =
 		!browse && routeId && project
 			? [
@@ -185,12 +225,6 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 						id: "code",
 						label: "Scripts",
 						icon: IconCode,
-						visible: project.permissions.includes("code.read"),
-					},
-					{
-						id: "helpers",
-						label: "Helper imports",
-						icon: IconLibrary,
 						visible: project.permissions.includes("code.read"),
 					},
 					{
@@ -232,7 +266,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 			id: "workspaces",
 			label: "Workspaces",
 			href: "/workspaces",
-			icon: IconFolder,
+			icon: IconBuilding,
 			visible: true,
 		},
 		{
@@ -270,7 +304,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 					id: "workspace",
 					label: "Workspace overview",
 					href: "/workspaces/" + workspace.id,
-					icon: IconFolder,
+					icon: IconBuilding,
 					visible: true,
 				},
 				{
@@ -332,7 +366,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 				id: "w-" + item.id,
 				label: item.name + " · Workspace",
 				href: "/workspaces/" + item.id,
-				icon: IconFolder,
+				icon: IconBuilding,
 			},
 			...(item.permissions.includes("members.manage")
 				? [
@@ -365,25 +399,51 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 		]),
 		...contextualLinks.filter((item) => item.visible).map((item) => ({ ...item, id: "context-" + item.id })),
 	];
+	const routeScope = !browse && Boolean(routeId);
+	const scoped = routeScope || Boolean(project || workspace);
+	const scopeTitle = routeScope ? (routeMetadata && routeMetadata.id === routeId ? routeMetadata.name : "Ingress route") : (project?.name ?? workspace?.name ?? "Payload Bay");
+	const parentScope = routeScope ? { type: "project" as const, id: project!.id } : project ? { type: "workspace" as const, id: project.workspace_id } : { type: "instance" as const };
+
+	function navigate(href: string) {
+		setSearchOpen(false);
+		if (!window.dispatchEvent(new CustomEvent("payloadbay:before-navigate", { detail: { href }, cancelable: true }))) return;
+		router.push(href);
+		setBrowse(null);
+		setSearchOpen(false);
+		setNavigationQuery("");
+	}
+
 	const navigationContent = (
 		<>
 			<Sidebar.Header>
-				<Link href='/' className='px-3 py-4 text-lg font-semibold'>
-					Payload Bay
-				</Link>
+				<div className='px-3 py-4'>
+					{scoped && (
+						<Button variant='ghost' size='sm' onPress={() => setBrowse(parentScope)}>
+							<IconArrowLeft size={16} />
+							Back to {routeScope ? "project" : project ? "workspace" : "instance"}
+						</Button>
+					)}
+					<p className='mt-2 break-words text-lg font-semibold'>{scopeTitle}</p>
+				</div>
+				<Sidebar.Group>
+					<Sidebar.Menu aria-label='Navigation search'>
+						<Sidebar.MenuItem id='search' textValue='Search pages and resources' onAction={() => setSearchOpen(true)}>
+							<Sidebar.MenuIcon>
+								<IconSearch size={18} />
+							</Sidebar.MenuIcon>
+							<Sidebar.MenuLabel>Search pages and resources…</Sidebar.MenuLabel>
+						</Sidebar.MenuItem>
+					</Sidebar.Menu>
+				</Sidebar.Group>
 			</Sidebar.Header>
-			<Sidebar.Content>
-				<TextField aria-label='Search pages and resources' value={navigationQuery} onChange={setNavigationQuery} className='px-3 pb-3'>
-					<Input variant='secondary' placeholder='Search pages and resources…' />
-				</TextField>
-				{navigationQuery.trim() ? (
+			<Sidebar.Content className='min-h-0 overflow-y-auto overscroll-contain pb-6'>
+				{!scoped && (
 					<Sidebar.Group>
-						<Sidebar.GroupLabel>All accessible pages and resources</Sidebar.GroupLabel>
-						<Sidebar.Menu aria-label='Search results'>
-							{searchItems
-								.filter((item) => item.label.toLowerCase().includes(navigationQuery.trim().toLowerCase()))
+						<Sidebar.Menu aria-label='Instance navigation'>
+							{globalLinks
+								.filter((item) => item.visible && item.id !== "instance-members")
 								.map((item) => (
-									<Sidebar.MenuItem key={item.id} id={item.id} href={item.href} textValue={item.label}>
+									<Sidebar.MenuItem key={item.id} id={item.id} href={item.href} textValue={item.label} isCurrent={pathname === item.href}>
 										<Sidebar.MenuIcon>
 											<item.icon size={18} />
 										</Sidebar.MenuIcon>
@@ -392,101 +452,31 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 								))}
 						</Sidebar.Menu>
 					</Sidebar.Group>
-				) : (
-					<>
-						<Sidebar.Group>
-							<Sidebar.GroupLabel>Global navigation</Sidebar.GroupLabel>
-							<Sidebar.Menu aria-label='Global navigation'>
-								{globalLinks
-									.filter((item) => item.visible && item.id !== "instance-members")
-									.map((item) => (
-										<Sidebar.MenuItem key={item.id} id={item.id} href={item.href} textValue={item.label} isCurrent={pathname === item.href}>
-											<Sidebar.MenuIcon>
-												<item.icon size={18} />
-											</Sidebar.MenuIcon>
-											<Sidebar.MenuLabel>{item.label}</Sidebar.MenuLabel>
-										</Sidebar.MenuItem>
-									))}
-							</Sidebar.Menu>
-						</Sidebar.Group>
-						<Sidebar.Group closeMobileOnAction={false}>
-							<Sidebar.GroupLabel>Browse hierarchy</Sidebar.GroupLabel>
-							<div className='flex flex-wrap gap-1 px-3 pb-2'>
-								<Button size='sm' variant='ghost' onPress={() => setBrowse({ type: "instance" })}>
-									Instance
-								</Button>
-								{workspace && (
-									<Button size='sm' variant='ghost' onPress={() => setBrowse({ type: "workspace", id: workspace.id })}>
-										{workspace.name}
-									</Button>
-								)}
-								{project && (
-									<Button size='sm' variant='ghost' onPress={() => setBrowse({ type: "project", id: project.id })}>
-										{project.name}
-									</Button>
-								)}
-							</div>
-							<Sidebar.Menu aria-label='Browse resources'>
-								{!project &&
-									!workspace &&
-									data.workspaces.map((item) => (
-										<Sidebar.MenuItem key={item.id} id={item.id} textValue={item.name + " workspace"} onAction={() => setBrowse({ type: "workspace", id: item.id })}>
-											<Sidebar.MenuIcon>
-												<IconFolder size={18} />
-											</Sidebar.MenuIcon>
-											<Sidebar.MenuLabel>{item.name}</Sidebar.MenuLabel>
-										</Sidebar.MenuItem>
-									))}
-								{!project &&
-									data.projects
-										.filter((item) => !workspace || item.workspace_id === workspace.id)
-										.map((item) => (
-											<Sidebar.MenuItem key={item.id} id={item.id} textValue={item.name} onAction={() => setBrowse({ type: "project", id: item.id })}>
-												<Sidebar.MenuIcon>
-													<IconFolder size={18} />
-												</Sidebar.MenuIcon>
-												<Sidebar.MenuLabel>{item.name}</Sidebar.MenuLabel>
-											</Sidebar.MenuItem>
-										))}
-							</Sidebar.Menu>
-						</Sidebar.Group>
-						{groups
-							.filter((group) => group.items.some((item) => item.visible))
-							.map((group) => {
-								const active = (!browse && Boolean(routeId) && group.items.some((item) => item.id === routeSection)) || group.items.some((item) => item.href === pathname + (search.size ? "?" + search.toString() : "") || item.href === pathname);
-
-								return (
-									<details
-										key={group.label + project?.id + workspace?.id}
-										open={active || undefined}
-										onToggle={(event) => {
-											if (active && !event.currentTarget.open) event.currentTarget.open = true;
-										}}
-										className='px-2'
-									>
-										<summary className='text-muted cursor-pointer px-2 py-3 text-xs font-semibold'>{group.label}</summary>
-										<Sidebar.Group>
-											<Sidebar.GroupLabel>{project?.name ?? workspace?.name ?? "Resource"}</Sidebar.GroupLabel>
-											<Sidebar.Menu aria-label={group.label}>
-												{group.items
-													.filter((item) => item.visible)
-													.map((item) => (
-														<Sidebar.MenuItem key={item.id} id={item.id} href={item.href} textValue={item.label} isCurrent={item.href === pathname || item.href === pathname + "?section=" + routeSection}>
-															<Sidebar.MenuIcon>
-																<item.icon size={18} />
-															</Sidebar.MenuIcon>
-															<Sidebar.MenuLabel>{item.label}</Sidebar.MenuLabel>
-														</Sidebar.MenuItem>
-													))}
-											</Sidebar.Menu>
-										</Sidebar.Group>
-									</details>
-								);
-							})}
-					</>
 				)}
+				{scoped &&
+					groups
+						.filter((group) => group.items.some((item) => item.visible))
+						.map((group) => (
+							<details key={scopeTitle + group.label} open className='px-2'>
+								<summary className='text-muted cursor-pointer px-2 py-3 text-xs font-semibold whitespace-normal'>{group.label}</summary>
+								<Sidebar.Group>
+									<Sidebar.Menu aria-label={group.label}>
+										{group.items
+											.filter((item) => item.visible)
+											.map((item) => (
+												<Sidebar.MenuItem key={item.id} id={item.id} href={item.href} textValue={item.label} isCurrent={item.href === pathname || item.href === pathname + "?section=" + routeSection}>
+													<Sidebar.MenuIcon>
+														<item.icon size={18} />
+													</Sidebar.MenuIcon>
+													<Sidebar.MenuLabel className='whitespace-normal'>{item.label}</Sidebar.MenuLabel>
+												</Sidebar.MenuItem>
+											))}
+									</Sidebar.Menu>
+								</Sidebar.Group>
+							</details>
+						))}
 			</Sidebar.Content>
-			{admin && (
+			{admin && !scoped && (
 				<Sidebar.Footer>
 					<Sidebar.Group>
 						<Sidebar.GroupLabel>Administration</Sidebar.GroupLabel>
@@ -514,13 +504,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 						<Sidebar.Mobile aria-label='Dashboard navigation'>{navigationContent}</Sidebar.Mobile>
 					</>
 				}
-				navigate={(href) => {
-					if (window.dispatchEvent(new CustomEvent("payloadbay:before-navigate", { detail: { href }, cancelable: true }))) {
-						router.push(href);
-						setBrowse(null);
-						setNavigationQuery("");
-					}
-				}}
+				navigate={navigate}
 				navbar={
 					<div>
 						{preview && <PreviewNotice />}
@@ -533,7 +517,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 								</Link>
 							</div>
 							<div className='flex shrink-0 items-center gap-2'>
-								{(project?.permissions ?? workspace?.permissions ?? data.me.permissions).includes("notifications.read") && <NotificationInbox scope={{ type: project ? "project" : workspace ? "workspace" : "instance", id: project?.id ?? workspace?.id ?? data.me.instanceId }} />}
+								{(currentProject?.permissions ?? currentWorkspace?.permissions ?? data.me.permissions).includes("notifications.read") && <NotificationInbox scope={{ type: currentProject ? "project" : currentWorkspace ? "workspace" : "instance", id: currentProject?.id ?? currentWorkspace?.id ?? data.me.instanceId }} />}
 								<Dropdown>
 									<Dropdown.Trigger aria-label='Account menu' className='rounded-full outline-offset-4'>
 										<Avatar size='sm'>
@@ -575,13 +559,50 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 							<Breadcrumbs.Item href={pathname === "/" ? undefined : "/"}>Overview</Breadcrumbs.Item>
 							{currentWorkspace && <Breadcrumbs.Item href={pathname === "/workspaces/" + currentWorkspace.id ? undefined : "/workspaces/" + currentWorkspace.id}>{currentWorkspace.name}</Breadcrumbs.Item>}
 							{currentProject && <Breadcrumbs.Item href={pathname === "/projects/" + currentProject.id ? undefined : "/projects/" + currentProject.id}>{currentProject.name}</Breadcrumbs.Item>}
-							{routeId && <Breadcrumbs.Item>Ingress route · {routeSection}</Breadcrumbs.Item>}
+							{routeId && <Breadcrumbs.Item href={routeAddress}>{routeMetadata && routeMetadata.id === routeId ? routeMetadata.name : "Ingress route"}</Breadcrumbs.Item>}
+							{routeId && <Breadcrumbs.Item>{routeSection === "middleware" ? "Middleware" : (routeLinks.find((item) => item.id === routeSection)?.label ?? "Scripts")}</Breadcrumbs.Item>}
 							{!currentProject && !currentWorkspace && pathname !== "/" && <Breadcrumbs.Item>{pathname === "/workspaces" ? "Workspaces" : pathname === "/projects" ? "Projects" : pathname === "/events" ? "Events" : pathname.startsWith("/account") ? "Account settings" : "Administration"}</Breadcrumbs.Item>}
 						</Breadcrumbs>
 					</nav>
 					{children}
 				</div>
 			</AppLayout>
+			<Command>
+				<Command.Backdrop
+					isOpen={searchOpen}
+					onOpenChange={(open) => {
+						setSearchOpen(open);
+						if (!open) setNavigationQuery("");
+					}}
+				>
+					<Command.Container size='lg'>
+						<Command.Dialog aria-label='Search pages and resources' inputValue={navigationQuery} onInputChange={setNavigationQuery}>
+							<Command.Header>All accessible pages and resources</Command.Header>
+							<Command.InputGroup>
+								<Command.InputGroup.Input placeholder='Search pages and resources…' />
+								<Command.InputGroup.ClearButton aria-label='Clear search' />
+							</Command.InputGroup>
+							<Command.List
+								onAction={(key) => {
+									const item = searchItems.find((item) => item.id === key);
+									if (item) navigate(item.href);
+								}}
+								renderEmptyState={() => <p className='p-4 text-muted'>No matching pages or resources.</p>}
+							>
+								<Command.Group heading='Jump to'>
+									{searchItems.map((item) => (
+										<Command.Item key={item.id} id={item.id} textValue={item.label} aria-label={"Jump to " + item.label}>
+											<item.icon size={18} />
+											<span className='min-w-0 whitespace-normal'>{item.label}</span>
+											<span className='ml-auto text-xs text-muted'>Jump to</span>
+										</Command.Item>
+									))}
+								</Command.Group>
+							</Command.List>
+						</Command.Dialog>
+					</Command.Container>
+				</Command.Backdrop>
+			</Command>
 		</Context.Provider>
 	);
 }

@@ -166,3 +166,20 @@ atomic event/receipt/job commit. The incoming request identity stays stable;
 outgoing attempts, including retries, each have their own history row. Replaying
 for delivery is restricted to accepted events. Provider challenges remain
 response-only unless the configured script explicitly accepts them.
+
+
+### Maintainer scope and source clarification — 2026-10-16
+
+Opening navigation within a resource shows only that resource's task groups,
+expanded initially. Menu Back changes its scope without leaving the working page;
+breadcrumbs provide actual page ancestry. Do not duplicate a Browse hierarchy.
+Use distinct workspace/project icons and a separate clearable cross-resource
+command search with explicit Jump to results.
+
+Ingress and processing source can import real named/default helper exports from
+`@shared/HelperName` directly. No separate helper-binding screen is required.
+Resolve new imports on save to the nearest authorized immutable helper revision,
+retain saved pins on subsequent edits, and pin them in publications/queued work.
+Processing/middleware full modules retain a checked async default lifecycle export;
+its descriptive function name is not the runtime dispatch identity. Monaco exposes
+available module paths and exported types, and formatting preserves native source.

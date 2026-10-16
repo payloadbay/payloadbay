@@ -17,9 +17,10 @@ export function scriptFrame(stage?: ScriptStage, bindings: Record<string, string
 /** Formats the actual TypeScript file, then preserves the body-only API contract. */
 export async function formatScript(body: string, stage?: ScriptStage, bindings: Record<string, string> = {}) {
 	const [{ format }, typescript, estree] = await Promise.all([import("prettier/standalone"), import("prettier/plugins/typescript"), import("prettier/plugins/estree")]);
-	const frame = scriptFrame(stage, bindings);
+	const moduleFile = /^\s*(?:import|export)\s/m.test(body);
+	const frame = scriptFrame(moduleFile ? undefined : stage, bindings);
 	const result = await format(frame.prefix + body + frame.suffix, { ...formatting, parser: "typescript", plugins: [typescript, estree] });
-	if (!stage) return result;
+	if (!stage || moduleFile) return result;
 	const headerEnd = result.indexOf("{\n", result.indexOf("export default async function"));
 	if (headerEnd < 0 || !result.endsWith("}\n")) throw Error("Could not format the lifecycle function.");
 
@@ -33,4 +34,12 @@ export async function formatScriptForDisplay(body: string, stage?: ScriptStage, 
 	} catch {
 		return body;
 	}
+}
+
+/** Promote stored stage bodies into the same complete module the compiler executes. */
+export function scriptDocument(body: string, stage: ScriptStage, bindings: Record<string, string> = {}) {
+	if (/^\s*(?:import|export)\s/m.test(body)) return body;
+	const frame = scriptFrame(stage, bindings);
+
+	return frame.prefix + body + frame.suffix;
 }

@@ -5,7 +5,7 @@ import { AppError } from "../../contracts/src/errors.ts";
 import type { Actor } from "./authorization.ts";
 import { endpointFor } from "./endpoints.ts";
 import { requirePermission } from "./membership.ts";
-import { resolveSharedModules } from "./shared-code.ts";
+import { resolveSharedModules, pinSourceImports } from "./shared-code.ts";
 import type { compile } from "../../../apps/executor/src/compiler.ts";
 import type { ExecuteOptions, ExecutionResult } from "../../../apps/executor/src/supervisor.ts";
 
@@ -49,7 +49,9 @@ export async function testDraftDry(pool: Pool, actor: Actor, endpointId: string,
 	const parsed = scriptTestInput.safeParse(input);
 	if (!parsed.success) throw new AppError("invalid_input", 400, "Provide a bounded synthetic script fixture");
 	const data = parsed.data;
-	const sharedModules = await resolveSharedModules(pool, actor, { type: "project", id: endpoint.project_id }, data.sharedBindings);
+	const scope = { type: "project" as const, id: endpoint.project_id };
+	const bindings = /^\s*(?:import|export)\s/m.test(data.body) ? await pinSourceImports(pool, actor, scope, data.body, data.sharedBindings) : data.sharedBindings;
+	const sharedModules = await resolveSharedModules(pool, actor, scope, bindings);
 	const compiled = await engine.compile({
 		stage: data.stage,
 		body: data.body,

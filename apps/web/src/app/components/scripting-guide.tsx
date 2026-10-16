@@ -51,7 +51,8 @@ export function ScriptingGuide() {
 							<section>
 								<h3 className='font-semibold'>Helpers and secrets</h3>
 								<p className='text-muted mt-1 text-sm'>
-									Create helper files under the project’s Code and middleware page. Bind a saved version in Helper imports, then the editor adds its ingress import as <code>import * as Helpers from &quot;@shared/Helpers&quot;;</code>. Processing imports are generated for its bindings. Bind secret versions by name and read them from <code>ctx.secrets.NAME</code>; never paste credentials into source.
+									Create helper files under the project’s Code and middleware page. Import its real exports directly in Scripts: <code>{'import { describe } from "@shared/DemoHelpers";'}</code>, or use a default import when the helper exports a default. The editor suggests available modules and exports. Saving pins the selected helper revision; later helper edits do not change an existing publication. Bind secret versions by name and read them from <code>ctx.secrets.NAME</code>; never paste
+									credentials into source.
 								</p>
 							</section>
 							<section>

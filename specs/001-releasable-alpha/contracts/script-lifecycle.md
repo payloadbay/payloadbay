@@ -11,9 +11,15 @@ The generated default dispatcher selects the incoming method; unexported methods
 return 405 with Allow. Default exports are platform-owned. The module must export
 at least one supported method, and all handler signatures/results are type-checked.
 
-Processing and middleware retain protected generated lifecycle wrappers, with
-editable bodies. Bound helper versions use `@shared/ImportName`; ingress modules
-write ordinary imports, while body editors display generated pinned imports.
+Following the 2026-10-16 clarification, processing and middleware are complete
+editable modules with one named async default lifecycle function. A compiler
+assignment checks its context/result contract independently of its descriptive
+name. Ingress keeps named HTTP dispatch. Native named/default imports reference
+`@shared/HelperName` according to the helper’s actual exports. Saving resolves new
+names to the nearest authorized scope and pins immutable revisions; existing pins
+are retained on later saves. Processing/middleware body inputs remain supported
+by internal compiler callers, which generate their lifecycle wrapper. The dashboard
+loads and edits complete source; it does not require a helper-binding form.
 Arbitrary module/path imports, dynamic-import bypasses and install scripts remain
 unsupported. Monaco shows SDK/helper type information and a scripting guide;
 server compilation and runtime validation enforce the contract independently of

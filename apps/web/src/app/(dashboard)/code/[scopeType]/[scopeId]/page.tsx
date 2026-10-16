@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { Button, Card, Form, TextField, Label, Input, FieldError, Tabs, NumberField, Checkbox } from "@heroui/react";
 import { EmptyState, Sheet, NativeSelect } from "@heroui-pro/react";
 import { IconCode, IconPlus, IconCopy, IconLock, IconArrowLeft, IconCheck } from "@tabler/icons-react";
-import { formatScript, formatScriptForDisplay } from "@lib/script-document";
+import { formatScript, formatScriptForDisplay, scriptDocument } from "@lib/script-document";
 import { useUnsavedChanges } from "@components/unsaved-changes";
 import { ScriptingGuide } from "@components/scripting-guide";
 import { CodeEditor } from "@components/code-editor";
@@ -42,6 +42,13 @@ type Binding = {
 	secretBindings?: Record<string, string>;
 	body?: string;
 };
+
+function middlewareStarter(name = "", stage: "ingress" | "processing" = "processing") {
+	const identifier = name.replace(/[^A-Za-z0-9_$]/g, "_") || "middleware";
+	const functionName = /^[A-Za-z_$]/.test(identifier) ? identifier : "middleware_" + identifier;
+
+	return scriptDocument("\treturn ctx.continue();", stage === "ingress" ? "ingress_middleware" : "processing_middleware").replace("function middleware(", "function " + functionName + "(");
+}
 
 export default function CodePage({ params }: { params: Promise<{ scopeType: string; scopeId: string }> }) {
 	const { scopeType, scopeId } = use(params);
@@ -165,7 +172,7 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 		setEditingModule(null);
 		setEditingBinding(null);
 		setName("");
-		setBody(tab === "modules" ? "export function example(value: string) {\n\treturn value;\n}" : "\treturn ctx.continue();");
+		setBody(tab === "modules" ? "export function example(value: string) {\n\treturn value;\n}" : middlewareStarter());
 		setStage("processing");
 		setPosition("0");
 		setFailure("required");
@@ -177,7 +184,7 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 		setSavedEditor(
 			JSON.stringify({
 				name: "",
-				body: tab === "modules" ? "export function example(value: string) {\n\treturn value;\n}" : "\treturn ctx.continue();",
+				body: tab === "modules" ? "export function example(value: string) {\n\treturn value;\n}" : middlewareStarter(),
 				stage: "processing",
 				position: "0",
 				failure: "required",
@@ -234,7 +241,7 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 	async function editBinding(binding: Binding, asCopy = false) {
 		try {
 			const full = await api<Binding & { body: string }>("/middleware/" + binding.id);
-			full.body = await formatScriptForDisplay(full.body, full.stage === "ingress" ? "ingress_middleware" : "processing_middleware", full.sharedBindings);
+			full.body = await formatScriptForDisplay(scriptDocument(full.body, full.stage === "ingress" ? "ingress_middleware" : "processing_middleware", full.sharedBindings));
 			setEditingBinding(asCopy ? null : full);
 			setOrigin(asCopy ? full.id : full.originBindingId);
 			setSharedBindings(full.sharedBindings ?? {});
@@ -275,7 +282,8 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 		setError("");
 		setDiagnostics([]);
 		try {
-			const formatted = await formatScript(body, tab === "middleware" ? (stage === "ingress" ? "ingress_middleware" : "processing_middleware") : undefined, sharedBindings);
+			const source = tab === "middleware" ? scriptDocument(body, stage === "ingress" ? "ingress_middleware" : "processing_middleware", sharedBindings) : body;
+			const formatted = await formatScript(source);
 			setBody(formatted);
 			if (tab === "modules") {
 				await api("/shared-code", {
@@ -493,6 +501,7 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 										isRequired
 										value={name}
 										onChange={(next) => {
+											if (tab === "middleware" && !editingBinding) setBody((current) => (current === middlewareStarter(name, stage) ? middlewareStarter(next, stage) : current));
 											if (tab === "modules" && !editingBinding)
 												setBody((current) => {
 													const prior = name.replace(/[^A-Za-z0-9_$]/g, "_") || "example";
@@ -515,7 +524,16 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 										<>
 											<NativeSelect variant='secondary' fullWidth>
 												<Label>Stage</Label>
-												<NativeSelect.Trigger aria-label='Middleware stage' value={stage} onChange={(event) => setStage(event.target.value as typeof stage)} disabled={busy || Boolean(editingBinding)}>
+												<NativeSelect.Trigger
+													aria-label='Middleware stage'
+													value={stage}
+													onChange={(event) => {
+														const next = event.target.value as typeof stage;
+														setBody((current) => (current === middlewareStarter(name, stage) ? middlewareStarter(name, next) : current));
+														setStage(next);
+													}}
+													disabled={busy || Boolean(editingBinding)}
+												>
 													<NativeSelect.Option value='ingress'>Ingress</NativeSelect.Option>
 													<NativeSelect.Option value='processing'>Processing</NativeSelect.Option>
 													<NativeSelect.Indicator />
@@ -577,8 +595,8 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 									<CodeEditor
 										label={tab === "modules" ? "Shared helper code" : "Middleware code"}
 										value={body}
-										stage={tab === "middleware" ? (stage === "ingress" ? "ingress_middleware" : "processing_middleware") : undefined}
 										bindings={sharedBindings}
+										helperScope={tab !== "middleware" ? undefined : scope.type === "endpoint" ? (endpointScope ? { type: "project", id: endpointScope.projectId } : undefined) : { type: scope.type, id: scope.id }}
 										onSave={!busy && canEdit && (tab === "modules" || canPublish) ? () => (document.getElementById("code-editor-form") as HTMLFormElement | null)?.requestSubmit() : undefined}
 										onChange={setBody}
 										readOnly={busy || !canEdit || (tab === "middleware" && !canPublish)}

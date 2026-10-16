@@ -337,7 +337,10 @@ review refreshed Coolify findings before applying that structural redesign.
   loads/default templates and restore page scrolling with the sticky header.
 - [x] Apply explicitly requested global ordering, concise labels, bottom instance
   administration and a distinct helper icon.
-- [ ] Review the proposed scope-only menu, command search, concise breadcrumbs,
-  native imports/dependency locking, middleware ordering and test-client layout.
+- [x] Confirm the maintainer already requested scope-only navigation and native
+  imports; do not block this implementation on the unreceived confirmation.
+- [x] Verify and deliver scope-only navigation, command search, named route/section
+  breadcrumbs and native source imports with server-side immutable dependency pins.
+- [ ] Complete the remaining middleware ordering and test-client presentation review.
 - [ ] Verify keyboard open/close and browser-toolbar resizing on mobile; no physical
   Android keyboard pass is claimed by a narrow desktop viewport alone.

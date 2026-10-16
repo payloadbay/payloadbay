@@ -10,9 +10,8 @@ import { use, useState, useEffect, useCallback } from "react";
 import { Button, Card, Tabs, TextArea, Label } from "@heroui/react";
 import { IconArrowLeft, IconCheck, IconUpload, IconPlayerPause, IconPlayerPlay, IconCopy } from "@tabler/icons-react";
 import { NativeSelect } from "@heroui-pro/react";
-import { formatScript, formatScriptForDisplay } from "@lib/script-document";
+import { formatScript, formatScriptForDisplay, scriptDocument } from "@lib/script-document";
 import { CodeEditor } from "@components/code-editor";
-import { SharedBindings } from "@components/shared-bindings";
 import { SecretBindings } from "@components/secret-bindings";
 import { api, ApiFailure } from "@lib/api-client";
 import { hmacHttpTemplate } from "@sdk/templates/hmac";
@@ -139,7 +138,7 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 
 		if (code) {
 			code[0] = { ...code[0], body: await formatScriptForDisplay(code[0].body) };
-			code[1] = { ...code[1], body: await formatScriptForDisplay(code[1].body, "processing", code[1].shared_bindings) };
+			code[1] = { ...code[1], body: await formatScriptForDisplay(scriptDocument(code[1].body, "processing", code[1].shared_bindings)) };
 		}
 
 		return { next, code };
@@ -361,7 +360,7 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 					))}
 				</ul>
 			)}
-			{drafts && ["code", "helpers", "secrets"].includes(section) ? (
+			{drafts && ["code", "secrets"].includes(section) ? (
 				<Tabs
 					className='min-w-0 w-full'
 					selectedKey={stage}
@@ -397,7 +396,7 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 												setTemplates((previous) => ({ ...previous, [slot]: selected }));
 												if (selected === "hmac") void change(hmacHttpTemplate.source);
 												else if (selected === "unverified") void change(unverifiedHttpTemplate.source);
-												else if (selected === "delivery") void change(deliveryTemplate.body);
+												else if (selected === "delivery") void change(scriptDocument(deliveryTemplate.body, "processing"));
 											}}
 										>
 											<NativeSelect.Option value=''>Choose editable template</NativeSelect.Option>
@@ -418,13 +417,18 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 								<div className='min-w-0'>
 									<div className='mb-3 flex flex-wrap items-center justify-between gap-2'>
 										<p className='text-muted max-w-prose text-sm'>{slot === "ingress" ? "Export a handler for each HTTP method you want this route to receive. Choose whether to queue the event or just reply." : "Process queued events and decide whether delivery is complete, should retry, or has failed."}</p>
-										<ScriptingGuide />
+										<div className='flex items-center gap-2'>
+											<Link className='text-accent text-sm underline' href={"/code/project/" + projectId}>
+												Helper library
+											</Link>
+											<ScriptingGuide />
+										</div>
 									</div>
 									<CodeEditor
 										key={slot}
 										label={slot === "ingress" ? "Ingress code" : "Processing code"}
 										value={drafts[slot].body}
-										stage={slot === "ingress" ? undefined : slot}
+										helperScope={{ type: "project", id: projectId }}
 										bindings={drafts[slot].shared_bindings}
 										onSave={editable && !busy ? () => void save() : undefined}
 										onChange={(body) => {
@@ -434,31 +438,6 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 										readOnly={!editable || busy}
 									/>
 								</div>
-							)}
-							{section === "helpers" && (
-								<SharedBindings
-									projectId={projectId}
-									bindings={drafts[slot].shared_bindings}
-									disabled={busy || !editable}
-									onChange={(shared_bindings) => {
-										setDrafts((previous) => {
-											if (!previous) return previous;
-											let body = previous[slot].body;
-											if (slot === "ingress") {
-												for (const alias of Object.keys(shared_bindings)) {
-													if (!previous[slot].shared_bindings[alias]) body = `import * as ${alias} from "@shared/${alias}";` + (body.trimStart().startsWith("import ") ? "\n" : "\n\n") + body.trimStart();
-												}
-
-												for (const alias of Object.keys(previous[slot].shared_bindings)) {
-													if (!shared_bindings[alias]) body = body.replace(`import * as ${alias} from "@shared/${alias}";\n`, "");
-												}
-											}
-
-											return { ...previous, [slot]: { ...previous[slot], body, shared_bindings } };
-										});
-										setNotice("");
-									}}
-								/>
 							)}
 							{section === "secrets" && (
 								<SecretBindings

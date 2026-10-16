@@ -67,7 +67,8 @@ export async function compile(input: unknown) {
 	const resultType = stage === "ingress_middleware" ? "IngressMiddlewareDecision" : stage === "processing_middleware" ? "ProcessingMiddlewareDecision" : stage === "ingress" ? "IngressDecision" : "ProcessingDecision";
 	const functionName = stage === "ingress" ? "ingress" : stage === "processing" ? "processEvent" : "middleware";
 	const parsedBody = ts.createSourceFile("ingress.ts", body, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
-	const httpFile = stage === "ingress" && parsedBody.statements.some((node) => ts.canHaveModifiers(node) && ts.getModifiers(node)?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword));
+	const moduleFile = parsedBody.statements.some((node) => ts.canHaveModifiers(node) && ts.getModifiers(node)?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword));
+	const httpFile = stage === "ingress" && moduleFile;
 	const methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
 	const handlers = httpFile
 		? parsedBody.statements
@@ -86,7 +87,7 @@ export async function compile(input: unknown) {
 				message: "Export at least one named HTTP method function (GET, POST, PUT, PATCH, DELETE, HEAD or OPTIONS). Default exports are managed by Payload Bay.",
 			},
 		]);
-	const header = httpFile ? "" : imports + (imports ? "\n" : "") + `export default async function ${functionName}(ctx: ${ctxType}): Promise<${resultType}> {\n`;
+	const header = moduleFile ? "" : imports + (imports ? "\n" : "") + `export default async function ${functionName}(ctx: ${ctxType}): Promise<${resultType}> {\n`;
 	const dispatch = httpFile
 		? `
 const __payloadbayHandlers: Partial<Record<string, (ctx: IngressContext) => IngressDecision | Promise<IngressDecision>>> = { ${handlers.join(", ")} };
@@ -96,8 +97,26 @@ export default async function __payloadbayIngress(ctx: IngressContext): Promise<
  return await handler(ctx);
 }
 `
-		: "\n}\n";
-	const generated = header + body + dispatch;
+		: moduleFile
+			? ""
+			: "\n}\n";
+	if (moduleFile && !httpFile) {
+		const lifecycle = parsedBody.statements.filter(ts.isFunctionDeclaration).filter((node) => node.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.DefaultKeyword));
+		if (lifecycle.length !== 1 || !lifecycle[0].name || !lifecycle[0].modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.AsyncKeyword))
+			throw new CompilationError([
+				{
+					sourceId,
+					line: 1,
+					column: 1,
+					severity: "error",
+					code: "lifecycle_export",
+					message: "Export one named async default lifecycle function.",
+				},
+			]);
+	}
+
+	const lifecycleName = moduleFile && !httpFile ? parsedBody.statements.filter(ts.isFunctionDeclaration).find((node) => node.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.DefaultKeyword))!.name!.text : null;
+	const generated = header + body + dispatch + (lifecycleName ? `\nconst __payloadbayContract: (ctx: ${ctxType}) => Promise<${resultType}> = ${lifecycleName};\n` : "");
 	const source = ts.createSourceFile("body.ts", generated, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
 
 	function inspect(node: ts.Node): void {
@@ -160,7 +179,7 @@ export default async function __payloadbayIngress(ctx: IngressContext): Promise<
 	}
 
 	const functions = source.statements.filter(ts.isFunctionDeclaration);
-	if (!httpFile && (functions.length !== 1 || functions[0]?.name?.text !== functionName || source.statements.length !== bindings.length + 1))
+	if (!moduleFile && (functions.length !== 1 || functions[0]?.name?.text !== functionName || source.statements.length !== bindings.length + 1))
 		throw new CompilationError([
 			{
 				sourceId,

@@ -128,7 +128,9 @@ test("mobile dashboard keeps account actions in the avatar menu and projects in 
 	await page.getByRole("button", { name: "Toggle navigation" }).click();
 	const navigation = page.getByRole("dialog");
 	await expect(navigation).toBeVisible();
-	await expect(navigation.getByText("Demo integrations", { exact: true })).toBeVisible();
+	await expect(navigation.getByText("Browse hierarchy", { exact: true })).toHaveCount(0);
+	await expect(navigation.getByRole("row", { name: "Projects", exact: true })).toBeVisible();
+	await expect(navigation.getByRole("row", { name: "Workspaces", exact: true })).toBeVisible();
 	await page.keyboard.press("Escape");
 	await expect(navigation).toBeHidden();
 	await page.getByRole("button", { name: "Toggle navigation" }).click();
@@ -278,10 +280,10 @@ test("route editor has nested navigation, a scripting guide, typed method handle
 	await expect(page.getByLabel("Synthetic request body", { exact: true })).toBeHidden();
 	await page.getByRole("button", { name: "Toggle navigation" }).click();
 	const navigation = page.getByRole("dialog");
-	await navigation.getByText("Observe and troubleshoot", { exact: true }).click();
 	await expect(navigation.getByRole("row", { name: "Route events", exact: true })).toBeVisible();
 	await expect(navigation.getByRole("row", { name: "Secrets", exact: true })).toBeVisible();
-	await expect(navigation.getByRole("row", { name: "Instance members", exact: true })).toBeVisible();
+	await expect(navigation.getByRole("row", { name: "Instance members", exact: true })).toHaveCount(0);
+	await expect(navigation.getByRole("button", { name: "Back to project", exact: true })).toBeVisible();
 	await page.keyboard.press("Escape");
 	const editor = page.getByRole("textbox", { name: "Ingress code", exact: true });
 	await expect(page.locator(".monaco-editor .view-lines").first()).toBeVisible();
@@ -318,7 +320,6 @@ test("route editor has nested navigation, a scripting guide, typed method handle
 	await page.evaluate(() => window.scrollTo(0, 0));
 	await page.screenshot({ path: testInfo.outputPath("route-editor-mobile.png"), fullPage: true });
 	await page.setViewportSize({ width: 1440, height: 900 });
-	await page.getByText("Observe and troubleshoot", { exact: true }).click();
 	await expect(page.getByRole("row", { name: "Route events", exact: true })).toBeVisible();
 	await expect(page.getByRole("button", { name: "Toggle navigation" })).toBeHidden();
 	await page.getByRole("link", { name: "Back to project", exact: true }).click();

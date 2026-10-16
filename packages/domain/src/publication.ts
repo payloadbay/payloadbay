@@ -1,4 +1,4 @@
-import { resolveSharedModules } from "./shared-code.ts";
+import { resolveSharedModules, pinSourceImports } from "./shared-code.ts";
 import { middlewareSnapshot } from "./middleware.ts";
 import type { Pool, PoolClient } from "pg";
 import { transaction } from "./db.ts";
@@ -34,7 +34,12 @@ export async function saveDraft(
 		const endpoint = await endpointScope(db, input.endpointId);
 		await requirePermission(db, actor, { type: "project", id: endpoint.project_id }, "code.edit");
 		await db.query("SELECT id FROM payloadbay.endpoint WHERE id=$1 FOR UPDATE", [endpoint.id]);
-		const row = (await db.query("UPDATE payloadbay.draft SET body=$1,shared_bindings=COALESCE($2::jsonb,shared_bindings),secret_bindings=COALESCE($6::jsonb,secret_bindings),version=version+1 WHERE endpoint_id=$3 AND stage=$4 AND version=$5 RETURNING *", [input.body, input.sharedBindings === undefined ? null : JSON.stringify(input.sharedBindings), endpoint.id, input.stage, input.expectedVersion, input.secretBindings === undefined ? null : JSON.stringify(input.secretBindings)])).rows[0];
+		const current = (await db.query("SELECT * FROM payloadbay.draft WHERE endpoint_id=$1 AND stage=$2", [endpoint.id, input.stage])).rows[0];
+		if (!current || current.version !== input.expectedVersion) throw new AppError("version_conflict", 409, "Draft changed; reload before saving");
+		const existing = input.sharedBindings ?? current.shared_bindings;
+		const sourceFile = /^\s*(?:import|export)\s/m.test(input.body);
+		const bindings = sourceFile ? await pinSourceImports(db, actor, { type: "project", id: endpoint.project_id }, input.body, existing) : existing;
+		const row = (await db.query("UPDATE payloadbay.draft SET body=$1,shared_bindings=COALESCE($2::jsonb,shared_bindings),secret_bindings=COALESCE($6::jsonb,secret_bindings),version=version+1 WHERE endpoint_id=$3 AND stage=$4 AND version=$5 RETURNING *", [input.body, JSON.stringify(bindings), endpoint.id, input.stage, input.expectedVersion, input.secretBindings === undefined ? null : JSON.stringify(input.secretBindings)])).rows[0];
 		if (!row) throw new AppError("version_conflict", 409, "Draft changed; reload before saving");
 
 		return row;
