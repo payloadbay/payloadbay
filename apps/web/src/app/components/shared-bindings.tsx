@@ -5,7 +5,7 @@ import { useFeedbackToast } from "@lib/feedback";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Button, Card, Form, TextField, Input, Label, FieldError, Table } from "@heroui/react";
 import { NativeSelect } from "@heroui-pro/react";
-import { IconCode, IconX } from "@tabler/icons-react";
+import { IconLibrary, IconX } from "@tabler/icons-react";
 import { api } from "@lib/api-client";
 
 type Version = { id: string; name: string; scope: { type: string; id: string } };
@@ -59,7 +59,7 @@ export function SharedBindings({ projectId, bindings, onChange, disabled }: Shar
 		<Card>
 			<Card.Header>
 				<h3 className='flex items-center gap-2 font-semibold'>
-					<IconCode size={18} />
+					<IconLibrary size={18} />
 					Shared helper imports
 				</h3>
 				<Card.Description>

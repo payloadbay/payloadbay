@@ -27,6 +27,7 @@ export async function listEvents(
 		projectId?: string;
 		workspaceId?: string;
 		state?: string;
+		states?: string[];
 		endpointId?: string;
 		limit?: number;
 		cursor?: string;
@@ -35,15 +36,17 @@ export async function listEvents(
 	if (input.projectId) await requirePermission(pool, actor, { type: "project", id: input.projectId }, "metadata.read");
 	const projectIds = input.projectId ? [input.projectId] : (await listResources(pool, actor, "project", input.workspaceId)).map((project) => project.id);
 	if (!projectIds.length) return { items: [], nextCursor: null };
-	if (input.state && !["queued", "running", "retry_wait", "succeeded", "failed_terminal", "reject", "respondOnly", "error"].includes(input.state)) throw new AppError("invalid_state", 400, "Choose a valid processing state");
+	const states = [...new Set(input.states ?? (input.state ? [input.state] : []))];
+	const allowedStates = input.view === "attempts" ? ["running", "delivered", "delivery_failed"] : ["queued", "running", "retry_wait", "succeeded", "failed_terminal", "reject", "respondOnly", "error", "accept"];
+	if (states.length > allowedStates.length || states.some((state) => !allowedStates.includes(state))) throw new AppError("invalid_state", 400, "Choose statuses available for this history view");
 	const parsed = pageQuery.safeParse({ limit: input.limit, cursor: input.cursor });
 	if (!parsed.success) throw new AppError("invalid_pagination", 400, "Choose a list limit from 1 to 200");
 	const after = cursor(parsed.data.cursor);
 	if (input.view === "attempts") {
 		const rows = (
 			await pool.query(
-				`SELECT a.id,e.id AS event_id,ep.project_id,e.endpoint_id,ep.name AS endpoint_name,a.started_at,a.status_code,a.network_error,a.ended_at,a.execution_id,a.execution_attempt,octet_length(e.original_body) AS body_bytes,e.ingress_outcome,e.request_method,e.response_status,to_char(a.started_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at FROM payloadbay.delivery_attempt a JOIN payloadbay.execution x ON x.id=a.execution_id JOIN payloadbay.event e ON e.id=x.event_id JOIN payloadbay.endpoint ep ON ep.id=e.endpoint_id WHERE ep.project_id=ANY($1::uuid[]) AND ($2::uuid IS NULL OR e.endpoint_id=$2) AND ($3::timestamptz IS NULL OR (a.started_at,a.id)<($3::timestamptz,$4::uuid)) ORDER BY a.started_at DESC,a.id DESC LIMIT $5`,
-				[projectIds, input.endpointId ?? null, after?.at ?? null, after?.id ?? null, parsed.data.limit + 1],
+				`SELECT a.id,e.id AS event_id,ep.project_id,e.endpoint_id,ep.name AS endpoint_name,a.started_at,a.status_code,a.network_error,a.ended_at,a.execution_id,a.execution_attempt,octet_length(e.original_body) AS body_bytes,e.ingress_outcome,e.request_method,e.response_status,to_char(a.started_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at FROM payloadbay.delivery_attempt a JOIN payloadbay.execution x ON x.id=a.execution_id JOIN payloadbay.event e ON e.id=x.event_id JOIN payloadbay.endpoint ep ON ep.id=e.endpoint_id WHERE ep.project_id=ANY($1::uuid[]) AND ($2::uuid IS NULL OR e.endpoint_id=$2) AND ($3::timestamptz IS NULL OR (a.started_at,a.id)<($3::timestamptz,$4::uuid)) AND ($6::text[] IS NULL OR CASE WHEN a.ended_at IS NULL THEN 'running' WHEN a.status_code BETWEEN 200 AND 299 THEN 'delivered' ELSE 'delivery_failed' END=ANY($6::text[])) ORDER BY a.started_at DESC,a.id DESC LIMIT $5`,
+				[projectIds, input.endpointId ?? null, after?.at ?? null, after?.id ?? null, parsed.data.limit + 1, states.length ? states : null],
 			)
 		).rows;
 		const selected = rows.slice(0, parsed.data.limit);
@@ -72,8 +75,8 @@ export async function listEvents(
 
 	const rows = (
 		await pool.query(
-			`SELECT e.id,e.ingress_outcome,e.request_method,e.response_status,ep.project_id,e.endpoint_id,e.publication_id,e.received_at,octet_length(e.original_body) AS body_bytes,ep.name AS endpoint_name,latest.id AS execution_id,latest.state,latest.attempt_number,(SELECT count(*)::int FROM payloadbay.delivery_attempt a WHERE a.execution_id=latest.id) AS delivery_attempts,to_char(e.received_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at FROM payloadbay.event e JOIN payloadbay.endpoint ep ON ep.id=e.endpoint_id LEFT JOIN LATERAL(SELECT x.id,x.state,x.attempt_number FROM payloadbay.execution x WHERE x.event_id=e.id ORDER BY x.created_at DESC,x.id DESC LIMIT 1)latest ON true WHERE ep.project_id=ANY($1::uuid[]) AND ($2::uuid IS NULL OR e.endpoint_id=$2) AND ($3::timestamptz IS NULL OR (e.received_at,e.id)<($3::timestamptz,$4::uuid)) AND ($6::text IS NULL OR COALESCE(latest.state,e.ingress_outcome)=$6) ORDER BY e.received_at DESC,e.id DESC LIMIT $5`,
-			[projectIds, input.endpointId ?? null, after?.at ?? null, after?.id ?? null, parsed.data.limit + 1, input.state ?? null],
+			`SELECT e.id,e.ingress_outcome,e.request_method,e.response_status,ep.project_id,e.endpoint_id,e.publication_id,e.received_at,octet_length(e.original_body) AS body_bytes,ep.name AS endpoint_name,latest.id AS execution_id,latest.state,latest.attempt_number,(SELECT count(*)::int FROM payloadbay.delivery_attempt a WHERE a.execution_id=latest.id) AS delivery_attempts,to_char(e.received_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at FROM payloadbay.event e JOIN payloadbay.endpoint ep ON ep.id=e.endpoint_id LEFT JOIN LATERAL(SELECT x.id,x.state,x.attempt_number FROM payloadbay.execution x WHERE x.event_id=e.id ORDER BY x.created_at DESC,x.id DESC LIMIT 1)latest ON true WHERE ep.project_id=ANY($1::uuid[]) AND ($2::uuid IS NULL OR e.endpoint_id=$2) AND ($3::timestamptz IS NULL OR (e.received_at,e.id)<($3::timestamptz,$4::uuid)) AND ($6::text[] IS NULL OR COALESCE(latest.state,e.ingress_outcome)=ANY($6::text[])) ORDER BY e.received_at DESC,e.id DESC LIMIT $5`,
+			[projectIds, input.endpointId ?? null, after?.at ?? null, after?.id ?? null, parsed.data.limit + 1, states.length ? states : null],
 		)
 	).rows;
 	const hasMore = rows.length > parsed.data.limit;
@@ -139,5 +142,24 @@ export async function eventDetails(pool: Pool, actor: Actor, id: string) {
 		responseStatus: row.response_status,
 		executions,
 		attempts,
+	};
+}
+
+/** Response bytes require payload permission, independently of attempt metadata. */
+export async function deliveryAttemptDetails(pool: Pool, actor: Actor, id: string) {
+	const row = (await pool.query(`SELECT a.*,x.event_id,ep.project_id FROM payloadbay.delivery_attempt a JOIN payloadbay.execution x ON x.id=a.execution_id JOIN payloadbay.endpoint ep ON ep.id=x.endpoint_id WHERE a.id=$1`, [id])).rows[0];
+	if (!row) throw new AppError("not_found", 404, "Delivery attempt unavailable");
+	const held = await requirePermission(pool, actor, { type: "project", id: row.project_id }, "metadata.read");
+
+	return {
+		id: row.id,
+		eventId: row.event_id,
+		operationId: row.operation_id,
+		status: row.status_code,
+		networkError: row.network_error,
+		durationMs: row.duration_ms,
+		startedAt: row.started_at.toISOString(),
+		endedAt: row.ended_at?.toISOString() ?? null,
+		...(held.has("payload.read") ? { responseBody: row.response_body?.toString("base64") ?? null, encoding: "base64" } : {}),
 	};
 }

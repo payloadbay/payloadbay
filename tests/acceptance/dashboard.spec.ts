@@ -263,11 +263,13 @@ test("U265 route editor binds an encrypted signing secret version", async ({ pag
 	await page.getByRole("row", { name: "Secrets", exact: true }).click();
 	await expect(page.getByRole("button", { name: "Create secret version", exact: true }), "Secret version controls must be available").toBeVisible();
 	await page.getByRole("button", { name: "Create secret version", exact: true }).click();
-	await page.getByLabel("Secret name").fill("Signing key");
+	await expect(page.getByLabel("Secret key")).toHaveValue("");
+	await page.getByLabel("Secret key").fill("Signing key");
 	await page.getByLabel("Secret value").fill("fixture-private-signing-key");
 	await page.getByRole("dialog").getByRole("button", { name: "Create secret version", exact: true }).click();
 	await expect(page.getByRole("alertdialog", { name: "Secret status", exact: true })).toContainText("Secret version created");
 	await page.getByRole("button", { name: "Bind secret version", exact: true }).click();
+	await page.getByLabel("Script key").fill("SIGNING_SECRET");
 	await page.getByRole("dialog").getByRole("button", { name: "Bind secret version", exact: true }).click();
 	await page.getByRole("button", { name: "Save draft", exact: true }).click();
 	await expect(page.getByText("Draft saved · Not published", { exact: true })).toBeVisible();
@@ -279,6 +281,7 @@ test("U265 route editor binds an encrypted signing secret version", async ({ pag
 });
 
 test("U116 event inspector displays HTML payload as escaped text", async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 844 });
 	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
 	const headers = commandHeaders();
@@ -294,7 +297,9 @@ test("U116 event inspector displays HTML payload as escaped text", async ({ page
 	const pool = database(process.env.DATABASE_URL!);
 	try {
 		const event = (await pool.query("INSERT INTO payloadbay.event(endpoint_id,publication_id,original_body,accepted_body,headers,content_type) VALUES($1,$2,$3,$3,'{}','text/html') RETURNING id", [route.id, publication.id, Buffer.from(body)])).rows[0].id;
-		await pool.query("INSERT INTO payloadbay.execution(event_id,endpoint_id,publication_id,state,final_result) VALUES($1,$2,$3,'succeeded','{\"kind\":\"complete\"}')", [event, route.id, publication.id]);
+		const execution = (await pool.query("INSERT INTO payloadbay.execution(event_id,endpoint_id,publication_id,state,final_result) VALUES($1,$2,$3,'succeeded','{\"kind\":\"complete\"}') RETURNING id", [event, route.id, publication.id])).rows[0].id;
+		await pool.query("INSERT INTO payloadbay.managed_operation(execution_id,operation_id,input_digest,destination_snapshot,generation) VALUES($1,'primary','fixture','{}',1)", [execution]);
+		await pool.query("INSERT INTO payloadbay.delivery_attempt(execution_id,operation_id,execution_attempt,generation,ended_at,status_code,response_body) VALUES($1,'primary',1,1,now(),503,$2),($1,'primary',2,1,now(),204,''::bytea)", [execution, Buffer.from("Receiver is offline")]);
 	} finally {
 		await pool.end();
 	}
@@ -307,6 +312,28 @@ test("U116 event inspector displays HTML payload as escaped text", async ({ page
 	await expect(page.locator('img[src="x"]')).toHaveCount(0);
 	expect(await page.evaluate(() => Boolean((globalThis as typeof globalThis & { PAYLOADBAY_ATTACKED?: boolean }).PAYLOADBAY_ATTACKED))).toBe(false);
 	await expect(page.getByText("Handler completed", { exact: true }).last()).toBeVisible();
+	await page.getByRole("dialog").getByRole("button", { name: /close/i }).first().click();
+	await page.getByRole("button", { name: "Delivery attempts", exact: true }).click();
+	await page.getByRole("button", { name: /History status/ }).click();
+	await page.getByRole("option", { name: "Delivery failed", exact: true }).click();
+	await page.keyboard.press("Escape");
+	const attemptRows = page.getByRole("grid", { name: "Delivery attempts", exact: true });
+	await expect(attemptRows.getByText("Delivery failed", { exact: true })).toBeVisible();
+	await expect(attemptRows.getByText("Delivered", { exact: true })).toHaveCount(0);
+	await page.getByRole("button", { name: /Inspect event/ }).click();
+	await expect(page.getByRole("dialog", { name: "Delivery attempt inspection" })).toBeVisible();
+	await expect(page.getByLabel("Delivery response body")).toHaveText("Receiver is offline");
+	const attemptDialog = await page.getByRole("dialog", { name: "Delivery attempt inspection" }).boundingBox();
+	expect(attemptDialog!.x).toBeGreaterThanOrEqual(0);
+	expect(attemptDialog!.width).toBeLessThanOrEqual(390);
+	await page.screenshot({ path: test.info().outputPath("attempt-inspector-mobile.png") });
+
+	await page.getByRole("dialog").getByRole("button", { name: /close/i }).first().click();
+	await page.getByRole("button", { name: /History status/ }).click();
+	await page.getByRole("option", { name: "Delivered", exact: true }).click();
+	await page.keyboard.press("Escape");
+	await expect(attemptRows.getByText("Delivered", { exact: true })).toBeVisible();
+	await expect(attemptRows.getByText("Delivery failed", { exact: true })).toBeVisible();
 });
 
 test("U275 stored event appears through authenticated live updates", async ({ page }) => {
@@ -758,9 +785,21 @@ test("overview and mobile hierarchy preserve context while search opens resource
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.screenshot({ path: test.info().outputPath("overview-mobile.png"), fullPage: true });
+	const toggleBeforeScroll = await page.getByRole("button", { name: "Toggle navigation" }).boundingBox();
+	await page.evaluate(() => window.scrollTo(0, 350));
+	await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+	expect((await page.getByRole("button", { name: "Toggle navigation" }).boundingBox())!.y).toBeCloseTo(toggleBeforeScroll!.y, 0);
+
 	await page.getByRole("button", { name: "Toggle navigation" }).click();
 	const drawer = page.getByRole("dialog");
 	await expect(drawer).toBeVisible();
+	const globalRows = drawer.getByRole("treegrid", { name: "Global navigation" }).getByRole("row");
+	await expect(globalRows.nth(0)).toContainText("Overview");
+	await expect(globalRows.nth(1)).toContainText("Workspaces");
+	await expect(globalRows.nth(2)).toContainText("Projects");
+	await expect(drawer.getByRole("row", { name: "Event log", exact: true })).toBeVisible();
+	await expect(drawer.getByRole("treegrid", { name: "Instance administration" }).getByRole("row", { name: "Instance members", exact: true })).toBeVisible();
+
 	await drawer.getByRole("row", { name: "Design workspace workspace", exact: true }).click();
 	await expect(page).toHaveURL(/\/$/);
 	await expect(drawer).toBeVisible();

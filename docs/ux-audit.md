@@ -154,3 +154,11 @@ These are scoped runs, not a full release certification. Generated OpenAPI/Scala
 screen parity, published-image installation/upgrade, complete recovery/performance
 and optional host runsc release gates remain separate work. Preview verification
 is recorded with the pushed revision in Linear PAB-66.
+
+
+## Second mobile review — 2026-10-16
+
+The maintainer's new findings, refreshed Coolify source index, confirmed defects,
+and proposed coherent navigation/editor pass are in
+[ux-review-2026-10-16.md](ux-review-2026-10-16.md). Keep the structural proposal
+separate from the approved general principles and already-implemented corrections.

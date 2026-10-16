@@ -25,3 +25,12 @@ export async function formatScript(body: string, stage?: ScriptStage, bindings: 
 
 	return result.slice(headerEnd + 2, -2).replace(/\n$/, "");
 }
+
+/** Existing incomplete drafts stay editable when formatting cannot parse them. */
+export async function formatScriptForDisplay(body: string, stage?: ScriptStage, bindings: Record<string, string> = {}) {
+	try {
+		return await formatScript(body, stage, bindings);
+	} catch {
+		return body;
+	}
+}

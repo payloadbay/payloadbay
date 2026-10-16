@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 			...(query.get("projectId") ? { projectId: uuid(query.get("projectId")!) } : {}),
 			...(query.get("workspaceId") ? { workspaceId: uuid(query.get("workspaceId")!) } : {}),
 			...(query.get("endpointId") ? { endpointId: uuid(query.get("endpointId")!) } : {}),
-			...(query.get("state") ? { state: query.get("state")! } : {}),
+			...(query.has("state") ? { states: query.getAll("state").filter(Boolean) } : {}),
 		});
 	});
 }

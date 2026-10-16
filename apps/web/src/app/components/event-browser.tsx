@@ -2,7 +2,7 @@
 
 import { useFeedbackToast } from "@lib/feedback";
 import { useState, useEffect, useCallback } from "react";
-import { Button, Table, Label } from "@heroui/react";
+import { Button, Table, Label, Chip, Select, ListBox } from "@heroui/react";
 import { EmptyState, Sheet, NativeSelect } from "@heroui-pro/react";
 import { IconInbox, IconEye, IconRefresh, IconPlayerPlay } from "@tabler/icons-react";
 import { useDashboard } from "@components/dashboard-shell";
@@ -49,6 +49,15 @@ type Detail = {
 	executions: Execution[];
 	attempts: Attempt[];
 };
+type AttemptDetail = {
+	id: string;
+	operationId: string;
+	status: number | null;
+	networkError: string | null;
+	durationMs: number | null;
+	responseBody?: string | null;
+};
+
 type Payload = {
 	originalBody: string;
 	acceptedBody: string;
@@ -80,7 +89,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 
 	const [projectFilter, setProjectFilter] = useState("");
 	const [workspaceFilter, setWorkspaceFilter] = useState("");
-	const [stateFilter, setStateFilter] = useState("");
+	const [stateFilter, setStateFilter] = useState<string[]>([]);
 	const [view, setView] = useState<"requests" | "attempts">("requests");
 
 	const activeProjectId = projectId ?? projectFilter;
@@ -91,6 +100,8 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 	const [error, setError] = useState("");
 	const [selected, setSelected] = useState<string | null>(null);
 	const [detail, setDetail] = useState<Detail | null>(null);
+	const [selectedAttempt, setSelectedAttempt] = useState<string | null>(null);
+	const [attemptDetail, setAttemptDetail] = useState<AttemptDetail | null>(null);
 	const [payload, setPayload] = useState<Payload | null>(null);
 	const [detailError, setDetailError] = useState("");
 	const [busy, setBusy] = useState(false);
@@ -106,7 +117,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 			const query = new URLSearchParams();
 			if (cursor) query.set("cursor", cursor);
 			if (endpointId) query.set("endpointId", endpointId);
-			if (stateFilter && view === "requests") query.set("state", stateFilter);
+			for (const state of stateFilter) query.append("state", state);
 			query.set("view", view);
 			if (!activeProjectId && workspaceFilter) query.set("workspaceId", workspaceFilter);
 			const address = activeProjectId ? "/projects/" + activeProjectId + "/events" : "/events";
@@ -211,8 +222,27 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 		};
 	}, [selected, inspectionProject, activeProjectId, page.items]);
 
+	useEffect(() => {
+		if (!selectedAttempt) return;
+		let active = true;
+		api<AttemptDetail>("/delivery-attempts/" + selectedAttempt).then(
+			(next) => {
+				if (active) setAttemptDetail(next);
+			},
+			(cause) => {
+				if (active) setDetailError(cause instanceof Error ? cause.message : "Attempt unavailable");
+			},
+		);
+
+		return () => {
+			active = false;
+		};
+	}, [selectedAttempt]);
+
 	function inspect(id: string) {
 		setSelected(id);
+		setSelectedAttempt(null);
+		setAttemptDetail(null);
 		setDetail(null);
 		setPayload(null);
 		setDetailError("");
@@ -266,10 +296,22 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 			</header>
 
 			<div className='flex flex-wrap gap-2' aria-label='History view'>
-				<Button variant={view === "requests" ? "primary" : "secondary"} onPress={() => setView("requests")}>
+				<Button
+					variant={view === "requests" ? "primary" : "secondary"}
+					onPress={() => {
+						setView("requests");
+						setStateFilter([]);
+					}}
+				>
 					Incoming requests
 				</Button>
-				<Button variant={view === "attempts" ? "primary" : "secondary"} onPress={() => setView("attempts")}>
+				<Button
+					variant={view === "attempts" ? "primary" : "secondary"}
+					onPress={() => {
+						setView("attempts");
+						setStateFilter([]);
+					}}
+				>
 					Delivery attempts
 				</Button>
 			</div>
@@ -312,18 +354,24 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 						</NativeSelect>
 					</>
 				)}
-				<NativeSelect fullWidth>
-					<Label>Processing state</Label>
-					<NativeSelect.Trigger aria-label='Event processing state' disabled={view === "attempts"} value={stateFilter} onChange={(e) => setStateFilter(e.target.value)}>
-						<NativeSelect.Option value=''>All states</NativeSelect.Option>
-						{Object.entries(labels).map(([value, name]) => (
-							<NativeSelect.Option key={value} value={value}>
-								{name}
-							</NativeSelect.Option>
-						))}
-						<NativeSelect.Indicator />
-					</NativeSelect.Trigger>
-				</NativeSelect>
+				<Select aria-label='History status' selectionMode='multiple' value={stateFilter} onChange={(keys) => setStateFilter(keys.map(String))} placeholder='All statuses' fullWidth>
+					<Label>Status</Label>
+					<Select.Trigger>
+						<Select.Value />
+						<Select.ClearButton />
+						<Select.Indicator />
+					</Select.Trigger>
+					<Select.Popover>
+						<ListBox selectionMode='multiple'>
+							{(view === "attempts" ? ["running", "delivered", "delivery_failed"] : ["queued", "running", "retry_wait", "succeeded", "failed_terminal", "reject", "respondOnly", "error"]).map((value) => (
+								<ListBox.Item key={value} id={value} textValue={labels[value]}>
+									{labels[value]}
+									<ListBox.ItemIndicator />
+								</ListBox.Item>
+							))}
+						</ListBox>
+					</Select.Popover>
+				</Select>
 			</div>
 
 			{page.items.length ? (
@@ -332,7 +380,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 						<Table.Content aria-label={view === "requests" ? "Stored events" : "Delivery attempts"}>
 							<Table.Header>
 								<Table.Column isRowHeader>Request</Table.Column>
-								<Table.Column className='hidden sm:table-cell'>Processing</Table.Column>
+								<Table.Column>Status</Table.Column>
 								<Table.Column aria-label='Inspect' />
 							</Table.Header>
 							<Table.Body>
@@ -344,18 +392,27 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 											<time className='text-muted text-xs' dateTime={event.receivedAt}>
 												{new Date(event.receivedAt).toLocaleString()}
 											</time>
-											<p className='text-muted mt-1 text-xs sm:hidden'>
-												{labels[event.state ?? ""] ?? "Stored"} · {event.deliveryAttempts} HTTP attempts
-											</p>
+											<p className='text-muted mt-1 text-xs sm:hidden'>{event.deliveryAttempts} HTTP attempts</p>
 										</Table.Cell>
-										<Table.Cell className='hidden sm:table-cell'>
-											<span className={event.state === "failed_terminal" ? "text-danger" : event.state === "succeeded" ? "text-success" : "text-muted"}>{labels[event.state ?? ""] ?? "Stored"}</span>
+										<Table.Cell>
+											<Chip size='sm' variant='soft' color={["failed_terminal", "delivery_failed", "error", "reject"].includes(event.state ?? "") ? "danger" : ["succeeded", "delivered"].includes(event.state ?? "") ? "success" : event.state === "retry_wait" ? "warning" : "accent"}>
+												{labels[event.state ?? ""] ?? "Stored"}
+											</Chip>
 											<p className='text-muted text-xs'>
 												{event.deliveryAttempts} HTTP attempts · {event.bodyBytes} bytes
 											</p>
 										</Table.Cell>
 										<Table.Cell>
-											<Button isIconOnly size='sm' variant='secondary' aria-label={"Inspect event " + event.id.slice(0, 8)} onPress={() => inspect(event.eventId ?? event.id)}>
+											<Button
+												isIconOnly
+												size='sm'
+												variant='secondary'
+												aria-label={"Inspect event " + event.id.slice(0, 8)}
+												onPress={() => {
+													inspect(event.eventId ?? event.id);
+													if (view === "attempts") setSelectedAttempt(event.id);
+												}}
+											>
 												<IconEye size={16} />
 											</Button>
 										</Table.Cell>
@@ -371,8 +428,8 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 						<EmptyState.Media variant='icon'>
 							<IconInbox />
 						</EmptyState.Media>
-						<EmptyState.Title>No events yet</EmptyState.Title>
-						<EmptyState.Description>Publish an ingress route and send a webhook to its receiving URL.</EmptyState.Description>
+						<EmptyState.Title>{stateFilter.length ? "No matching entries" : "No events yet"}</EmptyState.Title>
+						<EmptyState.Description>{stateFilter.length ? "No entries match these statuses. Clear or change the status filter." : "Publish an ingress route and send a webhook to its receiving URL."}</EmptyState.Description>
 					</EmptyState.Header>
 				</EmptyState>
 			)}
@@ -384,7 +441,10 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 			<Sheet
 				isOpen={Boolean(selected)}
 				onOpenChange={(open) => {
-					if (!open && !busy) setSelected(null);
+					if (!open && !busy) {
+						setSelected(null);
+						setSelectedAttempt(null);
+					}
 				}}
 			>
 				<Sheet.Backdrop>
@@ -392,7 +452,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 						<Sheet.Dialog className='flex max-h-[calc(100dvh-1rem)] w-full min-w-0 max-w-2xl flex-col overflow-hidden'>
 							<Sheet.CloseTrigger />
 							<Sheet.Header>
-								<Sheet.Heading>Event inspection</Sheet.Heading>
+								<Sheet.Heading>{selectedAttempt ? "Delivery attempt inspection" : "Event inspection"}</Sheet.Heading>
 								<p className='text-muted break-all text-xs'>{selected}</p>
 							</Sheet.Header>
 							<Sheet.Body className='flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto'>
@@ -411,6 +471,31 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 													{detail.contentType} · {detail.bodyBytes} bytes
 												</p>
 											</div>
+											{selectedAttempt && (
+												<section aria-label='Selected delivery attempt' className='flex flex-col gap-3'>
+													<h3 className='font-semibold'>Destination response</h3>
+													{!attemptDetail ? (
+														<p role='status'>Loading attempt…</p>
+													) : (
+														<>
+															<p className='break-all text-sm'>
+																{attemptDetail.operationId} · {attemptDetail.status ? `HTTP ${attemptDetail.status}` : (attemptDetail.networkError ?? "In progress")}
+																{attemptDetail.durationMs !== null ? ` · ${attemptDetail.durationMs} ms` : ""}
+															</p>
+															{attemptDetail.responseBody !== undefined ? (
+																<>
+																	<p className='text-muted text-xs'>Captured response body, up to 64 KiB. Response headers are not currently recorded.</p>
+																	<pre aria-label='Delivery response body' className='bg-field max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-lg p-3 text-xs'>
+																		{attemptDetail.responseBody === null ? "No response was captured." : decode(attemptDetail.responseBody) || "Empty response body."}
+																	</pre>
+																</>
+															) : (
+																<p className='text-muted text-sm'>Response body requires payload-read permission.</p>
+															)}
+														</>
+													)}
+												</section>
+											)}
 											<section>
 												<h3 className='mb-3 font-semibold'>Processing executions</h3>
 												<ul className='flex flex-col gap-3'>
@@ -430,7 +515,17 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 													<ul className='flex flex-col gap-2'>
 														{detail.attempts.map((attempt) => (
 															<li key={attempt.id} className='border-border flex justify-between gap-3 rounded-lg border p-3 text-sm'>
-																<code>{attempt.operation_id}</code>
+																<Button
+																	size='sm'
+																	variant='ghost'
+																	onPress={() => {
+																		setAttemptDetail(null);
+																		setSelectedAttempt(attempt.id);
+																	}}
+																	aria-label={"Inspect delivery attempt " + attempt.id.slice(0, 8)}
+																>
+																	{attempt.operation_id}
+																</Button>
 																<span className={attempt.status_code && attempt.status_code >= 200 && attempt.status_code < 300 ? "text-success" : "text-danger"}>{attempt.status_code ? "HTTP " + attempt.status_code : (attempt.network_error ?? "Outcome pending")}</span>
 															</li>
 														))}

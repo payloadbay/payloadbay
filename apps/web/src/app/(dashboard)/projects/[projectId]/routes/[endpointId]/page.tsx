@@ -10,7 +10,7 @@ import { use, useState, useEffect, useCallback } from "react";
 import { Button, Card, Tabs, TextArea, Label } from "@heroui/react";
 import { IconArrowLeft, IconCheck, IconUpload, IconPlayerPause, IconPlayerPlay, IconCopy } from "@tabler/icons-react";
 import { NativeSelect } from "@heroui-pro/react";
-import { formatScript } from "@lib/script-document";
+import { formatScript, formatScriptForDisplay } from "@lib/script-document";
 import { CodeEditor } from "@components/code-editor";
 import { SharedBindings } from "@components/shared-bindings";
 import { SecretBindings } from "@components/secret-bindings";
@@ -136,6 +136,11 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 		const next = await api<Route>("/endpoints/" + endpointId);
 		if (next.projectId !== projectId) throw Error("Route does not belong to this project");
 		const code = next.permissions.includes("code.read") ? await Promise.all([api<Draft>("/endpoints/" + endpointId + "/drafts/ingress"), api<Draft>("/endpoints/" + endpointId + "/drafts/processing"), api<Publication[]>("/endpoints/" + endpointId + "/publications")]) : null;
+
+		if (code) {
+			code[0] = { ...code[0], body: await formatScriptForDisplay(code[0].body) };
+			code[1] = { ...code[1], body: await formatScriptForDisplay(code[1].body, "processing", code[1].shared_bindings) };
+		}
 
 		return { next, code };
 	}, [endpointId, projectId]);
@@ -441,7 +446,7 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 											let body = previous[slot].body;
 											if (slot === "ingress") {
 												for (const alias of Object.keys(shared_bindings)) {
-													if (!previous[slot].shared_bindings[alias]) body = `import * as ${alias} from "@shared/${alias}";\n` + body;
+													if (!previous[slot].shared_bindings[alias]) body = `import * as ${alias} from "@shared/${alias}";` + (body.trimStart().startsWith("import ") ? "\n" : "\n\n") + body.trimStart();
 												}
 
 												for (const alias of Object.keys(previous[slot].shared_bindings)) {

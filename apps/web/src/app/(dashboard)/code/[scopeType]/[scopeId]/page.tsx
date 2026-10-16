@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { Button, Card, Form, TextField, Label, Input, FieldError, Tabs, NumberField, Checkbox } from "@heroui/react";
 import { EmptyState, Sheet, NativeSelect } from "@heroui-pro/react";
 import { IconCode, IconPlus, IconCopy, IconLock, IconArrowLeft, IconCheck } from "@tabler/icons-react";
-import { formatScript } from "@lib/script-document";
+import { formatScript, formatScriptForDisplay } from "@lib/script-document";
 import { useUnsavedChanges } from "@components/unsaved-changes";
 import { ScriptingGuide } from "@components/scripting-guide";
 import { CodeEditor } from "@components/code-editor";
@@ -192,6 +192,7 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 	async function editModule(module: Module) {
 		try {
 			const full = await api<Module & { source: string }>("/shared-code/" + module.id);
+			full.source = await formatScriptForDisplay(full.source);
 			setEditingModule(full);
 			setEditingBinding(null);
 			setName(full.name);
@@ -233,6 +234,7 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 	async function editBinding(binding: Binding, asCopy = false) {
 		try {
 			const full = await api<Binding & { body: string }>("/middleware/" + binding.id);
+			full.body = await formatScriptForDisplay(full.body, full.stage === "ingress" ? "ingress_middleware" : "processing_middleware", full.sharedBindings);
 			setEditingBinding(asCopy ? null : full);
 			setOrigin(asCopy ? full.id : full.originBindingId);
 			setSharedBindings(full.sharedBindings ?? {});

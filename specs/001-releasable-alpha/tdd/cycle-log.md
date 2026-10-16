@@ -2436,3 +2436,25 @@ already-installed Recharts peer, responsive tick spacing and tooltips. No new
 dependency or one-use component was added. The focused overview/mobile browser
 case passed with actual 12px axis text, readable rendered bounds and no page
 width overflow at 320px; web typecheck, scoped ESLint/Prettier and diff check passed.
+
+
+## Second mobile review — 2026-10-16
+
+This is a regression/audit pass, not a fabricated test-first cycle.
+
+- Ingress integration: 21 passed, including OR filters/empty pages and separate
+  metadata/payload permissions for captured attempt bodies.
+- Contracts: 27 passed.
+- Six focused dashboard browser cases passed, covering stages, empty secret keys,
+  captured-response inspection and multiple status selection, helper bindings,
+  helper/middleware saves, global menu order and native page scrolling with a
+  sticky header. The first inspector run caught an incorrect exact accessible
+  label in the test; using the native Select's actual label passed.
+- Mobile/editor/bootstrap: 8 passed. Final 390px inspector rerun also passed,
+  including status OR selection, captured-response text and dialog bounds.
+  ESLint/typecheck/Prettier passed.
+
+The large scope-only navigation/search/native-import/reordering redesign remains
+proposed pending the maintainer's requested review of the refreshed Coolify findings.
+Real Android keyboard/toolbar transitions are not certified by viewport emulation.
+No release migration or unrelated Docker/build draft was added to this pass.

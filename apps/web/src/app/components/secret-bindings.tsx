@@ -25,12 +25,12 @@ type SecretBindingsProps = {
 
 export function SecretBindings({ projectId, bindings, onChange, canUse, canManage, disabled }: SecretBindingsProps) {
 	const [versions, setVersions] = useState<Version[]>([]);
-	const [binding, setBinding] = useState("SIGNING_SECRET");
+	const [binding, setBinding] = useState("");
 	const [selected, setSelected] = useState("");
 	const [creating, setCreating] = useState(false);
 	const [bindingOpen, setBindingOpen] = useState(false);
 	const [query, setQuery] = useState("");
-	const [name, setName] = useState("Signing key");
+	const [name, setName] = useState("");
 	const [value, setValue] = useState("");
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState("");
@@ -114,7 +114,7 @@ export function SecretBindings({ projectId, bindings, onChange, canUse, canManag
 					<IconKey size={18} />
 					Secrets for this stage
 				</h3>
-				<Card.Description>Bind exact versions to names such as SIGNING_SECRET. Secret values are injected only during execution.</Card.Description>
+				<Card.Description>Bind an encrypted value to a script key, then read it with ctx.secrets.YOUR_KEY. Values are injected only during execution.</Card.Description>
 			</Card.Header>
 			<Card.Content className='flex flex-col gap-4'>
 				{Object.keys(bindings).length ? (
@@ -176,7 +176,14 @@ export function SecretBindings({ projectId, bindings, onChange, canUse, canManag
 						</Button>
 					)}
 					{canManage && (
-						<Button isDisabled={disabled || busy} onPress={() => setCreating(true)}>
+						<Button
+							isDisabled={disabled || busy}
+							onPress={() => {
+								setName("");
+								setValue("");
+								setCreating(true);
+							}}
+						>
 							Create secret version
 						</Button>
 					)}
@@ -217,7 +224,7 @@ export function SecretBindings({ projectId, bindings, onChange, canUse, canManag
 								<Sheet.Body>
 									<Form onSubmit={bind} className='flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end'>
 										<TextField isRequired value={binding} onChange={setBinding} isDisabled={disabled || busy} pattern='[A-Za-z_][A-Za-z0-9_]*'>
-											<Label>Binding name</Label>
+											<Label>Script key</Label>
 											<Input variant='secondary' />
 											<FieldError />
 										</TextField>
@@ -264,7 +271,7 @@ export function SecretBindings({ projectId, bindings, onChange, canUse, canManag
 								<Sheet.Body>
 									<Form onSubmit={create} className='border-border flex flex-col gap-3 border-t pt-4'>
 										<TextField isRequired value={name} onChange={setName} isDisabled={busy}>
-											<Label>Secret name</Label>
+											<Label>Secret key</Label>
 											<Input variant='secondary' />
 											<FieldError />
 										</TextField>
@@ -273,7 +280,7 @@ export function SecretBindings({ projectId, bindings, onChange, canUse, canManag
 											<Input variant='secondary' autoComplete='new-password' />
 											<FieldError />
 										</TextField>
-										<p className='text-muted text-xs'>Stored encrypted in this project. Rotate by creating another version with the same name.</p>
+										<p className='text-muted text-xs'>Stored encrypted in this project. Rotate by creating another version with the same key.</p>
 										<div className='flex gap-2'>
 											<Button type='submit' isDisabled={busy}>
 												{busy ? "Creating…" : "Create secret version"}

@@ -59,6 +59,12 @@ export function ScriptingGuide() {
 								<p className='text-muted mt-1 text-sm'>Requests with a valid ingress outcome are stored, including rejected and response-only requests. Only accepted events are queued for processing.</p>
 								<p className='text-muted mt-1 text-sm'>Save formats the file with the project’s Prettier rules. Script test uses synthetic input and simulated delivery. To test the live route, send an HTTP request to its receiving URL after publishing. Publishing activates both stages for new events; stored events retain their original version.</p>
 							</section>
+							<section>
+								<h3 className='font-semibold'>Read secret values</h3>
+								<p className='text-muted mt-1 text-sm'>
+									Create a secret key and value, then bind its version to a script key. Read it as <code>ctx.secrets.MY_KEY</code>. Keys are case-sensitive; missing keys are undefined. Values are available only when the script runs and are never written into its source. Dry tests use the synthetic secret values you supply.
+								</p>
+							</section>
 						</Modal.Body>
 						<Modal.Footer>
 							<Button slot='close'>Got it</Button>

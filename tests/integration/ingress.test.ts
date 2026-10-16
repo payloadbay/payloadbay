@@ -499,6 +499,22 @@ test("overview aggregates exact traffic and keeps projects outside membership pr
 		assert.equal(older.items[0].state, "delivery_failed");
 		assert.notEqual(older.items[0].id, attempts.items[0].id);
 		assert.equal(older.items[0].eventId, attempts.items[0].eventId);
+		const failedOnly = await listEvents(pool, { userId: "fixture-owner" }, { projectId: scope.project, view: "attempts", states: ["delivery_failed"] });
+		assert.equal(failedOnly.items.length, 1);
+		assert.equal(failedOnly.items[0].state, "delivery_failed");
+		const both = await listEvents(pool, { userId: "fixture-owner" }, { projectId: scope.project, view: "attempts", states: ["delivered", "delivery_failed"] });
+		assert.equal(both.items.length, 2);
+		const empty = await listEvents(pool, { userId: "fixture-owner" }, { projectId: scope.project, states: ["reject", "error"] });
+		assert.deepEqual(empty.items, []);
+		const { deliveryAttemptDetails } = await import("../../packages/domain/src/events.ts");
+		await db.query("UPDATE payloadbay.delivery_attempt SET response_body=$2 WHERE id=$1", [older.items[0].id, Buffer.from("Receiver unavailable")]);
+		const metadataOnly = await deliveryAttemptDetails(pool, { userId: "fixture-owner" }, older.items[0].id);
+		assert.equal(metadataOnly.status, 500);
+		assert.equal("responseBody" in metadataOnly, false);
+		await db.query("UPDATE payloadbay.grant_record SET permissions=array_append(permissions,'payload.read') WHERE user_id='fixture-owner' AND scope_id=$1", [scope.project]);
+		const inspected = await deliveryAttemptDetails(pool, { userId: "fixture-owner" }, older.items[0].id);
+		assert.equal(Buffer.from(inspected.responseBody!, "base64").toString(), "Receiver unavailable");
+
 		const updated = await dashboardOverview(pool, { userId: "fixture-owner" });
 		assert.equal(updated.totals.deliveries, 2);
 		assert.equal(updated.totals.delivered, 1);

@@ -7,7 +7,7 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import { Avatar, Button, Dropdown, Header, Label, Breadcrumbs, TextField, Input } from "@heroui/react";
 import { AppLayout, Sidebar } from "@heroui-pro/react";
-import { IconHome, IconFolder, IconUsers, IconLogout, IconCode, IconSettings, IconInbox, IconBell, IconKey, IconFlask, IconHistory, IconRoute } from "@tabler/icons-react";
+import { IconHome, IconFolder, IconUsers, IconLogout, IconCode, IconSettings, IconInbox, IconBell, IconKey, IconFlask, IconHistory, IconRoute, IconLibrary } from "@tabler/icons-react";
 import { PreviewNotice } from "@components/preview-notice";
 import { NotificationInbox } from "@components/notification-inbox";
 import { api, ApiFailure } from "@lib/api-client";
@@ -190,7 +190,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 					{
 						id: "helpers",
 						label: "Helper imports",
-						icon: IconCode,
+						icon: IconLibrary,
 						visible: project.permissions.includes("code.read"),
 					},
 					{
@@ -222,17 +222,17 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 
 	const globalLinks = [
 		{
-			id: "workspaces",
-			label: "Workspaces",
-			href: "/workspaces",
-			icon: IconFolder,
-			visible: true,
-		},
-		{
 			id: "home",
 			label: "Overview",
 			href: "/",
 			icon: IconHome,
+			visible: true,
+		},
+		{
+			id: "workspaces",
+			label: "Workspaces",
+			href: "/workspaces",
+			icon: IconFolder,
 			visible: true,
 		},
 		{
@@ -244,14 +244,14 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 		},
 		{
 			id: "events",
-			label: "All events",
+			label: "Event log",
 			href: "/events",
 			icon: IconInbox,
 			visible: true,
 		},
 		{
 			id: "instance-code",
-			label: "Instance code and middleware",
+			label: "Shared code",
 			href: "/code/instance/" + data.me.instanceId,
 			icon: IconCode,
 			visible: data.me.permissions.includes("code.read"),
@@ -398,7 +398,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 							<Sidebar.GroupLabel>Global navigation</Sidebar.GroupLabel>
 							<Sidebar.Menu aria-label='Global navigation'>
 								{globalLinks
-									.filter((item) => item.visible)
+									.filter((item) => item.visible && item.id !== "instance-members")
 									.map((item) => (
 										<Sidebar.MenuItem key={item.id} id={item.id} href={item.href} textValue={item.label} isCurrent={pathname === item.href}>
 											<Sidebar.MenuIcon>
@@ -486,13 +486,28 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 					</>
 				)}
 			</Sidebar.Content>
+			{admin && (
+				<Sidebar.Footer>
+					<Sidebar.Group>
+						<Sidebar.GroupLabel>Administration</Sidebar.GroupLabel>
+						<Sidebar.Menu aria-label='Instance administration'>
+							<Sidebar.MenuItem id='instance-members' href='/admin/members' textValue='Instance members' isCurrent={pathname === "/admin/members"}>
+								<Sidebar.MenuIcon>
+									<IconUsers size={18} />
+								</Sidebar.MenuIcon>
+								<Sidebar.MenuLabel>Instance members</Sidebar.MenuLabel>
+							</Sidebar.MenuItem>
+						</Sidebar.Menu>
+					</Sidebar.Group>
+				</Sidebar.Footer>
+			)}
 		</>
 	);
 
 	return (
 		<Context.Provider value={{ ...data, reload: load }}>
 			<AppLayout
-				scrollMode='content'
+				scrollMode='page'
 				sidebar={
 					<>
 						<Sidebar>{navigationContent}</Sidebar>

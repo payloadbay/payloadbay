@@ -68,3 +68,15 @@ Review additions (2026-10-15): GET /api/v1/overview returns authorized 24-hour
 hourly traffic aggregates and recent executions. Event lists accept
 view=requests|attempts; attempts have a distinct row ID and eventId linking the
 original request. Non-accepted history cannot be replayed for delivery.
+
+## Mobile review corrections — 2026-10-16
+
+- Global/project event lists accept repeated `state` query parameters (OR within
+  the selected history view). Request and delivery-attempt statuses have separate
+  vocabularies. A valid filter with no matches returns an empty page, not an error.
+- `GET /api/v1/delivery-attempts/{attemptId}` authorizes project metadata read and
+  returns operation, HTTP status/network outcome, duration and event linkage.
+  Base64 `responseBody` is included only with separate payload-read permission.
+  The existing worker captures at most 64 KiB of body; headers are not recorded.
+- Native import discovery/pinning and renamable middleware default exports are
+  proposals in docs/ux-review-2026-10-16.md, not changes to the compiler contract.

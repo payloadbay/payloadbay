@@ -322,3 +322,22 @@ Tracked in Linear PAB-66; this is a continuation of the alpha, not a release.
 - [x] Verify the revised dashboard hierarchy/search/breadcrumbs, collection/modals, playground and mobile editor/dialog flow against production browser acceptance. Full dashboard 27 passed; mobile/editor/bootstrap 8 passed; final five-case dialog/navigation rerun passed.
 - [x] Refresh scoped delivery/live/seed integration coverage after the history changes and record remaining limits accurately. Delivery/replay 15, live API 18 and preview seed/runtime 3 passed. See docs/ux-audit.md for history limits.
 - [x] Deliver verified review changes through existing alpha PR #13; keep the alpha draft and unreleased. Remote deployment evidence is tracked in Linear PAB-66.
+
+## Second maintainer mobile review — 2026-10-16
+
+Reference: docs/ux-review-2026-10-16.md. Concrete fixes and the proposed larger
+navigation/editor redesign are tracked separately; preserve the requirement to
+review refreshed Coolify findings before applying that structural redesign.
+
+- [x] Audit refreshed Coolify mobile layout, resource task groups and search source;
+  compare Cloudflare Trace and Hoppscotch request/response conventions.
+- [x] Correct status vocabularies and OR filtering; expose permission-gated captured
+  attempt responses, visible status chips and valid empty results.
+- [x] Remove prefilled secret keys; explain ctx.secrets access; format saved editor
+  loads/default templates and restore page scrolling with the sticky header.
+- [x] Apply explicitly requested global ordering, concise labels, bottom instance
+  administration and a distinct helper icon.
+- [ ] Review the proposed scope-only menu, command search, concise breadcrumbs,
+  native imports/dependency locking, middleware ordering and test-client layout.
+- [ ] Verify keyboard open/close and browser-toolbar resizing on mobile; no physical
+  Android keyboard pass is claimed by a narrow desktop viewport alone.

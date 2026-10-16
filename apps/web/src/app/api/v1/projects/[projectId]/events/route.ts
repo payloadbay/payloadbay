@@ -18,7 +18,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ proj
 			projectId: uuid((await params).projectId),
 			...parsed.data,
 			view: query.get("view") === "attempts" ? "attempts" : "requests",
-			...(query.get("state") ? { state: query.get("state")! } : {}),
+			...(query.has("state") ? { states: query.getAll("state").filter(Boolean) } : {}),
 			...(query.get("endpointId") ? { endpointId: uuid(query.get("endpointId")!) } : {}),
 		});
 	});

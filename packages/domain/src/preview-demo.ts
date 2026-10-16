@@ -61,7 +61,7 @@ export async function seedPreviewDemo(pool: Pool, config: ServerConfig, identity
 			await createSharedVersion(pool, actor, {
 				scope: { type: "project", id: project.id },
 				name: "DemoHelpers",
-				source: 'export function describe(body: Uint8Array): string { return "Received: " + new TextDecoder().decode(body).slice(0, 120); }',
+				source: 'export function describe(body: Uint8Array): string {\n\treturn "Received: " + new TextDecoder().decode(body).slice(0, 120);\n}\n',
 				compile,
 			});
 		}
