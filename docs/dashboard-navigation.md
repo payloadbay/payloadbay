@@ -6,7 +6,9 @@ settings belong to the person.
 
 Desktop keeps a contextual sidebar; mobile puts the same destinations in the
 burger drawer. The opaque header contains the brand, scoped notification inbox
-and avatar account menu. The avatar exposes account security, personal email
+and avatar account menu. A visible search bar in the header opens the command
+palette independently of the drawer; on mobile it spans its own header row.
+Search is not a navigation-menu entry. The avatar exposes account security, personal email
 notification preferences and sign-out.
 
 | Context   | Working destinations                                                                                                                                  |

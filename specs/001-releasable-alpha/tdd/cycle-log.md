@@ -2490,3 +2490,13 @@ Final mobile/editor/bootstrap rerun: 8 passed. ESLint, web/tooling TypeScript,
 Prettier and diff checks passed. The old root-resource Browse hierarchy expectation
 was updated to assert the requested instance-only list; route scope excludes
 instance administration and exposes menu-only Back.
+
+## Visible header search — 2026-10-16
+
+Moved the command-palette launcher from the drawer into a visible header search
+bar. It spans its own row on mobile and sits within the desktop header. Removed
+the menu search entry. This is a scoped UI regression pass, not a fabricated Red
+cycle: the registered overview/navigation browser flow passed with direct header
+access at 320px and desktop, query clear, result navigation and no menu entry.
+All eight mobile/editor/bootstrap cases also passed. Inspected the mobile overview
+screenshot. ESLint, web/tooling TypeScript, Prettier and diff checks passed.

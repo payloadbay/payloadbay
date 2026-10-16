@@ -790,6 +790,12 @@ test("overview and mobile hierarchy preserve context while search opens resource
 	await expect(tick).toHaveCSS("font-size", "12px");
 	expect((await tick.boundingBox())!.height).toBeGreaterThanOrEqual(10);
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+	const searchBar = page.getByRole("button", { name: "Search pages and resources", exact: true });
+	await expect(searchBar).toBeVisible();
+	expect((await searchBar.boundingBox())!.width).toBeGreaterThan(250);
+	await searchBar.click();
+	await expect(page.getByRole("dialog", { name: "Search pages and resources" })).toBeVisible();
+	await page.keyboard.press("Escape");
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.screenshot({ path: test.info().outputPath("overview-mobile.png"), fullPage: true });
 	const toggleBeforeScroll = await page.getByRole("button", { name: "Toggle navigation" }).boundingBox();
@@ -808,7 +814,9 @@ test("overview and mobile hierarchy preserve context while search opens resource
 	await expect(drawer.getByRole("treegrid", { name: "Instance administration" }).getByRole("row", { name: "Instance members", exact: true })).toBeVisible();
 
 	await expect(drawer.getByText("Browse hierarchy", { exact: true })).toHaveCount(0);
-	await drawer.getByRole("row", { name: "Search pages and resources", exact: true }).click();
+	await expect(drawer.getByRole("row", { name: "Search pages and resources", exact: true })).toHaveCount(0);
+	await page.keyboard.press("Escape");
+	await page.getByRole("button", { name: "Search pages and resources", exact: true }).click();
 	const command = page.getByRole("dialog", { name: "Search pages and resources" });
 	await expect(command).toBeVisible();
 	await command.getByPlaceholder("Search pages and resources…").fill("not a real resource");
@@ -837,6 +845,12 @@ test("overview and mobile hierarchy preserve context while search opens resource
 	await expect(drawer.getByRole("row", { name: "Overview", exact: true })).toBeVisible();
 	await page.keyboard.press("Escape");
 	await expect(page.getByRole("dialog")).toHaveCount(0);
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await expect(searchBar).toBeVisible();
+	await searchBar.click();
+	await expect(page.getByRole("dialog", { name: "Search pages and resources" })).toBeVisible();
+	await page.keyboard.press("Escape");
+	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto("/projects");
 	await page.getByRole("button", { name: "Create workspace", exact: true }).click();
 	const create = page.getByRole("dialog", { name: "New workspace", exact: true });

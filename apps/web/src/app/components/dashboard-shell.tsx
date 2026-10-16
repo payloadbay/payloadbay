@@ -425,16 +425,6 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 					)}
 					<p className='mt-2 break-words text-lg font-semibold'>{scopeTitle}</p>
 				</div>
-				<Sidebar.Group>
-					<Sidebar.Menu aria-label='Navigation search'>
-						<Sidebar.MenuItem id='search' textValue='Search pages and resources' onAction={() => setSearchOpen(true)}>
-							<Sidebar.MenuIcon>
-								<IconSearch size={18} />
-							</Sidebar.MenuIcon>
-							<Sidebar.MenuLabel>Search pages and resources…</Sidebar.MenuLabel>
-						</Sidebar.MenuItem>
-					</Sidebar.Menu>
-				</Sidebar.Group>
 			</Sidebar.Header>
 			<Sidebar.Content className='min-h-0 overflow-y-auto overscroll-contain pb-6'>
 				{!scoped && (
@@ -508,7 +498,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 				navbar={
 					<div>
 						{preview && <PreviewNotice />}
-						<div className='bg-background border-border flex min-h-16 items-center justify-between gap-3 border-b px-4 sm:px-6'>
+						<div className='bg-background border-border flex min-h-16 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b px-4 py-3 sm:px-6'>
 							<div className='flex min-w-0 items-center gap-2'>
 								<AppLayout.MenuToggle aria-label='Toggle navigation' />
 								<Link href='/' aria-label='Payload Bay home' className='shrink-0'>
@@ -516,6 +506,10 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 									<Image src='/brand/payloadbay-icon-dark-transparent.svg' alt='Payload Bay' width={32} height={32} priority className='min-[360px]:hidden' />
 								</Link>
 							</div>
+							<Button variant='secondary' aria-label='Search pages and resources' aria-haspopup='dialog' onPress={() => setSearchOpen(true)} className='text-muted order-3 w-full justify-start font-normal sm:order-none sm:min-w-0 sm:max-w-lg sm:flex-1'>
+								<IconSearch size={18} aria-hidden='true' />
+								<span className='truncate'>Search pages and resources…</span>
+							</Button>
 							<div className='flex shrink-0 items-center gap-2'>
 								{(currentProject?.permissions ?? currentWorkspace?.permissions ?? data.me.permissions).includes("notifications.read") && <NotificationInbox scope={{ type: currentProject ? "project" : currentWorkspace ? "workspace" : "instance", id: currentProject?.id ?? currentWorkspace?.id ?? data.me.instanceId }} />}
 								<Dropdown>
