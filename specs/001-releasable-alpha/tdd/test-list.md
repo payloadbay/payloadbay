@@ -853,7 +853,8 @@ case IDs below follow the implemented F-task ownership.
 | FT10a–f | DONE | Serialized org capacity, no-attempt preclaim deferral, real queue fairness, legacy eligibility and destination expiry/fencing and independent process replacement | recovery.test.ts / organizations.test.ts / delivery.test.ts |
 | FT11a–b | DONE | Authorized policy reads and real mobile usage window/policy/API flow | organization-policy.test.ts / dashboard.spec.ts |
 
-Still required: complete affected/release verification and exact-revision remote
-preview. The expanded unrelated-organization preview seed passed its repeatability
-and authorization integration check. Actual runs and red failures live in
-cycle-log.md. No release SQL has been generated locally.
+Foundation affected verification and exact-source remote preview are complete at
+f5a71d5; see cycle-log.md for broad lanes, infrastructure-blocked cases and their
+passing targeted reruns. Four real OTP reviewer roles, unrelated-organization
+isolation, a new queued HTTP delivery and local usage passed on Coolify. Separate
+original alpha release gates remain open. No release SQL was generated locally.
