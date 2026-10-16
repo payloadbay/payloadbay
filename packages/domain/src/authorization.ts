@@ -1,7 +1,7 @@
 import { AppError } from "../../contracts/src/errors.ts";
 import { permissions, type Permission } from "../../contracts/src/permissions.ts";
 
-export type ScopeRef = { type: "instance" | "workspace" | "project"; id: string };
+export type ScopeRef = { type: "instance" | "organization" | "workspace" | "project"; id: string };
 
 export type Grant = { scopeType: ScopeRef["type"]; scopeId: string; permissions: readonly Permission[] };
 

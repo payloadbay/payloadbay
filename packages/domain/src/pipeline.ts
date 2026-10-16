@@ -3,7 +3,7 @@ import type { ExecuteOptions, ExecutionResult } from "../../../apps/executor/src
 
 export type PinnedMiddleware = {
 	id: string;
-	scopeType: "instance" | "workspace" | "project" | "endpoint";
+	scopeType: "instance" | "organization" | "workspace" | "project" | "endpoint";
 	scopeId: string;
 	stage: "ingress" | "processing";
 	position: number;
@@ -18,9 +18,10 @@ export type PinnedMiddleware = {
 
 const rank = {
 	instance: 0,
-	workspace: 1,
-	project: 2,
-	endpoint: 3,
+	organization: 1,
+	workspace: 2,
+	project: 3,
+	endpoint: 4,
 };
 
 /** Every call receives a fresh context clone. Only validated patches are merged into later stages. */

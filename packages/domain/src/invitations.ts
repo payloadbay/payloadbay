@@ -1,5 +1,5 @@
 import { randomBytes, createHash } from "node:crypto";
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import { transaction } from "./db.ts";
 import { requirePermission, scopeAncestry } from "./membership.ts";
 import { assertGrantSubset, type Actor, type ScopeRef } from "./authorization.ts";
@@ -12,6 +12,19 @@ import type { createAuth } from "./auth-runtime.ts";
 type InvitationGrant = { scope: ScopeRef; role: "owner" | "admin" | "operator" | "viewer" | "custom"; permissions: Permission[] };
 
 const digest = (token: string) => createHash("sha256").update(token).digest("hex");
+
+async function authorizeAdmission(db: Pool | PoolClient, actor: Actor, ancestry: ScopeRef[], userId?: string) {
+	if (userId) {
+		const admission = (await db.query("SELECT active FROM payloadbay.admission WHERE installation_id=$1 AND user_id=$2", [ancestry[0].id, userId])).rows[0];
+		if (admission?.active === false) throw new AppError("inactive_admission", 403, "Instance access must be restored by an operator before inviting this person");
+		if (admission?.active) return true;
+	}
+
+	const organization = ancestry.find((scope) => scope.type === "organization");
+	await requirePermission(db, actor, organization ?? ancestry[0], "members.admit");
+
+	return false;
+}
 
 export async function createInvitation(pool: Pool, actor: Actor, input: { scope: ScopeRef; email: string; grants: InvitationGrant[] }, identity: ReturnType<typeof createAuth>, encryptionKey: string, publicUrl: string) {
 	const email = input.email.trim().toLowerCase();
@@ -28,8 +41,7 @@ export async function createInvitation(pool: Pool, actor: Actor, input: { scope:
 	}
 
 	let user = (await pool.query('SELECT id FROM auth."user" WHERE lower(email)=$1', [email])).rows[0];
-	const admitted = user && (await pool.query("SELECT 1 FROM payloadbay.admission WHERE installation_id=$1 AND user_id=$2 AND active", [ancestry[0].id, user.id])).rowCount;
-	if (!admitted) await requirePermission(pool, actor, ancestry[0], "members.admit");
+	const admitted = await authorizeAdmission(pool, actor, ancestry, user?.id);
 	if (!user) {
 		try {
 			user = (await identity.api.createUser({ body: { email, name: email.split("@")[0] } })).user;
@@ -52,8 +64,10 @@ export async function createInvitation(pool: Pool, actor: Actor, input: { scope:
 		const pending = await db.query("SELECT 1 FROM payloadbay.invitation WHERE installation_id=$1 AND email=$2 AND state='pending' AND expires_at>clock_timestamp() AND scope_type=$3 AND scope_id=$4", [ancestry[0].id, email, input.scope.type, input.scope.id]);
 		if (pending.rowCount) throw new AppError("invitation_pending", 409, "An invitation is already pending for this email and scope");
 		if (!admitted) {
-			await requirePermission(db, actor, ancestry[0], "members.admit");
-			await db.query("INSERT INTO payloadbay.admission(installation_id,user_id,active) VALUES($1,$2,true) ON CONFLICT(installation_id,user_id) DO UPDATE SET active=true", [ancestry[0].id, user.id]);
+			await authorizeAdmission(db, actor, ancestry, user.id);
+			await db.query("INSERT INTO payloadbay.admission(installation_id,user_id,active) VALUES($1,$2,true) ON CONFLICT(installation_id,user_id) DO NOTHING", [ancestry[0].id, user.id]);
+			const current = await db.query("SELECT 1 FROM payloadbay.admission WHERE installation_id=$1 AND user_id=$2 AND active FOR SHARE", [ancestry[0].id, user.id]);
+			if (!current.rowCount) throw new AppError("inactive_admission", 403, "Instance access is not active");
 		}
 
 		const invitation = (await db.query("INSERT INTO payloadbay.invitation(installation_id,scope_type,scope_id,email,token_digest,grants,created_by,newly_admitted) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,expires_at", [ancestry[0].id, input.scope.type, input.scope.id, email, digest(token), JSON.stringify(input.grants), actor.userId, !admitted])).rows[0];

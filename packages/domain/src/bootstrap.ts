@@ -20,7 +20,12 @@ export async function bootstrapOwner(pool: Pool, input: { userId: string; provid
 		await client.query("UPDATE payloadbay.installation SET bootstrap_state='complete' WHERE id=$1", [installation.id]);
 		await client.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation) VALUES($1,'instance',$2,'installation.bootstrap')", [input.userId, installation.id]);
 
-		return { installationId: installation.id, userId: input.userId, organizationId: organization.id, workspaceId: workspace.id };
+		return {
+			installationId: installation.id,
+			userId: input.userId,
+			organizationId: organization.id,
+			workspaceId: workspace.id,
+		};
 	});
 }
 

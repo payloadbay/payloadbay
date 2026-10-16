@@ -16,7 +16,7 @@ type Helper = {
 };
 
 type HelperImportPickerProps = {
-	scope: { type: "instance" | "workspace" | "project"; id: string };
+	scope: { type: "instance" | "organization" | "workspace" | "project"; id: string };
 	body: string;
 	disabled?: boolean;
 	onImport: (body: string, name: string, revisionId: string) => void;

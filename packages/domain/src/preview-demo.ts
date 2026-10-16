@@ -40,7 +40,7 @@ export async function seedPreviewDemo(pool: Pool, config: ServerConfig, identity
 		if (!workspace)
 			workspace = await createResource(pool, actor, {
 				type: "workspace",
-				parentId: installationId,
+				parentId: (await db.query("SELECT id FROM payloadbay.organization WHERE installation_id=$1 AND archived_at IS NULL ORDER BY created_at,id LIMIT 1", [installationId])).rows[0].id,
 				name: "Preview Demo",
 				slug: "preview-demo",
 			});

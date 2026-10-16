@@ -2627,3 +2627,25 @@ middleware integration suite: 9 passed. R01/R02 are verified; R03–R05 follow.
 - Green FT04a: 1/1 setup acceptance; existing auth suite 34/34. Schema adds Organization and an intermediate optional workspace lineage column; required lineage enforcement is the next behavior, not claimed complete here.
 - U320 exposed the new-default fixture interaction: `2 !== 1` workspaces before the seed correction. The preview seed now renames/reuses the default workspace; unchanged U320 passed 1/1. U321/U322 passed in the owning file run; its pre-correction U320 failure remains recorded. No assertions were changed or skipped. Full Next preview rebuilding took about 215s; subsequent seed feedback used U320 only.
 - Formatting and web/tooling TypeScript checks passed. No further refactor needed for this first provisioning slice. F01/F04 remain open for integrity, migration, rollback, customer and invitation behavior.
+
+### FT02a — organization parent for workspace creation
+
+- Red: `bun run test:file tests/integration/organizations.test.ts --name FT02a`.
+- Actual failure: `error: 'Resource unavailable'`, `code: 'not_found'`; the existing command treats the organization ID as an installation.
+- The approved hierarchy changes the parent contract; existing resource/browser setup fixtures must provide an organization ID, not retain an undocumented instance-parent fallback. No permission assertions are weakened.
+
+
+FT02b RED: organization creation using the instance parent returned `Resource unavailable` (`not_found` at scopeAncestry). Added a real database ownership test covering inherited workspace creation, sibling exclusion, and organization/workspace listing.
+
+FT02a/FT02b GREEN: organizations.test.ts 3/3; authorization.test.ts 11/11. Typecheck identified missing middleware rank and new permission label, corrected without relaxing scope checks.
+FT01a RED: inserting a workspace without an organization produced `Missing expected rejection.` Added NOT NULL to the authoritative schema; legacy mapping remains a separate required cycle.
+
+FT01a GREEN: organizations.test.ts 4/4; TypeScript passed.
+FT01b RED: creating `default` in a second organization failed `slug_conflict`, demonstrating instance-global workspace slugs. Changed the live unique key to (organization_id,slug); duplicate slugs inside the same organization remain rejected.
+
+FT01b GREEN: organizations.test.ts 5/5. FT03a fixture corrected to use the existing `configuration.changed` kind and explicit UUID cast (fixture errors are not product red evidence). Then RED: organization live subscription returned `[]` instead of the own-organization change. Added explicit organization-descendant filtering and instance inclusion; per-record authorization remains enforced.
+
+FT03a GREEN: owning organization file 6/6; authorization 11/11, lint and TypeScript passed.
+FT05a RED: an organization admin inviting a new user failed `forbidden: Permission required` at the instance admission check. Admission now requires organization-scoped `members.admit` (or inherited instance authority), never grants global rights, and refuses inactive admission reactivation. Suspended-account regression is the next explicit case.
+
+FT05a GREEN: organization file 7/7; expanded inactive-admission assertion passed separately 1/1, existing auth/invitation file 34/34; authorization 11/11; lint and web/tooling TypeScript passed. Foundation tasks remain open: this is scoped role/schema/invitation progress, not completion of organization UI, legacy mapping, onboarding, metering or policy.

@@ -66,7 +66,7 @@ export const workspace = domain.table(
 		installationId: uuid("installation_id")
 			.notNull()
 			.references((): AnyPgColumn => installation.id),
-		organizationId: uuid("organization_id"),
+		organizationId: uuid("organization_id").notNull(),
 		name: text("name").notNull(),
 		slug: text("slug").notNull(),
 		ownerUserId: text("owner_user_id").notNull(),
@@ -76,7 +76,7 @@ export const workspace = domain.table(
 		foreignKey({ name: "workspace_organization_installation", columns: [t.organizationId, t.installationId], foreignColumns: [organization.id as AnyPgColumn, organization.installationId as AnyPgColumn] }),
 		foreignKey({ name: "workspace_owner_admission", columns: [t.installationId, t.ownerUserId], foreignColumns: [admission.installationId as AnyPgColumn, admission.userId as AnyPgColumn] }),
 		uniqueIndex("workspace_live_slug")
-			.on(t.installationId, t.slug)
+			.on(t.organizationId, t.slug)
 			.where(sql`${t.archivedAt} IS NULL`),
 	],
 );
@@ -111,7 +111,7 @@ export const grant = domain.table(
 		permissions: text("permissions").array().notNull(),
 		version: integer("version").notNull().default(1),
 	},
-	(t) => [unique("grant_user_scope").on(t.userId, t.scopeType, t.scopeId), check("grant_scope_type", sql`${t.scopeType} IN ('instance','workspace','project')`), check("grant_role", sql`${t.rolePreset} IN ('owner','admin','operator','viewer','custom')`), index("grants_by_scope").on(t.scopeType, t.scopeId, t.userId)],
+	(t) => [unique("grant_user_scope").on(t.userId, t.scopeType, t.scopeId), check("grant_scope_type", sql`${t.scopeType} IN ('instance','organization','workspace','project')`), check("grant_role", sql`${t.rolePreset} IN ('owner','admin','operator','viewer','custom')`), index("grants_by_scope").on(t.scopeType, t.scopeId, t.userId)],
 );
 
 export const apiToken = domain.table(
@@ -583,7 +583,7 @@ export const invitation = domain.table(
 			.default(sql`now() + interval '7 days'`),
 		createdAt: time("created_at").notNull().defaultNow(),
 	},
-	(t) => [check("invitation_state", sql`${t.state} IN ('pending','accepted','cancelled')`), check("invitation_scope", sql`${t.scopeType} IN ('instance','workspace','project')`), index("invitation_by_scope").on(t.scopeType, t.scopeId, t.state)],
+	(t) => [check("invitation_state", sql`${t.state} IN ('pending','accepted','cancelled')`), check("invitation_scope", sql`${t.scopeType} IN ('instance','organization','workspace','project')`), index("invitation_by_scope").on(t.scopeType, t.scopeId, t.state)],
 );
 
 export const notificationChannel = domain.table(

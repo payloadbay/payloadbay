@@ -15,7 +15,7 @@ type CodeEditorProps = {
 	stage?: ScriptStage;
 	bindings?: Record<string, string>;
 	onSave?: () => void;
-	helperScope?: { type: "instance" | "workspace" | "project"; id: string };
+	helperScope?: { type: "instance" | "organization" | "workspace" | "project"; id: string };
 };
 
 export function CodeEditor({ value, onChange, label, readOnly = false, stage, bindings, onSave, helperScope }: CodeEditorProps) {

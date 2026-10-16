@@ -49,6 +49,7 @@ const labels: Record<Permission, string> = {
 	"settings.manage": "Manage scoped settings",
 	"jobs.read": "Read platform jobs",
 	"jobs.manage": "Manage platform jobs",
+	"organizations.create": "Create organizations",
 	"workspaces.create": "Create workspaces",
 	"projects.create": "Create projects",
 	"tokens.manage": "Manage personal API tokens",

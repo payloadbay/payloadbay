@@ -1,8 +1,8 @@
 import { z } from "zod";
 
-export const codeScope = z.object({ type: z.enum(["instance", "workspace", "project"]), id: z.uuid() }).strict();
+export const codeScope = z.object({ type: z.enum(["instance", "organization", "workspace", "project"]), id: z.uuid() }).strict();
 
-export const middlewareScope = z.object({ type: z.enum(["instance", "workspace", "project", "endpoint"]), id: z.uuid() }).strict();
+export const middlewareScope = z.object({ type: z.enum(["instance", "organization", "workspace", "project", "endpoint"]), id: z.uuid() }).strict();
 const bindings = z.record(z.string(), z.uuid()).refine((value) => Object.keys(value).length <= 32);
 
 export const sharedVersionInput = z

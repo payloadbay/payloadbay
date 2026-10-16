@@ -14,9 +14,10 @@ type Compiler = (input: unknown) => ReturnType<typeof compile>;
 
 const rank = {
 	instance: 0,
-	workspace: 1,
-	project: 2,
-	endpoint: 3,
+	organization: 1,
+	workspace: 2,
+	project: 3,
+	endpoint: 4,
 };
 
 export async function middlewareActorScope(db: Pool | PoolClient, scope: MiddlewareScope): Promise<ScopeRef> {

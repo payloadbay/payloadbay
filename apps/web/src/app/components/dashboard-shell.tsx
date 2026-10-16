@@ -45,7 +45,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 	const rawRouteId = pathname.match(/^\/projects\/[^/]+\/routes\/([^/]+)/)?.[1] ?? pathname.match(/^\/code\/endpoint\/([^/]+)/)?.[1];
 
 	const [routeMetadata, setRouteMetadata] = useState<{ id: string; name: string } | null>(null);
-	const [browse, setBrowse] = useState<{ type: "instance" | "workspace" | "project"; id?: string } | null>(null);
+	const [browse, setBrowse] = useState<{ type: "instance" | "organization" | "workspace" | "project"; id?: string } | null>(null);
 
 	useFeedbackToast(error, "", { error: "Dashboard error", success: "Success" });
 

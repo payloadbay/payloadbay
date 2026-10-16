@@ -26,7 +26,7 @@ test("U53 workspace grants exclude other workspaces", async () => {
 	await authFixture(async ({ db }) => {
 		const scope = await seedScope(db);
 		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
-		const other = (await db.query("INSERT INTO payloadbay.workspace(installation_id,name,slug,owner_user_id) VALUES($1,'Other','other','fixture-owner') RETURNING id", [scope.installation])).rows[0].id;
+		const other = (await db.query("INSERT INTO payloadbay.workspace(installation_id,organization_id,name,slug,owner_user_id) VALUES($1,$2,'Other','other','fixture-owner') RETURNING id", [scope.installation, scope.organization])).rows[0].id;
 		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','workspace',$1,'custom',ARRAY['payload.read'])", [scope.workspace]);
 		assert.deepEqual([...(await policy.actorPermissions(db, { userId: "fixture-owner" }, { type: "project", id: scope.project }))], ["payload.read"]);
 		assert.deepEqual([...(await policy.actorPermissions(db, { userId: "fixture-owner" }, { type: "workspace", id: other }))], []);
@@ -154,7 +154,7 @@ test("U236 resource creation scopes owner and preserves unique slugs", async () 
 		const actor = { userId: "fixture-owner" };
 		const input = {
 			type: "workspace" as const,
-			parentId: scope.installation,
+			parentId: scope.organization,
 			name: "New Workspace",
 			slug: "new",
 		};

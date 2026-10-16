@@ -13,17 +13,24 @@ export async function scopeAncestry(db: Pool | PoolClient, scope: ScopeRef): Pro
 		return [scope];
 	}
 
-	if (scope.type === "workspace") {
-		const result = await db.query("SELECT w.installation_id FROM payloadbay.workspace w JOIN payloadbay.installation i ON i.id=w.installation_id WHERE w.id=$1 AND w.archived_at IS NULL AND i.bootstrap_state='complete'", [scope.id]);
-		if (!result.rowCount) throw new AppError("not_found", 404, "Resource unavailable");
+	if (scope.type === "organization") {
+		const result = (await db.query("SELECT o.installation_id FROM payloadbay.organization o JOIN payloadbay.installation i ON i.id=o.installation_id WHERE o.id=$1 AND o.archived_at IS NULL AND i.bootstrap_state='complete'", [scope.id])).rows[0];
+		if (!result) throw new AppError("not_found", 404, "Resource unavailable");
 
-		return [{ type: "instance", id: result.rows[0].installation_id }, scope];
+		return [{ type: "instance", id: result.installation_id }, scope];
 	}
 
-	const result = await db.query("SELECT p.workspace_id,w.installation_id FROM payloadbay.project p JOIN payloadbay.workspace w ON w.id=p.workspace_id JOIN payloadbay.installation i ON i.id=w.installation_id WHERE p.id=$1 AND p.archived_at IS NULL AND w.archived_at IS NULL AND i.bootstrap_state='complete'", [scope.id]);
-	if (!result.rowCount) throw new AppError("not_found", 404, "Resource unavailable");
+	if (scope.type === "workspace") {
+		const result = (await db.query("SELECT w.installation_id,w.organization_id FROM payloadbay.workspace w JOIN payloadbay.organization o ON o.id=w.organization_id AND o.installation_id=w.installation_id JOIN payloadbay.installation i ON i.id=w.installation_id WHERE w.id=$1 AND w.archived_at IS NULL AND o.archived_at IS NULL AND i.bootstrap_state='complete'", [scope.id])).rows[0];
+		if (!result) throw new AppError("not_found", 404, "Resource unavailable");
 
-	return [{ type: "instance", id: result.rows[0].installation_id }, { type: "workspace", id: result.rows[0].workspace_id }, scope];
+		return [{ type: "instance", id: result.installation_id }, { type: "organization", id: result.organization_id }, scope];
+	}
+
+	const result = (await db.query("SELECT p.workspace_id,w.installation_id,w.organization_id FROM payloadbay.project p JOIN payloadbay.workspace w ON w.id=p.workspace_id JOIN payloadbay.organization o ON o.id=w.organization_id AND o.installation_id=w.installation_id JOIN payloadbay.installation i ON i.id=w.installation_id WHERE p.id=$1 AND p.archived_at IS NULL AND w.archived_at IS NULL AND o.archived_at IS NULL AND i.bootstrap_state='complete'", [scope.id])).rows[0];
+	if (!result) throw new AppError("not_found", 404, "Resource unavailable");
+
+	return [{ type: "instance", id: result.installation_id }, { type: "organization", id: result.organization_id }, { type: "workspace", id: result.workspace_id }, scope];
 }
 
 export async function actorPermissions(db: Pool | PoolClient, actor: Actor, scope: ScopeRef) {
@@ -87,7 +94,7 @@ export async function setGrant(
 			await requirePermission(db, actor, input.scope, "ownership.transfer");
 			const owners = await db.query("SELECT g.user_id FROM payloadbay.grant_record g JOIN payloadbay.admission a ON a.user_id=g.user_id AND a.installation_id=$3 AND a.active WHERE g.scope_type=$1 AND g.scope_id=$2 AND g.role_preset='owner'", [input.scope.type, input.scope.id, ancestry[0].id]);
 			if (owners.rowCount! <= 1) throw new AppError("last_owner", 409, "A scope must retain an active owner");
-			if (input.scope.type === "workspace" || input.scope.type === "project") {
+			if (input.scope.type !== "instance") {
 				const replacement = owners.rows.find((row) => row.user_id !== input.userId).user_id;
 				await db.query(`UPDATE payloadbay.${input.scope.type} SET owner_user_id=$1 WHERE id=$2 AND owner_user_id=$3`, [replacement, input.scope.id, input.userId]);
 			}

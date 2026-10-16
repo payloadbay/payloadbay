@@ -8,7 +8,7 @@ import { Sheet } from "@heroui-pro/react";
 import { IconBell, IconAlertTriangle, IconAlertOctagon, IconCheck } from "@tabler/icons-react";
 import { api } from "@lib/api-client";
 
-type Scope = { type: "instance" | "workspace" | "project"; id: string };
+type Scope = { type: "instance" | "organization" | "workspace" | "project"; id: string };
 type Notice = {
 	id: string;
 	subject: string;

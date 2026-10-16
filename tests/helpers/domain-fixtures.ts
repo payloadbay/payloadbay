@@ -3,7 +3,8 @@ import type { Client, PoolClient } from "pg";
 export async function seedScope(db: Client | PoolClient) {
 	const installation = (await db.query("INSERT INTO payloadbay.installation DEFAULT VALUES RETURNING id")).rows[0].id;
 	await db.query("INSERT INTO payloadbay.admission(installation_id,user_id) VALUES($1,$2)", [installation, "fixture-owner"]);
-	const workspace = (await db.query("INSERT INTO payloadbay.workspace(installation_id,name,slug,owner_user_id) VALUES($1,'Fixture','fixture','fixture-owner') RETURNING id", [installation])).rows[0].id;
+	const organization = (await db.query("INSERT INTO payloadbay.organization(installation_id,name,slug,owner_user_id) VALUES($1,'Fixture organization','fixture','fixture-owner') RETURNING id", [installation])).rows[0].id;
+	const workspace = (await db.query("INSERT INTO payloadbay.workspace(installation_id,organization_id,name,slug,owner_user_id) VALUES($1,$2,'Fixture','fixture','fixture-owner') RETURNING id", [installation, organization])).rows[0].id;
 	const project = (await db.query("INSERT INTO payloadbay.project(workspace_id,name,slug,owner_user_id) VALUES($1,'Fixture','fixture','fixture-owner') RETURNING id", [workspace])).rows[0].id;
 	const endpoint = (await db.query("INSERT INTO payloadbay.endpoint(project_id,name,slug,ingress_key) VALUES($1,'Fixture','fixture',gen_random_uuid()::text) RETURNING id", [project])).rows[0].id;
 
@@ -14,6 +15,7 @@ export async function seedScope(db: Client | PoolClient) {
 
 	return {
 		installation,
+		organization,
 		workspace,
 		project,
 		endpoint,

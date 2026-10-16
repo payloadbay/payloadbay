@@ -836,3 +836,11 @@ update did not execute the implementation TDD run hook or generate release SQL.
 The first setup acceptance opens the outside-in foundation cycle. Related schema,
 lineage and API behaviors are split into subsequent cases before implementation;
 no F-task is completed merely because this setup case passes.
+
+| FT02a | DONE | Workspace creation uses its organization parent (FR-024) | tests/integration/organizations.test.ts |
+
+| FT02b | DONE | Organization creation and descendant ownership exclude siblings | organizations.test.ts |
+| FT01a | DONE | Workspace organization is mandatory | organizations.test.ts |
+| FT01b | DONE | Workspace live slugs are organization-local | organizations.test.ts |
+| FT03a | DONE | Organization SSE filters own descendants and siblings | organizations.test.ts |
+| FT05a | GREEN | Organization admin admission without global grant; inactive identities stay inactive | organizations.test.ts |

@@ -18,7 +18,7 @@ import { useDashboard } from "@components/dashboard-shell";
 import type { Permission } from "@contracts/permissions";
 import type { CompilationDiagnostic } from "@contracts/compilation";
 
-type Scope = { type: "instance" | "workspace" | "project" | "endpoint"; id: string };
+type Scope = { type: "instance" | "organization" | "workspace" | "project" | "endpoint"; id: string };
 type Module = {
 	id: string;
 	name: string;
@@ -72,7 +72,7 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 		...projects.filter((scope) => scope.permissions.includes("code.read")).map((scope) => ({ type: "project", ...scope })),
 	];
 	const selectedScope = scopes.find((scope) => scope.type === scopeType && scope.id === scopeId);
-	const valid = ["instance", "workspace", "project", "endpoint"].includes(scopeType);
+	const valid = ["instance", "organization", "workspace", "project", "endpoint"].includes(scopeType);
 	const scope: Scope = { type: valid ? (scopeType as Scope["type"]) : "project", id: scopeId };
 
 	const [endpointScope, setEndpointScope] = useState<{ name: string; permissions: Permission[]; projectId: string } | null>(null);

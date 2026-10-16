@@ -16,7 +16,7 @@ type Version = {
 
 type SecretBindingsProps = {
 	projectId?: string;
-	scope?: { type: "instance" | "workspace" | "project"; id: string };
+	scope?: { type: "instance" | "organization" | "workspace" | "project"; id: string };
 	bindings: Record<string, string>;
 	onChange: (bindings: Record<string, string>) => void;
 	canUse: boolean;

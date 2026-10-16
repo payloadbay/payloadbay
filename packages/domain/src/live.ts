@@ -26,11 +26,13 @@ export async function readChanges(pool: Pool, actor: Actor, input: { scope: Live
 	const scopeFilter =
 		input.scope.type === "accessible"
 			? "$3::uuid IS NOT NULL"
-			: input.scope.type === "project"
-				? "c.scope_type='project' AND c.scope_id=$3::uuid"
-				: input.scope.type === "workspace"
-					? "((c.scope_type='workspace' AND c.scope_id=$3::uuid) OR(c.scope_type='project' AND EXISTS(SELECT 1 FROM payloadbay.project p WHERE p.id=c.scope_id AND p.workspace_id=$3::uuid)))"
-					: "((c.scope_type='instance' AND c.scope_id=$3::uuid) OR(c.scope_type='workspace' AND EXISTS(SELECT 1 FROM payloadbay.workspace w WHERE w.id=c.scope_id AND w.installation_id=$3::uuid)) OR(c.scope_type='project' AND EXISTS(SELECT 1 FROM payloadbay.project p JOIN payloadbay.workspace w ON w.id=p.workspace_id WHERE p.id=c.scope_id AND w.installation_id=$3::uuid)))";
+			: input.scope.type === "organization"
+				? "((c.scope_type='organization' AND c.scope_id=$3::uuid) OR(c.scope_type='workspace' AND EXISTS(SELECT 1 FROM payloadbay.workspace w WHERE w.id=c.scope_id AND w.organization_id=$3::uuid)) OR(c.scope_type='project' AND EXISTS(SELECT 1 FROM payloadbay.project p JOIN payloadbay.workspace w ON w.id=p.workspace_id WHERE p.id=c.scope_id AND w.organization_id=$3::uuid)))"
+				: input.scope.type === "project"
+					? "c.scope_type='project' AND c.scope_id=$3::uuid"
+					: input.scope.type === "workspace"
+						? "((c.scope_type='workspace' AND c.scope_id=$3::uuid) OR(c.scope_type='project' AND EXISTS(SELECT 1 FROM payloadbay.project p WHERE p.id=c.scope_id AND p.workspace_id=$3::uuid)))"
+						: "((c.scope_type='instance' AND c.scope_id=$3::uuid) OR(c.scope_type='organization' AND EXISTS(SELECT 1 FROM payloadbay.organization o WHERE o.id=c.scope_id AND o.installation_id=$3::uuid)) OR(c.scope_type='workspace' AND EXISTS(SELECT 1 FROM payloadbay.workspace w WHERE w.id=c.scope_id AND w.installation_id=$3::uuid)) OR(c.scope_type='project' AND EXISTS(SELECT 1 FROM payloadbay.project p JOIN payloadbay.workspace w ON w.id=p.workspace_id WHERE p.id=c.scope_id AND w.installation_id=$3::uuid)))";
 	const rows = (await pool.query(`SELECT c.cursor::text,c.scope_type,c.scope_id,c.kind,c.resource_id,c.metadata FROM payloadbay.change_record c WHERE c.cursor>$1::bigint AND c.created_at>clock_timestamp()-interval '24 hours' AND (${scopeFilter}) ORDER BY c.cursor LIMIT $2`, [input.after, limit, input.scope.id])).rows;
 	const items = [];
 	let last = input.after;
