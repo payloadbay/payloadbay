@@ -10,6 +10,8 @@ export async function readChanges(pool: Pool, actor: Actor, input: { scope: Live
 	if (input.scope.type === "accessible") {
 		const admitted = await pool.query("SELECT 1 FROM payloadbay.admission WHERE installation_id=$1 AND user_id=$2 AND active", [input.scope.id, actor.userId]);
 		if (!admitted.rowCount) throw new AppError("forbidden", 403, "Instance access required");
+		// Revalidate stream credentials even when no authorized record would reach the per-row check.
+		if (actor.token) await actorPermissions(pool, actor, actor.token.scope);
 	} else await requirePermission(pool, actor, input.scope, "metadata.read");
 	if (!/^\d{1,20}$/.test(input.after) || BigInt(input.after) > BigInt("9223372036854775807")) throw new AppError("invalid_cursor", 400, "Live cursor is invalid");
 	const limit = input.limit ?? 200;

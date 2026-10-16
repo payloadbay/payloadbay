@@ -18,8 +18,8 @@ required.
 Each PR preview has its own PostgreSQL container and synthetic dataset. The
 preview stack builds directly from the PR branch; no merge to master or published
 product images is required. Preview deployment recreates the containers, resets
-the ephemeral database and seeds the same known demo identity and sample workspace,
-project and ingress route. Edits within a PR are shared among its reviewers and
+the ephemeral database and seeds known synthetic accounts across two unrelated
+organizations, their workspaces, projects and ingress routes. Edits within a PR are shared among its reviewers and
 are intentionally lost on the next deployment.
 
 The preview sign-in page provides a **Demo access** selector. All accounts use
@@ -27,7 +27,8 @@ normal email-code login through Mailpit:
 
 | Account                                  | Access                                                                            |
 | ---------------------------------------- | --------------------------------------------------------------------------------- |
-| `reviewer@preview.payloadbay.test`       | Instance owner; all projects and instance administration.                         |
+| `reviewer@preview.payloadbay.test`       | Instance owner; all organizations, projects and instance administration.         |
+| `organization-owner@preview.payloadbay.test` | Owns Example customer only; its workspace, project, members, code and usage. |
 | `project-admin@preview.payloadbay.test`  | Administrator of Demo integrations only; no workspace or instance administration. |
 | `project-viewer@preview.payloadbay.test` | Read-only metadata for Demo integrations; no payload reading or mutations.        |
 

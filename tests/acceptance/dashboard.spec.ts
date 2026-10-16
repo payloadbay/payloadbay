@@ -1022,7 +1022,15 @@ test("FT11b organization usage shows local counts and unlimited self-host defaul
 	await page.goto("/organizations/" + organizationId + "/usage");
 	await expect(page.getByRole("heading", { name: "Usage and limits", exact: true })).toBeVisible();
 	await expect(page.getByRole("grid", { name: "Organization usage" })).toBeVisible();
-	await expect(page.getByRole("row", { name: /Incoming requests/ })).toContainText("0");
+	const to = new Date();
+	const query = new URLSearchParams({ from: new Date(to.getTime() - 86400000).toISOString(), to: to.toISOString() });
+	const usage = await (await page.request.get(`/api/v1/organizations/${organizationId}/usage?${query}`)).json();
+	await expect(
+		page
+			.getByRole("row", { name: /Incoming requests/ })
+			.getByRole("gridcell")
+			.nth(1),
+	).toHaveText(BigInt(usage.metrics["ingress.recorded"].lifetime).toLocaleString("en-US"));
 	await expect(page.getByText("Unlimited", { exact: true })).toHaveCount(3);
 	await page.getByLabel("Usage window").selectOption("168");
 	await expect(page.getByRole("grid", { name: "Organization usage" })).toBeVisible();
@@ -1031,6 +1039,14 @@ test("FT11b organization usage shows local counts and unlimited self-host defaul
 	const policy = await page.request.get("/api/v1/organizations/" + organizationId + "/policy");
 	expect(policy.status()).toBe(200);
 	expect((await policy.json()).limits).toEqual({ workspaces: null, projects: null, admission: null });
+	const workspaces = await (await page.request.get("/api/v1/workspaces")).json();
+	const workspace = workspaces.find((item: { organization_id: string }) => item.organization_id === organizationId);
+	const created = await page.request.post("/api/v1/projects", { headers: { origin: new URL(page.url()).origin, "x-payloadbay-csrf": "1" }, data: { parentId: workspace.id, name: "API contract", slug: "api-contract" } });
+	expect(created.status()).toBe(200);
+	const project = await created.json();
+	const detail = await page.request.get("/api/v1/projects/" + project.id);
+	expect(detail.status()).toBe(200);
+	expect((await detail.json()).organization_id).toBe(organizationId);
 	await page.screenshot({
 		path: "/tmp/payloadbay-org-usage-mobile.png",
 		fullPage: true,

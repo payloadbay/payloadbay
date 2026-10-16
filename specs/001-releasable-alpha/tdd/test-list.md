@@ -836,9 +836,9 @@ case IDs below follow the implemented F-task ownership.
 | ID | State | Behavior | Owning suite |
 | --- | --- | --- | --- |
 | FT01a–e | DONE | Required organization, local slugs, preserved historical IDs/grants, staged migration constraint, archived mapping | organizations.test.ts |
-| FT02a–b | DONE | Organization parents and inherited ownership exclude sibling workspaces | organizations.test.ts |
+| FT02a–c | DONE | Organization parents and inherited ownership exclude sibling workspaces; last active owner survives transfer | organizations.test.ts |
 | FT03a–c | DONE | Scoped SSE, archive revocation, immutable resource parent | organizations.test.ts |
-| FT03e–h | DONE | Unrelated-customer secrets/helper pins, scoped tokens despite multi-org membership, suspension, event/analytics/live isolation and cross-org publication/middleware pins | organizations.test.ts |
+| FT03e–i | DONE | Unrelated-customer secrets/helper pins, scoped tokens despite multi-org membership, suspension, event/analytics/live isolation and cross-org publication/middleware pins and accessible token revocation | organizations.test.ts |
 | FT03d | DONE | Archived organization cannot accept new ingress | ingress.test.ts |
 | FT04a–e | DONE | Atomic owner defaults/rollback, idempotent customer provisioning, narrow verified session, default-off registration | organizations.test.ts |
 | FT05a | DONE | Organization invitation admission never grants global role or revives inactive identity | organizations.test.ts |

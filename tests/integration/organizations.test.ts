@@ -709,3 +709,68 @@ test("FT03h publications inherit only their organization middleware and reject f
 		assert.equal((await db.query("SELECT active_publication_id FROM payloadbay.endpoint WHERE id=$1", [endpointB.id])).rows[0].active_publication_id, null);
 	});
 });
+
+test("FT02c organization ownership retains an active owner during transfer", async () => {
+	await authFixture(async ({ pool, db }) => {
+		const { a } = await customerPair(pool, db);
+		const { setGrant } = await import("../../packages/domain/src/membership.ts");
+		const { rolePermissions } = await import("../../packages/domain/src/authorization.ts");
+		const scope = { type: "organization" as const, id: a.organizationId };
+		const demote = {
+			scope,
+			userId: "customer-a",
+			role: "admin" as const,
+			permissions: rolePermissions.admin,
+			expectedVersion: 1,
+		};
+		await assert.rejects(setGrant(pool, { userId: "customer-a" }, demote), { code: "last_owner" });
+		await identity(db, "replacement-owner");
+		const installationId = (await db.query("SELECT id FROM payloadbay.installation")).rows[0].id;
+		await db.query("INSERT INTO payloadbay.admission(installation_id,user_id) VALUES($1,'replacement-owner')", [installationId]);
+		await setGrant(
+			pool,
+			{ userId: "customer-a" },
+			{
+				scope,
+				userId: "replacement-owner",
+				role: "owner",
+				permissions: rolePermissions.owner,
+				expectedVersion: null,
+			},
+		);
+		await db.query("UPDATE payloadbay.admission SET active=false WHERE user_id='replacement-owner'");
+		await assert.rejects(setGrant(pool, { userId: "customer-a" }, demote), { code: "last_owner" });
+		await db.query("UPDATE payloadbay.admission SET active=true WHERE user_id='replacement-owner'");
+		await setGrant(pool, { userId: "customer-a" }, demote);
+		assert.equal((await db.query("SELECT owner_user_id FROM payloadbay.organization WHERE id=$1", [a.organizationId])).rows[0].owner_user_id, "replacement-owner");
+		await assert.rejects(setGrant(pool, { userId: "operator" }, { ...demote, userId: "replacement-owner" }), { code: "last_owner" });
+	});
+});
+
+test("FT03i revoked organization tokens cannot continue accessible live backfill", async () => {
+	await authFixture(async ({ pool, db }) => {
+		const { a, projectA } = await customerPair(pool, db);
+		const { createToken, authenticateToken, revokeToken } = await import("../../packages/domain/src/tokens.ts");
+		const { readChanges } = await import("../../packages/domain/src/live.ts");
+		const { appendChange } = await import("../../packages/domain/src/changes.ts");
+		await appendChange(db, { scope: { type: "project", id: projectA.id }, kind: "configuration.changed", resourceId: projectA.id });
+		const scope = { type: "organization" as const, id: a.organizationId };
+		const token = await createToken(
+			pool,
+			{ userId: "customer-a" },
+			{
+				scope,
+				name: "Live reader",
+				permissions: ["metadata.read"],
+				expiresAt: new Date(Date.now() + 3600000),
+			},
+		);
+		const actor = await authenticateToken(pool, token.secret);
+		assert.ok(actor);
+		const instanceId = (await db.query("SELECT id FROM payloadbay.installation")).rows[0].id;
+		const input = { scope: { type: "accessible" as const, id: instanceId }, after: "0" };
+		assert.ok((await readChanges(pool, actor, input)).items.length > 0);
+		await revokeToken(pool, { userId: "customer-a" }, scope, token.id);
+		await assert.rejects(readChanges(pool, actor, input), { code: "unauthenticated" });
+	});
+});
