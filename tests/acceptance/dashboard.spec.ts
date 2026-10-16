@@ -959,3 +959,48 @@ test("instance notification modules fork, preview, publish and deliver branded e
 	const channels = await (await page.request.get("/api/v1/notification-channels")).json();
 	expect(channels.some((channel: { name: string }) => channel.name === "Review email module")).toBeTruthy();
 });
+
+test("project-only preview reviewers cannot navigate into workspace or instance administration", async ({ page }) => {
+	const { database } = await import("../../packages/domain/src/db.ts");
+	const { readServerConfig } = await import("../../packages/domain/src/config.ts");
+	const { createAuth } = await import("../../packages/domain/src/auth-runtime.ts");
+	const { seedPreviewDemo } = await import("../../packages/domain/src/preview-demo.ts");
+	const { signInBrowser } = await import("../helpers/browser-auth.ts");
+	const config = readServerConfig(process.env);
+	const pool = database(config.databaseUrl);
+	const identity = createAuth(pool, config);
+	let projectId = "";
+	let privateProjectId = "";
+	try {
+		await seedPreviewDemo(pool, config, identity, { IS_PREVIEW: "true", NODE_ENV: "development" });
+		const projects = (await pool.query("SELECT id,slug FROM payloadbay.project")).rows;
+		projectId = projects.find((project) => project.slug === "webhook-playground").id;
+		privateProjectId = projects.find((project) => project.slug === "admin-only").id;
+	} finally {
+		await identity.close();
+		await pool.end();
+	}
+
+	await page.setViewportSize({ width: 390, height: 844 });
+	await signInBrowser(page, "project-admin@preview.payloadbay.test");
+	await page.goto("/projects");
+	await expect(page.getByRole("row", { name: /Demo integrations/ })).toBeVisible();
+	await expect(page.getByRole("row", { name: /Admin-only example/ })).toHaveCount(0);
+	await page.goto("/projects/" + projectId);
+	await page.getByRole("button", { name: "Toggle navigation" }).click();
+	const menu = page.getByRole("dialog");
+	await expect(menu.getByRole("button", { name: "Back to instance", exact: true })).toBeVisible();
+	await expect(menu.getByRole("button", { name: "Back to workspace", exact: true })).toHaveCount(0);
+	await menu.getByRole("button", { name: "Back to instance", exact: true }).click();
+	await expect(menu.getByText("Instance members", { exact: true })).toHaveCount(0);
+	await expect(menu.getByText("Notification modules", { exact: true })).toHaveCount(0);
+	await page.keyboard.press("Escape");
+	expect((await page.request.get("/api/v1/projects/" + privateProjectId)).status()).toBe(403);
+	expect((await page.request.get("/api/v1/email-settings")).status()).toBe(403);
+	await signInBrowser(page, "project-viewer@preview.payloadbay.test");
+	await page.goto("/projects/" + projectId);
+	await expect(page.getByRole("button", { name: "Create ingress route", exact: true })).toHaveCount(0);
+	const projects = await (await page.request.get("/api/v1/projects")).json();
+	expect(projects.map((project: { id: string }) => project.id)).toEqual([projectId]);
+	expect((await page.request.post("/api/v1/projects/" + projectId + "/endpoints", { headers: { origin: new URL(page.url()).origin, "x-payloadbay-csrf": "1" }, data: { name: "Forbidden", slug: "forbidden" } })).status()).toBe(403);
+});

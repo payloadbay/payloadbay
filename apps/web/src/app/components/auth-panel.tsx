@@ -7,9 +7,11 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { Button, Card, Form, TextField, Label, Input, InputOTP, REGEXP_ONLY_DIGITS, Spinner, FieldError } from "@heroui/react";
-import { Stepper } from "@heroui-pro/react";
+import { Stepper, NativeSelect } from "@heroui-pro/react";
 import { IconMail, IconRefresh, IconFingerprint } from "@tabler/icons-react";
 import { api, ApiFailure } from "@lib/api-client";
+
+import { previewReviewerEmail, previewProjectAccounts } from "@domain/preview";
 
 type AuthPanelProps = {
 	setup?: boolean;
@@ -21,7 +23,7 @@ type AuthPanelProps = {
 export function AuthPanel({ setup = false, preview = false, initialEmail, returnTo = "/" }: AuthPanelProps) {
 	const router = useRouter();
 
-	const [email, setEmail] = useState(initialEmail ?? (preview && !setup ? "reviewer@preview.payloadbay.test" : ""));
+	const [email, setEmail] = useState(initialEmail ?? (preview && !setup ? previewReviewerEmail : ""));
 	const [name, setName] = useState("");
 	const [secret, setSecret] = useState("");
 	const [otp, setOtp] = useState("");
@@ -214,6 +216,24 @@ export function AuthPanel({ setup = false, preview = false, initialEmail, return
 										<FieldError />
 									</TextField>
 								</>
+							)}
+							{preview && !setup && !sent && (
+								<div className='flex flex-col gap-2'>
+									<NativeSelect variant='secondary'>
+										<Label>Demo access</Label>
+										<NativeSelect.Trigger aria-label='Demo access' value={[previewReviewerEmail, ...previewProjectAccounts.map((account) => account.email)].includes(email) ? email : ""} onChange={(event) => setEmail(event.target.value)} disabled={busy}>
+											<NativeSelect.Option value={previewReviewerEmail}>Instance owner · all projects</NativeSelect.Option>
+											{previewProjectAccounts.map((account) => (
+												<NativeSelect.Option key={account.email} value={account.email}>
+													{account.role === "admin" ? "Project admin · one project" : "Project viewer · read-only"}
+												</NativeSelect.Option>
+											))}
+											<NativeSelect.Option value=''>Another email address</NativeSelect.Option>
+											<NativeSelect.Indicator />
+										</NativeSelect.Trigger>
+									</NativeSelect>
+									<p className='text-muted text-sm'>Test different permissions using normal sign-in codes from preview Mailpit.</p>
+								</div>
 							)}
 							{!sent && (
 								<TextField name='email' type='email' value={email} onChange={setEmail} isRequired maxLength={254}>

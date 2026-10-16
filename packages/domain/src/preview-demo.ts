@@ -11,7 +11,10 @@ import { receiveIngress } from "./ingress.ts";
 import { execute } from "../../../apps/executor/src/supervisor.ts";
 import { compile } from "../../../apps/executor/src/compiler.ts";
 import { createEndpoint } from "./endpoints.ts";
-import { previewReviewerEmail } from "./preview.ts";
+import { previewReviewerEmail, previewProjectAccounts } from "./preview.ts";
+
+import { rolePermissions } from "./authorization.ts";
+import { setGrant } from "./membership.ts";
 
 /** Synthetic demo provisioning, intentionally unavailable in operator production mode. */
 export async function seedPreviewDemo(pool: Pool, config: ServerConfig, identity: ReturnType<typeof createAuth>, env: Record<string, string | undefined> = process.env) {
@@ -48,6 +51,31 @@ export async function seedPreviewDemo(pool: Pool, config: ServerConfig, identity
 				name: "Demo integrations",
 				slug: "webhook-playground",
 			});
+		if (!(await db.query("SELECT 1 FROM payloadbay.project WHERE workspace_id=$1 AND slug='admin-only'", [workspace.id])).rowCount) {
+			await createResource(pool, actor, {
+				type: "project",
+				parentId: workspace.id,
+				name: "Admin-only example",
+				slug: "admin-only",
+			});
+		}
+
+		for (const account of previewProjectAccounts) {
+			let member = (await db.query('SELECT id FROM auth."user" WHERE email=$1', [account.email])).rows[0];
+			if (!member) member = (await identity.api.createUser({ body: { email: account.email, name: account.name } })).user;
+			await db.query('UPDATE auth."user" SET "emailVerified"=true WHERE id=$1', [member.id]);
+			await db.query("INSERT INTO payloadbay.admission(installation_id,user_id) VALUES($1,$2) ON CONFLICT(installation_id,user_id) DO NOTHING", [installationId, member.id]);
+			if (!(await db.query("SELECT 1 FROM payloadbay.grant_record WHERE user_id=$1 AND scope_type='project' AND scope_id=$2", [member.id, project.id])).rowCount) {
+				await setGrant(pool, actor, {
+					scope: { type: "project", id: project.id },
+					userId: member.id,
+					role: account.role,
+					permissions: rolePermissions[account.role],
+					expectedVersion: null,
+				});
+			}
+		}
+
 		if (!(await db.query("SELECT 1 FROM payloadbay.destination WHERE project_id=$1 AND name='Demo receiver'", [project.id])).rowCount) {
 			await createDestination(pool, actor, {
 				projectId: project.id,

@@ -22,7 +22,20 @@ the ephemeral database and seeds the same known demo identity and sample workspa
 project and ingress route. Edits within a PR are shared among its reviewers and
 are intentionally lost on the next deployment.
 
-Use `reviewer@preview.payloadbay.test` for email-code login. Mailpit captures login
+The preview sign-in page provides a **Demo access** selector. All accounts use
+normal email-code login through Mailpit:
+
+| Account                                  | Access                                                                            |
+| ---------------------------------------- | --------------------------------------------------------------------------------- |
+| `reviewer@preview.payloadbay.test`       | Instance owner; all projects and instance administration.                         |
+| `project-admin@preview.payloadbay.test`  | Administrator of Demo integrations only; no workspace or instance administration. |
+| `project-viewer@preview.payloadbay.test` | Read-only metadata for Demo integrations; no payload reading or mutations.        |
+
+An Admin-only example project is visible only to the instance owner. These shared
+accounts exercise real permission boundaries; they do not isolate public reviewers
+from one another, because anyone can also choose the demo owner.
+
+Mailpit captures login
 and other preview emails; no production SMTP provider is configured. Reviewers do
 not need GitHub maintainer access. Mailpit is publicly accessible without a separate login on disposable previews. Email codes remain real,
 expiring Better Auth codes; no fixed password or authentication bypass is added.

@@ -421,7 +421,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 	const routeScope = !browse && Boolean(routeId);
 	const scoped = routeScope || Boolean(project || workspace);
 	const scopeTitle = routeScope ? (routeMetadata && routeMetadata.id === routeId ? routeMetadata.name : "Ingress route") : (project?.name ?? workspace?.name ?? "Payload Bay");
-	const parentScope = routeScope ? { type: "project" as const, id: project!.id } : project ? { type: "workspace" as const, id: project.workspace_id } : { type: "instance" as const };
+	const parentScope = routeScope ? { type: "project" as const, id: project!.id } : project && data.workspaces.some((item) => item.id === project.workspace_id) ? { type: "workspace" as const, id: project.workspace_id } : { type: "instance" as const };
 
 	function navigate(href: string) {
 		setSearchOpen(false);
@@ -439,7 +439,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 					{scoped && (
 						<Button variant='ghost' size='sm' onPress={() => setBrowse(parentScope)}>
 							<IconArrowLeft size={16} />
-							Back to {routeScope ? "project" : project ? "workspace" : "instance"}
+							Back to {parentScope.type}
 						</Button>
 					)}
 					<p className='mt-2 break-words text-lg font-semibold'>{scopeTitle}</p>

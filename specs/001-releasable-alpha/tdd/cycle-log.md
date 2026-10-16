@@ -2592,3 +2592,12 @@ middleware integration suite: 9 passed. R01/R02 are verified; R03–R05 follow.
 - Live 390px notification flow passed real HTML/plain-text OTP login, shipped module fork → synthetic dry test → publish v1 → transactional module/branding save → real Mailpit delivery → reset → personal notification settings. The email was visibly rendered inside the live page, not just in a frame-body capture.
 - The preceding review smoke passed on the same commit: centered HeroUI startup spinner, six-slot real OTP sign-in, 320px overview, sticky preview notice, valid status filters, SSE GET/PUT ingress history, outgoing HTTP503 response inspection, scope-only menus/Back, search, native helper import/publish/HTTP execution, account settings and sign-out.
 - R01–R05 are complete for this follow-up. Physical Android keyboard review, generated API-doc parity and the broader alpha release/installation/performance gates remain separate. Promoted the implemented notification document from proposals to contracts.
+
+### Scoped preview reviewer accounts — 2026-10-16
+
+- Added project-admin and project-viewer synthetic identities admitted without instance/workspace grants. Both are restricted to Demo integrations; an Admin-only example project allows comparison with the existing instance owner. Seeding is idempotent and remains unavailable outside disposable development previews.
+- Preview login offers a Demo access selector, while every account still signs in through a normal expiring OTP delivered to Mailpit. No passwords or session-impersonation shortcut were added. CONTRIBUTING documents the accounts and shared-demo limitations.
+- Project-only menu Back now selects the closest accessible ancestor rather than offering an inaccessible workspace.
+- Preview integration: 3/3 passed, covering repeat seeding, project-only visibility/read/write permissions, preview-only controls and owner lockout protection. New browser flow passed real project-admin/viewer sign-in, scoped collection visibility, menu Back, denied instance settings, denied private-project access and denied viewer mutation.
+- ESLint, web/tooling TypeScript and Prettier passed. Existing Docker/cache/migration-workflow drafts remain excluded. The hosted SaaS discussion is an assessment, not an enabled signup/billing feature or a runtime-policy change.
+- Existing bootstrap/mobile regression also passed 8/8 after the account-selector change.

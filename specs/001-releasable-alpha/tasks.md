@@ -368,3 +368,6 @@ release gates complete. Track actual verification in `tdd/cycle-log.md` and
   secret redaction, mobile email/template flows and the actual preview; update
   the audit and PR evidence. The scope is recorded in
   `contracts/notification-channels.md`.
+- [x] R06 Add disposable preview project-admin/viewer identities, an owner-only
+  comparison project and a preview-only account picker. Exercise real OTP and
+  scoped authorization, and keep menu Back within accessible ancestors.

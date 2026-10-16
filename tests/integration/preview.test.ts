@@ -15,13 +15,14 @@ test("U320 preview seed provisions a repeatable admitted demo owner and project"
 			await seedPreviewDemo(f.pool, config, identity, env);
 			await seedPreviewDemo(f.pool, config, identity, env);
 			const users = (await f.db.query('SELECT id,email,"emailVerified" FROM auth."user"')).rows;
-			assert.equal(users.length, 1);
-			assert.equal(users[0].email, "reviewer@preview.payloadbay.test");
-			assert.equal(users[0].emailVerified, true);
+			assert.equal(users.length, 3);
+			const owner = users.find((user) => user.email === "reviewer@preview.payloadbay.test");
+			assert.ok(owner);
+			assert.equal(owner.emailVerified, true);
 			assert.equal((await f.db.query("SELECT bootstrap_state FROM payloadbay.installation")).rows[0].bootstrap_state, "complete");
-			assert.equal((await f.db.query("SELECT active FROM payloadbay.admission WHERE user_id=$1", [users[0].id])).rows[0].active, true);
+			assert.equal((await f.db.query("SELECT active FROM payloadbay.admission WHERE user_id=$1", [owner.id])).rows[0].active, true);
 			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.workspace")).rows[0].count, 1);
-			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.project")).rows[0].count, 1);
+			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.project")).rows[0].count, 2);
 			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.endpoint")).rows[0].count, 1);
 			const destinations = (await f.db.query("SELECT name,http_config,is_default FROM payloadbay.destination")).rows;
 			assert.equal(destinations.length, 1, "Repeated seeding must not duplicate the demo target");
@@ -32,7 +33,29 @@ test("U320 preview seed provisions a repeatable admitted demo owner and project"
 			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.event")).rows[0].count, 2);
 			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.receipt")).rows[0].count, 2);
 			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.execution WHERE state='queued'")).rows[0].count, 2);
-			await identity.api.sendVerificationOTP({ body: { email: users[0].email, type: "sign-in" } });
+			const { listResources } = await import("../../packages/domain/src/resources.ts");
+			const { actorPermissions, requirePermission } = await import("../../packages/domain/src/membership.ts");
+			const projects = await listResources(f.pool, { userId: owner.id }, "project");
+			assert.equal(projects.length, 2);
+			const demo = projects.find((project) => project.slug === "webhook-playground")!;
+			const privateProject = projects.find((project) => project.slug === "admin-only")!;
+			const instanceId = (await f.db.query("SELECT id FROM payloadbay.installation")).rows[0].id;
+			for (const email of ["project-admin@preview.payloadbay.test", "project-viewer@preview.payloadbay.test"]) {
+				const member = users.find((user) => user.email === email)!;
+				const scopedActor = { userId: member.id };
+				assert.deepEqual(
+					(await listResources(f.pool, scopedActor, "project")).map((project) => project.id),
+					[demo.id],
+				);
+				assert.deepEqual(await listResources(f.pool, scopedActor, "workspace"), []);
+				assert.equal((await actorPermissions(f.pool, scopedActor, { type: "instance", id: instanceId })).size, 0);
+				await assert.rejects(requirePermission(f.pool, scopedActor, { type: "project", id: privateProject.id }, "metadata.read"), { code: "forbidden" });
+				const rights = await actorPermissions(f.pool, scopedActor, { type: "project", id: demo.id });
+				assert.equal(rights.has("code.publish"), email.startsWith("project-admin"));
+				assert.equal(rights.has("payload.read"), email.startsWith("project-admin"));
+			}
+
+			await identity.api.sendVerificationOTP({ body: { email: owner.email, type: "sign-in" } });
 			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.platform_job WHERE kind='otp_mail'")).rows[0].count, 1, "reviewers can use real queued OTP email without a maintainer account");
 		} finally {
 			await identity.close();
@@ -47,6 +70,8 @@ test("U321 preview warning is shown by runtime mode and absent outside previews"
 		async (f) => {
 			const html = await (await fetch(f.url + "/login")).text();
 			assert.match(html, /Disposable PR preview/);
+			assert.match(html, /Project admin · one project/);
+			assert.match(html, /Project viewer · read-only/);
 			assert.equal((await fetch(f.url + "/api/preview/receiver", { method: "POST", body: "synthetic event" })).status, 204);
 			assert.match(html, /Do not use production credentials or sensitive data/);
 		},
