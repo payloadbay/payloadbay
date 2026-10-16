@@ -1,6 +1,6 @@
 # Alpha data model
 
-Design artifact; no migrations applied. PostgreSQL domain schema is separate from Better Auth and Graphile internals. Use supported Graphile APIs, not private table manipulation. UUID resource identifiers; UTC timestamps; byte payloads; Zod/public contracts independent of tables.
+Design artifact; schema/runtime sources own implementation and CI owns release migrations. PostgreSQL domain schema is separate from Better Auth and Graphile internals. Use supported Graphile APIs, not private table manipulation. UUID resource identifiers; UTC timestamps; byte payloads; Zod/public contracts independent of tables.
 
 ## Access and configuration
 
@@ -11,7 +11,8 @@ Design artifact; no migrations applied. PostgreSQL domain schema is separate fro
 | Passkey          | Better Auth credential ID/public key/counter, userId, device metadata                                   | Auth-library-owned; private keys stay on the authenticator; active admission required for a session                 |
 | Invitation       | id, installationId, primary scope, normalized email, tokenDigest, pending grants, creator, expiry/state | Hash-only token; grants applied after matching verified acceptance/current authority checks; cancellation auditable |
 | Admission        | installationId,userId,active                                                                            | Unique pair; ordinary admission grants no global role                                                               |
-| Workspace        | id,installationId,name,slug,ownerUserId,archivedAt                                                      | Unique live slug per installation; owner admitted/active; last-owner protection                                     |
+| Organization     | id,installationId,name,slug,ownerUserId,archivedAt | Customer/company; future subscription owner; owner admitted; no public global-admin grant |
+| Workspace        | id,organizationId,installationId,name,slug,ownerUserId,archivedAt                                                      | Unique live slug per organization; consistent installation parent; owner admitted/active; last-owner protection                                     |
 | Project          | id,workspaceId,name,slug,ownerUserId,archivedAt                                                         | Unique live slug per workspace; explicit scoped ownership                                                           |
 | Grant            | id,userId,scopeType/scopeId,rolePreset,effectivePermissions,version                                     | Positive inherited grants; no child deny; grantor cannot escalate                                                   |
 | ApiToken         | id,userId,scopeId,permissionSet,hash,expiresAt,revokedAt                                                | Hash only; token rights intersect current user rights                                                               |
@@ -84,3 +85,23 @@ empty accepted body, no receipt, execution, dispatch or job, and cannot be repla
 for delivery. `event.recorded` changes refresh these rows through authorized SSE.
 Accepted-event/job atomicity is unchanged. Delivery-attempt list view returns one
 row per attempt with the original event ID for inspection.
+
+## Organization usage and policy extension — planned 2026-10-16
+
+Organization is required above workspace; grants inherit instance → organization
+→ workspace → project. Existing scope IDs/history survive an explicit additive
+alpha-data mapping; existing scoped members gain no broader grants. Cross-org
+moves are unavailable until a separately designed transfer exists.
+
+| Entity | Fields | Invariants |
+| --- | --- | --- |
+| UsageFact | organizationId, workspaceId/projectId where relevant, metric, sourceKey, quantity bigint, occurredAt | Append-only, unique metric/source identity, no payload/secrets; authoritative occurrence and tenant are immutable |
+| UsageCounter / rollup | organizationId, metric, explicit time bucket/window, quantity bigint | Updated only for inserted facts; reconcilable; payload pruning does not reset totals |
+| OrganizationPolicy | organizationId, revision, typed capabilities/resource ceilings/work limits, optional explicit measurement window | Operator-controlled, validated/audited; null commercial ceiling means unlimited; no provider calls on request path |
+| Capacity authority | organization/destination association, execution/operation identity, generation/lease authority | Atomic claim, bounded deferral, expired capacity recoverable, stale owner cannot release replacement authority |
+| Onboarding provisioning | verified identity + idempotency/provisioning state + resulting organization/workspace IDs | Exactly one result under retries; invitation path joins existing scope; no instance role escalation |
+
+These definitions are pending runtime work. Use existing execution lease/state
+as the capacity authority where possible rather than adding a competing lease
+system. See [tenant-metering contract](contracts/tenant-metering.md) for precise
+fact identities, failure behavior and source insertion points.

@@ -30,29 +30,76 @@ Planned paths (create when implementation starts): `apps/web`, `apps/worker`, `a
 
 Self-hosted and hosted product use the same release artifacts. The complete hosted product includes its dashboard, not only a hosted database. Localhost destinations refer to the sending runtime; all configured HTTP/HTTPS address categories are allowed when reachable. Delivery uses installation/network-local trusted orchestration, not a mandatory edge-only sender. Future edge ingress needs a separately tested adapter and durable database round trip; Node does not imply global edge deployment.
 
-### Shared product and commercial policy
+### Shared product, organizations and local policy — revised 2026-10-16
 
-The confirmed model is one product: self-hosted standard features without plan
-quotas; first-party hosted workspaces with future subscription limits; optional
-enterprise capabilities defined later. Keep authorization (who may act),
-entitlements (what the workspace plan allows), and runtime safety policy (how
-code/network execution is contained) separate. Demo restrictions do not imply a
-commercial tier. See [deployment policy](contracts/deployment-policy.md).
+One codebase and coordinated release artifacts support self-hosted, first-party
+hosted and demos. The confirmed hierarchy is Instance → Organization → Workspace
+→ Project. Organization is the customer/company and future subscription owner;
+instance administration remains operator-only. This supersedes the earlier
+workspace-as-tenant wording. Self-hosted standard features remain commercially
+unlimited, while finite runtime/rate/capacity protections still apply.
 
-Keep future entitlement resolution in server-only domain services so HTTP,
-dashboard, MCP and workers use the same checks. Self-hosted resolution is local
-and unrestricted by subscription, with no hosted-service dependency. Hosted
-billing adapters translate external subscriptions into local workspace policy;
-the delivery engine must not call a billing provider on each webhook. Define
-metering semantics and atomic reservation/release behavior before implementing
-hosted quotas. Never retrofit a quota by dropping already acknowledged work.
+The n8n review is recorded in [research-n8n-foundation.md](research-n8n-foundation.md).
+Use its central local capability/quota interface, durable usage separation and
+atomic creation-check patterns; do not copy its commercial code, adopt its
+licensing SDK or assume its public project model proves hosted isolation.
 
-The present alpha implements inherited scopes and the shared engine, not hosted
-billing or arbitrary-tenant security certification. Do not add unused tables,
-placeholder plan IDs, a license verifier or a second app while those contracts
-are undefined. Hosting the commercial service remains a separate release gate,
-with tenant fairness, workspace-owned adapters and stronger sandbox/egress
-validation required even though the product code is shared.
+**Current alpha foundation, not deferred billing work:** organization scope and
+ownership; shared onboarding/default setup and scoped invitations; cross-tenant
+authorization/lineage tests; payload-free durable usage ledger/counters; one local
+organization policy resolver; atomic workspace/project/admission limits;
+lease-backed processing/destination capacity and bounded multi-tenant progress.
+Definitions and failure contracts are in
+[contracts/tenant-metering.md](contracts/tenant-metering.md).
+
+Keep authorization, commercial capabilities/ceilings, runtime isolation and demo
+restrictions separate. Self-hosted policy resolution is local and subscription-
+unlimited; record usage there too. Billing and enterprise adapters may later
+update local organization policy without appearing in the webhook critical path.
+No price list, billing provider, license issuer or heartbeat is selected now.
+
+Implement the new foundation in F01–F12 before declaring the alpha foundation
+complete. H01 defers only hosted commercial integration/production rollout, not
+the tenant schema or counters. No new backend, Redis, Docker socket, repository
+or separate hosted app is needed. Do not certify hostile-tenant hosting until
+its actual sandbox/egress and complete access matrix pass independently.
+
+### Implementation boundaries and order
+
+1. Add Organization, explicit workspace parent/integrity and additive existing
+   alpha-data mapping in schema/runtime sources. Preserve IDs, grants, secrets,
+   immutable publications/events and queued work; no generated release migration
+   on this branch. Existing workspace-scoped grants must not become organization
+   or instance grants. Do not merge unrelated owners into a shared organization.
+2. Extend ScopeRef/contracts, permission inheritance, ownership/last-owner logic,
+   resource queries, SSE/overview, tokens, helpers/middleware/secrets and job lineage.
+   Organization selection is not authorization. Scope-aware navigation/search/
+   breadcrumbs/member tables use the same hierarchy on desktop and mobile.
+3. Implement one-time self-host owner/default org/workspace setup and narrow
+   verified-identity onboarding. Policy-controlled new-org registration stays off
+   by default. Invitation acceptance enters its existing scope, without forcing
+   an org on project-only invitees or letting org admins reactivate suspensions.
+4. Insert deduplicated usage facts alongside the authoritative transaction:
+   ingress event/receipt, initial/replay execution, successful fenced claim,
+   actual managed-attempt creation, fenced terminal outcome. Counter increments
+   require a newly inserted fact. Queue generations/heartbeats/cached sends are
+   not new logical work. Usage survives payload/history pruning.
+5. Resolve organization policy locally. Serialize quota check/create ownership
+   in shared commands; persist explicit windows for any usage admission cap.
+   Self-hosted defaults have no commercial ceilings. Invalid hosted policy cannot
+   silently become unlimited. Operator writes are audited/versioned.
+6. Reserve processing capacity with lease/generation authority, reclaim expiry,
+   defer without consuming attempts and enforce destination concurrency. Preserve
+   existing reserved lanes and validate bounded progress under a busy neighbor;
+   a per-org cap alone is not starvation-free scheduling.
+7. Exercise migration/no-escalation, two-org access and SSE/token revocation,
+   worker lineage, ledger rollback/dedup/recovery/replay/retention, concurrent
+   quota races, multi-worker capacity and real mobile OTP onboarding. Update the
+   test inventory and exact deployment evidence only after actual execution.
+
+The current runtime at `291f3e0` does not yet implement F01–F12. Existing scoped
+preview accounts and 34 passing authentication tests are prior evidence, not
+proof of these newly planned behaviors.
 
 ## 3. Request and delivery lifecycle
 
@@ -151,7 +198,7 @@ A stable operationId is unique within an execution; loops must include a stable 
 
 ## 5. Middleware, templates and future hooks
 
-Bindings specify ingress or processing, order within scope, required/optional failure policy and version. Before-stage middleware order is instance → workspace → project → endpoint. Scope has visible inherited/effective bindings and provenance. Required ingress failures reject before acceptance; optional failures are recorded. Processing failures follow declared retry/terminal policy.
+Bindings specify ingress or processing, order within scope, required/optional failure policy and version. Before-stage middleware order is instance → organization → workspace → project → endpoint. Scope has visible inherited/effective bindings and provenance. Required ingress failures reject before acceptance; optional failures are recorded. Processing failures follow declared retry/terminal policy.
 
 Authorized users can copy/edit/replace/disable inherited middleware where parent policy permits override. Non-overridable parent bindings require parent policy rights to change. Publishing pins effective bindings and shared modules; editing parent/template source never silently changes queued work. Template copies are locally owned code; provider catalog membership is not a runtime restriction.
 
@@ -163,7 +210,7 @@ Alpha has two lifecycle stages and middleware/shared modules. Cleanup and email 
 
 Default passwordless email code through operator SMTP, public signup disabled. One-time owner setup requires operator bootstrap secret and verified email; prevent concurrent second bootstrap. Durable mail jobs honor OTP expiry, bounded retries/resends and reserved capacity. Missing/partial SMTP or OAuth configuration produces visible configuration errors, never silent insecure fallback. Secrets are not exposed in API/UI/logs. No implicit account linking by unverified email. Magic links/passwords may become explicit configurable options later.
 
-Roles/grants inherit instance → all workspaces/projects; workspace → child projects; project → that project. Ordinary admission is not a role granting global data access. Effective permissions union positive inherited/local grants; a child role cannot revoke parent grants. Presets Owner/Admin/Operator/Viewer plus explicit customized effective permissions. Ownership and transfer have scope and last-owner protections.
+Roles/grants inherit instance → all organizations/workspaces/projects; organization → its workspaces/projects; workspace → child projects; project → that project. Ordinary admission is not a role granting global data access. Effective permissions union positive inherited/local grants; a child role cannot revoke parent grants. Presets Owner/Admin/Operator/Viewer plus explicit customized effective permissions. Ownership and transfer have scope and last-owner protections.
 
 Separate metadata/payload read, replay (future edit-replay reserved), pause/resume, configure endpoints/destinations, edit/publish code, secret manage/use, role/member grants, audit and instance settings. Grantors cannot escalate beyond their own rights. A publisher can influence where accessible data is sent, so publication is privileged. API tokens and future MCP grants intersect user's permissions. Scope checks apply to lists, detail, mutations, SSE and reconnect backfill. Better Auth does not automatically secure domain rows.
 
@@ -327,3 +374,26 @@ branch release migration is generated. Overview aggregates and search obey the
 same metadata authorization as event/resource lists. Bounded active-route handler failures/invalid outcomes are retained as error
 records. A pre-handler ledger for unknown/oversized requests or process crashes
 before outcome recording is not included in this addendum.
+
+## Organization foundation constitution re-check — 2026-10-16
+
+- Scope approved: maintainer explicitly selected Organization above Workspace;
+  foundation includes local usage/work limits and keeps payments for later.
+- Existing integrated stack, durable acknowledgement, at-least-once delivery,
+  no application Docker socket and Python/Bun tooling remain unchanged.
+- New tables/services have concrete ownership, atomicity and failure contracts;
+  no empty licensing SDK/remote service/payment placeholders are introduced.
+- All behavioral tasks remain unchecked until actual red/green and affected final
+  evidence. New test routes need inventory registration; no planned path is
+  presented as an already runnable suite.
+- Existing alpha data needs a migration-order test: add organization/nullable
+  lineage, map each existing workspace into a distinct operator-owned organization,
+  then constrain nonnullable/composite ownership. Preserve scoped grants without
+  automatic organization grants. New setup creates its normal default org and
+  workspace together. Migration CI must emit the correctly ordered single release
+  migration; a generated ADD NOT NULL before backfill is not acceptable.
+- Tenant access, capacity/fairness and hostile-runtime evidence are separate.
+  No hosted-ready or full release claim is made by this planning update.
+- No before_plan or after_plan hooks are registered in extensions.yml. The
+  implementation before_implement TDD hook is registered and remains required
+  when executing F01–F12; it was not represented as run during research.

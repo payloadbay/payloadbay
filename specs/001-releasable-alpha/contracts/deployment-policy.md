@@ -14,7 +14,7 @@ licensed; their feature list and license mechanism are not selected.
 | Deployment | Operator/customer boundary | Commercial policy |
 | --- | --- | --- |
 | Self-hosted | Operator owns the instance and its workspaces | Standard features enabled; no subscription quotas or required cloud account |
-| First-party hosted | We own the instance; each customer owns a workspace | Future workspace plans may limit projects/events or other defined resources |
+| First-party hosted | We own the instance; each customer owns an organization | Future organization plans may limit projects/events or other defined resources |
 | Demo / PR preview | Shared disposable installation with scoped test accounts | Reset and effect restrictions, independently of hosted billing |
 
 Unlimited self-hosting means no artificial subscription quota. Resource capacity,
@@ -26,7 +26,7 @@ implementation and validation; sharing a schema does not prove portability.
 ## Three independent decisions
 
 1. Authorization: may this user/service perform the action at this scope?
-2. Entitlement: does the workspace's commercial policy permit the operation?
+2. Entitlement: does the organization's commercial policy permit the operation?
 3. Runtime safety: under what resource, network and isolation policy can it run?
 
 A larger plan does not grant administrator permissions. Workspace owners never
@@ -35,7 +35,7 @@ are explanatory; domain services enforce policy for all entry points.
 
 Self-hosted entitlement resolution must remain local, with the full standard
 feature set and no billing-provider availability dependency. A future hosted
-billing adapter updates local workspace entitlements; event handling does not
+billing adapter updates local organization entitlements; event handling does not
 perform synchronous subscription-provider lookups. Enterprise capability checks
 reuse this boundary once those capabilities are actually defined.
 
@@ -59,14 +59,19 @@ Present: the shared Next.js/PostgreSQL/Graphile/workerd engine, inherited
 instance/workspace/project authorization, operator installation and preview-only
 scoped test accounts.
 
-Still required before a public hosted release: customer onboarding/admission,
-local workspace entitlement storage/resolution, durable usage accounting and
-atomic limit enforcement, subscriptions, per-workspace queue/executor fairness,
-workspace-owned notification adapters/secrets, validated tenant isolation/egress,
-and operational backup/export/abuse handling. This contract does not certify the
-current restricted-Docker setup for mutually hostile customers.
+Current alpha foundation implementation is now required for organization lifecycle,
+local policy, metering and work limits (F01–F12). No payments, remote licensing or
+production public registration is enabled by this design. Hosted commercial
+integration and independently validated hostile-tenant runtime/egress/operations
+remain later release gates. See the detailed contract linked below.
 
-No unused plan tables, speculative feature flags or separate hosted repository
-are needed to preserve this boundary now. Implement concrete policy at the
-shared domain command/event-admission boundary when its semantics are approved,
-with self-hosted unrestricted behavior covered by the same tests.
+## Foundation scope correction
+
+The later maintainer decision supersedes the earlier workspace-as-customer model:
+Instance → Organization → Workspace → Project. Organization is the future
+subscription owner. Organization lifecycle, tenant tests, local metering/policy
+and work-capacity enforcement move into current alpha foundation tasks F01–F12;
+H01 now defers only commercial integration and hosted production rollout.
+See [tenant and metering contract](tenant-metering.md) and
+[n8n research](../research-n8n-foundation.md). These are planned contracts, not
+completed runtime functionality.

@@ -66,3 +66,23 @@ All product choices resolved; Phase 1 model/contracts/quickstart now substantive
 ## R10 — Confirmed icon library (2026-10-14)
 
 Decision: use `@tabler/icons-react`, confirmed by the user. Its broad outline/filled catalogue and adjustable outline stroke suit the dashboard and notification severity states. Use static imports bundled with the application; default to outline, reserving available filled variants for emphasis. Package installation and actual component checks belong to UI implementation. Sources: [Tabler catalogue](https://tabler.io/icons), [official React package](https://github.com/tabler/tabler-icons/tree/main/packages/icons-react).
+
+## R11 — Organization, local usage and policy foundation (2026-10-16)
+
+Decision: add Organization above Workspace before release; implement local
+organization-owned metering, policy and capacity foundations now, commercially
+unlimited by default on self-hosted. Separate payment/license activation from
+runtime capabilities and separate metering from telemetry and billing.
+Rationale: organization lineage and stable usage identities need to exist before
+released data depends on the old hierarchy. n8n provides useful local-policy,
+retained-statistic and atomic resource-quota patterns, but not a drop-in hostile-
+tenant SaaS control plane or a matching commercial policy.
+Alternatives: delaying every foundation task to H01, copying commercial n8n code,
+a separate hosted fork, a single ambiguous retry-inflated execution counter.
+All rejected. Detailed evidence and source links:
+[research-n8n-foundation.md](research-n8n-foundation.md).
+
+No unresolved foundation question remains about tenant hierarchy: the maintainer
+selected Instance → Organization → Workspace → Project. Prices, paid capability
+catalog, billing provider and production hosting topology remain deliberately
+outside this foundation rather than guessed implementation requirements.

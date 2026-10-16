@@ -802,3 +802,27 @@ Standard mode is runc, optional gVisor is runsc. Missing explicitly selected run
 | U320 | Fresh preview seeds the known admitted reviewer and sample project with real OTP login | FR-022, FR-029 | example | DONE | `tests/integration/preview.test.ts::U320 preview seed provisions a repeatable admitted demo owner and project` |
 | U321 | Preview warning is evaluated at runtime and absent from ordinary installations | FR-029 | example | DONE | `tests/integration/preview.test.ts::U321 preview warning is shown by runtime mode and absent outside previews` |
 | U322 | Adding another owner cannot permit demoting the fixed preview reviewer identity | FR-002, FR-029 | boundary | DONE | `tests/integration/preview.test.ts::U322 preview reviewer cannot be locked out by adding another owner then demoting the demo account` |
+
+## Organization/metering foundation extension — planned 2026-10-16
+
+These are pending behavior scenarios for F01–F12, not green tests. New test paths
+must be registered before execution; the following ownership is the design target.
+Existing behavior suites remain mandatory when affected.
+
+| Group | Required red/green scenarios | Owning route after registration |
+| --- | --- | --- |
+| FT01 organization lineage | Required org parent, sibling/installation mismatch, safe repeat mapping, no widened historical grants/changed IDs or lost jobs | integration organization suite |
+| FT02 permissions | Org inheritance, project-only parent privacy, multi-org membership, last-owner transfer, operator suspension | integration authorization/organization suites |
+| FT03 full isolation | Direct IDs, lists/aggregates/search, tokens, SSE/backfill/revocation, secrets/helpers/middleware/publications, job/broker lineage | existing domain/live/token/code suites plus org isolation suite |
+| FT04 onboarding | Concurrent verified provisioning, resumable setup, defaults, existing invitation instead of extra org, signup policy off by default | auth/organization integration and onboarding browser suite |
+| FT05 invitations | Org inviter admits new verified member without global grant, cannot revive suspended user or grant sibling roles; cancel/expire/recheck | invitation/auth integration |
+| FT06 usage facts | Ingress outcomes, atomic rollback, no secrets, positive quantities/ownership constraints, duplicate identity only counted once | usage/ingress integration |
+| FT07 execution usage | Logical initial/replay executions, retries/claims separate, generation recovery/heartbeats/cache don't inflate; fenced terminal writes | usage/replay/recovery/delivery integration |
+| FT08 retained totals | Payload/history pruning leaves facts/totals; UTC-window queries, reconciliation and no cross-org aggregate leak | usage integration |
+| FT09 local policy | Unlimited self-host still meters, absent network dependency, operator-only revisioned writes, malformed hosted policy failure | policy/config integration |
+| FT10 atomic quotas | Parallel resource creates at last slot, transactional usage admission, quota change preserves accepted work | organization policy/ingress integration |
+| FT11 capacity | Multi-process claims, lease expiry/restart/stale completion, no attempt burned while deferred, destination concurrency, no spin, bounded other-org progress | recovery/delivery/container integration |
+| FT12 UI/deployment | Native modal/table onboarding, scoped contexts/breadcrumb/search, new/invited OTP, unrelated-org preview accounts, released image setup/mapping | browser and deployment lanes |
+
+Do not mark these complete from prior project-only preview evidence. This planning
+update did not execute the implementation TDD run hook or generate release SQL.

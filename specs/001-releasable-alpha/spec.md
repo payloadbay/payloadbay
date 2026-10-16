@@ -1,8 +1,8 @@
 # Feature Specification: First Releasable Payload Bay Alpha
 
-**Feature Branch**: `docs/first-alpha-plan`
+**Feature Branch**: `feat/12-releasable-alpha`
 **Created**: 2026-10-13
-**Status**: Confirmed product requirements; plain Next.js/Pro/theme scaffold exists, product workflows remain unimplemented.
+**Status**: Alpha product implemented with scoped verification; organization/metering foundation extension F01–F12 planned on 2026-10-16, not yet implemented. Broader release gates remain open.
 **Architecture decision (2026-10-13)**: Next.js/Node.js, PostgreSQL, Graphile Worker, Better Auth, Bun tooling and prebuilt Docker releases. HeroUI and API-first SSE selected; inherited instance/workspace/project roles and separate ingress/processing stages approved; no Supabase backend mode. Prior single-script requirements are replaced by separate configurable ingress/processing stages.
 
 **Input**: A self-hostable, designed for a later edge-ingress adapter programmable event-delivery platform. Users own all provider logic, routing and middleware; Payload Bay manages execution, durable acceptance, attempts, retries and replay. Each endpoint has editable ingress logic and worker-executed processing logic, sharing ordinary helpers.
@@ -43,7 +43,7 @@ A dispatcher runs endpoint ingress code and middleware. Accepted event and proce
 
 ### User Story 4 — Reuse middleware and custom routing (Priority: P1)
 
-Users configure shared middleware at instance/workspace/project/endpoint scopes with explicit order and failure policy. Code can use a default destination, configured destination or custom HTTP destination, transform payloads and fan out.
+Users configure shared middleware at instance/organization/workspace/project/endpoint scopes with explicit order and failure policy. Code can use a default destination, configured destination or custom HTTP destination, transform payloads and fan out.
 **Independent Test**: A shared processing middleware records event metadata, then processing code sends to its selected application; required/optional failure policies are observable.
 **Acceptance Scenarios**:
 
@@ -90,19 +90,26 @@ Invalid/missing verification; malformed/binary bodies; exact challenge bytes; co
 - **FR-016**: Define execution/revision/action identity and recovery semantics so recorded completed actions are reused; intentional replay creates a new run. Do not promise transparent continuation of arbitrary JS state.
 - **FR-017**: Support draft/test/publish/rollback, pinned compatible dependencies and bounded isolated execution with controlled capabilities/secrets, proven on supported runtime modes.
 - **FR-018**: Support shared/global code modules/functions; publishing pins dependency revisions and does not silently mutate active handlers.
-- **FR-019**: Support instance/workspace/project/endpoint-scoped user middleware with explicit order, versioned bindings and configurable required/optional failure behavior. Permission inheritance follows instance → workspace → project.
+- **FR-019**: Support instance/organization/workspace/project/endpoint-scoped user middleware with explicit order, versioned bindings and configurable required/optional failure behavior. Permission inheritance follows instance → organization → workspace → project.
 
 ### Shared deployment foundation — confirmed 2026-10-16
 
-- **FR-020**: Self-hosted, first-party hosted and demo deployments use the same product codebase, API contracts, schema/migration lineage and coordinated release artifacts. No separate hosted dashboard/backend fork. An instance is the operator boundary; a hosted customer owns a workspace with projects beneath it, without receiving instance administration.
+- **FR-020**: Self-hosted, first-party hosted and demo deployments use the same product codebase, API contracts, schema/migration lineage and coordinated release artifacts. No separate hosted dashboard/backend fork. An instance is the operator boundary; a hosted customer owns an organization containing workspaces and projects, without receiving instance administration.
 - **FR-021**: Self-hosted standard product features have no subscription-based workspace/project/event quotas and require no central billing account or license heartbeat. Normal capacity, payload, rate and execution safety bounds still apply. Optional enterprise licensing is a separate future capability decision; existing standard features must not be silently reclassified or gated by this foundation work.
-- **FR-022**: Future hosted subscription policy resolves per workspace in shared server-side domain services, independently of user-role authorization. The dashboard, external API, MCP and workers must not have separate plan rules. Limit definitions, prices, billing provider, metering units/periods and enterprise capabilities are deliberately not selected yet.
+- **FR-022**: Future hosted subscription policy resolves per organization in shared server-side domain services, independently of user-role authorization. The dashboard, external API, MCP and workers must not have separate plan rules. Limit definitions, prices, billing provider, metering units/periods and enterprise capabilities are deliberately not selected yet.
 - **FR-023**: Hosted limits cannot silently discard acknowledged events or cancel committed delivery/recovery work. Future concurrent quota enforcement must be atomic, and plan changes must preserve retained history and outstanding obligations. Demo reset/network policy is separate from commercial entitlement policy.
 
-This confirms the architecture boundary, not a working SaaS launch: public signup,
-subscriptions, durable usage accounting, tenant-fair scheduling, workspace-owned
-notification adapters and independently validated hostile-tenant execution remain
-hosted-release work. See [deployment policy](contracts/deployment-policy.md).
+- **FR-024**: Introduce Organization above Workspace before alpha release, including organization membership, scoped ownership, default self-hosted setup, idempotent verified-customer onboarding and invitation admission without global-role escalation. A user may join multiple organizations or a single project.
+- **FR-025**: Record durable, payload-free organization-attributed usage facts and counters locally for ingress, logical executions/replays, processing attempts, managed delivery attempts and terminal outcomes. Preserve identities under retry/recovery and totals under payload retention; no billing provider or telemetry dependency.
+- **FR-026**: Implement shared server-side organization policy with commercially unlimited self-host defaults, atomic configurable resource/admission ceilings and lease-backed work-capacity enforcement. Capacity deferrals do not exhaust retries. Accepted work survives quota changes; another organization makes bounded progress under a busy neighbor.
+- **FR-027**: Verify cross-organization data access across APIs, aggregates, SSE, tokens, code/secrets/publications and workers; do not certify public hostile-tenant hosting from role checks alone. Build the registration-policy/onboarding path without enabling public production registration by default.
+
+The current alpha scope now includes tenancy, onboarding, local metering, policy
+and capacity foundations. Payments, commercial license activation, paid plan
+catalog and production hosted security/operations certification remain separate.
+See [tenant/metering contract](contracts/tenant-metering.md) and
+[n8n research](research-n8n-foundation.md). Runtime implementation of this extension
+is pending; the existing workspace/project engine does not yet implement it.
 
 ### Key Entities
 
@@ -139,7 +146,7 @@ First alpha includes the plain editor/template/shared-code/middleware and two-st
 
 Each project can own multiple endpoints. Ingress returns accept/reject/protocol-only; accepted event/work commits before provider success. Processing runs when claimed and returns complete/retry/fail. Raw request bytes remain immutable; attempts and operator replay have distinct histories.
 
-Middleware order is instance → workspace → project → endpoint, with explicit stage/order/failure policy. Authorized child overrides/copies follow the parent binding's override policy. Mandatory control-plane authorization is never user-overridable. Templates contain normal copied code/helper modules, not hidden provider behavior.
+Middleware order is instance → organization → workspace → project → endpoint, with explicit stage/order/failure policy. Authorized child overrides/copies follow the parent binding's override policy. Mandatory control-plane authorization is never user-overridable. Templates contain normal copied code/helper modules, not hidden provider behavior.
 
 Future scope: edited-payload replay (derived event preserves original), collection-only policy UI, status-page pause automation, custom cleanup hooks, edge ingress and local pulling Runner. Alpha includes ordinary replay including successful events, endpoint pause/resume, shared modules/middleware and custom processing. API/MCP architectural compatibility does not claim a full MCP server shipped in alpha.
 

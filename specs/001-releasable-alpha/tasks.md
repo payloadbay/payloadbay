@@ -376,8 +376,49 @@ release gates complete. Track actual verification in `tdd/cycle-log.md` and
   unrestricted standard self-hosting, future workspace plan policy separate from
   roles and runtime safety, and preservation of acknowledged work. See
   `contracts/deployment-policy.md`. This records architecture, not billing implementation.
-- [ ] H01 Before hosted launch, implement and verify workspace entitlements,
-  durable metering/atomic quotas, onboarding, tenant fairness, workspace-owned
-  notification adapters and hostile-tenant execution/egress policy. Prices,
-  billing provider and enterprise capabilities remain unselected; this does not
-  block the self-hosted alpha or require a product fork.
+## Organization and usage foundation — current alpha scope
+
+Supersedes the previous broad H01 deferral. These tasks are not implemented or
+verified by the preceding UX/notification work. Follow TDD, register each new test
+under one execution owner and retain the existing alpha release gates.
+
+- [ ] F01 Record failing schema/provisioning tests; add Organization, required
+  workspace lineage/integrity and safe repeatable mapping of existing alpha data
+  in domain schema/runtime sources. Preserve IDs/history/jobs/grant scope.
+- [ ] F02 Extend scope contracts, inherited roles, ownership/last-owner protection,
+  resource creation/listing and org-level members without sibling escalation.
+- [ ] F03 Prove/update tenant scope on secrets/helpers/middleware/publications,
+  event/detail/replay, tokens, aggregates/search, SSE/backfill and worker effects.
+  Use two unrelated organizations, multi-org and project-only users.
+- [ ] F04 Implement idempotent self-hosted owner/default-org/workspace setup and
+  restricted verified-customer onboarding behind server registration policy.
+  Public signup remains off by default; no instance grants for customers.
+- [ ] F05 Implement organization-authorized invitation admission and existing-scope
+  onboarding, preserving verified email/expiry/cancellation and operator suspension.
+- [ ] F06 Integrate org/workspace/project navigation, breadcrumbs, search, scoped
+  member tables and onboarding with the approved mobile HeroUI UX rules.
+- [ ] F07 Add append-only payload-free UsageFact and durable counter/rollup schema;
+  deduplication, immutable tenant/time attribution, explicit UTC query windows and
+  retention-independent totals. Register meaningful rollback/dedup tests first.
+- [ ] F08 Wire usage recording atomically into ingress, initial/replay execution,
+  fenced claims/terminal outcomes and actual managed attempts. Prove retry/recovery,
+  duplicate jobs, cached sends and rejected bulk replay do not inflate totals.
+- [ ] F09 Implement one local organization policy resolver with commercially
+  unlimited self-host defaults and audited/versioned operator-only writes.
+  Enforce atomic configurable resource/admission ceilings; preserve accepted work.
+- [ ] F10 Enforce organization processing and destination concurrency using fenced
+  recoverable capacity. Deferral consumes no retry attempt; validate multiple
+  workers, expiry/restart, no busy loop and bounded neighboring-org progress.
+- [ ] F11 Expose authorized usage/policy reads using native scoped UI/API contracts;
+  default self-hosting collects usage without telemetry/license/payment services.
+- [ ] F12 Run the tenant/onboarding/metering/quota/capacity matrix plus affected
+  auth/ingress/delivery/replay/recovery/browser/deployment checks and exact preview.
+  Update inventory, cycle log, Linear and PR evidence; mark only actual passes.
+
+## Later hosted commercial release
+
+- [ ] H01 Add checkout/subscriptions, verified enterprise activation, commercial
+  plan catalog and production hosted operations/security certification after the
+  foundation is implemented and proven. No billing provider, price list or paid
+  feature catalog is chosen by this research. Independently validate hostile-code
+  execution/egress before enabling unrelated public tenants.

@@ -24,8 +24,8 @@ Test rejection, crash, retry and recovery behavior as well as successful deliver
 The approved foundation is an integrated Next.js/Node.js application, PostgreSQL,
 Graphile Worker and Better Auth. Domain commands and authorization are shared
 server-only services. Auth libraries do not automatically isolate domain data. Instance admission,
-workspace ownership and project roles are distinct; role grants inherit down
-instance → workspace → project. Enforce resource-scoped
+organization/workspace ownership and project roles are distinct; role grants inherit down
+instance → organization → workspace → project. Enforce resource-scoped
 authorization across API, live streams and future MCP.
 User-authored code requires a validated executor boundary without application
 Docker socket access. Keep privileged credentials out of browsers and scripts.
@@ -93,4 +93,10 @@ principles; minor versions add obligations; patch versions clarify wording.
 Every review checks compliance. Exceptions state scope, reason and compensating
 evidence. Refreshing a shared preset does not itself amend this constitution.
 
-**Version**: 2.2.0 | **Ratified**: 2026-10-13 | **Last Amended**: 2026-10-13
+**Version**: 2.3.0 | **Ratified**: 2026-10-13 | **Last Amended**: 2026-10-16
+
+Amendment 2.3.0: the maintainer confirmed Organization above Workspace on
+2026-10-16 so a company can own multiple workspaces. Authorization inheritance
+now includes that scope; existing scoped grants must not be promoted during
+implementation. This records the approved foundation requirement, not a claim
+that the current runtime implements it.
