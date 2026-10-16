@@ -1,4 +1,5 @@
 import type { Pool } from "pg";
+import { assertResourceCapacity } from "./organization-policy.ts";
 import { transaction } from "./db.ts";
 import { actorPermissions, requirePermission, scopeAncestry } from "./membership.ts";
 import { rolePermissions, type Actor, type ScopeRef } from "./authorization.ts";
@@ -57,6 +58,11 @@ export async function createResource(
 		await requirePermission(db, actor, parent, input.type === "organization" ? "organizations.create" : input.type === "workspace" ? "workspaces.create" : "projects.create");
 		// Creating a new explicitly owned scope assigns full owner rights. Require that authority.
 		await requirePermission(db, actor, parent, "ownership.transfer");
+		if (input.type !== "organization") {
+			const organization = (await scopeAncestry(db, parent)).find((scope) => scope.type === "organization")!;
+			await assertResourceCapacity(db, organization.id, input.type);
+		}
+
 		const row =
 			input.type === "organization"
 				? (await db.query("INSERT INTO payloadbay.organization(installation_id,name,slug,owner_user_id) VALUES($1,$2,$3,$4) RETURNING id,name,slug,installation_id", [input.parentId, input.name.trim(), input.slug, actor.userId])).rows[0]

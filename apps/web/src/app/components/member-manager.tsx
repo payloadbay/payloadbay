@@ -86,7 +86,7 @@ export function MemberManager({ scope: chosen, held: chosenHeld }: { scope?: Sco
 		return { rows, pending };
 	}, [url, scope.type, scope.id]);
 
-	const assignable = projects.filter((project) => project.permissions.includes("members.manage") && (scope.type === "instance" || (scope.type === "workspace" && project.workspace_id === scope.id)));
+	const assignable = projects.filter((project) => project.permissions.includes("members.manage") && (scope.type === "instance" || (scope.type === "organization" && project.organization_id === scope.id) || (scope.type === "workspace" && project.workspace_id === scope.id)));
 
 	useEffect(() => {
 		let active = true;
@@ -197,7 +197,7 @@ export function MemberManager({ scope: chosen, held: chosenHeld }: { scope?: Sco
 			<header className='flex flex-wrap items-start justify-between gap-4'>
 				<div>
 					<p className='text-muted text-sm'>Access and ownership</p>
-					<h1 className='text-3xl font-semibold'>{scope.type === "instance" ? "Instance members" : scope.type === "workspace" ? "Workspace members" : "Project members"}</h1>
+					<h1 className='text-3xl font-semibold'>{scope.type === "instance" ? "Instance members" : scope.type === "organization" ? "Organization members" : scope.type === "workspace" ? "Workspace members" : "Project members"}</h1>
 					<p className='text-muted mt-2'>Permissions apply to this scope and its children. Inherited access continues to apply.</p>
 				</div>
 				<Button onPress={invite}>
@@ -316,7 +316,7 @@ export function MemberManager({ scope: chosen, held: chosenHeld }: { scope?: Sco
 							<Sheet.Header>
 								<Sheet.Heading>{inviting ? "Invite someone" : "Permissions for " + editing?.name}</Sheet.Heading>
 								<p id='member-permissions-description' className='text-muted text-sm'>
-									Start with a role preset, then customize individual permissions. Inviting someone new to this instance requires instance admission rights.
+									Start with a role preset, then customize individual permissions. Inviting someone new requires admission authority in their organization or the instance.
 								</p>
 							</Sheet.Header>
 							<Sheet.Body>
@@ -334,7 +334,7 @@ export function MemberManager({ scope: chosen, held: chosenHeld }: { scope?: Sco
 														<Label>Where should they have access?</Label>
 														<NativeSelect.Trigger aria-label='Invitation access scope' value={access} onChange={(event) => setAccess(event.target.value)}>
 															<NativeSelect.Option value='projects'>Selected projects only</NativeSelect.Option>
-															<NativeSelect.Option value='scope'>{scope.type === "instance" ? "Entire instance and all workspaces" : "Entire workspace and its projects"}</NativeSelect.Option>
+															<NativeSelect.Option value='scope'>{scope.type === "instance" ? "Entire instance and all organizations" : scope.type === "organization" ? "Entire organization, its workspaces and projects" : "Entire workspace and its projects"}</NativeSelect.Option>
 															<NativeSelect.Indicator />
 														</NativeSelect.Trigger>
 													</NativeSelect>

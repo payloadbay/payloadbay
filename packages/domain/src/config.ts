@@ -55,6 +55,7 @@ const serverSchema = z.object({
 	httpTimeoutMs: z.coerce.number().int().min(100).max(30000),
 	maxAttempts: z.coerce.number().int().min(1).max(20),
 	otpRequestLimit: z.coerce.number().int().min(1).max(100),
+	registrationPolicy: z.enum(["invite_only", "organization"]),
 });
 
 export function readServerConfig(env: Record<string, string | undefined>) {
@@ -82,6 +83,7 @@ export function readServerConfig(env: Record<string, string | undefined>) {
 		httpTimeoutMs: env.PAYLOADBAY_HTTP_TIMEOUT_MS ?? 10000,
 		maxAttempts: env.PAYLOADBAY_MAX_ATTEMPTS ?? 5,
 		otpRequestLimit: env.PAYLOADBAY_OTP_REQUEST_LIMIT ?? 5,
+		registrationPolicy: env.PAYLOADBAY_REGISTRATION_POLICY ?? "invite_only",
 	});
 	if (!parsed.success) throw new AppError("configuration_required", 503, "Server configuration requires attention");
 

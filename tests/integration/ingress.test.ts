@@ -548,3 +548,206 @@ test("bounded handler failures remain visible without granting delivery authorit
 		assert.equal(stored.original_body.toString(), "retain me");
 	});
 });
+
+test("FT08a accepted ingress commits one logical execution and attributed usage facts", async () => {
+	await ingressFixture(accepting, async ({ pool, db, key, scope }) => {
+		await receiveIngress(
+			pool,
+			{
+				key,
+				body: new Uint8Array([42]),
+				headers: {},
+				method: "POST",
+				url: "https://fixture.test/ingress",
+			},
+			options,
+		);
+		const facts = (await db.query("SELECT metric,organization_id,workspace_id,project_id,quantity::text FROM payloadbay.usage_fact ORDER BY metric")).rows;
+		assert.deepEqual(
+			facts.map((fact) => fact.metric),
+			["execution.created", "ingress.accepted", "ingress.recorded"],
+		);
+		for (const fact of facts) {
+			assert.equal(fact.organization_id, scope.organization);
+			assert.equal(fact.workspace_id, scope.workspace);
+			assert.equal(fact.project_id, scope.project);
+			assert.equal(fact.quantity, "1");
+		}
+	});
+});
+
+test("FT08b recovery and duplicate claims count attempts without recreating logical executions", async () => {
+	const { claimExecution, heartbeat, recoverExpired, finishExecution } = await import("../../packages/domain/src/execution-lease.ts");
+	await ingressFixture(accepting, async ({ pool, db, key, scope }) => {
+		await receiveIngress(
+			pool,
+			{
+				key,
+				body: new Uint8Array([42]),
+				headers: {},
+				method: "POST",
+				url: "https://fixture.test/ingress",
+			},
+			options,
+		);
+		const execution = (await db.query("SELECT id FROM payloadbay.execution")).rows[0];
+		const claims = await Promise.all([claimExecution(pool, execution.id, 1, "worker-a"), claimExecution(pool, execution.id, 1, "worker-b")]);
+		assert.equal(claims.filter(Boolean).length, 1);
+		const winner = claims.find(Boolean)!;
+		assert.equal(
+			await heartbeat(pool, {
+				executionId: execution.id,
+				endpointId: scope.endpoint,
+				generation: 1,
+				owner: winner.lease_owner,
+			}),
+			true,
+		);
+		await db.query("UPDATE payloadbay.execution SET lease_expiry=clock_timestamp()-interval '1 second' WHERE id=$1", [execution.id]);
+		await recoverExpired(pool);
+		const next = await claimExecution(pool, execution.id, 2, "worker-c");
+		assert.equal(next.attempt_number, 2);
+		const authority = {
+			executionId: execution.id,
+			endpointId: scope.endpoint,
+			generation: 2,
+			owner: "worker-c",
+		};
+		await finishExecution(pool, authority, { kind: "complete" });
+		await assert.rejects(finishExecution(pool, authority, { kind: "complete" }), { code: "stale_execution" });
+		const totals = Object.fromEntries((await db.query("SELECT metric,quantity::text FROM payloadbay.usage_counter")).rows.map((row) => [row.metric, row.quantity]));
+		assert.equal(totals["execution.created"], "1");
+		assert.equal(totals["processing.attempt.started"], "2");
+		assert.equal(totals["execution.succeeded"], "1");
+	});
+});
+
+test("FT08d an idempotent replay creates one additional logical execution", async () => {
+	const { replayEvent } = await import("../../packages/domain/src/replay.ts");
+	const { rolePermissions } = await import("../../packages/domain/src/authorization.ts");
+	await ingressFixture(accepting, async ({ pool, db, key, scope }) => {
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','organization',$1,'owner',$2)", [scope.organization, rolePermissions.owner]);
+		await receiveIngress(
+			pool,
+			{
+				key,
+				body: new Uint8Array([42]),
+				headers: {},
+				method: "POST",
+				url: "https://fixture.test/ingress",
+			},
+			options,
+		);
+		const event = (await db.query("SELECT id FROM payloadbay.event")).rows[0];
+		const input = { eventId: event.id, key: "fixture-replay" };
+		const first = await replayEvent(pool, { userId: "fixture-owner" }, input);
+		const second = await replayEvent(pool, { userId: "fixture-owner" }, input);
+		assert.equal(first.id, second.id);
+		assert.equal(second.reused, true);
+		const totals = Object.fromEntries((await db.query("SELECT metric,quantity::text FROM payloadbay.usage_counter")).rows.map((row) => [row.metric, row.quantity]));
+		assert.equal(totals["execution.created"], "2");
+		assert.equal(totals["execution.replayed"], "1");
+		assert.equal(totals["ingress.accepted"], "1");
+	});
+});
+
+test("FT08c an exhausted recovered execution records one terminal failure", async () => {
+	const { claimExecution, recoverExpired } = await import("../../packages/domain/src/execution-lease.ts");
+	await ingressFixture(accepting, async ({ pool, db, key }) => {
+		await receiveIngress(
+			pool,
+			{
+				key,
+				body: new Uint8Array([42]),
+				headers: {},
+				method: "POST",
+				url: "https://fixture.test/ingress",
+			},
+			{ ...options, maxAttempts: 1 },
+		);
+		const execution = (await db.query("SELECT id FROM payloadbay.execution")).rows[0];
+		assert.ok(await claimExecution(pool, execution.id, 1, "worker-a"));
+		await db.query("UPDATE payloadbay.execution SET lease_expiry=clock_timestamp()-interval '1 second' WHERE id=$1", [execution.id]);
+		await recoverExpired(pool);
+		await recoverExpired(pool);
+		assert.equal((await db.query("SELECT state FROM payloadbay.execution WHERE id=$1", [execution.id])).rows[0].state, "failed_terminal");
+		assert.equal((await db.query("SELECT quantity::text FROM payloadbay.usage_counter WHERE metric='execution.failed'")).rows[0].quantity, "1");
+	});
+});
+
+test("FT03d archived organizations cannot continue receiving new ingress", async () => {
+	await ingressFixture(accepting, async ({ pool, db, key, scope }) => {
+		await db.query("UPDATE payloadbay.organization SET archived_at=clock_timestamp() WHERE id=$1", [scope.organization]);
+		await assert.rejects(
+			receiveIngress(
+				pool,
+				{
+					key,
+					body: new Uint8Array([42]),
+					headers: {},
+					method: "POST",
+					url: "https://fixture.test/ingress",
+				},
+				options,
+			),
+			{ code: "ingress_unavailable" },
+		);
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.event")).rows[0].n, 0);
+	});
+});
+
+test("FT09e admission quota is atomic and a downgrade retains accepted recovery work", async () => {
+	const { setOrganizationPolicy } = await import("../../packages/domain/src/organization-policy.ts");
+	const { rolePermissions } = await import("../../packages/domain/src/authorization.ts");
+	const { claimExecution, finishExecution } = await import("../../packages/domain/src/execution-lease.ts");
+	await ingressFixture(accepting, async ({ pool, db, key, scope }) => {
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, rolePermissions.owner]);
+		const admission = { limit: 1, from: new Date(Date.now() - 60000).toISOString(), to: new Date(Date.now() + 3600000).toISOString() };
+		const input = {
+			organizationId: scope.organization,
+			expectedVersion: 0,
+			limits: { workspaces: null, projects: null, admission },
+			processingConcurrency: 4,
+		};
+		await setOrganizationPolicy(pool, { userId: "fixture-owner" }, input);
+		const responses = await Promise.all(
+			Array.from({ length: 3 }, () =>
+				receiveIngress(
+					pool,
+					{
+						key,
+						body: new Uint8Array([42]),
+						headers: {},
+						method: "POST",
+						url: "https://fixture.test/ingress",
+					},
+					options,
+				),
+			),
+		);
+		assert.deepEqual(
+			responses.map((response) => response.status).sort((a, b) => a - b),
+			[202, 429, 429],
+		);
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.event")).rows[0].n, 3);
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.receipt")).rows[0].n, 1);
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM graphile_worker.jobs")).rows[0].n, 1);
+		const totals = Object.fromEntries((await db.query("SELECT metric,quantity::text FROM payloadbay.usage_counter")).rows.map((row) => [row.metric, row.quantity]));
+		assert.equal(totals["ingress.recorded"], "3");
+		assert.equal(totals["ingress.accepted"], "1");
+		await setOrganizationPolicy(pool, { userId: "fixture-owner" }, { ...input, expectedVersion: 1, limits: { ...input.limits, admission: { ...admission, limit: 0 } } });
+		const execution = (await db.query("SELECT id FROM payloadbay.execution")).rows[0];
+		assert.ok(await claimExecution(pool, execution.id, 1, "worker-after-downgrade"));
+		await finishExecution(
+			pool,
+			{
+				executionId: execution.id,
+				endpointId: scope.endpoint,
+				generation: 1,
+				owner: "worker-after-downgrade",
+			},
+			{ kind: "complete" },
+		);
+		assert.equal((await db.query("SELECT state FROM payloadbay.execution WHERE id=$1", [execution.id])).rows[0].state, "succeeded");
+	});
+});

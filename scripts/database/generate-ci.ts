@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
-import { readdirSync, readFileSync, appendFileSync, mkdirSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { composeReleaseMigration } from "./compose-migration.ts";
 import { canGenerateReleaseMigrations } from "./migration-policy.ts";
 
 if (!canGenerateReleaseMigrations(process.env)) throw Error("Release migration generation belongs to master CI");
@@ -21,5 +22,5 @@ if (!created.length) {
 }
 
 if (created.length !== 1) throw Error("Expected exactly one generated migration for this merged change");
-appendFileSync(folder + "/" + created[0], "\n--> statement-breakpoint\n" + readFileSync("packages/domain/sql/runtime.sql", "utf8"));
+writeFileSync(folder + "/" + created[0], composeReleaseMigration(readFileSync(folder + "/" + created[0], "utf8"), readFileSync("packages/domain/sql/runtime.sql", "utf8")));
 console.log("CI generated one release migration with schema and database behavior");

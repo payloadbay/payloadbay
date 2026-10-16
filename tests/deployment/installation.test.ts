@@ -98,7 +98,7 @@ test("A2 real API denies anonymous and inactive access", async () => {
 			assert.equal(me.status, 200);
 			const profile = await me.json();
 			assert.equal(profile.user.id, "owner");
-			const workspaceResponse = await fetch(f.url + "/api/v1/workspaces", { method: "POST", headers, body: JSON.stringify({ parentId: profile.instanceId, name: "Workspace", slug: "workspace" }) });
+			const workspaceResponse = await fetch(f.url + "/api/v1/workspaces", { method: "POST", headers, body: JSON.stringify({ parentId: (await (await fetch(f.url + "/api/v1/organizations", { headers })).json())[0].id, name: "Workspace", slug: "workspace" }) });
 			assert.equal(workspaceResponse.status, 200);
 			const workspace = await workspaceResponse.json();
 			const projectResponse = await fetch(f.url + "/api/v1/projects", { method: "POST", headers, body: JSON.stringify({ parentId: workspace.id, name: "Project", slug: "project" }) });
@@ -186,8 +186,7 @@ test("A5 API draft changes leave published runtime behavior unchanged", async ()
 			"x-payloadbay-csrf": "1",
 			"content-type": "application/json",
 		};
-		const me = await (await fetch(f.url + "/api/v1/me", { headers })).json();
-		const workspace = await (await post("/api/v1/workspaces", { parentId: me.instanceId, name: "Workspace", slug: "workspace" }, cookie)).json();
+		const workspace = await (await post("/api/v1/workspaces", { parentId: (await (await fetch(f.url + "/api/v1/organizations", { headers })).json())[0].id, name: "Workspace", slug: "workspace" }, cookie)).json();
 		const project = await (await post("/api/v1/projects", { parentId: workspace.id, name: "Project", slug: "project" }, cookie)).json();
 		const created = await post("/api/v1/projects/" + project.id + "/endpoints", { name: "Route", slug: "route" }, cookie);
 		assert.equal(created.status, 200, "endpoint API must be available");

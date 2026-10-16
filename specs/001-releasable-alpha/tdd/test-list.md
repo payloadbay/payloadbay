@@ -829,18 +829,25 @@ update did not execute the implementation TDD run hook or generate release SQL.
 
 ### Active foundation behavior cycles
 
-| ID | State | Behavior / trace | Owning test |
+These granular cases track implementation evidence. They do not mark an entire
+F-task or release gate complete. The earlier scenario matrix is a planning index;
+case IDs below follow the implemented F-task ownership.
+
+| ID | State | Behavior | Owning suite |
 | --- | --- | --- | --- |
-| FT04a | DONE | Completing one-time owner setup creates default org/workspace atomically (FR-024) | tests/integration/organizations.test.ts: owner setup |
+| FT01a–e | DONE | Required organization, local slugs, preserved historical IDs/grants, staged migration constraint, archived mapping | organizations.test.ts |
+| FT02a–b | DONE | Organization parents and inherited ownership exclude sibling workspaces | organizations.test.ts |
+| FT03a–c | DONE | Scoped SSE, archive revocation, immutable resource parent | organizations.test.ts |
+| FT03d | DONE | Archived organization cannot accept new ingress | ingress.test.ts |
+| FT04a–e | DONE | Atomic owner defaults/rollback, idempotent customer provisioning, narrow verified session, default-off registration | organizations.test.ts |
+| FT05a | DONE | Organization invitation admission never grants global role or revives inactive identity | organizations.test.ts |
+| FT06a | DONE | Organization collection and scoped workspace modal | dashboard.spec.ts |
+| FT06b | DONE | Mobile real-email onboarding through first project and ingress route | onboarding.spec.ts |
+| FT07a–c | DONE | Concurrent fact dedup, immutable facts, atomic counter rollback and tenant lineage | metering.test.ts |
+| FT08a–d | DONE | Atomic ingress metrics, recovery/claims separate from logical work, terminal failure and idempotent replay | ingress.test.ts |
+| FT08e | DONE | Cached send does not create another managed attempt | delivery.test.ts |
 
-The first setup acceptance opens the outside-in foundation cycle. Related schema,
-lineage and API behaviors are split into subsequent cases before implementation;
-no F-task is completed merely because this setup case passes.
-
-| FT02a | DONE | Workspace creation uses its organization parent (FR-024) | tests/integration/organizations.test.ts |
-
-| FT02b | DONE | Organization creation and descendant ownership exclude siblings | organizations.test.ts |
-| FT01a | DONE | Workspace organization is mandatory | organizations.test.ts |
-| FT01b | DONE | Workspace live slugs are organization-local | organizations.test.ts |
-| FT03a | DONE | Organization SSE filters own descendants and siblings | organizations.test.ts |
-| FT05a | GREEN | Organization admin admission without global grant; inactive identities stay inactive | organizations.test.ts |
+Still required: wider tenant/token/code/broker matrix, retained usage queries and
+reconciliation, policy/quota/capacity cases, updated unrelated-org preview seed,
+and complete affected/release verification. Actual runs and red failures live in
+cycle-log.md. No release SQL has been generated locally.

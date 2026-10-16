@@ -1,16 +1,15 @@
 import { createHash } from "node:crypto";
 import type { Pool } from "pg";
 
-export async function requestLoginCode(pool: Pool, auth: { api: { sendVerificationOTP(input: { body: { email: string; type: "sign-in" } }): Promise<unknown> } }, email: string, limit = 5): Promise<{ success: boolean }> {
+export async function requestLoginCode(pool: Pool, auth: { api: { sendVerificationOTP(input: { body: { email: string; type: "sign-in" } }): Promise<unknown> } }, email: string, limit = 5, prepareIdentity?: (email: string) => Promise<boolean>): Promise<{ success: boolean }> {
 	const normalized = email.trim().toLowerCase();
 	if (!(await consumeOTPQuota(pool, normalized, limit))) return { success: true };
 	const admitted = await pool.query('SELECT u.id FROM auth."user" u JOIN payloadbay.admission a ON a.user_id=u.id WHERE lower(u.email)=$1 AND a.active', [normalized]);
-	if (admitted.rowCount)
-		try {
-			await auth.api.sendVerificationOTP({ body: { email: normalized, type: "sign-in" } });
-		} catch {
-			console.error("Sign-in mail scheduling failed");
-		}
+	try {
+		if (admitted.rowCount || (await prepareIdentity?.(normalized))) await auth.api.sendVerificationOTP({ body: { email: normalized, type: "sign-in" } });
+	} catch {
+		console.error("Sign-in mail scheduling failed");
+	}
 
 	return { success: true };
 }

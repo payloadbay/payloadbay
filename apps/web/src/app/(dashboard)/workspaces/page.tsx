@@ -2,14 +2,15 @@
 
 import { useState, type FormEvent } from "react";
 import { Button, Form, TextField, Input, Label, FieldError, Table } from "@heroui/react";
-import { Sheet } from "@heroui-pro/react";
+import { NativeSelect, Sheet } from "@heroui-pro/react";
 import { useDashboard } from "@components/dashboard-shell";
 import { api } from "@lib/api-client";
 import { useFeedbackToast } from "@lib/feedback";
 
 export default function WorkspacesPage() {
-	const { me, workspaces, projects, reload } = useDashboard();
+	const { organizations, workspaces, projects, reload } = useDashboard();
 
+	const [organizationId, setOrganizationId] = useState("");
 	const [query, setQuery] = useState("");
 	const [open, setOpen] = useState(false);
 	const [name, setName] = useState("");
@@ -19,14 +20,15 @@ export default function WorkspacesPage() {
 
 	useFeedbackToast(error, "", { error: "Workspace could not be created" });
 
-	const canCreate = me.permissions.includes("workspaces.create") && me.permissions.includes("ownership.transfer");
+	const owned = organizations.filter((item) => item.permissions.includes("workspaces.create") && item.permissions.includes("ownership.transfer"));
+	const canCreate = owned.length > 0;
 
 	async function create(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		setBusy(true);
 		setError("");
 		try {
-			await api("/workspaces", { method: "POST", json: { parentId: me.instanceId, name, slug } });
+			await api("/workspaces", { method: "POST", json: { parentId: organizationId, name, slug } });
 			await reload();
 			setOpen(false);
 			setName("");
@@ -48,7 +50,16 @@ export default function WorkspacesPage() {
 				<TextField aria-label='Search workspaces' value={query} onChange={setQuery} className='min-w-0 flex-1'>
 					<Input variant='secondary' placeholder='Search workspaces…' />
 				</TextField>
-				{canCreate && <Button onPress={() => setOpen(true)}>Create workspace</Button>}
+				{canCreate && (
+					<Button
+						onPress={() => {
+							setOrganizationId(owned[0]?.id ?? "");
+							setOpen(true);
+						}}
+					>
+						Create workspace
+					</Button>
+				)}
 			</div>
 			<Table>
 				<Table.ScrollContainer>
@@ -86,6 +97,16 @@ export default function WorkspacesPage() {
 							</Sheet.Header>
 							<Sheet.Body>
 								<Form id='new-workspace' onSubmit={create} className='flex flex-col gap-4'>
+									<NativeSelect variant='secondary' fullWidth>
+										<Label htmlFor='workspace-organization'>Organization</Label>
+										<NativeSelect.Trigger id='workspace-organization' required value={organizationId} onChange={(event) => setOrganizationId(event.target.value)}>
+											{owned.map((item) => (
+												<NativeSelect.Option key={item.id} value={item.id}>
+													{item.name}
+												</NativeSelect.Option>
+											))}
+										</NativeSelect.Trigger>
+									</NativeSelect>
 									<TextField
 										isRequired
 										value={name}

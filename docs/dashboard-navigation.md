@@ -1,7 +1,7 @@
 # Dashboard navigation
 
-The hierarchy is **instance → workspace → project → ingress route**. Use
-“workspace” consistently rather than alternating with organization. Account
+The hierarchy is **instance → organization → workspace → project → ingress route**.
+Organization represents a customer/company; workspace groups that organization’s projects. Account
 settings belong to the person.
 
 Desktop keeps a contextual sidebar; mobile puts the same destinations in the
@@ -14,6 +14,7 @@ notification preferences and sign-out.
 | Context   | Working destinations                                                                                                                                  |
 | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Instance  | Traffic overview, projects, workspaces, all accessible events, instance members, instance shared code/middleware                                      |
+| Organization | Workspaces, organization members and inherited shared code/middleware |
 | Workspace | Workspace overview/projects, members, shared code/middleware, workspace-wide notification rules                                                       |
 | Project   | Routes/destinations, events, shared code/middleware, members, project notification rules, workspace link                                              |
 | Route     | Scripts with native helper imports, middleware, secrets, dry test, published-request playground, route events, publication history; back to project/all projects |
@@ -26,8 +27,8 @@ multiple ingress routes with independent published handlers.
 
 ## Access
 
-Only list resources returned by authorized APIs. Instance grants inherit to all
-workspaces/projects; workspace grants inherit to their projects; project grants
+Only list resources returned by authorized APIs. Instance grants inherit to all organizations/workspaces/projects; organization
+grants inherit to their workspaces/projects; workspace grants inherit to their projects; project grants
 stay within that project. Navigation visibility supplements server authorization.
 Member tables include inherited rights, and local edits cannot remove them.
 Invitations remain pending until the matching verified identity accepts; they can

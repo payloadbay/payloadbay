@@ -1,5 +1,6 @@
 import type { Pool, PoolClient } from "pg";
 import { createHash } from "node:crypto";
+import { recordEndpointUsage } from "./usage.ts";
 import { transaction } from "./db.ts";
 import { requirePermission } from "./membership.ts";
 import type { Actor } from "./authorization.ts";
@@ -55,6 +56,8 @@ async function replayInTransaction(db: PoolClient, actor: Actor, input: Paramete
 	if (policy === "selected" && !(await db.query("SELECT id FROM payloadbay.publication WHERE id=$1 AND endpoint_id=$2", [publicationId, event.endpoint_id])).rowCount) throw new AppError("publication_unavailable", 409, "Selected version does not belong to this ingress route");
 	if (!publicationId) throw new AppError("publication_unavailable", 409, "No current publication is available");
 	const execution = (await db.query("INSERT INTO payloadbay.execution(event_id,endpoint_id,publication_id,replay_of_id,max_attempts) VALUES($1,$2,$3,$4,$5) RETURNING *", [event.id, event.endpoint_id, publicationId, source?.id ?? null, source?.max_attempts ?? 5])).rows[0];
+	await recordEndpointUsage(db, event.endpoint_id, "execution.created", execution.id);
+	await recordEndpointUsage(db, event.endpoint_id, "execution.replayed", execution.id);
 	await scheduleDispatch(db, execution, endpoint.priority);
 	await db.query("INSERT INTO payloadbay.replay_key(actor,event_id,key,input_digest,execution_id) VALUES($1,$2,$3,$4,$5)", [actor.userId, event.id, input.key, digest, execution.id]);
 	await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation,resource_id,redacted_diff) VALUES($1,'project',$2,'event.replayed',$3,$4)", [actor.userId, event.project_id, execution.id, JSON.stringify({ eventId: event.id, publicationPolicy: policy, publicationId })]);

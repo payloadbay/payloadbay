@@ -1,3 +1,5 @@
+import { resolveOrganizationPolicy } from "./organization-policy.ts";
+import { recordEndpointUsage } from "./usage.ts";
 import { appendChange } from "./changes.ts";
 import type { Pool, PoolClient } from "pg";
 import { transaction } from "./db.ts";
@@ -28,6 +30,7 @@ export async function recoverExpired(pool: Pool) {
 			if (candidate.attempt_number >= candidate.max_attempts) {
 				await client.query("UPDATE payloadbay.execution SET state='failed_terminal',dispatch_generation=dispatch_generation+1,lease_owner=NULL,lease_expiry=NULL,final_result=$2::jsonb WHERE id=$1", [candidate.id, JSON.stringify({ kind: "fail", reason: "processing_attempts_exhausted" })]);
 				await client.query("UPDATE payloadbay.managed_operation SET state='uncertain' WHERE execution_id=$1 AND state='sending'", [candidate.id]);
+				await recordEndpointUsage(client, candidate.endpoint_id, "execution.failed", candidate.id);
 				changes.push({ id: candidate.id, projectId: candidate.project_id });
 				recovered.push(candidate.id);
 				continue;
@@ -81,6 +84,7 @@ export async function finishExecution(pool: Pool, authority: Authority, result: 
 			await scheduleDispatch(client, updated, endpoint.priority);
 		}
 
+		if (!retry) await recordEndpointUsage(client, execution.endpoint_id, state === "succeeded" ? "execution.succeeded" : "execution.failed", execution.id);
 		const scope = (await client.query("SELECT project_id FROM payloadbay.endpoint WHERE id=$1", [execution.endpoint_id])).rows[0];
 		await appendChange(client, { scope: { type: "project", id: scope.project_id }, kind: "execution.changed", resourceId: execution.id });
 
@@ -89,14 +93,33 @@ export async function finishExecution(pool: Pool, authority: Authority, result: 
 }
 
 export async function claimExecution(pool: Pool, executionId: string, generation: number, owner: string) {
-	const result = await pool.query(
-		`UPDATE payloadbay.execution e SET state='running',lease_owner=$3,lease_expiry=clock_timestamp()+interval '30 seconds',attempt_number=attempt_number+1
+	return transaction(pool, async (db) => {
+		const scope = (await db.query("SELECT w.organization_id FROM payloadbay.execution x JOIN payloadbay.endpoint e ON e.id=x.endpoint_id JOIN payloadbay.project p ON p.id=e.project_id JOIN payloadbay.workspace w ON w.id=p.workspace_id WHERE x.id=$1", [executionId])).rows[0];
+		if (!scope) return null;
+		// Serialize claims across all worker processes, using database time for live capacity.
+		await db.query("SELECT id FROM payloadbay.organization WHERE id=$1 FOR UPDATE", [scope.organization_id]);
+		const candidate = (await db.query("SELECT e.*,p.priority FROM payloadbay.execution e JOIN payloadbay.endpoint p ON p.id=e.endpoint_id WHERE e.id=$1 AND e.dispatch_generation=$2 AND NOT p.paused AND e.state IN ('queued','retry_wait') AND e.attempt_number<e.max_attempts AND e.due_at<=clock_timestamp() FOR UPDATE OF e", [executionId, generation])).rows[0];
+		if (!candidate) return null;
+		const policy = await resolveOrganizationPolicy(db, scope.organization_id);
+		const occupied = (await db.query("SELECT count(*)::int AS n FROM payloadbay.execution x JOIN payloadbay.endpoint e ON e.id=x.endpoint_id JOIN payloadbay.project p ON p.id=e.project_id JOIN payloadbay.workspace w ON w.id=p.workspace_id WHERE w.organization_id=$1 AND x.state='running' AND x.lease_expiry>clock_timestamp()", [scope.organization_id])).rows[0].n;
+		if (occupied >= policy.processingConcurrency) {
+			const deferred = (await db.query("UPDATE payloadbay.execution SET dispatch_generation=dispatch_generation+1,due_at=clock_timestamp()+interval '1 second' WHERE id=$1 RETURNING *", [executionId])).rows[0];
+			await scheduleDispatch(db, deferred, candidate.priority);
+
+			return null;
+		}
+
+		const result = await db.query(
+			`UPDATE payloadbay.execution e SET state='running',lease_owner=$3,lease_expiry=clock_timestamp()+interval '30 seconds',attempt_number=attempt_number+1
  FROM payloadbay.endpoint p WHERE e.id=$1 AND e.dispatch_generation=$2 AND e.endpoint_id=p.id AND NOT p.paused AND e.state IN ('queued','retry_wait') AND e.attempt_number<e.max_attempts AND e.due_at<=clock_timestamp()
  RETURNING e.*`,
-		[executionId, generation, owner],
-	);
+			[executionId, generation, owner],
+		);
+		const claimed = result.rows[0];
+		if (claimed) await recordEndpointUsage(db, claimed.endpoint_id, "processing.attempt.started", claimed.id + ":" + claimed.attempt_number);
 
-	return result.rows[0] ?? null;
+		return claimed ?? null;
+	});
 }
 
 export async function heartbeat(pool: Pool, authority: Authority) {

@@ -58,3 +58,13 @@ export async function ensureBrowserOwner(page: Page) {
 	await verifyNextCode(page, "browser@example.test", before);
 	expect((await page.request.post("/api/v1/bootstrap", { headers: commandHeaders(), data: { action: "complete", secret } })).status()).toBe(200);
 }
+
+/** The first accessible organization is test context, never an authorization grant. */
+export async function browserOrganization(page: Page) {
+	const response = await page.request.get("/api/v1/organizations");
+	expect(response.status()).toBe(200);
+	const organizations = await response.json();
+	expect(organizations.length).toBeGreaterThan(0);
+
+	return organizations[0].id as string;
+}

@@ -28,7 +28,7 @@ The maintainer approved replacing the Supabase foundation on 2026-10-13.
 - HeroUI, API-first Route Handlers, authenticated SSE and Zod/OpenAPI are selected.
 - Instance access, workspace ownership and project-scoped roles are distinct.
   Ordinary admission is not global administration; granted roles inherit
-  instance → workspace → project. Endpoints have separate ingress/processing scripts.
+  instance → organization → workspace → project. Endpoints have separate ingress/processing scripts.
 
 The request path runs bounded ingress code, commits event plus processing job
 atomically, then acknowledges. Destination delivery happens asynchronously.

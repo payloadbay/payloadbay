@@ -20,9 +20,10 @@ export const installation = domain.table(
 		singleton: boolean("singleton").notNull().default(true),
 		bootstrapState: text("bootstrap_state").notNull().default("pending"),
 		configVersion: integer("config_version").notNull().default(1),
+		deploymentMode: text("deployment_mode").notNull().default("self_hosted"),
 		createdAt: time("created_at").notNull().defaultNow(),
 	},
-	(t) => [unique("installation_singleton").on(t.singleton), check("installation_singleton_true", sql`${t.singleton}`), check("installation_bootstrap_state", sql`${t.bootstrapState} IN ('pending','complete')`)],
+	(t) => [check("installation_deployment_mode", sql`${t.deploymentMode} IN ('self_hosted','hosted')`), unique("installation_singleton").on(t.singleton), check("installation_singleton_true", sql`${t.singleton}`), check("installation_bootstrap_state", sql`${t.bootstrapState} IN ('pending','complete')`)],
 );
 
 export const admission = domain.table(
@@ -59,6 +60,35 @@ export const organization = domain.table(
 	],
 );
 
+export const organizationPolicy = domain.table(
+	"organization_policy",
+	{
+		organizationId: uuid("organization_id")
+			.primaryKey()
+			.references((): AnyPgColumn => organization.id),
+		version: integer("version").notNull().default(1),
+		limits: jsonb("limits").notNull(),
+		processingConcurrency: integer("processing_concurrency").notNull().default(4),
+		updatedBy: text("updated_by").notNull(),
+		updatedAt: time("updated_at").notNull().defaultNow(),
+	},
+	(t) => [check("organization_policy_version", sql`${t.version} > 0`), check("organization_policy_capacity", sql`${t.processingConcurrency} BETWEEN 0 AND 128`)],
+);
+
+export const organizationPolicyRevision = domain.table(
+	"organization_policy_revision",
+	{
+		organizationId: uuid("organization_id")
+			.notNull()
+			.references((): AnyPgColumn => organization.id),
+		version: integer("version").notNull(),
+		snapshot: jsonb("snapshot").notNull(),
+		createdBy: text("created_by").notNull(),
+		createdAt: time("created_at").notNull().defaultNow(),
+	},
+	(t) => [primaryKey({ columns: [t.organizationId, t.version] })],
+);
+
 export const workspace = domain.table(
 	"workspace",
 	{
@@ -73,6 +103,7 @@ export const workspace = domain.table(
 		archivedAt: time("archived_at"),
 	},
 	(t) => [
+		unique("workspace_id_organization").on(t.id, t.organizationId),
 		foreignKey({ name: "workspace_organization_installation", columns: [t.organizationId, t.installationId], foreignColumns: [organization.id as AnyPgColumn, organization.installationId as AnyPgColumn] }),
 		foreignKey({ name: "workspace_owner_admission", columns: [t.installationId, t.ownerUserId], foreignColumns: [admission.installationId as AnyPgColumn, admission.userId as AnyPgColumn] }),
 		uniqueIndex("workspace_live_slug")
@@ -80,6 +111,17 @@ export const workspace = domain.table(
 			.where(sql`${t.archivedAt} IS NULL`),
 	],
 );
+
+export const customerOnboarding = domain.table("customer_onboarding", {
+	userId: text("user_id").primaryKey(),
+	organizationId: uuid("organization_id")
+		.notNull()
+		.references((): AnyPgColumn => organization.id),
+	workspaceId: uuid("workspace_id")
+		.notNull()
+		.references((): AnyPgColumn => workspace.id),
+	createdAt: time("created_at").notNull().defaultNow(),
+});
 
 export const project = domain.table(
 	"project",
@@ -94,10 +136,84 @@ export const project = domain.table(
 		archivedAt: time("archived_at"),
 	},
 	(t) => [
+		unique("project_id_workspace").on(t.id, t.workspaceId),
 		uniqueIndex("project_live_slug")
 			.on(t.workspaceId, t.slug)
 			.where(sql`${t.archivedAt} IS NULL`),
 	],
+);
+
+export const usageFact = domain.table(
+	"usage_fact",
+	{
+		id: id(),
+		organizationId: uuid("organization_id")
+			.notNull()
+			.references((): AnyPgColumn => organization.id),
+		workspaceId: uuid("workspace_id"),
+		projectId: uuid("project_id"),
+		metric: text("metric").notNull(),
+		sourceKey: text("source_key").notNull(),
+		quantity: bigint("quantity", { mode: "bigint" })
+			.notNull()
+			.default(sql`1`),
+		occurredAt: time("occurred_at")
+			.notNull()
+			.default(sql`clock_timestamp()`),
+	},
+	(t) => [
+		unique("usage_fact_source").on(t.organizationId, t.metric, t.sourceKey),
+		foreignKey({ name: "usage_fact_workspace_organization", columns: [t.workspaceId, t.organizationId], foreignColumns: [workspace.id, workspace.organizationId] }),
+		foreignKey({ name: "usage_fact_project_workspace", columns: [t.projectId, t.workspaceId], foreignColumns: [project.id, project.workspaceId] }),
+		check("usage_fact_project_parent", sql`${t.projectId} IS NULL OR ${t.workspaceId} IS NOT NULL`),
+		check("usage_fact_positive", sql`${t.quantity} > 0`),
+		check("usage_fact_key_length", sql`octet_length(${t.sourceKey}) BETWEEN 1 AND 256`),
+		index("usage_fact_by_organization_time").on(t.organizationId, t.occurredAt, t.metric),
+	],
+);
+
+export const usageCounter = domain.table(
+	"usage_counter",
+	{
+		organizationId: uuid("organization_id")
+			.notNull()
+			.references((): AnyPgColumn => organization.id),
+		metric: text("metric").notNull(),
+		quantity: bigint("quantity", { mode: "bigint" })
+			.notNull()
+			.default(sql`0`),
+	},
+	(t) => [primaryKey({ columns: [t.organizationId, t.metric] }), check("usage_counter_nonnegative", sql`${t.quantity} >= 0`)],
+);
+
+export const admissionWindowCounter = domain.table(
+	"admission_window_counter",
+	{
+		organizationId: uuid("organization_id")
+			.notNull()
+			.references((): AnyPgColumn => organization.id),
+		windowStart: time("window_start").notNull(),
+		windowEnd: time("window_end").notNull(),
+		quantity: bigint("quantity", { mode: "bigint" })
+			.notNull()
+			.default(sql`0`),
+	},
+	(t) => [primaryKey({ columns: [t.organizationId, t.windowStart, t.windowEnd] }), check("admission_window_range", sql`${t.windowStart} < ${t.windowEnd}`), check("admission_window_nonnegative", sql`${t.quantity} >= 0`)],
+);
+
+export const usageHour = domain.table(
+	"usage_hour",
+	{
+		organizationId: uuid("organization_id")
+			.notNull()
+			.references((): AnyPgColumn => organization.id),
+		metric: text("metric").notNull(),
+		windowStart: time("window_start").notNull(),
+		quantity: bigint("quantity", { mode: "bigint" })
+			.notNull()
+			.default(sql`0`),
+	},
+	(t) => [primaryKey({ columns: [t.organizationId, t.metric, t.windowStart] }), check("usage_hour_nonnegative", sql`${t.quantity} >= 0`)],
 );
 
 export const grant = domain.table(
@@ -160,6 +276,7 @@ export const endpoint = domain.table(
 		paused: boolean("paused").notNull().default(false),
 		priority: smallint("priority").notNull().default(0),
 		configVersion: integer("config_version").notNull().default(1),
+		deploymentMode: text("deployment_mode").notNull().default("self_hosted"),
 	},
 	(t) => [unique("endpoint_ingress_key").on(t.ingressKey), unique("endpoint_project_slug").on(t.projectId, t.slug), unique("endpoint_id_project").on(t.id, t.projectId), foreignKey({ name: "endpoint_active_publication", columns: [t.activePublicationId, t.id], foreignColumns: [publication.id as AnyPgColumn, publication.endpointId as AnyPgColumn] })],
 );

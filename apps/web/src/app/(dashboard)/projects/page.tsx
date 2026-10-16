@@ -9,8 +9,9 @@ import { useDashboard } from "@components/dashboard-shell";
 import { api } from "@lib/api-client";
 
 export default function DashboardPage() {
-	const { me, workspaces, projects, reload } = useDashboard();
+	const { organizations, workspaces, projects, reload } = useDashboard();
 
+	const [organizationId, setOrganizationId] = useState("");
 	const [form, setForm] = useState<"workspace" | "project" | null>(null);
 	const [name, setName] = useState("");
 	const [slug, setSlug] = useState("");
@@ -23,7 +24,8 @@ export default function DashboardPage() {
 	useFeedbackToast(error, "", { error: "Create resource error", success: "Success" });
 
 	const owned = workspaces.filter((w) => w.permissions.includes("projects.create") && w.permissions.includes("ownership.transfer"));
-	const canWorkspace = me.permissions.includes("workspaces.create") && me.permissions.includes("ownership.transfer");
+	const ownedOrganizations = organizations.filter((item) => item.permissions.includes("workspaces.create") && item.permissions.includes("ownership.transfer"));
+	const canWorkspace = ownedOrganizations.length > 0;
 	const visible = projects.filter((p) => (!filter || p.workspace_id === filter) && p.name.toLowerCase().includes(query.toLowerCase()));
 
 	async function create(event: FormEvent<HTMLFormElement>) {
@@ -31,7 +33,7 @@ export default function DashboardPage() {
 		setBusy(true);
 		setError("");
 		try {
-			await api(form === "workspace" ? "/workspaces" : "/projects", { method: "POST", json: { parentId: form === "workspace" ? me.instanceId : workspace, name, slug } });
+			await api(form === "workspace" ? "/workspaces" : "/projects", { method: "POST", json: { parentId: form === "workspace" ? organizationId : workspace, name, slug } });
 			await reload();
 			setForm(null);
 			setName("");
@@ -44,6 +46,7 @@ export default function DashboardPage() {
 	}
 
 	function open(next: "workspace" | "project") {
+		setOrganizationId(ownedOrganizations[0]?.id ?? "");
 		setForm(next);
 		setName("");
 		setSlug("");
@@ -105,6 +108,18 @@ export default function DashboardPage() {
 								</Sheet.Header>
 								<Sheet.Body>
 									<Form className='flex flex-col gap-4' onSubmit={create}>
+										{form === "workspace" && (
+											<NativeSelect variant='secondary' fullWidth>
+												<Label htmlFor='project-organization'>Organization</Label>
+												<NativeSelect.Trigger id='project-organization' required value={organizationId} onChange={(event) => setOrganizationId(event.target.value)}>
+													{ownedOrganizations.map((item) => (
+														<NativeSelect.Option key={item.id} value={item.id}>
+															{item.name}
+														</NativeSelect.Option>
+													))}
+												</NativeSelect.Trigger>
+											</NativeSelect>
+										)}
 										{form === "project" && (
 											<NativeSelect variant='secondary' fullWidth>
 												<Label htmlFor='project-workspace'>Workspace</Label>

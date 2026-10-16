@@ -10,7 +10,16 @@ export type MeProfile = {
 	roles: Record<string, Permission[]>;
 };
 
+export type OrganizationSummary = {
+	id: string;
+	name: string;
+	slug: string;
+	installation_id: string;
+	permissions: Permission[];
+};
+
 export type WorkspaceSummary = {
+	organization_id: string;
 	id: string;
 	name: string;
 	slug: string;
@@ -23,5 +32,6 @@ export type ProjectSummary = {
 	name: string;
 	slug: string;
 	workspace_id: string;
+	organization_id: string;
 	permissions: Permission[];
 };

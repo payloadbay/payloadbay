@@ -32,7 +32,13 @@ export function createAuth(pool: Pool, config: ServerConfig) {
 				create: {
 					before: async (session) => {
 						const installation = (await pool.query("SELECT id FROM payloadbay.installation WHERE singleton AND bootstrap_state='complete'")).rows[0];
-						if (installation && !(await pool.query("SELECT 1 FROM payloadbay.admission WHERE installation_id=$1 AND user_id=$2 AND active", [installation.id, session.userId])).rowCount) throw new APIError("FORBIDDEN", { message: "Your instance access is not active" });
+						if (installation) {
+							const admission = (await pool.query("SELECT active FROM payloadbay.admission WHERE installation_id=$1 AND user_id=$2", [installation.id, session.userId])).rows[0];
+							if (!admission?.active) {
+								const user = (await pool.query('SELECT "emailVerified" FROM auth."user" WHERE id=$1', [session.userId])).rows[0];
+								if (admission || config.registrationPolicy !== "organization" || !user?.emailVerified) throw new APIError("FORBIDDEN", { message: "Your instance access is not active" });
+							}
+						}
 
 						return { data: session };
 					},
@@ -105,7 +111,29 @@ export function createAuth(pool: Pool, config: ServerConfig) {
 				const body = await request.json().catch(() => null);
 				if (!body || typeof body.email !== "string" || body.email.length > 254 || body.type !== "sign-in") return Response.json({ error: { code: "invalid_input", message: "Check the submitted values" } }, { status: 400 });
 
-				return Response.json(await requestLoginCode(pool, auth, body.email, config.otpRequestLimit));
+				return Response.json(
+					await requestLoginCode(
+						pool,
+						auth,
+						body.email,
+						config.otpRequestLimit,
+						config.registrationPolicy === "organization"
+							? async (email) => {
+									let user = (await pool.query('SELECT id FROM auth."user" WHERE lower(email)=$1', [email])).rows[0];
+									if (!user) {
+										try {
+											user = (await auth.api.createUser({ body: { email, name: email.split("@")[0] } })).user;
+										} catch (error) {
+											user = (await pool.query('SELECT id FROM auth."user" WHERE lower(email)=$1', [email])).rows[0];
+											if (!user) throw error;
+										}
+									}
+
+									return !(await pool.query("SELECT 1 FROM payloadbay.admission WHERE user_id=$1", [user.id])).rowCount;
+								}
+							: undefined,
+					),
+				);
 			}
 
 			return auth.handler(request);

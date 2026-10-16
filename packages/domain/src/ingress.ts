@@ -1,5 +1,7 @@
 import { validateProviderResponse } from "../../contracts/src/provider-response.ts";
 import { executePipeline } from "./pipeline.ts";
+import { mayAcceptIngress } from "./organization-policy.ts";
+import { recordEndpointUsage } from "./usage.ts";
 import { appendChange } from "./changes.ts";
 import type { Pool } from "pg";
 import { createHash } from "node:crypto";
@@ -42,7 +44,12 @@ export async function receiveIngress(pool: Pool, input: IngressInput, options: I
 	}
 
 	if (/^Bearer pb_[A-Za-z0-9_-]{43}$/i.test(headers.authorization ?? "")) delete headers.authorization;
-	const route = (await pool.query(`SELECT e.id,e.project_id,e.priority,p.id AS publication_id,p.shared_versions,p.effective_bindings,r.bundle FROM payloadbay.endpoint e JOIN payloadbay.project pr ON pr.id=e.project_id JOIN payloadbay.workspace w ON w.id=pr.workspace_id JOIN payloadbay.publication p ON p.id=e.active_publication_id JOIN payloadbay.stage_revision r ON r.id=p.ingress_revision_id WHERE e.ingress_key=$1 AND pr.archived_at IS NULL AND w.archived_at IS NULL`, [input.key])).rows[0];
+	const route = (
+		await pool.query(
+			`SELECT e.id,e.project_id,e.priority,w.organization_id,p.id AS publication_id,p.shared_versions,p.effective_bindings,r.bundle FROM payloadbay.endpoint e JOIN payloadbay.project pr ON pr.id=e.project_id JOIN payloadbay.workspace w ON w.id=pr.workspace_id JOIN payloadbay.organization o ON o.id=w.organization_id AND o.installation_id=w.installation_id JOIN payloadbay.publication p ON p.id=e.active_publication_id JOIN payloadbay.stage_revision r ON r.id=p.ingress_revision_id WHERE e.ingress_key=$1 AND pr.archived_at IS NULL AND w.archived_at IS NULL AND o.archived_at IS NULL`,
+			[input.key],
+		)
+	).rows[0];
 	if (!route) throw new AppError("ingress_unavailable", 404, "Ingress route unavailable");
 	let decision: ReturnType<typeof ingressDecision.parse>;
 	try {
@@ -78,6 +85,7 @@ export async function receiveIngress(pool: Pool, input: IngressInput, options: I
 	} catch (cause) {
 		await transaction(pool, async (db) => {
 			const recorded = (await db.query("INSERT INTO payloadbay.event(endpoint_id,publication_id,original_body,headers,content_type,accepted_body,ingress_outcome,request_method,response_status) VALUES($1,$2,$3,$4,$5,$6,'error',$7,$8) RETURNING id", [route.id, route.publication_id, Buffer.from(input.body), JSON.stringify(headers), headers["content-type"] ?? "application/octet-stream", Buffer.alloc(0), input.method, cause instanceof AppError ? cause.status : 500])).rows[0];
+			await recordEndpointUsage(db, route.id, "ingress.recorded", recorded.id);
 			await appendChange(db, { scope: { type: "project", id: route.project_id }, kind: "event.recorded", resourceId: recorded.id });
 		});
 		throw cause;
@@ -85,7 +93,13 @@ export async function receiveIngress(pool: Pool, input: IngressInput, options: I
 
 	const accepted = decision.kind === "accept" ? Buffer.from(decision.event.body) : Buffer.alloc(0);
 	if (accepted.byteLength > (options.bodyLimit ?? 1048576)) throw new AppError("body_too_large", 413, "Accepted event exceeds the configured limit");
+	let admissionRejected = false;
 	await transaction(pool, async (db) => {
+		if (decision.kind === "accept" && !(await mayAcceptIngress(db, route.organization_id))) {
+			admissionRejected = true;
+			decision = { kind: "reject", response: { status: 429, body: "Event acceptance is temporarily unavailable for this organization", headers: { "content-type": "text/plain" } } };
+		}
+
 		const event = (
 			await db.query("INSERT INTO payloadbay.event(endpoint_id,publication_id,original_body,headers,content_type,accepted_body,metadata,ingress_outcome,request_method,response_status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id", [
 				route.id,
@@ -93,13 +107,14 @@ export async function receiveIngress(pool: Pool, input: IngressInput, options: I
 				Buffer.from(input.body),
 				JSON.stringify(headers),
 				decision.kind === "accept" ? decision.event.contentType : (headers["content-type"] ?? "application/octet-stream"),
-				accepted,
-				JSON.stringify(decision.kind === "accept" ? (decision.event.metadata ?? {}) : {}),
+				decision.kind === "accept" ? accepted : Buffer.alloc(0),
+				JSON.stringify(decision.kind === "accept" ? (decision.event.metadata ?? {}) : admissionRejected ? { platform: { reason: "organization_admission_limit" } } : {}),
 				decision.kind,
 				input.method,
 				decision.response.status,
 			])
 		).rows[0];
+		await recordEndpointUsage(db, route.id, "ingress.recorded", event.id);
 		if (decision.kind !== "accept") {
 			await appendChange(db, { scope: { type: "project", id: route.project_id }, kind: "event.recorded", resourceId: event.id });
 
@@ -113,6 +128,8 @@ export async function receiveIngress(pool: Pool, input: IngressInput, options: I
 			.digest("hex");
 		await db.query("INSERT INTO payloadbay.receipt(event_id,ack_response_digest) VALUES($1,$2)", [event.id, digest]);
 		const scheduled = (await db.query("INSERT INTO payloadbay.execution(event_id,endpoint_id,publication_id,max_attempts) VALUES($1,$2,$3,$4) RETURNING *", [event.id, route.id, route.publication_id, options.maxAttempts ?? 5])).rows[0];
+		await recordEndpointUsage(db, route.id, "ingress.accepted", event.id);
+		await recordEndpointUsage(db, route.id, "execution.created", scheduled.id);
 		await scheduleDispatch(db, scheduled, route.priority);
 		await appendChange(db, { scope: { type: "project", id: route.project_id }, kind: "event.accepted", resourceId: event.id });
 	});

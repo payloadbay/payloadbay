@@ -25,7 +25,7 @@ test("U6 empty installation creates complete domain schema", async () => {
 });
 
 import { database, transaction } from "../../packages/domain/src/db.ts";
-import { seedScope, seedEvent } from "../helpers/domain-fixtures.ts";
+import { seedScope, seedLegacyScope, seedEvent } from "../helpers/domain-fixtures.ts";
 
 test("U7 acceptance rollback leaves no event or dispatch", async () => {
 	await withFixtures(async (f) => {
@@ -33,7 +33,7 @@ test("U7 acceptance rollback leaves no event or dispatch", async () => {
 		const pool = database(f.databaseUrl);
 		const db = await pool.connect();
 		try {
-			const scope = await seedScope(db);
+			const scope = await seedLegacyScope(db);
 			await assert.rejects(
 				transaction(pool, async (c) => {
 					const event = await seedEvent(c, scope);
@@ -90,7 +90,7 @@ test("U9 forward migration preserves existing records", async () => {
 		const db = new Client({ connectionString: f.databaseUrl });
 		await db.connect();
 		try {
-			const scope = await seedScope(db);
+			const scope = await seedLegacyScope(db);
 			const event = await seedEvent(db, scope);
 			await migrate(f.databaseUrl);
 			assert.deepEqual(
@@ -110,7 +110,7 @@ test("U10 wrong-scope dispatch is rejected", async () => {
 		const db = new Client({ connectionString: f.databaseUrl });
 		await db.connect();
 		try {
-			const scope = await seedScope(db);
+			const scope = await seedLegacyScope(db);
 			const event = await seedEvent(db, scope);
 			const execution = (await db.query("INSERT INTO payloadbay.execution(event_id,endpoint_id,publication_id) VALUES($1,$2,$3) RETURNING id", [event, scope.endpoint, scope.publication])).rows[0].id;
 			const other = (await db.query("INSERT INTO payloadbay.endpoint(project_id,name,slug,ingress_key) VALUES($1,'Other','other',gen_random_uuid()::text) RETURNING id", [scope.project])).rows[0].id;
@@ -141,7 +141,7 @@ test("U185 real forward upgrade preserves retained event bytes", async () => {
 		const db = new Client({ connectionString: f.databaseUrl });
 		await db.connect();
 		try {
-			const scope = await seedScope(db);
+			const scope = await seedLegacyScope(db);
 			const event = await seedEvent(db, scope);
 			await migrate(f.databaseUrl);
 			assert.ok((await db.query("SELECT to_regclass('payloadbay.notification_subscription') AS table_name")).rows[0].table_name, "new migration must be applied");
@@ -182,7 +182,7 @@ test("U190 Drizzle reads retained bytes through typed mappings", async () => {
 		const pool = database(f.databaseUrl);
 		const db = await pool.connect();
 		try {
-			const scope = await seedScope(db);
+			const scope = await seedLegacyScope(db);
 			await seedEvent(db, scope);
 			const storage = typedDatabase(pool);
 			const schema = await import("../../packages/domain/src/schema.ts");

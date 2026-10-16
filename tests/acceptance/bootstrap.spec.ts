@@ -162,6 +162,7 @@ test.describe("unavailable and empty states", () => {
 				},
 			}),
 		);
+		await page.route("**/api/v1/organizations", (route) => route.fulfill({ json: [] }));
 		await page.route("**/api/v1/workspaces", (route) => route.fulfill({ json: [] }));
 		await page.route("**/api/v1/projects", (route) => route.fulfill({ json: [] }));
 		await page.route("**/api/v1/projects/project", (route) => route.fulfill({ json: { id: "project", name: "Project", permissions } }));

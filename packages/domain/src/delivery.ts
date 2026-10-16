@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import { createHash, randomUUID } from "node:crypto";
+import { recordEndpointUsage } from "./usage.ts";
 import { transaction } from "./db.ts";
 import { assertAuthority, type Authority } from "./execution-lease.ts";
 import { AppError } from "../../contracts/src/errors.ts";
@@ -80,6 +81,7 @@ export async function managedSend(pool: Pool, authority: Authority, target: Dest
 		if (operation.state === "sending" && operation.generation === authority.generation) throw new AppError("operation_busy", 409, "This operation is already being sent");
 		const attemptId = randomUUID();
 		await db.query("INSERT INTO payloadbay.delivery_attempt(id,execution_id,operation_id,execution_attempt,generation) VALUES($1,$2,$3,$4,$5)", [attemptId, execution.id, input.operationId, execution.attempt_number, authority.generation]);
+		await recordEndpointUsage(db, execution.endpoint_id, "delivery.attempt.started", attemptId);
 		await db.query("UPDATE payloadbay.managed_operation SET state='sending',generation=$3 WHERE execution_id=$1 AND operation_id=$2", [execution.id, input.operationId, authority.generation]);
 
 		return {

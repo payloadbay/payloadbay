@@ -1,4 +1,41 @@
 -- Database behavior source: Drizzle owns all tables, keys, checks and indexes.
+-- Map pre-organization alpha workspaces without changing their IDs or grants.
+-- CI defers the new column's NOT NULL until this transactional backfill completes.
+DO $$
+DECLARE legacy record; operator_id text;
+BEGIN
+ FOR legacy IN SELECT id,installation_id,name,archived_at FROM payloadbay.workspace WHERE organization_id IS NULL ORDER BY id FOR UPDATE LOOP
+  SELECT g.user_id INTO operator_id FROM payloadbay.grant_record g
+   JOIN payloadbay.admission a ON a.user_id=g.user_id AND a.installation_id=legacy.installation_id AND a.active
+   WHERE g.scope_type='instance' AND g.scope_id=legacy.installation_id AND g.role_preset='owner'
+   ORDER BY g.user_id LIMIT 1;
+  IF operator_id IS NULL THEN RAISE EXCEPTION 'Organization mapping requires an active instance owner'; END IF;
+  INSERT INTO payloadbay.organization(id,installation_id,name,slug,owner_user_id,archived_at)
+   VALUES(legacy.id,legacy.installation_id,legacy.name,'migrated-'||legacy.id::text,operator_id,legacy.archived_at);
+  UPDATE payloadbay.workspace SET organization_id=legacy.id WHERE id=legacy.id;
+ END LOOP;
+END $$;
+
+-- Resource ancestry is stable after creation; legacy NULL lineage can be backfilled.
+CREATE OR REPLACE FUNCTION payloadbay.reject_resource_parent() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE position integer;
+BEGIN
+ FOR position IN 0..TG_NARGS-1 LOOP
+  IF (to_jsonb(OLD)->>TG_ARGV[position]) IS NOT NULL AND
+   (to_jsonb(OLD)->>TG_ARGV[position]) IS DISTINCT FROM (to_jsonb(NEW)->>TG_ARGV[position])
+   THEN RAISE EXCEPTION 'immutable resource parent'; END IF;
+ END LOOP;
+ RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS immutable_organization_parent ON payloadbay.organization;
+CREATE TRIGGER immutable_organization_parent BEFORE UPDATE OF installation_id ON payloadbay.organization FOR EACH ROW EXECUTE FUNCTION payloadbay.reject_resource_parent('installation_id');
+DROP TRIGGER IF EXISTS immutable_workspace_parent ON payloadbay.workspace;
+CREATE TRIGGER immutable_workspace_parent BEFORE UPDATE OF installation_id,organization_id ON payloadbay.workspace FOR EACH ROW EXECUTE FUNCTION payloadbay.reject_resource_parent('installation_id','organization_id');
+DROP TRIGGER IF EXISTS immutable_project_parent ON payloadbay.project;
+CREATE TRIGGER immutable_project_parent BEFORE UPDATE OF workspace_id ON payloadbay.project FOR EACH ROW EXECUTE FUNCTION payloadbay.reject_resource_parent('workspace_id');
+DROP TRIGGER IF EXISTS immutable_endpoint_parent ON payloadbay.endpoint;
+CREATE TRIGGER immutable_endpoint_parent BEFORE UPDATE OF project_id ON payloadbay.endpoint FOR EACH ROW EXECUTE FUNCTION payloadbay.reject_resource_parent('project_id');
+
 CREATE OR REPLACE FUNCTION payloadbay.reject_history_mutation() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'immutable history'; END $$;
 DROP TRIGGER IF EXISTS immutable_stage ON payloadbay.stage_revision;
 CREATE TRIGGER immutable_stage BEFORE UPDATE OR DELETE ON payloadbay.stage_revision FOR EACH ROW EXECUTE FUNCTION payloadbay.reject_history_mutation();
@@ -10,6 +47,10 @@ DROP TRIGGER IF EXISTS immutable_event ON payloadbay.event;
 CREATE TRIGGER immutable_event BEFORE UPDATE OR DELETE ON payloadbay.event FOR EACH ROW EXECUTE FUNCTION payloadbay.reject_history_mutation();
 DROP TRIGGER IF EXISTS immutable_receipt ON payloadbay.receipt;
 CREATE TRIGGER immutable_receipt BEFORE UPDATE OR DELETE ON payloadbay.receipt FOR EACH ROW EXECUTE FUNCTION payloadbay.reject_history_mutation();
+DROP TRIGGER IF EXISTS immutable_policy_revision ON payloadbay.organization_policy_revision;
+CREATE TRIGGER immutable_policy_revision BEFORE UPDATE OR DELETE ON payloadbay.organization_policy_revision FOR EACH ROW EXECUTE FUNCTION payloadbay.reject_history_mutation();
+DROP TRIGGER IF EXISTS immutable_usage ON payloadbay.usage_fact;
+CREATE TRIGGER immutable_usage BEFORE UPDATE OR DELETE ON payloadbay.usage_fact FOR EACH ROW EXECUTE FUNCTION payloadbay.reject_history_mutation();
 DROP TRIGGER IF EXISTS immutable_audit ON payloadbay.audit;
 CREATE TRIGGER immutable_audit BEFORE UPDATE OR DELETE ON payloadbay.audit FOR EACH ROW EXECUTE FUNCTION payloadbay.reject_history_mutation();
 

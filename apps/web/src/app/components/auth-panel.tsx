@@ -32,8 +32,23 @@ export function AuthPanel({ setup = false, preview = false, initialEmail, return
 	const [error, setError] = useState("");
 	const [available, setAvailable] = useState(!setup);
 	const [configured, setConfigured] = useState(false);
+	const [registrationEnabled, setRegistrationEnabled] = useState(false);
 
 	useFeedbackToast(error, "", { error: setup ? "Setup unavailable" : "Could not sign in" });
+
+	useEffect(() => {
+		if (setup) return;
+		let active = true;
+		api<{ registrationEnabled: boolean }>("/onboarding")
+			.then((status) => {
+				if (active) setRegistrationEnabled(status.registrationEnabled);
+			})
+			.catch(() => {});
+
+		return () => {
+			active = false;
+		};
+	}, [setup]);
 
 	async function check() {
 		try {
@@ -152,7 +167,7 @@ export function AuthPanel({ setup = false, preview = false, initialEmail, return
 					<Image src='/brand/payloadbay-logo-dark-transparent-padded.svg' alt='Payload Bay' width={240} height={53} priority />
 				</Link>
 				<Card.Header className='items-center gap-2 text-center'>
-					<h1 className='text-2xl font-semibold'>{sent ? "Check your email" : setup ? "Set up Payload Bay" : "Welcome back"}</h1>
+					<h1 className='text-2xl font-semibold'>{sent ? "Check your email" : setup ? "Set up Payload Bay" : registrationEnabled ? "Welcome to Payload Bay" : "Welcome back"}</h1>
 					<Card.Description>
 						{sent ? (
 							<>
@@ -160,6 +175,8 @@ export function AuthPanel({ setup = false, preview = false, initialEmail, return
 							</>
 						) : setup ? (
 							"Create the first instance owner with your installation setup secret."
+						) : registrationEnabled ? (
+							"Sign in or create your organization with a code sent to your email. No password required."
 						) : (
 							"Sign in with a code sent to your email. No password required."
 						)}

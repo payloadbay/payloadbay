@@ -443,3 +443,29 @@ test("U311 a resumed old job gets a fresh claim window", async () => {
 		assert.equal(dispatch.fresh, true, "Fresh offers must get a new claim window even when their due time is old");
 	});
 });
+
+test("FT10a organization capacity defers claims without consuming attempts and recovers expired capacity", async () => {
+	await recoveryFixture(async ({ pool, db, executionId, endpointId }) => {
+		const { claimExecution } = await import("../../packages/domain/src/execution-lease.ts");
+		const organization = (await db.query("SELECT w.organization_id FROM payloadbay.endpoint e JOIN payloadbay.project p ON p.id=e.project_id JOIN payloadbay.workspace w ON w.id=p.workspace_id WHERE e.id=$1", [endpointId])).rows[0].organization_id;
+		await db.query("INSERT INTO payloadbay.organization_policy(organization_id,version,limits,processing_concurrency,updated_by) VALUES($1,1,$2,1,'fixture-owner')", [organization, JSON.stringify({ workspaces: null, projects: null, admission: null })]);
+		const queued = (await db.query("INSERT INTO payloadbay.execution(event_id,endpoint_id,publication_id) SELECT event_id,endpoint_id,publication_id FROM payloadbay.execution WHERE id=$1 RETURNING id", [executionId])).rows[0].id;
+		assert.equal(await claimExecution(pool, queued, 1, "waiting-worker"), null);
+		const deferred = (await db.query("SELECT state,attempt_number,dispatch_generation,due_at>clock_timestamp() AS delayed FROM payloadbay.execution WHERE id=$1", [queued])).rows[0];
+		assert.deepEqual(deferred, {
+			state: "queued",
+			attempt_number: 0,
+			dispatch_generation: 2,
+			delayed: true,
+		});
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.usage_fact WHERE metric='processing.attempt.started'")).rows[0].n, 0);
+		assert.equal(await claimExecution(pool, queued, 1, "stale-worker"), null);
+		assert.equal((await db.query("SELECT dispatch_generation FROM payloadbay.execution WHERE id=$1", [queued])).rows[0].dispatch_generation, 2);
+		await db.query("UPDATE payloadbay.execution SET lease_expiry=clock_timestamp()-interval '1 second' WHERE id=$1", [executionId]);
+		await db.query("UPDATE payloadbay.execution SET due_at=clock_timestamp() WHERE id=$1", [queued]);
+		const claims = await Promise.all([claimExecution(pool, queued, 2, "worker-a"), claimExecution(pool, queued, 2, "worker-b")]);
+		assert.equal(claims.filter(Boolean).length, 1);
+		assert.equal(claims.find(Boolean).attempt_number, 1);
+		assert.equal((await db.query("SELECT quantity::text FROM payloadbay.usage_counter WHERE metric='processing.attempt.started'")).rows[0].quantity, "1");
+	});
+});

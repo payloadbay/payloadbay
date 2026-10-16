@@ -55,7 +55,7 @@ function middlewareStarter(name = "", stage: "ingress" | "processing" = "process
 export default function CodePage({ params }: { params: Promise<{ scopeType: string; scopeId: string }> }) {
 	const { scopeType, scopeId } = use(params);
 
-	const { me, workspaces, projects } = useDashboard();
+	const { me, organizations, workspaces, projects } = useDashboard();
 
 	const scopes = [
 		...(me.permissions.includes("code.read")
@@ -68,6 +68,7 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 					},
 				]
 			: []),
+		...organizations.filter((scope) => scope.permissions.includes("code.read")).map((scope) => ({ type: "organization", ...scope })),
 		...workspaces.filter((scope) => scope.permissions.includes("code.read")).map((scope) => ({ type: "workspace", ...scope })),
 		...projects.filter((scope) => scope.permissions.includes("code.read")).map((scope) => ({ type: "project", ...scope })),
 	];
@@ -377,9 +378,9 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 			{unsavedDialog}
 			<header className='flex flex-wrap items-start justify-between gap-4'>
 				<div>
-					<Link href={scopeType === "project" ? "/projects/" + scopeId : scopeType === "workspace" ? "/workspaces/" + scopeId : scopeType === "endpoint" && endpointScope ? "/projects/" + endpointScope.projectId + "/routes/" + scopeId : "/"} className='text-accent mb-3 flex items-center gap-2 text-sm'>
+					<Link href={scopeType === "project" ? "/projects/" + scopeId : scopeType === "organization" ? "/organizations/" + scopeId : scopeType === "workspace" ? "/workspaces/" + scopeId : scopeType === "endpoint" && endpointScope ? "/projects/" + endpointScope.projectId + "/routes/" + scopeId : "/"} className='text-accent mb-3 flex items-center gap-2 text-sm'>
 						<IconArrowLeft size={16} />
-						{scopeType === "project" ? "Back to project" : scopeType === "workspace" ? "Back to workspace" : scopeType === "endpoint" ? "Back to ingress route" : "Back to overview"}
+						{scopeType === "project" ? "Back to project" : scopeType === "organization" ? "Back to organization" : scopeType === "workspace" ? "Back to workspace" : scopeType === "endpoint" ? "Back to ingress route" : "Back to overview"}
 					</Link>
 					<p className='text-muted text-sm'>{selectedScope?.name ?? endpointScope?.name ?? "Scope"}</p>
 					<h1 className='text-3xl font-semibold'>Code and middleware</h1>

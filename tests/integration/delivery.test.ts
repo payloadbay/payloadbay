@@ -354,3 +354,15 @@ test("bulk replay freezes selected events, supports a chosen version and rolls b
 		await assert.rejects(replayEvents(pool, { userId: "fixture-owner" }, { ...input, key: "bad-version", publicationId: crypto.randomUUID() }), { code: "publication_unavailable" });
 	});
 });
+
+test("FT08e a cached managed send does not count another HTTP attempt", async () => {
+	await deliveryFixture(async ({ pool, db, authority, httpUrl }) => {
+		await managedSend(pool, authority, "primary", { operationId: "metered-send", body: "fixture-body" });
+		const cached = await managedSend(pool, authority, "primary", { operationId: "metered-send", body: "fixture-body" });
+		assert.equal(cached.reused, true);
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.delivery_attempt")).rows[0].n, 1);
+		assert.equal((await (await fetch(httpUrl + "/receipts")).json()).length, 1);
+		const total = (await db.query("SELECT quantity::text FROM payloadbay.usage_counter WHERE metric='delivery.attempt.started'")).rows[0];
+		assert.equal(total?.quantity, "1");
+	});
+});

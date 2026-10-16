@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { browserOrganization } from "../helpers/browser-auth.ts";
 import { resetBrowserData } from "../helpers/browser-data.ts";
 
 test.beforeEach(resetBrowserData);
@@ -66,7 +67,7 @@ test("U62 dashboard hides projects outside inherited access", async ({ page }) =
 	await ensureBrowserOwner(page);
 	const me = await (await page.request.get("/api/v1/me")).json();
 	const headers = commandHeaders();
-	const workspaceResponse = await page.request.post("/api/v1/workspaces", { headers, data: { parentId: me.instanceId, name: "Browser workspace", slug: "browser-workspace" } });
+	const workspaceResponse = await page.request.post("/api/v1/workspaces", { headers, data: { parentId: await browserOrganization(page), name: "Browser workspace", slug: "browser-workspace" } });
 	expect(workspaceResponse.status()).toBe(200);
 	const workspace = await workspaceResponse.json();
 
@@ -175,8 +176,7 @@ test("U261 project dashboard configures ingress route and destination", async ({
 	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
 	const headers = commandHeaders();
-	const me = await (await page.request.get("/api/v1/me")).json();
-	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: me.instanceId, name: "Delivery workspace", slug: "delivery-workspace" } })).json();
+	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: await browserOrganization(page), name: "Delivery workspace", slug: "delivery-workspace" } })).json();
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Delivery project", slug: "delivery-project" } })).json();
 	await page.goto("/projects/" + project.id);
 	await expect(page.getByRole("heading", { name: "Delivery project", exact: true }), "Project detail must be available").toBeVisible();
@@ -202,8 +202,7 @@ test("U80 route editor separates ingress and processing bodies", async ({ page }
 	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
 	const headers = commandHeaders();
-	const me = await (await page.request.get("/api/v1/me")).json();
-	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: me.instanceId, name: "Editor workspace", slug: "editor-workspace" } })).json();
+	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: await browserOrganization(page), name: "Editor workspace", slug: "editor-workspace" } })).json();
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Editor project", slug: "editor-project" } })).json();
 	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Editable route", slug: "editable" } })).json();
 	await page.goto("/projects/" + project.id + "/routes/" + route.id);
@@ -222,8 +221,7 @@ test("U75 copied template remains editable and leaves future copies unchanged", 
 	const { unverifiedHttpTemplate } = await import("../../packages/script-sdk/src/templates/unverified.ts");
 	await ensureBrowserOwner(page);
 	const headers = commandHeaders();
-	const me = await (await page.request.get("/api/v1/me")).json();
-	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: me.instanceId, name: "Template workspace", slug: "template-workspace" } })).json();
+	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: await browserOrganization(page), name: "Template workspace", slug: "template-workspace" } })).json();
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Template project", slug: "template-project" } })).json();
 
 	const create = async (slug: string) => (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: slug, slug } })).json();
@@ -254,8 +252,7 @@ test("U265 route editor binds an encrypted signing secret version", async ({ pag
 	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
 	const headers = commandHeaders();
-	const me = await (await page.request.get("/api/v1/me")).json();
-	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: me.instanceId, name: "Secret workspace", slug: "secret-workspace" } })).json();
+	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: await browserOrganization(page), name: "Secret workspace", slug: "secret-workspace" } })).json();
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Secret project", slug: "secret-project" } })).json();
 	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Signed route", slug: "signed" } })).json();
 	await page.goto("/projects/" + project.id + "/routes/" + route.id);
@@ -285,8 +282,7 @@ test("U116 event inspector displays HTML payload as escaped text", async ({ page
 	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
 	const headers = commandHeaders();
-	const me = await (await page.request.get("/api/v1/me")).json();
-	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: me.instanceId, name: "Inspector workspace", slug: "inspector-workspace" } })).json();
+	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: await browserOrganization(page), name: "Inspector workspace", slug: "inspector-workspace" } })).json();
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Inspector project", slug: "inspector-project" } })).json();
 	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Inspector route", slug: "inspector" } })).json();
 	const published = await page.request.post("/api/v1/endpoints/" + route.id + "/publications", { headers, data: { expectedVersion: 1, draftVersions: { ingress: 1, processing: 1 } } });
@@ -352,8 +348,7 @@ test("U275 stored event appears through authenticated live updates", async ({ pa
 	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
 	const headers = commandHeaders();
-	const me = await (await page.request.get("/api/v1/me")).json();
-	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: me.instanceId, name: "Live workspace", slug: "live-workspace" } })).json();
+	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: await browserOrganization(page), name: "Live workspace", slug: "live-workspace" } })).json();
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Live project", slug: "live-project" } })).json();
 	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Live route", slug: "live" } })).json();
 	const published = await page.request.post("/api/v1/endpoints/" + route.id + "/publications", { headers, data: { expectedVersion: 1, draftVersions: { ingress: 1, processing: 1 } } });
@@ -401,8 +396,7 @@ test("U292 project code page creates helper version and processing middleware", 
 	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
 	const headers = commandHeaders();
-	const me = await (await page.request.get("/api/v1/me")).json();
-	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: me.instanceId, name: "Code workspace", slug: "code-workspace" } })).json();
+	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: await browserOrganization(page), name: "Code workspace", slug: "code-workspace" } })).json();
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Code project", slug: "code-project" } })).json();
 	await page.goto("/code/project/" + project.id);
 	await expect(page.getByRole("heading", { name: "Code and middleware", exact: true }), "Code management page must be available").toBeVisible();
@@ -450,8 +444,7 @@ test("U83 route editor binds helper version and supports editable file imports",
 	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
 	const headers = commandHeaders();
-	const me = await (await page.request.get("/api/v1/me")).json();
-	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: me.instanceId, name: "Import workspace", slug: "import-workspace" } })).json();
+	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: await browserOrganization(page), name: "Import workspace", slug: "import-workspace" } })).json();
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Import project", slug: "import-project" } })).json();
 	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Imported route", slug: "imported" } })).json();
 	const created = await page.request.post("/api/v1/shared-code", { headers, data: { scope: { type: "project", id: project.id }, name: "Messages", source: 'export function message(){return "from shared helper";}' } });
@@ -503,8 +496,7 @@ test("U293 project navigation opens scoped code management", async ({ page }) =>
 	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
 	const headers = commandHeaders();
-	const me = await (await page.request.get("/api/v1/me")).json();
-	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: me.instanceId, name: "Navigation workspace", slug: "navigation-workspace" } })).json();
+	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: await browserOrganization(page), name: "Navigation workspace", slug: "navigation-workspace" } })).json();
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Navigation project", slug: "navigation-project" } })).json();
 	await page.goto("/projects/" + project.id);
 	await page.getByRole("row", { name: "Code and middleware", exact: true }).click();
@@ -516,8 +508,7 @@ test("U296 project member navigation uses project scope", async ({ page }) => {
 	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
 	const headers = commandHeaders();
-	const me = await (await page.request.get("/api/v1/me")).json();
-	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: me.instanceId, name: "Member workspace", slug: "member-workspace" } })).json();
+	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: await browserOrganization(page), name: "Member workspace", slug: "member-workspace" } })).json();
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Member project", slug: "member-project" } })).json();
 	await page.goto("/projects/" + project.id);
 	await page.getByRole("row", { name: "Project members", exact: true }).click();
@@ -532,8 +523,7 @@ test("U299 action feedback appears in toasts instead of inline boxes", async ({ 
 	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
 	const headers = commandHeaders();
-	const me = await (await page.request.get("/api/v1/me")).json();
-	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: me.instanceId, name: "Toast workspace", slug: "toast-workspace" } })).json();
+	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: await browserOrganization(page), name: "Toast workspace", slug: "toast-workspace" } })).json();
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Toast project", slug: "toast-project" } })).json();
 	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Toast route", slug: "toast-route" } })).json();
 	await page.goto("/projects/" + project.id + "/routes/" + route.id);
@@ -548,8 +538,7 @@ test("U300 route editor tests unsaved ingress with synthetic fixture", async ({ 
 	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
 	const headers = commandHeaders();
-	const me = await (await page.request.get("/api/v1/me")).json();
-	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: me.instanceId, name: "Test workspace", slug: "test-workspace" } })).json();
+	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: await browserOrganization(page), name: "Test workspace", slug: "test-workspace" } })).json();
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Test project", slug: "test-project" } })).json();
 	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Test route", slug: "test-route" } })).json();
 	await page.goto("/projects/" + project.id + "/routes/" + route.id);
@@ -573,8 +562,7 @@ test("U301 code creation follows workspace and project page scope", async ({ pag
 	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
 	const headers = commandHeaders();
-	const me = await (await page.request.get("/api/v1/me")).json();
-	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: me.instanceId, name: "Scope workspace", slug: "scope-workspace" } })).json();
+	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: await browserOrganization(page), name: "Scope workspace", slug: "scope-workspace" } })).json();
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Scope project", slug: "scope-project" } })).json();
 	await page.goto("/code/project/" + project.id);
 	await expect(page.getByLabel("Code scope", { exact: true })).toHaveCount(0);
@@ -590,8 +578,7 @@ test("U302 repeated saves retain a clear saved state without redundant toasts", 
 	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
 	const headers = commandHeaders();
-	const me = await (await page.request.get("/api/v1/me")).json();
-	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: me.instanceId, name: "Repeat workspace", slug: "repeat-workspace" } })).json();
+	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: await browserOrganization(page), name: "Repeat workspace", slug: "repeat-workspace" } })).json();
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Repeat project", slug: "repeat-project" } })).json();
 	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Repeat route", slug: "repeat-route" } })).json();
 	await page.goto("/projects/" + project.id + "/routes/" + route.id);
@@ -606,8 +593,7 @@ test("U131 inherited middleware shows provenance and copies a local override", a
 	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
 	const headers = commandHeaders();
-	const me = await (await page.request.get("/api/v1/me")).json();
-	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: me.instanceId, name: "Policy workspace", slug: "policy-workspace" } })).json();
+	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: await browserOrganization(page), name: "Policy workspace", slug: "policy-workspace" } })).json();
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Policy project", slug: "policy-project" } })).json();
 	const parentResponse = await page.request.post("/api/v1/middleware", {
 		headers,
@@ -665,8 +651,7 @@ test("U305 project dashboard configures explicit route failure notifications", a
 	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
 	const headers = commandHeaders();
-	const me = await (await page.request.get("/api/v1/me")).json();
-	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: me.instanceId, name: "Rules workspace", slug: "rules-workspace" } })).json();
+	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: await browserOrganization(page), name: "Rules workspace", slug: "rules-workspace" } })).json();
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Rules project", slug: "rules-project" } })).json();
 	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Stripe route", slug: "stripe" } })).json();
 	await page.goto("/projects/" + project.id);
@@ -704,8 +689,7 @@ test("U307 route editor pauses and resumes delivery with versioned commands", as
 	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
 	const headers = commandHeaders();
-	const me = await (await page.request.get("/api/v1/me")).json();
-	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: me.instanceId, name: "Pause workspace", slug: "pause-workspace" } })).json();
+	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: await browserOrganization(page), name: "Pause workspace", slug: "pause-workspace" } })).json();
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Pause project", slug: "pause-project" } })).json();
 	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Pause route", slug: "pause-route" } })).json();
 	await page.goto("/projects/" + project.id + "/routes/" + route.id);
@@ -756,9 +740,8 @@ test("account registers a passkey, signs in with it and removes it", async ({ pa
 test("project invitations remain pending until the recipient signs in and accepts", async ({ page, context }) => {
 	const { ensureBrowserOwner, signInBrowser, commandHeaders } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
-	const me = await (await page.request.get("/api/v1/me")).json();
 	const headers = commandHeaders();
-	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: me.instanceId, name: "Invitation workspace", slug: "invitation-workspace" } })).json();
+	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: await browserOrganization(page), name: "Invitation workspace", slug: "invitation-workspace" } })).json();
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Invited project", slug: "invited-project" } })).json();
 	await page.goto("/projects/" + project.id + "/members");
 	await page.getByRole("button", { name: "Invite someone", exact: true }).click();
@@ -794,8 +777,7 @@ test("project invitations remain pending until the recipient signs in and accept
 test("workspace notification rules and personal email preferences use separate controls", async ({ page }) => {
 	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
-	const me = await (await page.request.get("/api/v1/me")).json();
-	const workspace = await (await page.request.post("/api/v1/workspaces", { headers: commandHeaders(), data: { parentId: me.instanceId, name: "Alert workspace", slug: "alert-workspace" } })).json();
+	const workspace = await (await page.request.post("/api/v1/workspaces", { headers: commandHeaders(), data: { parentId: await browserOrganization(page), name: "Alert workspace", slug: "alert-workspace" } })).json();
 	await page.goto("/workspaces/" + workspace.id + "/notifications");
 	await page.getByRole("button", { name: "Create notification rule", exact: true }).click();
 	await expect(page.getByLabel("Rule ingress route", { exact: true })).toHaveCount(0);
@@ -819,8 +801,7 @@ test("overview and mobile hierarchy preserve context while search opens resource
 	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
 	const headers = commandHeaders();
-	const me = await (await page.request.get("/api/v1/me")).json();
-	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: me.instanceId, name: "Design workspace", slug: "design-workspace" } })).json();
+	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: await browserOrganization(page), name: "Design workspace", slug: "design-workspace" } })).json();
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Design project", slug: "design-project" } })).json();
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto("/");
@@ -851,8 +832,8 @@ test("overview and mobile hierarchy preserve context while search opens resource
 	await expect(drawer).toBeVisible();
 	const globalRows = drawer.getByRole("treegrid", { name: "Instance navigation" }).getByRole("row");
 	await expect(globalRows.nth(0)).toContainText("Overview");
-	await expect(globalRows.nth(1)).toContainText("Workspaces");
-	await expect(globalRows.nth(2)).toContainText("Projects");
+	await expect(globalRows.nth(1)).toContainText("Organizations");
+	await expect(globalRows.nth(2)).toContainText("Workspaces");
 	await expect(drawer.getByRole("row", { name: "Event log", exact: true })).toBeVisible();
 	await expect(drawer.getByRole("treegrid", { name: "Instance administration" }).getByRole("row", { name: "Instance members", exact: true })).toBeVisible();
 
@@ -885,6 +866,9 @@ test("overview and mobile hierarchy preserve context while search opens resource
 	await drawer.getByRole("button", { name: "Back to workspace", exact: true }).click();
 	await expect(page).toHaveURL(new RegExp("/projects/" + project.id + "$"));
 	await expect(drawer.getByRole("row", { name: "Workspace members", exact: true })).toBeVisible();
+	await drawer.getByRole("button", { name: "Back to organization", exact: true }).click();
+	await expect(page).toHaveURL(new RegExp("/projects/" + project.id + "$"));
+	await expect(drawer.getByRole("row", { name: "Organization members", exact: true })).toBeVisible();
 	await drawer.getByRole("button", { name: "Back to instance", exact: true }).click();
 	await expect(page).toHaveURL(new RegExp("/projects/" + project.id + "$"));
 	await expect(drawer.getByRole("row", { name: "Overview", exact: true })).toBeVisible();
@@ -1003,4 +987,29 @@ test("project-only preview reviewers cannot navigate into workspace or instance 
 	const projects = await (await page.request.get("/api/v1/projects")).json();
 	expect(projects.map((project: { id: string }) => project.id)).toEqual([projectId]);
 	expect((await page.request.post("/api/v1/projects/" + projectId + "/endpoints", { headers: { origin: new URL(page.url()).origin, "x-payloadbay-csrf": "1" }, data: { name: "Forbidden", slug: "forbidden" } })).status()).toBe(403);
+});
+
+test("FT06a organization context owns workspace creation", async ({ page }) => {
+	const { ensureBrowserOwner } = await import("../helpers/browser-auth.ts");
+	await ensureBrowserOwner(page);
+	await page.goto("/organizations");
+	await expect(page.getByRole("heading", { name: "Organizations", exact: true })).toBeVisible();
+	await page.getByRole("row").filter({ hasText: "My organization" }).getByRole("link").click();
+	await expect(page.getByRole("heading", { name: "My organization", exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "Create workspace", exact: true }).click();
+	await page.getByLabel("Name", { exact: true }).fill("Foundation team");
+	await page.getByRole("button", { name: "Create workspace", exact: true }).last().click();
+	await expect(page.getByRole("row").filter({ hasText: "Foundation team" })).toBeVisible();
+});
+
+test("FT06c organization code and members retain their own scope", async ({ page }) => {
+	const { ensureBrowserOwner } = await import("../helpers/browser-auth.ts");
+	await ensureBrowserOwner(page);
+	const organizationId = await browserOrganization(page);
+	await page.goto("/code/organization/" + organizationId);
+	await expect(page.getByRole("button", { name: "Create helper", exact: true })).toBeVisible();
+	await page.getByRole("link", { name: "Back to organization", exact: true }).click();
+	await expect(page).toHaveURL(new RegExp("/organizations/" + organizationId + "$"));
+	await page.goto("/organizations/" + organizationId + "/members");
+	await expect(page.getByRole("heading", { name: "Organization members", exact: true })).toBeVisible();
 });
