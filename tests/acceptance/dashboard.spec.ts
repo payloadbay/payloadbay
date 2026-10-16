@@ -1013,3 +1013,28 @@ test("FT06c organization code and members retain their own scope", async ({ page
 	await page.goto("/organizations/" + organizationId + "/members");
 	await expect(page.getByRole("heading", { name: "Organization members", exact: true })).toBeVisible();
 });
+
+test("FT11b organization usage shows local counts and unlimited self-host defaults", async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	const { ensureBrowserOwner } = await import("../helpers/browser-auth.ts");
+	await ensureBrowserOwner(page);
+	const organizationId = await browserOrganization(page);
+	await page.goto("/organizations/" + organizationId + "/usage");
+	await expect(page.getByRole("heading", { name: "Usage and limits", exact: true })).toBeVisible();
+	await expect(page.getByRole("grid", { name: "Organization usage" })).toBeVisible();
+	await expect(page.getByRole("row", { name: /Incoming requests/ })).toContainText("0");
+	await expect(page.getByText("Unlimited", { exact: true })).toHaveCount(3);
+	await page.getByLabel("Usage window").selectOption("168");
+	await expect(page.getByRole("grid", { name: "Organization usage" })).toBeVisible();
+	const invalid = await page.request.get("/api/v1/organizations/" + organizationId + "/usage?from=invalid&to=invalid");
+	expect(invalid.status()).toBe(400);
+	const policy = await page.request.get("/api/v1/organizations/" + organizationId + "/policy");
+	expect(policy.status()).toBe(200);
+	expect((await policy.json()).limits).toEqual({ workspaces: null, projects: null, admission: null });
+	await page.screenshot({
+		path: "/tmp/payloadbay-org-usage-mobile.png",
+		fullPage: true,
+		animations: "disabled",
+		timeout: 5000,
+	});
+});

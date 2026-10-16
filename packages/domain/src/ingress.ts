@@ -77,6 +77,7 @@ export async function receiveIngress(pool: Pool, input: IngressInput, options: I
 		const parsed = ingressDecision.safeParse(execution.decision);
 		if (!parsed.success) throw new AppError("invalid_ingress_outcome", 502, "Ingress handler returned an invalid outcome");
 		decision = parsed.data;
+		if (decision.kind === "accept" && Buffer.from(decision.event.body).byteLength > (options.bodyLimit ?? 1048576)) throw new AppError("body_too_large", 413, "Accepted event exceeds the configured limit");
 		try {
 			validateProviderResponse(decision.response, { bodyBytes: options.bodyLimit ?? 1048576, headerBytes: options.headerLimit ?? 16384 });
 		} catch {
@@ -92,7 +93,6 @@ export async function receiveIngress(pool: Pool, input: IngressInput, options: I
 	}
 
 	const accepted = decision.kind === "accept" ? Buffer.from(decision.event.body) : Buffer.alloc(0);
-	if (accepted.byteLength > (options.bodyLimit ?? 1048576)) throw new AppError("body_too_large", 413, "Accepted event exceeds the configured limit");
 	let admissionRejected = false;
 	await transaction(pool, async (db) => {
 		if (decision.kind === "accept" && !(await mayAcceptIngress(db, route.organization_id))) {

@@ -1,3 +1,4 @@
+import { nextOrganizationFlags } from "../../../packages/domain/src/organization-scheduling.ts";
 import { startNotificationProducer } from "./notifications.ts";
 import { run, type Runner } from "graphile-worker";
 import { readServerConfig } from "../../../packages/domain/src/config.ts";
@@ -38,8 +39,8 @@ try {
 	const mail = notificationDeliveryTask(pool, config);
 	// Independent reserved pools prevent bulk work from consuming the critical delivery/mail slots.
 	for (const lane of [
-		{ taskList: { process_event: event }, forbiddenFlags: ["bulk", "platform"], concurrency: 2 },
-		{ taskList: { process_event: event }, forbiddenFlags: ["critical", "platform"], concurrency: 1 },
+		{ taskList: { process_event: event }, forbiddenFlags: () => nextOrganizationFlags(pool, "critical"), concurrency: 2 },
+		{ taskList: { process_event: event }, forbiddenFlags: () => nextOrganizationFlags(pool, "bulk"), concurrency: 1 },
 		{ taskList: { platform_job: mail }, forbiddenFlags: ["critical", "bulk"], concurrency: 1 },
 	]) {
 		const runner = await run({

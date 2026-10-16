@@ -60,6 +60,21 @@ export const organization = domain.table(
 	],
 );
 
+/** Durable per-lane turns are scheduling state, never a permission or billing grant. */
+export const organizationDispatchTurn = domain.table(
+	"organization_dispatch_turn",
+	{
+		organizationId: uuid("organization_id")
+			.notNull()
+			.references((): AnyPgColumn => organization.id),
+		lane: text("lane").notNull(),
+		lastSelectedAt: time("last_selected_at")
+			.notNull()
+			.default(sql`'epoch'::timestamptz`),
+	},
+	(t) => [primaryKey({ columns: [t.organizationId, t.lane] }), check("organization_dispatch_lane", sql`${t.lane} IN ('critical','bulk')`)],
+);
+
 export const organizationPolicy = domain.table(
 	"organization_policy",
 	{
@@ -508,6 +523,7 @@ export const deliveryAttempt = domain.table(
 		operationId: text("operation_id").notNull(),
 		executionAttempt: integer("execution_attempt").notNull(),
 		generation: integer("generation").notNull(),
+		capacityKey: text("capacity_key"),
 		startedAt: time("started_at").notNull().defaultNow(),
 		endedAt: time("ended_at"),
 		statusCode: integer("status_code"),
@@ -516,7 +532,13 @@ export const deliveryAttempt = domain.table(
 		responseBody: bytes("response_body"),
 		durationMs: integer("duration_ms"),
 	},
-	(t) => [foreignKey({ name: "delivery_operation", columns: [t.executionId, t.operationId], foreignColumns: [managedOperation.executionId as AnyPgColumn, managedOperation.operationId as AnyPgColumn] }), index("delivery_execution_history").on(t.executionId, t.startedAt.desc(), t.id.desc())],
+	(t) => [
+		foreignKey({ name: "delivery_operation", columns: [t.executionId, t.operationId], foreignColumns: [managedOperation.executionId as AnyPgColumn, managedOperation.operationId as AnyPgColumn] }),
+		index("delivery_execution_history").on(t.executionId, t.startedAt.desc(), t.id.desc()),
+		index("delivery_live_capacity")
+			.on(t.capacityKey)
+			.where(sql`${t.endedAt} IS NULL`),
+	],
 );
 
 export const platformJob = domain.table(

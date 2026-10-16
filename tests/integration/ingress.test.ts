@@ -751,3 +751,29 @@ test("FT09e admission quota is atomic and a downgrade retains accepted recovery 
 		assert.equal((await db.query("SELECT state FROM payloadbay.execution WHERE id=$1", [execution.id])).rows[0].state, "succeeded");
 	});
 });
+
+test("FT08f oversized transformed events retain the bounded raw request as a recorded handler error", async () => {
+	await ingressFixture('return ctx.accept({event:{body:new Uint8Array(9),contentType:"text/plain"},response:{status:202,body:"ok"}});', async ({ pool, db, key }) => {
+		const raw = new Uint8Array([0, 255, 42]);
+		await assert.rejects(
+			receiveIngress(
+				pool,
+				{
+					key,
+					body: raw,
+					headers: {},
+					method: "POST",
+					url: "https://fixture.test",
+				},
+				{ ...options, bodyLimit: 8 },
+			),
+			{ code: "body_too_large", status: 413 },
+		);
+		const recorded = (await db.query("SELECT original_body,ingress_outcome FROM payloadbay.event")).rows[0];
+		assert.equal(recorded?.ingress_outcome, "error");
+		assert.deepEqual(recorded.original_body, Buffer.from(raw));
+		assert.equal((await db.query("SELECT quantity::text FROM payloadbay.usage_counter WHERE metric='ingress.recorded'")).rows[0].quantity, "1");
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.receipt")).rows[0].n, 0);
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.execution")).rows[0].n, 0);
+	});
+});

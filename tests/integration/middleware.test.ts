@@ -210,6 +210,7 @@ test("U121 publication pins middleware in hierarchy order and executes it before
 		for (const [type, id] of [
 			["endpoint", scope.endpoint],
 			["workspace", scope.workspace],
+			["organization", scope.organization],
 			["instance", scope.installation],
 			["project", scope.project],
 		] as const)
@@ -239,7 +240,7 @@ test("U121 publication pins middleware in hierarchy order and executes it before
 			},
 		);
 		const recorded = (await db.query("SELECT p.effective_bindings,r.bundle FROM payloadbay.publication p JOIN payloadbay.stage_revision r ON r.id=p.processing_revision_id WHERE p.id=$1", [published.id])).rows[0];
-		assert.equal(recorded.effective_bindings.length, 4, "publication must include middleware snapshot");
+		assert.equal(recorded.effective_bindings.length, 5, "publication must include middleware snapshot");
 		const event = await seedEvent(db, { endpoint: scope.endpoint, publication: published.id });
 		await db.query("INSERT INTO payloadbay.execution(event_id,endpoint_id,publication_id) VALUES($1,$2,$3)", [event, scope.endpoint, published.id]);
 		const result = await executePipeline({
@@ -263,7 +264,7 @@ test("U121 publication pins middleware in hierarchy order and executes it before
 		});
 		assert.deepEqual(
 			result.logs.map((log) => log.message),
-			["instance", "workspace", "project", "endpoint", "handler"],
+			["instance", "organization", "workspace", "project", "endpoint", "handler"],
 		);
 		assert.equal((result.decision as { kind: string }).kind, "complete");
 	});

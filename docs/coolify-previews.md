@@ -95,13 +95,29 @@ and the guarded seed command before app/worker startup. This reset policy applie
 only to this dedicated preview application. Remote reset behavior still needs
 verification once its build succeeds.
 
-The known synthetic account is `reviewer@preview.payloadbay.test`; it is admitted
-and provisioned through Better Auth, then assigned the demo instance owner role.
-The seed creates a sample workspace, project, helper file and published sample
-ingress route through normal domain commands. It executes two synthetic requests
-through workerd and durable ingress, leaving real queued executions for the worker.
-Seeding is repeatable without duplicating those samples within a fresh demo. It refuses production
-mode and will not overwrite a completed non-demo installation.
+The fixed synthetic accounts use normal OTP login with preview Mailpit:
+
+| Identity | Access |
+| --- | --- |
+| `reviewer@preview.payloadbay.test` | Instance owner, all organizations/projects |
+| `organization-owner@preview.payloadbay.test` | Example customer organization and its own workspace/project |
+| `project-admin@preview.payloadbay.test` | Demo integrations project administrator |
+| `project-viewer@preview.payloadbay.test` | Demo integrations project viewer |
+
+The seed provisions two unrelated organizations, two workspaces and three
+projects. Each organization has a configured synthetic receiver and a published
+sample ingress route. The first organization also contains a separate admin-only
+project; project-scoped accounts cannot access it. An organization-scoped helper
+in the example customer demonstrates inheritance without sharing across companies.
+Four synthetic requests pass through workerd and durable ingress, leaving real
+queued executions for the worker. The login selector lets reviewers choose the
+scope they want to exercise. Project-only accounts do not receive parent workspace
+or organization access.
+
+Seeding is repeatable without duplicating samples within a fresh demo. It refuses
+production mode and will not overwrite a completed non-demo installation. The
+same domain provisioning and authorization services serve these accounts; there
+is no authentication bypass for the demo.
 
 Mailpit exposes HTTP port 8025 through the proxy, without authentication, for
 reviewers to inspect synthetic login emails. Its PR URL is

@@ -11,8 +11,10 @@ import { receiveIngress } from "./ingress.ts";
 import { execute } from "../../../apps/executor/src/supervisor.ts";
 import { compile } from "../../../apps/executor/src/compiler.ts";
 import { createEndpoint } from "./endpoints.ts";
-import { previewReviewerEmail, previewProjectAccounts } from "./preview.ts";
+import { previewReviewerEmail, previewProjectAccounts, previewOrganizationAccount } from "./preview.ts";
 
+import { provisionCustomerOrganization } from "./onboarding.ts";
+import type { Actor } from "./authorization.ts";
 import { rolePermissions } from "./authorization.ts";
 import { setGrant } from "./membership.ts";
 
@@ -95,42 +97,78 @@ export async function seedPreviewDemo(pool: Pool, config: ServerConfig, identity
 			});
 		}
 
-		let createdSample = false;
-		if (!(await db.query("SELECT 1 FROM payloadbay.endpoint WHERE project_id=$1 AND slug='sample-webhook'", [project.id])).rowCount) {
-			createdSample = true;
-			const endpoint = await createEndpoint(pool, actor, { projectId: project.id, name: "Sample Webhook", slug: "sample-webhook" });
-			await db.query("UPDATE payloadbay.draft SET body=$2 WHERE endpoint_id=$1 AND stage='ingress'", [endpoint.id, unverifiedHttpTemplate.source]);
+		await seedPreviewEndpoint(pool, config, actor, project.id, { name: "Sample Webhook", slug: "sample-webhook", eventTypes: ["demo.purchase.completed", "demo.account.created"] });
+		let customer = (await db.query('SELECT id FROM auth."user" WHERE email=$1', [previewOrganizationAccount.email])).rows[0];
+		if (!customer) customer = (await identity.api.createUser({ body: previewOrganizationAccount })).user;
+		await db.query('UPDATE auth."user" SET "emailVerified"=true WHERE id=$1', [customer.id]);
+		const customerScope = await provisionCustomerOrganization(pool, { userId: customer.id, name: "Example customer", slug: "example-customer" }, "organization");
+		const customerActor = { userId: customer.id };
+		let customerProject = (await db.query("SELECT id FROM payloadbay.project WHERE workspace_id=$1 AND slug='customer-events'", [customerScope.workspaceId])).rows[0];
+		if (!customerProject)
+			customerProject = await createResource(pool, customerActor, {
+				type: "project",
+				parentId: customerScope.workspaceId,
+				name: "Customer events",
+				slug: "customer-events",
+			});
+		if (!(await db.query("SELECT 1 FROM payloadbay.destination WHERE project_id=$1 AND name='Customer receiver'", [customerProject.id])).rowCount) {
+			await createDestination(pool, customerActor, {
+				projectId: customerProject.id,
+				name: "Customer receiver",
+				url: new URL("/api/preview/receiver", config.publicUrl).href,
+				isDefault: true,
+			});
 		}
 
-		const endpoint = (await db.query("SELECT id,ingress_key,config_version,active_publication_id FROM payloadbay.endpoint WHERE project_id=$1 AND slug='sample-webhook'", [project.id])).rows[0];
-		if (createdSample && !endpoint.active_publication_id) {
-			const drafts = (await db.query("SELECT stage,version FROM payloadbay.draft WHERE endpoint_id=$1", [endpoint.id])).rows;
-			await publish(pool, actor, {
-				endpointId: endpoint.id,
-				expectedVersion: endpoint.config_version,
-				draftVersions: Object.fromEntries(drafts.map((draft) => [draft.stage, draft.version])) as { ingress: number; processing: number },
+		if (!(await db.query("SELECT 1 FROM payloadbay.shared_module_revision WHERE scope_type='organization' AND scope_id=$1 AND name='CustomerHelpers'", [customerScope.organizationId])).rowCount) {
+			await createSharedVersion(pool, customerActor, {
+				scope: { type: "organization", id: customerScope.organizationId },
+				name: "CustomerHelpers",
+				source: 'export function describeType(value: string): string {\n\treturn "Customer event: " + value;\n}\n',
 				compile,
 			});
 		}
 
-		const publication = (await db.query("SELECT effective_bindings FROM payloadbay.publication WHERE id=(SELECT active_publication_id FROM payloadbay.endpoint WHERE id=$1)", [endpoint.id])).rows[0];
-		if (createdSample && (publication?.effective_bindings ?? []).length === 0 && !(await db.query("SELECT 1 FROM payloadbay.event WHERE endpoint_id=$1", [endpoint.id])).rowCount) {
-			for (const type of ["demo.purchase.completed", "demo.account.created"]) {
-				await receiveIngress(
-					pool,
-					{
-						key: endpoint.ingress_key,
-						method: "POST",
-						url: new URL("/ingress/" + endpoint.ingress_key, config.publicUrl).href,
-						headers: { "content-type": "application/json" },
-						body: new TextEncoder().encode(JSON.stringify({ type, synthetic: true, source: "Payload Bay preview" })),
-					},
-					{ encryptionKey: config.encryptionKey, deadlineMs: 10000, run: execute },
-				);
-			}
-		}
+		await seedPreviewEndpoint(pool, config, customerActor, customerProject.id, { name: "Customer webhook", slug: "customer-webhook", eventTypes: ["customer.purchase.completed", "customer.account.created"] });
 	} finally {
 		await db.query("SELECT pg_advisory_unlock(hashtext('payloadbay:preview-seed:v1'))").catch(() => {});
 		db.release();
+	}
+}
+
+async function seedPreviewEndpoint(pool: Pool, config: ServerConfig, actor: Actor, projectId: string, options: { name: string; slug: string; eventTypes: string[] }) {
+	let createdSample = false;
+	if (!(await pool.query("SELECT 1 FROM payloadbay.endpoint WHERE project_id=$1 AND slug=$2", [projectId, options.slug])).rowCount) {
+		createdSample = true;
+		const endpoint = await createEndpoint(pool, actor, { projectId, name: options.name, slug: options.slug });
+		await pool.query("UPDATE payloadbay.draft SET body=$2 WHERE endpoint_id=$1 AND stage='ingress'", [endpoint.id, unverifiedHttpTemplate.source]);
+	}
+
+	const endpoint = (await pool.query("SELECT id,ingress_key,config_version,active_publication_id FROM payloadbay.endpoint WHERE project_id=$1 AND slug=$2", [projectId, options.slug])).rows[0];
+	if (createdSample && !endpoint.active_publication_id) {
+		const drafts = (await pool.query("SELECT stage,version FROM payloadbay.draft WHERE endpoint_id=$1", [endpoint.id])).rows;
+		await publish(pool, actor, {
+			endpointId: endpoint.id,
+			expectedVersion: endpoint.config_version,
+			draftVersions: Object.fromEntries(drafts.map((draft) => [draft.stage, draft.version])) as { ingress: number; processing: number },
+			compile,
+		});
+	}
+
+	const publication = (await pool.query("SELECT effective_bindings FROM payloadbay.publication WHERE id=(SELECT active_publication_id FROM payloadbay.endpoint WHERE id=$1)", [endpoint.id])).rows[0];
+	if (createdSample && (publication?.effective_bindings ?? []).length === 0 && !(await pool.query("SELECT 1 FROM payloadbay.event WHERE endpoint_id=$1", [endpoint.id])).rowCount) {
+		for (const type of options.eventTypes) {
+			await receiveIngress(
+				pool,
+				{
+					key: endpoint.ingress_key,
+					method: "POST",
+					url: new URL("/ingress/" + endpoint.ingress_key, config.publicUrl).href,
+					headers: { "content-type": "application/json" },
+					body: new TextEncoder().encode(JSON.stringify({ type, synthetic: true, source: "Payload Bay preview" })),
+				},
+				{ encryptionKey: config.encryptionKey, deadlineMs: 10000, run: execute },
+			);
+		}
 	}
 }

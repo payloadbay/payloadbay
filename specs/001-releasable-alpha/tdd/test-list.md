@@ -838,16 +838,22 @@ case IDs below follow the implemented F-task ownership.
 | FT01a–e | DONE | Required organization, local slugs, preserved historical IDs/grants, staged migration constraint, archived mapping | organizations.test.ts |
 | FT02a–b | DONE | Organization parents and inherited ownership exclude sibling workspaces | organizations.test.ts |
 | FT03a–c | DONE | Scoped SSE, archive revocation, immutable resource parent | organizations.test.ts |
+| FT03e–h | DONE | Unrelated-customer secrets/helper pins, scoped tokens despite multi-org membership, suspension, event/analytics/live isolation and cross-org publication/middleware pins | organizations.test.ts |
 | FT03d | DONE | Archived organization cannot accept new ingress | ingress.test.ts |
 | FT04a–e | DONE | Atomic owner defaults/rollback, idempotent customer provisioning, narrow verified session, default-off registration | organizations.test.ts |
 | FT05a | DONE | Organization invitation admission never grants global role or revives inactive identity | organizations.test.ts |
 | FT06a | DONE | Organization collection and scoped workspace modal | dashboard.spec.ts |
+| FT06c | DONE | Organization code and member screens retain scoped permissions and navigation | dashboard.spec.ts |
 | FT06b | DONE | Mobile real-email onboarding through first project and ingress route | onboarding.spec.ts |
-| FT07a–c | DONE | Concurrent fact dedup, immutable facts, atomic counter rollback and tenant lineage | metering.test.ts |
+| FT07a–e | DONE | Concurrent fact dedup, immutable facts, atomic counter rollback, tenant lineage, UTC window boundaries, rollup reconciliation, and source-history pruning independence | metering.test.ts |
 | FT08a–d | DONE | Atomic ingress metrics, recovery/claims separate from logical work, terminal failure and idempotent replay | ingress.test.ts |
+| FT08f | DONE | Oversized transformed outcome retains bounded raw ingress/error fact without accepted work | ingress.test.ts |
 | FT08e | DONE | Cached send does not create another managed attempt | delivery.test.ts |
+| FT09a–g | DONE | Unlimited self-host defaults, hosted invalid-policy rejection, optimistic audited writes, resource/admission races and accepted-work preservation | organization-policy.test.ts / ingress.test.ts |
+| FT10a–f | DONE | Serialized org capacity, no-attempt preclaim deferral, real queue fairness, legacy eligibility and destination expiry/fencing and independent process replacement | recovery.test.ts / organizations.test.ts / delivery.test.ts |
+| FT11a–b | DONE | Authorized policy reads and real mobile usage window/policy/API flow | organization-policy.test.ts / dashboard.spec.ts |
 
-Still required: wider tenant/token/code/broker matrix, retained usage queries and
-reconciliation, policy/quota/capacity cases, updated unrelated-org preview seed,
-and complete affected/release verification. Actual runs and red failures live in
+Still required: complete affected/release verification and exact-revision remote
+preview. The expanded unrelated-organization preview seed passed its repeatability
+and authorization integration check. Actual runs and red failures live in
 cycle-log.md. No release SQL has been generated locally.

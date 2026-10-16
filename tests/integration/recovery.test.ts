@@ -8,6 +8,7 @@ import { recoverExpired } from "../../packages/domain/src/execution-lease.ts";
 import type { Pool, PoolClient } from "pg";
 
 type RecoveryFixtureData = {
+	databaseUrl: string;
 	pool: Pool;
 	db: PoolClient;
 	executionId: string;
@@ -25,6 +26,7 @@ async function recoveryFixture(run: (f: RecoveryFixtureData) => Promise<void>) {
 			const executionId = (await db.query("INSERT INTO payloadbay.execution(event_id,endpoint_id,publication_id,state,lease_owner,lease_expiry) VALUES($1,$2,$3,'running','fixture-worker',clock_timestamp()+interval '30 seconds') RETURNING id", [event, scope.endpoint, scope.publication])).rows[0].id;
 			await db.query("INSERT INTO payloadbay.dispatch(execution_id,endpoint_id,generation,job_key,claim_deadline_at) VALUES($1,$2,1,$3,clock_timestamp()+interval '30 seconds')", [executionId, scope.endpoint, "fixture:" + executionId + ":1"]);
 			await run({
+				databaseUrl: f.databaseUrl,
 				pool,
 				db,
 				executionId,
@@ -467,5 +469,82 @@ test("FT10a organization capacity defers claims without consuming attempts and r
 		assert.equal(claims.filter(Boolean).length, 1);
 		assert.equal(claims.find(Boolean).attempt_number, 1);
 		assert.equal((await db.query("SELECT quantity::text FROM payloadbay.usage_counter WHERE metric='processing.attempt.started'")).rows[0].quantity, "1");
+	});
+});
+
+test("FT10b parallel executions share one recoverable organization slot", async () => {
+	await recoveryFixture(async ({ pool, db, executionId, endpointId }) => {
+		const { claimExecution } = await import("../../packages/domain/src/execution-lease.ts");
+		const organization = (await db.query("SELECT w.organization_id FROM payloadbay.endpoint e JOIN payloadbay.project p ON p.id=e.project_id JOIN payloadbay.workspace w ON w.id=p.workspace_id WHERE e.id=$1", [endpointId])).rows[0].organization_id;
+		await db.query("INSERT INTO payloadbay.organization_policy(organization_id,version,limits,processing_concurrency,updated_by) VALUES($1,1,$2,1,'fixture-owner')", [organization, JSON.stringify({ workspaces: null, projects: null, admission: null })]);
+		await db.query("UPDATE payloadbay.execution SET state='queued',lease_owner=NULL,lease_expiry=NULL WHERE id=$1", [executionId]);
+		const second = (await db.query("INSERT INTO payloadbay.execution(event_id,endpoint_id,publication_id) SELECT event_id,endpoint_id,publication_id FROM payloadbay.execution WHERE id=$1 RETURNING id", [executionId])).rows[0].id;
+		const results = await Promise.all([claimExecution(pool, executionId, 1, "worker-one"), claimExecution(pool, second, 1, "worker-two")]);
+		assert.equal(results.filter(Boolean).length, 1);
+		const live = results.find(Boolean);
+		const waiting = live.id === executionId ? second : executionId;
+		await finishExecution(
+			pool,
+			{
+				executionId: live.id,
+				endpointId,
+				generation: live.dispatch_generation,
+				owner: live.lease_owner,
+			},
+			{ kind: "complete" },
+		);
+		await db.query("UPDATE payloadbay.execution SET due_at=clock_timestamp() WHERE id=$1", [waiting]);
+		const resumed = await claimExecution(pool, waiting, 2, "replacement-worker");
+		assert.equal(resumed.attempt_number, 1);
+		assert.equal(resumed.state, "running");
+		assert.equal((await db.query("SELECT quantity::text FROM payloadbay.usage_counter WHERE metric='processing.attempt.started'")).rows[0].quantity, "2");
+	});
+});
+
+test("FT10f independent worker processes and a replacement share durable organization capacity", async () => {
+	await recoveryFixture(async ({ db, databaseUrl, executionId, endpointId }) => {
+		const { spawn } = await import("node:child_process");
+		const organization = (await db.query("SELECT w.organization_id FROM payloadbay.endpoint e JOIN payloadbay.project p ON p.id=e.project_id JOIN payloadbay.workspace w ON w.id=p.workspace_id WHERE e.id=$1", [endpointId])).rows[0].organization_id;
+		await db.query("INSERT INTO payloadbay.organization_policy(organization_id,version,limits,processing_concurrency,updated_by) VALUES($1,1,$2,1,'fixture-owner')", [organization, JSON.stringify({ workspaces: null, projects: null, admission: null })]);
+		await db.query("UPDATE payloadbay.execution SET state='queued',lease_owner=NULL,lease_expiry=NULL WHERE id=$1", [executionId]);
+		const second = (await db.query("INSERT INTO payloadbay.execution(event_id,endpoint_id,publication_id) SELECT event_id,endpoint_id,publication_id FROM payloadbay.execution WHERE id=$1 RETURNING id", [executionId])).rows[0].id;
+		const leaseModule = new URL("../../packages/domain/src/execution-lease.ts", import.meta.url).href;
+		const databaseModule = new URL("../../packages/domain/src/db.ts", import.meta.url).href;
+
+		function childClaim(id: string, generation: number): Promise<{ id: string; attempt: number } | null> {
+			const source = `import { database } from ${JSON.stringify(databaseModule)};
+import { claimExecution } from ${JSON.stringify(leaseModule)};
+const pool = database(process.env.PAB_CAPACITY_TEST_DATABASE_URL);
+try {
+ const execution = await claimExecution(pool, ${JSON.stringify(id)}, ${generation}, "subprocess-" + process.pid);
+ process.stdout.write(JSON.stringify(execution ? { id: execution.id, attempt: execution.attempt_number } : null));
+} finally { await pool.end(); }`;
+
+			return new Promise((resolve, reject) => {
+				const child = spawn(process.execPath, ["--import", "tsx", "--input-type=module", "--eval", source], { env: { ...process.env, PAB_CAPACITY_TEST_DATABASE_URL: databaseUrl }, stdio: ["ignore", "pipe", "ignore"] });
+				let output = "";
+				child.stdout.on("data", (chunk) => {
+					output += chunk.toString();
+				});
+				child.once("error", reject);
+				child.once("close", (code) => {
+					if (code !== 0) return reject(Error("Claim subprocess exited with status " + code));
+					try {
+						resolve(JSON.parse(output));
+					} catch {
+						reject(Error("Claim subprocess returned invalid JSON"));
+					}
+				});
+			});
+		}
+
+		const results = await Promise.all([childClaim(executionId, 1), childClaim(second, 1)]);
+		assert.equal(results.filter(Boolean).length, 1);
+		const live = results.find(Boolean)!;
+		const waiting = live.id === executionId ? second : executionId;
+		assert.equal((await db.query("SELECT attempt_number FROM payloadbay.execution WHERE id=$1", [waiting])).rows[0].attempt_number, 0);
+		await db.query("UPDATE payloadbay.execution SET lease_expiry=clock_timestamp()-interval '1 second' WHERE id=$1", [live.id]);
+		await db.query("UPDATE payloadbay.execution SET due_at=clock_timestamp() WHERE id=$1", [waiting]);
+		assert.deepEqual(await childClaim(waiting, 2), { id: waiting, attempt: 1 });
 	});
 });

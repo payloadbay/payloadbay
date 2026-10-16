@@ -11,7 +11,7 @@ import { Stepper, NativeSelect } from "@heroui-pro/react";
 import { IconMail, IconRefresh, IconFingerprint } from "@tabler/icons-react";
 import { api, ApiFailure } from "@lib/api-client";
 
-import { previewReviewerEmail, previewProjectAccounts } from "@domain/preview";
+import { previewReviewerEmail, previewProjectAccounts, previewOrganizationAccount } from "@domain/preview";
 
 type AuthPanelProps = {
 	setup?: boolean;
@@ -238,8 +238,9 @@ export function AuthPanel({ setup = false, preview = false, initialEmail, return
 								<div className='flex flex-col gap-2'>
 									<NativeSelect variant='secondary'>
 										<Label>Demo access</Label>
-										<NativeSelect.Trigger aria-label='Demo access' value={[previewReviewerEmail, ...previewProjectAccounts.map((account) => account.email)].includes(email) ? email : ""} onChange={(event) => setEmail(event.target.value)} disabled={busy}>
+										<NativeSelect.Trigger aria-label='Demo access' value={[previewReviewerEmail, previewOrganizationAccount.email, ...previewProjectAccounts.map((account) => account.email)].includes(email) ? email : ""} onChange={(event) => setEmail(event.target.value)} disabled={busy}>
 											<NativeSelect.Option value={previewReviewerEmail}>Instance owner · all projects</NativeSelect.Option>
+											<NativeSelect.Option value={previewOrganizationAccount.email}>Organization owner · separate customer</NativeSelect.Option>
 											{previewProjectAccounts.map((account) => (
 												<NativeSelect.Option key={account.email} value={account.email}>
 													{account.role === "admin" ? "Project admin · one project" : "Project viewer · read-only"}

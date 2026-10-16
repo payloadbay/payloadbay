@@ -46,16 +46,21 @@ export async function managedSend(pool: Pool, authority: Authority, target: Dest
 		let method: string;
 		let url: string;
 		let configuredHeaders: Record<string, string> = {};
+		let destinationId: string | undefined;
+		let capacityLimit = 4;
 		if (typeof target === "string") {
 			const entries = Object.values(publication.destination_snapshot) as {
 				id: string;
 				name: string;
 				isDefault?: boolean;
+				concurrency?: number;
 				httpConfig: { url: string; method?: string; headers?: Record<string, string> };
 			}[];
 			const destination = target === "default" ? (entries.find((d) => d.isDefault) ?? entries.find((d) => d.name === "default")) : entries.find((d) => d.id === target || d.name === target);
 			if (!destination) throw new AppError("destination_unavailable", 409, "Destination is not in this publication");
 			snapshot = destination;
+			destinationId = destination.id;
+			capacityLimit = destination.concurrency ?? 4;
 			url = httpTarget(destination.httpConfig.url);
 			method = destination.httpConfig.method ?? "POST";
 			configuredHeaders = destination.httpConfig.headers ?? {};
@@ -79,8 +84,31 @@ export async function managedSend(pool: Pool, authority: Authority, target: Dest
 		if (operation.input_digest !== digest) throw new AppError("operation_input_changed", 409, "Operation identifier was reused with different input");
 		if (operation.state === "succeeded") return { cached: { ...operation.result, reused: true } as SendResult };
 		if (operation.state === "sending" && operation.generation === authority.generation) throw new AppError("operation_busy", 409, "This operation is already being sent");
+		const projectId = (await db.query("SELECT project_id FROM payloadbay.endpoint WHERE id=$1", [execution.endpoint_id])).rows[0].project_id as string;
+		if (destinationId) {
+			const current = (await db.query("SELECT concurrency FROM payloadbay.destination WHERE id::text=$1 AND project_id=$2", [destinationId, projectId])).rows[0];
+			if (current) capacityLimit = current.concurrency;
+		}
+
+		if (!Number.isInteger(capacityLimit) || capacityLimit < 1 || capacityLimit > 128) throw new AppError("destination_unavailable", 409, "Destination capacity requires operator attention");
+		const capacityKey =
+			projectId +
+			":" +
+			createHash("sha256")
+				.update(destinationId ? "configured:" + destinationId : "url:" + url)
+				.digest("hex");
+		await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", ["destination-capacity:" + capacityKey]);
+		const occupied = (
+			await db.query(
+				`SELECT count(*)::int AS n FROM payloadbay.delivery_attempt a JOIN payloadbay.execution x ON x.id=a.execution_id
+ WHERE a.capacity_key=$1 AND a.ended_at IS NULL AND x.state='running'
+ AND x.dispatch_generation=a.generation AND x.lease_expiry>clock_timestamp()`,
+				[capacityKey],
+			)
+		).rows[0].n;
+		if (occupied >= capacityLimit) throw new AppError("destination_capacity", 429, "Destination is at capacity; retry this operation later");
 		const attemptId = randomUUID();
-		await db.query("INSERT INTO payloadbay.delivery_attempt(id,execution_id,operation_id,execution_attempt,generation) VALUES($1,$2,$3,$4,$5)", [attemptId, execution.id, input.operationId, execution.attempt_number, authority.generation]);
+		await db.query("INSERT INTO payloadbay.delivery_attempt(id,execution_id,operation_id,execution_attempt,generation,capacity_key) VALUES($1,$2,$3,$4,$5,$6)", [attemptId, execution.id, input.operationId, execution.attempt_number, authority.generation, capacityKey]);
 		await recordEndpointUsage(db, execution.endpoint_id, "delivery.attempt.started", attemptId);
 		await db.query("UPDATE payloadbay.managed_operation SET state='sending',generation=$3 WHERE execution_id=$1 AND operation_id=$2", [execution.id, input.operationId, authority.generation]);
 

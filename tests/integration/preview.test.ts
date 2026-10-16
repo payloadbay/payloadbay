@@ -15,28 +15,29 @@ test("U320 preview seed provisions a repeatable admitted demo owner and project"
 			await seedPreviewDemo(f.pool, config, identity, env);
 			await seedPreviewDemo(f.pool, config, identity, env);
 			const users = (await f.db.query('SELECT id,email,"emailVerified" FROM auth."user"')).rows;
-			assert.equal(users.length, 3);
+			assert.equal(users.length, 4);
 			const owner = users.find((user) => user.email === "reviewer@preview.payloadbay.test");
 			assert.ok(owner);
 			assert.equal(owner.emailVerified, true);
 			assert.equal((await f.db.query("SELECT bootstrap_state FROM payloadbay.installation")).rows[0].bootstrap_state, "complete");
 			assert.equal((await f.db.query("SELECT active FROM payloadbay.admission WHERE user_id=$1", [owner.id])).rows[0].active, true);
-			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.workspace")).rows[0].count, 1);
-			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.project")).rows[0].count, 2);
-			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.endpoint")).rows[0].count, 1);
+			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.workspace")).rows[0].count, 2);
+			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.project")).rows[0].count, 3);
+			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.endpoint")).rows[0].count, 2);
 			const destinations = (await f.db.query("SELECT name,http_config,is_default FROM payloadbay.destination")).rows;
-			assert.equal(destinations.length, 1, "Repeated seeding must not duplicate the demo target");
-			assert.equal(destinations[0].name, "Demo receiver");
-			assert.equal(destinations[0].http_config.url, "http://localhost:3000/api/preview/receiver");
-			assert.equal(destinations[0].is_default, true);
+			assert.equal(destinations.length, 2, "Repeated seeding must not duplicate either organization target");
+			const primaryDestination = destinations.find((destination) => destination.name === "Demo receiver")!;
+			assert.equal(primaryDestination.name, "Demo receiver");
+			assert.equal(primaryDestination.http_config.url, "http://localhost:3000/api/preview/receiver");
+			assert.equal(primaryDestination.is_default, true);
 			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.shared_module_revision WHERE name='DemoHelpers'")).rows[0].count, 1);
-			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.event")).rows[0].count, 2);
-			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.receipt")).rows[0].count, 2);
-			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.execution WHERE state='queued'")).rows[0].count, 2);
+			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.event")).rows[0].count, 4);
+			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.receipt")).rows[0].count, 4);
+			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.execution WHERE state='queued'")).rows[0].count, 4);
 			const { listResources } = await import("../../packages/domain/src/resources.ts");
 			const { actorPermissions, requirePermission } = await import("../../packages/domain/src/membership.ts");
 			const projects = await listResources(f.pool, { userId: owner.id }, "project");
-			assert.equal(projects.length, 2);
+			assert.equal(projects.length, 3);
 			const demo = projects.find((project) => project.slug === "webhook-playground")!;
 			const privateProject = projects.find((project) => project.slug === "admin-only")!;
 			const instanceId = (await f.db.query("SELECT id FROM payloadbay.installation")).rows[0].id;
@@ -54,6 +55,17 @@ test("U320 preview seed provisions a repeatable admitted demo owner and project"
 				assert.equal(rights.has("code.publish"), email.startsWith("project-admin"));
 				assert.equal(rights.has("payload.read"), email.startsWith("project-admin"));
 			}
+
+			const customer = users.find((user) => user.email === "organization-owner@preview.payloadbay.test")!;
+			assert.ok(customer);
+			const customerProjects = await listResources(f.pool, { userId: customer.id }, "project");
+			assert.deepEqual(
+				customerProjects.map((project) => project.slug),
+				["customer-events"],
+			);
+			assert.equal((await listResources(f.pool, { userId: customer.id }, "organization")).length, 1);
+			assert.equal((await actorPermissions(f.pool, { userId: customer.id }, { type: "instance", id: instanceId })).size, 0);
+			await assert.rejects(requirePermission(f.pool, { userId: customer.id }, { type: "project", id: demo.id }, "metadata.read"), { code: "forbidden" });
 
 			await identity.api.sendVerificationOTP({ body: { email: owner.email, type: "sign-in" } });
 			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.platform_job WHERE kind='otp_mail'")).rows[0].count, 1, "reviewers can use real queued OTP email without a maintainer account");

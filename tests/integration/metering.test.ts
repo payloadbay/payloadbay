@@ -93,3 +93,39 @@ test("FT07d usage windows are UTC, half-open, authorized and reconcile with dura
 		assert.deepEqual(reconciliation.rows, [{ total: "1", facts: "1", hours: "1" }]);
 	});
 });
+
+test("FT07e removing event history cannot cascade into retained usage facts or totals", async () => {
+	await authFixture(async ({ pool, db }) => {
+		const { seedScope, seedEvent } = await import("../helpers/domain-fixtures.ts");
+		const { rolePermissions } = await import("../../packages/domain/src/authorization.ts");
+		const { recordEndpointUsage, readOrganizationUsage, recordUsage } = await import("../../packages/domain/src/usage.ts");
+		await identity(db, "fixture-owner");
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','organization',$1,'owner',$2)", [scope.organization, rolePermissions.owner]);
+		const eventId = await seedEvent(db, scope);
+		await db.query("INSERT INTO payloadbay.execution(event_id,endpoint_id,publication_id) VALUES($1,$2,$3)", [eventId, scope.endpoint, scope.publication]);
+		await transaction(pool, (client) => recordEndpointUsage(client, scope.endpoint, "ingress.recorded", eventId));
+		const window = { from: new Date(Date.now() - 60000).toISOString(), to: new Date(Date.now() + 60000).toISOString() };
+		const before = await readOrganizationUsage(pool, { userId: "fixture-owner" }, scope.organization, window);
+		// Owner-only fixture maintenance removes the entire source graph. No runtime role receives TRUNCATE.
+		await db.query("TRUNCATE payloadbay.event CASCADE");
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.event")).rows[0].n, 0);
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.execution")).rows[0].n, 0);
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.usage_fact")).rows[0].n, 1);
+		assert.deepEqual(await readOrganizationUsage(pool, { userId: "fixture-owner" }, scope.organization, window), before);
+		assert.equal(
+			await transaction(pool, (client) =>
+				recordUsage(client, {
+					organizationId: scope.organization,
+					workspaceId: scope.workspace,
+					projectId: scope.project,
+					metric: "ingress.recorded",
+					sourceKey: eventId,
+				}),
+			),
+			false,
+		);
+		assert.equal((await db.query("SELECT quantity::text FROM payloadbay.usage_counter WHERE metric='ingress.recorded'")).rows[0].quantity, "1");
+	});
+});

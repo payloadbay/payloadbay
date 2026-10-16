@@ -8,7 +8,7 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import { Avatar, Button, Dropdown, Header, Label, Breadcrumbs } from "@heroui/react";
 import { AppLayout, Sidebar, Command } from "@heroui-pro/react";
-import { IconHome, IconFolder, IconUsers, IconLogout, IconCode, IconSettings, IconInbox, IconBell, IconKey, IconFlask, IconHistory, IconRoute, IconBuilding, IconArrowLeft, IconSearch, IconBuildingCommunity } from "@tabler/icons-react";
+import { IconHome, IconFolder, IconUsers, IconLogout, IconCode, IconSettings, IconInbox, IconBell, IconKey, IconFlask, IconHistory, IconRoute, IconBuilding, IconArrowLeft, IconSearch, IconBuildingCommunity, IconChartBar } from "@tabler/icons-react";
 import { PreviewNotice } from "@components/preview-notice";
 import { NotificationInbox } from "@components/notification-inbox";
 import { api, ApiFailure } from "@lib/api-client";
@@ -190,6 +190,13 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 					href: "/organizations/" + organization.id,
 					icon: IconBuilding,
 					visible: true,
+				},
+				{
+					id: "organization-usage",
+					label: "Usage and limits",
+					href: "/organizations/" + organization.id + "/usage",
+					icon: IconChartBar,
+					visible: organization.permissions.includes("metadata.read"),
 				},
 				{
 					id: "organization-members",
@@ -390,7 +397,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 	const contextualLinks = !browse && routeId ? [...routeLinks.map((item) => ({ ...item, href: routeAddress + "?section=" + item.id })), ...(middlewareLink ? [middlewareLink] : [])] : project ? projectLinks : workspace ? workspaceLinks : organization ? organizationLinks : [];
 	const groups = [
 		{ label: "Settings", items: contextualLinks.filter((item) => ["code", "helpers", "secrets", "middleware", "project-overview", "project-code", "project-members", "workspace", "workspace-members", "workspace-code", "organization", "organization-members", "organization-code"].includes(item.id)) },
-		{ label: "Observe and troubleshoot", items: contextualLinks.filter((item) => ["events", "project-events", "overview", "test"].includes(item.id)) },
+		{ label: "Observe and troubleshoot", items: contextualLinks.filter((item) => ["events", "project-events", "overview", "test", "organization-usage"].includes(item.id)) },
 		{ label: "Publish and history", items: contextualLinks.filter((item) => item.id === "history") },
 		{ label: "Automation", items: contextualLinks.filter((item) => ["project-notifications", "workspace-rules"].includes(item.id)) },
 	];
@@ -639,6 +646,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 						<Breadcrumbs className='min-w-max'>
 							<Breadcrumbs.Item href={pathname === "/" ? undefined : "/"}>Overview</Breadcrumbs.Item>
 							{currentOrganization && <Breadcrumbs.Item href={pathname === "/organizations/" + currentOrganization.id ? undefined : "/organizations/" + currentOrganization.id}>{currentOrganization.name}</Breadcrumbs.Item>}
+							{currentOrganization && pathname === "/organizations/" + currentOrganization.id + "/usage" && <Breadcrumbs.Item>Usage and limits</Breadcrumbs.Item>}
 							{currentWorkspace && <Breadcrumbs.Item href={pathname === "/workspaces/" + currentWorkspace.id ? undefined : "/workspaces/" + currentWorkspace.id}>{currentWorkspace.name}</Breadcrumbs.Item>}
 							{currentProject && <Breadcrumbs.Item href={pathname === "/projects/" + currentProject.id ? undefined : "/projects/" + currentProject.id}>{currentProject.name}</Breadcrumbs.Item>}
 							{routeId && <Breadcrumbs.Item href={routeAddress}>{routeMetadata && routeMetadata.id === routeId ? routeMetadata.name : "Ingress route"}</Breadcrumbs.Item>}
@@ -695,8 +703,9 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 							) : currentWorkspace ? (
 								<Breadcrumbs.Item href={pathname === "/workspaces/" + currentWorkspace.id ? undefined : "/workspaces/" + currentWorkspace.id}>{currentWorkspace.name}</Breadcrumbs.Item>
 							) : currentOrganization ? (
-								<Breadcrumbs.Item>{currentOrganization.name}</Breadcrumbs.Item>
+								<Breadcrumbs.Item href={pathname === "/organizations/" + currentOrganization.id ? undefined : "/organizations/" + currentOrganization.id}>{currentOrganization.name}</Breadcrumbs.Item>
 							) : null}
+							{currentOrganization && pathname === "/organizations/" + currentOrganization.id + "/usage" && <Breadcrumbs.Item>Usage and limits</Breadcrumbs.Item>}
 							{routeId ? (
 								<Breadcrumbs.Item>{routeSection === "middleware" ? "Middleware" : (routeLinks.find((item) => item.id === routeSection)?.label ?? "Scripts")}</Breadcrumbs.Item>
 							) : !currentProject && !currentWorkspace && !currentOrganization ? (

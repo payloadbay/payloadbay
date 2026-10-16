@@ -16,3 +16,10 @@ export const usageFactInput = z
 	.strict();
 
 export const usageWindowInput = z.object({ from: z.iso.datetime(), to: z.iso.datetime() }).strict();
+
+export type UsageReport = {
+	organizationId: string;
+	from: string;
+	to: string;
+	metrics: Record<UsageMetric, { lifetime: string; window: string }>;
+};

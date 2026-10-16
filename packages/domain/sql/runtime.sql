@@ -90,10 +90,14 @@ GRANT SELECT,INSERT,UPDATE,DELETE ON payloadbay.notification_subscription TO pay
 
 CREATE OR REPLACE FUNCTION payloadbay.enqueue(identifier text,payload json,run_at timestamptz,job_key text,priority smallint)
  RETURNS bigint LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $$
-DECLARE job_id bigint;job_flags text[];
+DECLARE job_id bigint;job_flags text[];job_organization uuid;
 BEGIN
  IF identifier NOT IN ('process_event','platform_job') THEN RAISE EXCEPTION 'unsupported job type'; END IF;
  job_flags:=CASE WHEN identifier='platform_job' THEN ARRAY['platform'] WHEN priority<=0 THEN ARRAY['critical'] ELSE ARRAY['bulk'] END;
+ IF identifier='process_event' THEN
+  SELECT w.organization_id INTO job_organization FROM payloadbay.execution x JOIN payloadbay.endpoint e ON e.id=x.endpoint_id JOIN payloadbay.project p ON p.id=e.project_id JOIN payloadbay.workspace w ON w.id=p.workspace_id WHERE x.id=(payload->>'executionId')::uuid;
+  IF job_organization IS NOT NULL THEN job_flags:=array_append(job_flags,'organization:'||job_organization::text); END IF;
+ END IF;
  SELECT (graphile_worker.add_job(identifier,payload,NULL,run_at,5,job_key,priority,job_flags)).id INTO job_id;
  RETURN job_id;
 END $$;

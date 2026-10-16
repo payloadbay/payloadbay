@@ -15,7 +15,7 @@ type DeliveryFixtureData = {
 	httpUrl: string;
 };
 
-async function deliveryFixture(run: (f: DeliveryFixtureData) => Promise<void>) {
+async function deliveryFixture(run: (f: DeliveryFixtureData) => Promise<void>, options: { url?: string; concurrency?: number } = {}) {
 	await withFixtures(async (f) => {
 		await migrate(f.databaseUrl);
 		const pool = database(f.databaseUrl);
@@ -27,9 +27,9 @@ async function deliveryFixture(run: (f: DeliveryFixtureData) => Promise<void>) {
 				"fixture-target": {
 					id: "fixture-target",
 					name: "primary",
-					httpConfig: { url: f.httpUrl + "/delivery", method: "POST" },
+					httpConfig: { url: options.url ?? f.httpUrl + "/delivery", method: "POST" },
 					secretRefs: [],
-					concurrency: 4,
+					concurrency: options.concurrency ?? 4,
 					version: 1,
 				},
 			};
@@ -349,9 +349,11 @@ test("bulk replay freezes selected events, supports a chosen version and rolls b
 		);
 		assert.ok(again.executions.every((item) => item.reused));
 		const before = (await db.query("SELECT count(*)::int AS n FROM payloadbay.execution")).rows[0].n;
+		const usageBefore = (await db.query("SELECT metric,quantity::text FROM payloadbay.usage_counter ORDER BY metric")).rows;
 		await assert.rejects(replayEvents(pool, { userId: "fixture-owner" }, { ...input, key: "bad-batch", eventIds: [second, crypto.randomUUID()] }), { code: "not_found" });
 		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.execution")).rows[0].n, before);
 		await assert.rejects(replayEvents(pool, { userId: "fixture-owner" }, { ...input, key: "bad-version", publicationId: crypto.randomUUID() }), { code: "publication_unavailable" });
+		assert.deepEqual((await db.query("SELECT metric,quantity::text FROM payloadbay.usage_counter ORDER BY metric")).rows, usageBefore);
 	});
 });
 
@@ -365,4 +367,85 @@ test("FT08e a cached managed send does not count another HTTP attempt", async ()
 		const total = (await db.query("SELECT quantity::text FROM payloadbay.usage_counter WHERE metric='delivery.attempt.started'")).rows[0];
 		assert.equal(total?.quantity, "1");
 	});
+});
+
+test("FT10d managed destinations reserve capacity before HTTP and release it on completion", async () => {
+	const { createServer } = await import("node:http");
+	let release!: () => void;
+	let started!: () => void;
+	const held = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	const received = new Promise<void>((resolve) => {
+		started = resolve;
+	});
+	let requests = 0;
+	const server = createServer(async (_request, response) => {
+		requests++;
+		if (requests === 1) {
+			started();
+			await held;
+		}
+
+		response.end("synthetic receiver");
+	});
+	await new Promise<void>((resolve, reject) => {
+		server.once("error", reject);
+		server.listen(0, "127.0.0.1", resolve);
+	});
+	const url = "http://127.0.0.1:" + (server.address() as { port: number }).port;
+	try {
+		await deliveryFixture(
+			async ({ pool, db, authority }) => {
+				const execution = (await db.query("INSERT INTO payloadbay.execution(event_id,endpoint_id,publication_id) SELECT event_id,endpoint_id,publication_id FROM payloadbay.execution WHERE id=$1 RETURNING id", [authority.executionId])).rows[0].id;
+				await claimExecution(pool, execution, 1, "second-worker");
+				const secondAuthority = { ...authority, executionId: execution, owner: "second-worker" };
+				const first = managedSend(pool, authority, "primary", { operationId: "first", body: "synthetic" });
+				try {
+					await received;
+					await assert.rejects(managedSend(pool, secondAuthority, "primary", { operationId: "second", body: "synthetic" }), { code: "destination_capacity" });
+					assert.equal(requests, 1);
+					assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.delivery_attempt")).rows[0].n, 1);
+				} finally {
+					release();
+					await first;
+				}
+
+				assert.equal((await managedSend(pool, secondAuthority, "primary", { operationId: "second", body: "synthetic" })).ok, true);
+				assert.equal(requests, 2);
+				assert.equal((await db.query("SELECT quantity::text FROM payloadbay.usage_counter WHERE metric='delivery.attempt.started'")).rows[0].quantity, "2");
+			},
+			{ url, concurrency: 1 },
+		);
+	} finally {
+		release();
+		await new Promise<void>((resolve) => server.close(() => resolve()));
+	}
+});
+
+test("FT10e expired delivery authority releases destination capacity without stale-worker effects", async () => {
+	await deliveryFixture(
+		async ({ pool, db, authority, httpUrl }) => {
+			const { recoverExpired } = await import("../../packages/domain/src/execution-lease.ts");
+			await managedSend(pool, authority, "primary", { operationId: "crash-window", body: "synthetic" });
+			// Recreate a process death after HTTP but before its result transaction committed.
+			await db.query("UPDATE payloadbay.delivery_attempt SET ended_at=NULL,status_code=NULL,response_digest=NULL,response_body=NULL,duration_ms=NULL WHERE execution_id=$1", [authority.executionId]);
+			await db.query("UPDATE payloadbay.managed_operation SET state='sending',result=NULL,successful_attempt_id=NULL WHERE execution_id=$1", [authority.executionId]);
+			const second = (await db.query("INSERT INTO payloadbay.execution(event_id,endpoint_id,publication_id) SELECT event_id,endpoint_id,publication_id FROM payloadbay.execution WHERE id=$1 RETURNING id", [authority.executionId])).rows[0].id;
+			await claimExecution(pool, second, 1, "second-worker");
+			const next = { ...authority, executionId: second, owner: "second-worker" };
+			await assert.rejects(managedSend(pool, next, "primary", { operationId: "second", body: "synthetic" }), { code: "destination_capacity" });
+			await db.query("UPDATE payloadbay.execution SET lease_expiry=clock_timestamp()-interval '1 second' WHERE id=$1", [authority.executionId]);
+			assert.equal((await managedSend(pool, next, "primary", { operationId: "second", body: "synthetic" })).ok, true);
+			await assert.rejects(managedSend(pool, authority, "primary", { operationId: "crash-window", body: "synthetic" }), { code: "stale_execution" });
+			assert.deepEqual(await recoverExpired(pool), [authority.executionId]);
+			const recovered = await claimExecution(pool, authority.executionId, 2, "replacement-worker");
+			assert.ok(recovered);
+			assert.equal((await managedSend(pool, { ...authority, generation: 2, owner: "replacement-worker" }, "primary", { operationId: "crash-window", body: "synthetic" })).ok, true);
+			assert.equal((await (await fetch(httpUrl + "/receipts")).json()).length, 3, "uncertain HTTP can be repeated under at-least-once delivery");
+			assert.equal((await db.query("SELECT quantity::text FROM payloadbay.usage_counter WHERE metric='delivery.attempt.started'")).rows[0].quantity, "3");
+			assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.delivery_attempt WHERE ended_at IS NULL")).rows[0].n, 1, "old attempt history is retained, not deleted to free a slot");
+		},
+		{ concurrency: 1 },
+	);
 });

@@ -79,3 +79,10 @@ export async function mayAcceptIngress(db: PoolClient, organizationId: string) {
 
 	return BigInt(row.quantity) < BigInt(window.limit);
 }
+
+/** Customer-visible operational policy; commercial writes remain instance-operator only. */
+export async function readOrganizationPolicy(db: Pool, actor: Actor, organizationId: string) {
+	await requirePermission(db, actor, { type: "organization", id: organizationId }, "metadata.read");
+
+	return resolveOrganizationPolicy(db, organizationId);
+}
