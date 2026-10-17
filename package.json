@@ -33,7 +33,8 @@
 		"db:generate": "bun scripts/database/migration-policy.ts generate && bun run --cwd packages/domain db:generate",
 		"db:generate:ci": "bun scripts/database/generate-ci.ts",
 		"db:check-migration-policy": "bun scripts/database/migration-policy.ts staged",
-		"sdk:generate": "bun scripts/generate-sdk.ts"
+		"sdk:generate": "bun scripts/generate-sdk.ts",
+		"test:performance": "bun scripts/tests/run.ts performance"
 	},
 	"workspaces": [
 		"apps/*",

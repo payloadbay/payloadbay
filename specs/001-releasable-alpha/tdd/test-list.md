@@ -882,3 +882,5 @@ original alpha release gates remain open. No release SQL was generated locally.
 - IH01 DONE: instance settings/health inspection projects safe configuration and measured database/executor health, distinguishes unmeasured services and denies lower-scope/current-rights removal.
 
 - TG01 DONE: registered files with unknown owning lanes must fail inventory validation instead of being omitted; performance is a recognized separate lane.
+
+- PF01 DONE: measured release acceptance, 600 real HTTP requests at10/s for60s with1000 lower-priority queued executions; p95 ACK<=1s, p95 stored acceptance-to-first-attempt<=2s, no critical wait>10s. Record fixture/image/resource conditions and all results before asserting. Existing-system acceptance; no fabricated pre-implementation Red.

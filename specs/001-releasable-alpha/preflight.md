@@ -132,3 +132,17 @@ serialized performance; an invalid owner name fails rather than disappearing.
 The attempted Bun coverage command did not produce a fresh LCOV report; the old
 October14 file is not accepted as current evidence. Coverage remains open, along
 with performance, retention and published-release gates.
+
+
+The latency gate is now registered separately as `bun run test:performance`.
+Source-identical images with one CPU each delivered all 600 requests under
+1,000 lower-priority queued executions. After a competing preview build finished,
+ACK p95 was 129 ms and first-attempt p95 156 ms (max 265 ms), passing the agreed
+fixture targets. The earlier concurrent-build run missed the first-attempt target
+at 5.34 s and is retained. See `docs/performance.md`; this is not a production SLA.
+
+Exact remote installation source81dc1fd deployed in Coolify
+ifz6ql8qshyzhx9ebzeizkd9, finished10:19:42UTC. Real owner/viewer OTP, safe
+configuration, actual database/executor health, explicit worker/SMTP unmeasured
+states, one connected EventSource across client navigation, mobile containment
+and viewer denial passed. The mobile screenshot was visually inspected.

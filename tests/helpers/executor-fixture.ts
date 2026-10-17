@@ -1,10 +1,10 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 
-export async function executorFixture(options: { network?: string; brokerUrl?: string } = {}) {
+export async function executorFixture(options: { network?: string; brokerUrl?: string; dockerfile?: string } = {}) {
 	const docker = (args: string[]) => execFileSync("docker", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 
-	docker(["build", "--target", "runner", "-f", "deploy/Dockerfile.executor", "-t", "payloadbay-bootstrap/executor-development:local", "."]);
+	docker(["build", "--target", "runner", "-f", options.dockerfile ?? "deploy/Dockerfile.executor", "-t", "payloadbay-bootstrap/executor-development:local", "."]);
 	const name = "pab-executor-" + randomUUID().slice(0, 8);
 	const token = "fixture-executor-token-32-characters";
 	docker([
@@ -54,6 +54,7 @@ export async function executorFixture(options: { network?: string; brokerUrl?: s
 
 		return {
 			url,
+			name,
 			async stop() {
 				docker(["rm", "-f", name]);
 			},
