@@ -2809,3 +2809,9 @@ U160 page-level characterization added after the page implementation (no fabrica
 API/live owner ran concurrently with the jobs browser production build; 22/23 passed, but U155a could not start its nested Next fixture: `Another next build process is already running.` This is an orchestration mistake, not a product failure or Green result. Wait for the active build/browser lane to finish, then rerun the complete API/live file sequentially.
 
 U159/U160 browser GREEN2/2: real protected API, safe metadata, navigation, mobile no page overflow, revoked-rights403 and concealed controls; real ten-minute/two-minute backlog display, future retry exclusion and pause+Refresh empty state. API/live owner rerun sequentially GREEN23/23, including actual route/OpenAPI parity for83operations and SSE heartbeat/reconnect/privacy. Scoped lint/format and web/tooling TypeScript passed. Original T076–T078 stay open for their remaining live/replay/administration scope.
+
+U159 active-history RED: the bounded list returned completed history instead of the newly queued job (`Active work must not be hidden behind completed history`). Query now sorts queued/running work ahead of completed history before LIMIT100, preserving due-time/id order within groups. No payload projection or authorization changed. Complete authorization owner Green follows.
+
+U157 one-stream browser regression written before consolidation: count actual EventSource instances while both event list and notification inbox are mounted, then prove real committed event/terminal-state/notification producers update their consumers and client-side navigation retains the connection. Red invocation follows.
+
+Active-job ordering GREEN in complete authorization owner16/16. A queued job remains first with100older completed jobs; bounded metadata, permissions, token/workspace fences and queue-age checks remain green.

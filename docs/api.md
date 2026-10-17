@@ -75,7 +75,7 @@ with that name does not grant instance administration. The local API reference
 publishes the response schema. The dashboard entry is under Administration and
 is hidden without that instance permission.
 
-The response is an operational snapshot: up to 100 platform jobs in due-time
+The response is an operational snapshot: up to 100 platform jobs with active work first, then due-time
 order, plus counts of queued/retrying processing executions that are due now,
 grouped by numeric priority. Paused routes and future-due retries are excluded
 from that backlog. The oldest queued age starts at execution creation; oldest

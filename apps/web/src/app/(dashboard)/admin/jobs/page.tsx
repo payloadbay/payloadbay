@@ -107,7 +107,7 @@ export default function JobsPage() {
 					</section>
 					<section className='flex min-w-0 flex-col gap-3'>
 						<h2 className='text-xl font-semibold'>Platform jobs</h2>
-						<p className='text-muted text-sm'>Up to 100 trusted background jobs ordered by due time. Payloads and raw errors are excluded. Delivery work appears in the backlog above and the event log.</p>
+						<p className='text-muted text-sm'>Up to 100 trusted background jobs, active work first, then ordered by due time. Payloads and raw errors are excluded. Delivery work appears in the backlog above and the event log.</p>
 						<Table>
 							<Table.ScrollContainer>
 								<Table.Content aria-label='Platform jobs' className='w-full min-w-160'>

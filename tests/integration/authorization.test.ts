@@ -321,3 +321,17 @@ test("K03 workspace restrictions apply before collection limits", async () => {
 		);
 	});
 });
+
+test("U159 active platform jobs remain visible beyond completed history", async () => {
+	const { readJobAdministration } = await import("../../packages/domain/src/overview.ts");
+	await authFixture(async ({ pool, db }) => {
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'custom',ARRAY['jobs.read'])", [scope.installation]);
+		await db.query("INSERT INTO payloadbay.platform_job(kind,encrypted_payload,job_key,state,due_at) SELECT 'email',''::bytea,'completed-history-'||n,'succeeded',clock_timestamp()-interval '1 day' FROM generate_series(1,100) n");
+		const queued = (await db.query("INSERT INTO payloadbay.platform_job(kind,encrypted_payload,job_key) VALUES('email',''::bytea,'new-active-job') RETURNING id")).rows[0];
+		const result = await readJobAdministration(pool, { userId: "fixture-owner" }, scope.installation);
+		assert.equal(result.items.length, 100);
+		assert.equal(result.items[0].id, queued.id, "Active work must not be hidden behind completed history");
+	});
+});

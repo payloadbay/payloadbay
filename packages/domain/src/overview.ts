@@ -33,7 +33,7 @@ export async function dashboardOverview(pool: Pool, actor: Actor) {
 export async function readJobAdministration(pool: Pool, actor: Actor, installationId: string) {
 	return transaction(pool, async (db) => {
 		await requirePermission(db, actor, { type: "instance", id: installationId }, "jobs.read");
-		const rows = (await db.query(`SELECT id,kind,state,attempt_number,max_attempts,created_at,due_at FROM payloadbay.platform_job ORDER BY due_at,id LIMIT 100`)).rows;
+		const rows = (await db.query(`SELECT id,kind,state,attempt_number,max_attempts,created_at,due_at FROM payloadbay.platform_job ORDER BY (state IN ('queued','running')) DESC,due_at,id LIMIT 100`)).rows;
 
 		const backlog = (
 			await db.query(
