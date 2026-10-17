@@ -102,3 +102,5 @@ and viewer denial passed. Both screenshots were inspected. The shared-dashboard
 SSE follow-up is still local and is not part of that remote result. Public
 sign-in hint text is configurable, but preview Compose is still loaded from
 master; its optional text is not claimed visible remotely.
+
+Local live-update checkpoint: complete browser53/53, integration257/257 and unit47/47, plus lint, web/tooling TypeScript, formatting and inventory passed. One shared dashboard stream survives navigation; open attempt details refresh; successful replay preserves original history and creates a separate execution. Remote verification of these newer live changes is pending.
