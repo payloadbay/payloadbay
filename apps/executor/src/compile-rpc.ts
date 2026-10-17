@@ -32,7 +32,9 @@ export async function compileIsolated(input: unknown, signal?: AbortSignal): Ret
 		const path = process.env.PAYLOADBAY_COMPILER_CHILD ?? fileURLToPath(new URL("./compile-child.ts", import.meta.url));
 
 		return await new Promise((resolve, reject) => {
-			const child = spawn(process.execPath, [...(path.endsWith(".ts") ? ["--import", "tsx"] : []), "--max-old-space-size=192", path], { env: { PATH: process.env.PATH }, detached: true, stdio: ["pipe", "pipe", "pipe"] });
+			// Node implicitly copies this diagnostic variable even into allowlisted
+			// environments. An explicit empty value keeps the child uninstrumented.
+			const child = spawn(process.execPath, [...(path.endsWith(".ts") ? ["--import", "tsx"] : []), "--max-old-space-size=192", path], { env: { PATH: process.env.PATH, NODE_V8_COVERAGE: "" }, detached: true, stdio: ["pipe", "pipe", "pipe"] });
 			let settled = false;
 			let size = 0;
 			let stderr = 0;

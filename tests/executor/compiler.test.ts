@@ -275,3 +275,32 @@ test("notification modules return typed email content and redact authentication 
 	assert.ok(!JSON.stringify(result.logs).includes("654321"));
 	assert.match(JSON.stringify(result.logs), /redacted/);
 });
+
+test("RX01 isolated compiler child excludes Node's implicitly forwarded coverage environment", async () => {
+	const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
+	const { tmpdir } = await import("node:os");
+	const { join } = await import("node:path");
+	const { compileIsolated } = await import("../../apps/executor/src/compile-rpc.ts");
+	const directory = await mkdtemp(join(tmpdir(), "pab-child-env-"));
+	const saved = { child: process.env.PAYLOADBAY_COMPILER_CHILD, coverage: process.env.NODE_V8_COVERAGE, canary: process.env.PAYLOADBAY_COMPILER_CANARY };
+	try {
+		const child = join(directory, "child.mjs");
+		await writeFile(child, `process.stdin.resume();process.stdout.write(JSON.stringify({result:{body:JSON.stringify({coverage:Boolean(process.env.NODE_V8_COVERAGE),canary:Boolean(process.env.PAYLOADBAY_COMPILER_CANARY)})}}),()=>process.exit(0));`);
+		process.env.PAYLOADBAY_COMPILER_CHILD = child;
+		process.env.NODE_V8_COVERAGE ||= join(directory, "coverage");
+		process.env.PAYLOADBAY_COMPILER_CANARY = "synthetic-parent-only";
+		const result = await compileIsolated({ stage: "ingress", body: "fixture" });
+		assert.deepEqual(JSON.parse(result.body), { coverage: false, canary: false });
+	} finally {
+		for (const [key, value] of [
+			["PAYLOADBAY_COMPILER_CHILD", saved.child],
+			["NODE_V8_COVERAGE", saved.coverage],
+			["PAYLOADBAY_COMPILER_CANARY", saved.canary],
+		]) {
+			if (value === undefined) delete process.env[key!];
+			else process.env[key!] = value;
+		}
+
+		await rm(directory, { recursive: true, force: true });
+	}
+});

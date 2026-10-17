@@ -165,7 +165,7 @@ export async function execute(options: ExecuteOptions): Promise<ExecutionResult>
 		const binary = process.env.WORKERD_BINARY ?? createRequire(import.meta.url)("workerd").default;
 		child = spawn(binary, ["serve", join(dir, "config.capnp")], {
 			cwd: dir,
-			env: { PATH: process.env.PATH, NODE_ENV: "production" },
+			env: { PATH: process.env.PATH, NODE_ENV: "production", NODE_V8_COVERAGE: "" },
 			detached: true,
 			stdio: ["ignore", "pipe", "pipe"],
 		});

@@ -3024,3 +3024,39 @@ an empty database in the same disposable cluster, whose roles already exist;
 cross-host role provisioning, published installation and release rollback remain
 open. No production data, generated release SQL or host Docker configuration used.
 The six unrelated Docker/workflow drafts remain unstaged.
+
+
+Coverage function identity follow-up: standard filtered Istanbul JSON is retained
+alongside LCOV; raw V8 caches remain outside uploads and are removed. Pinned
+development-only istanbul-lib-coverage3.2.2 merges source locations. Real
+complementary canaries cover distinct functions without doubling the total;
+repeated reports retain the uncovered function and empty reports fail. Initial
+CommonJS named-import error was a tooling interop mistake. The stronger repeat
+check found the library mutates caller-owned maps (expected1covered, actual2);
+cloning report data before merging fixes it. Complete CV01–CV03GREEN3/3.
+
+Complete backend collection276/276 produced111source records. Its selection
+predates the new runtime-login tests and later queue policies; it is not final
+whole-checkout evidence. Adding an unreferenced domain source during that run
+invalidated the conservative Next fingerprint and triggered an extra rebuild
+inside coverage. Keep runtime source frozen through future shared build owners.
+
+Executor coverage twice produced26/28 with unchanged U240/U243compiler deadlines,
+including a rerun after competing builds ended. A controlled U240 plain run
+passed while its covered counterpart timed out. Installed Node22.23.3's own
+child_process source explicitly propagates NODE_V8_COVERAGE even with an env
+allowlist. RX01 actual child-process RED observed coverage=true while a separate
+parent canary remained absent. Explicit empty NODE_V8_COVERAGE at compiler/workerd
+spawn boundaries denies this implicit inheritance; no parent diagnostic value
+is forwarded and no timeout is increased. RX01GREEN and complete covered
+executor29/29pass. This corrects the earlier assumption that PATH-only env
+automatically prevented coverage inheritance. Full-product/browser aggregation
+and per-file threshold completion remain open, not inferred from merged totals.
+
+Remote906e0b5deploymenth9t03yjvry5iaxqtsotpg4zcfinished13:33:56UTC: normal
+owner/viewer OTP, safe settings, actual DB/compatible executor health, factual
+worker/SMTP unmeasured states, one SSE,390px containment and viewer denial pass.
+The preview-only Coolify login banner is present in rendered login. Cold97648ba
+run39037012993passed backend/executor/browser/deployment/performance. Static
+failed three logical-section blank lines introduced in final restore assertions;
+those are corrected. Unit tests pass but per-file coverage still fails.
