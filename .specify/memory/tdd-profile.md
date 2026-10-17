@@ -91,7 +91,10 @@ Actual Red evidence: mobile Overview was absent; publication-table UX53 could no
 find its grid; U116 could not find the delivery-attempt selector; HT01 inherited
 platform rights into hosted customer scopes; HT02 exposed customer audit activity.
 The strengthened mobile assertion also reproduced a current breadcrumb ending
-at 401px beyond its 374px container. Native HeroUI item sizing was corrected.
+at 401px beyond its 374px container. Native HeroUI item sizing was corrected. A further actual Red measured a
+40px wrapped label against the one-line24px bound; matching native data-slot
+selectors fixes Tailwind underscore interpretation. The final two-flow run
+passes mobile clipping/one-line geometry and native HTTP-client paste.
 
 Scoped Green evidence: authorization20/20, organizations23/23 and organization
 policy7/7. Eleven distinct browser flows pass across the scoped runs: U116, U83,

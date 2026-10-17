@@ -227,3 +227,8 @@ edited JSON body and headers through the real receiving endpoint. Publication
 activation preserves queued version pins; response inspection switches attempts
 and refreshes when an open attempt completes. These scoped results do not claim
 all release gates or physical-device behavior have passed.
+
+Final screenshot review also exposed wrapped breadcrumb labels. The added
+one-line bound failed at40px, and the native-slot selector correction passes
+both geometry checks. The final two-flow run and mobile screenshot confirm
+single-line ellipses with navigable middle ancestors and real clipboard paste.

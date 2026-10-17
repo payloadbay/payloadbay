@@ -733,7 +733,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 				>
 					<div className='mx-auto w-full min-w-0 max-w-6xl p-4 sm:p-6 lg:p-10'>
 						<nav aria-label='Breadcrumbs' className='mb-6 w-full min-w-0'>
-							<Breadcrumbs className='w-full min-w-0 flex-nowrap [&_.breadcrumbs__item]:min-w-0 [&_.breadcrumbs__link]:block [&_.breadcrumbs__link]:min-w-0 [&_.breadcrumbs__link]:max-w-full [&_.breadcrumbs__link]:truncate [&_.breadcrumbs__separator]:shrink-0'>
+							<Breadcrumbs className='w-full min-w-0 flex-nowrap [&_[data-slot=breadcrumbs-item]]:min-w-0 [&_[data-slot=link]]:block [&_[data-slot=link]]:min-w-0 [&_[data-slot=link]]:max-w-full [&_[data-slot=link]]:truncate [&_[data-slot=breadcrumbs-separator]]:shrink-0'>
 								{breadcrumbItems.flatMap((item, index) => {
 									const collapsed = breadcrumbItems.length > 3 && index > 0 && index < breadcrumbItems.length - 2;
 									const crumb = (

@@ -997,11 +997,12 @@ test("overview and mobile hierarchy preserve context while search opens resource
 	const breadcrumbBounds = (await breadcrumbs.boundingBox())!;
 	const currentCrumbBounds = (await breadcrumbs.getByText("Design project", { exact: true }).boundingBox())!;
 	expect(currentCrumbBounds.x + currentCrumbBounds.width).toBeLessThanOrEqual(breadcrumbBounds.x + breadcrumbBounds.width);
+	expect(currentCrumbBounds.height).toBeLessThanOrEqual(24);
 	await page.getByRole("button", { name: "Parent pages", exact: true }).click();
 	await expect(breadcrumbs.getByRole("link", { name: "Design workspace", exact: true })).toBeVisible();
 	await expect(page.getByRole("menu", { name: "Parent pages", exact: true })).toBeVisible();
 	await page.keyboard.press("Escape");
-	await page.screenshot({ path: test.info().outputPath("project-mobile.png"), fullPage: true });
+	await page.screenshot({ path: test.info().outputPath("project-mobile.png"), fullPage: true, animations: "disabled" });
 	await page.getByRole("button", { name: "Toggle navigation" }).click();
 	await expect(drawer.getByRole("treegrid", { name: "Instance navigation" })).toHaveCount(0);
 	await expect(drawer.getByRole("row", { name: "Project members", exact: true })).toBeVisible();
