@@ -1,0 +1,32 @@
+# Runtime feasibility image; product supervisor/compiler are later tasks.
+FROM oven/bun:1.3.14@sha256:e10577f0db68676a7024391c6e5cb4b879ebd17188ab750cf10024a6d700e5c4 AS download
+WORKDIR /opt/runtime
+RUN bun add --exact workerd@1.20261013.1 typescript@5.9.3 esbuild@0.28.2 zod@4.6.7 && find node_modules -path '*/@cloudflare/workerd-linux-*/bin/workerd' -exec cp {} /opt/workerd \;
+FROM node:22-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392
+COPY --from=download --chmod=0555 /opt/workerd /usr/local/bin/workerd
+USER node
+ENTRYPOINT ["workerd"]
+CMD ["--version"]
+FROM download AS supervisor-build
+WORKDIR /source
+COPY apps/executor/src ./apps/executor/src
+COPY packages/contracts/src ./packages/contracts/src
+COPY packages/script-sdk/src ./packages/script-sdk/src
+COPY --from=download /opt/runtime/node_modules ./node_modules
+RUN bun build ./apps/executor/src/server.ts --target=node --external=typescript --external=esbuild --outfile=/out/server.mjs
+RUN bun build ./apps/executor/src/compile-child.ts --target=node --external=typescript --external=esbuild --outfile=/out/compile-child.mjs
+FROM node:22-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS runner
+COPY --from=download --chmod=0555 /opt/workerd /usr/local/bin/workerd
+COPY --from=supervisor-build --chown=node:node /out/server.mjs /opt/executor/server.mjs
+COPY --from=supervisor-build --chown=node:node /out/compile-child.mjs /opt/executor/compile-child.mjs
+COPY --from=download --chown=node:node /opt/runtime/node_modules /opt/executor/node_modules
+ENV WORKERD_BINARY=/usr/local/bin/workerd PAYLOADBAY_COMPILER_CHILD=/opt/executor/compile-child.mjs PORT=8080
+USER node
+EXPOSE 8080
+ENTRYPOINT ["node", "/opt/executor/server.mjs"]
+# Preserve the original CLI bootstrap target; release builds select --target runner.
+FROM node:22-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS default
+COPY --from=download --chmod=0555 /opt/workerd /usr/local/bin/workerd
+USER node
+ENTRYPOINT ["workerd"]
+CMD ["--version"]

@@ -11,3 +11,21 @@ dist/
 .specify/presets/.cache/
 .specify/presets/*/.composed/
 __pycache__/
+
+# Graphify machine state and extraction cache; retain portable graph artifacts.
+graphify-out/cache/
+graphify-out/.graphify*
+graphify-out/.needs_update
+graphify-out/cost.json
+
+# Next.js generated machine state
+*.tsbuildinfo
+
+# Bootstrap runner artifacts
+test-results/
+playwright-report/
+# Release SQL/snapshots under packages/domain/drizzle are committed only by CI.
+
+# Generated native crash dumps
+core
+core.*

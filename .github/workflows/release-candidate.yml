@@ -1,0 +1,158 @@
+name: Build Release Candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Full master SHA with passing alpha CI and CI-generated release SQL
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: payloadbay-release-candidate
+  cancel-in-progress: false
+
+jobs:
+  policy:
+    name: Verify candidate eligibility
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      ref: ${{ steps.policy.outputs.ref }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: master
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require reviewed master source, current SQL and complete CI
+        id: policy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          WORKFLOW_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [[ "$WORKFLOW_REF" != 'refs/heads/master' || ! "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'Run the master workflow with a full immutable source SHA.' >&2
+            exit 1
+          fi
+          git cat-file -e "$SOURCE_SHA^{commit}"
+          git merge-base --is-ancestor "$SOURCE_SHA" origin/master
+          files=$(git ls-tree -r --name-only "$SOURCE_SHA" -- packages/domain/drizzle)
+          sql=false
+          journal=false
+          while IFS= read -r file; do
+            if [[ "$file" =~ ^packages/domain/drizzle/[0-9]{4}_.+\.sql$ ]]; then sql=true; fi
+            if [[ "$file" == 'packages/domain/drizzle/meta/_journal.json' ]]; then journal=true; fi
+          done <<< "$files"
+          if [[ "$sql" != 'true' || "$journal" != 'true' ]]; then
+            echo 'CI-generated release SQL and journal are required; development schema push is not a release artifact.' >&2
+            exit 1
+          fi
+          migration_commit=$(git log -1 --format=%H "$SOURCE_SHA" -- packages/domain/drizzle)
+          if [[ -z "$migration_commit" ]] || ! git diff --quiet "$migration_commit" "$SOURCE_SHA" -- packages/domain/src/schema.ts packages/domain/sql packages/domain/drizzle.config.ts scripts/database; then
+            echo 'Database source changed after the latest release migration. Run the master migration workflow first.' >&2
+            exit 1
+          fi
+          passed=$(gh api "repos/$REPOSITORY/actions/workflows/alpha-ci.yml/runs?head_sha=$SOURCE_SHA&event=push&status=completed&per_page=100" --jq 'any(.workflow_runs[]; .conclusion == "success")') || exit 1
+          if [[ "$passed" != 'true' ]]; then
+            echo 'This exact master source requires complete passing alpha CI, including merged coverage.' >&2
+            exit 1
+          fi
+          echo "ref=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+
+  images:
+    name: Build coordinated candidate images
+    needs: policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    environment: alpha-ci
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.policy.outputs.ref }}
+          persist-credentials: false
+      - name: Build all four non-root images before publishing any
+        env:
+          HEROUI_AUTH_TOKEN: ${{ secrets.HEROUI_AUTH_TOKEN }}
+          SOURCE_SHA: ${{ needs.policy.outputs.ref }}
+        run: |
+          set -euo pipefail
+          test -n "$HEROUI_AUTH_TOKEN"
+          mkdir -p candidate
+          docker buildx create --name payloadbay-candidate --driver docker-container --use
+          trap 'docker buildx rm payloadbay-candidate >/dev/null 2>&1 || true' EXIT
+          tag="candidate-$SOURCE_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          for service in app worker executor migrator; do
+            target="$service"
+            if [[ "$service" == 'executor' ]]; then target=runner; fi
+            options=()
+            if [[ "$service" == 'app' ]]; then options+=(--secret id=heroui_auth_token,env=HEROUI_AUTH_TOKEN); fi
+            image="ghcr.io/$GITHUB_REPOSITORY-$service:$tag"
+            docker buildx build --load --platform linux/amd64 --target "$target" --file "deploy/Dockerfile.$service" --label "org.opencontainers.image.revision=$SOURCE_SHA" --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" --tag "$image" "${options[@]}" .
+            user=$(docker image inspect --format '{{.Config.User}}' "$image")
+            if [[ "$user" != 'node' ]]; then echo 'Candidate runtime must use the non-root node identity.' >&2; exit 1; fi
+          done
+      - name: Apply the packaged release SQL twice on disposable PostgreSQL
+        env:
+          SOURCE_SHA: ${{ needs.policy.outputs.ref }}
+        run: |
+          set -euo pipefail
+          network="pab-candidate-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          postgres="$network-postgres"
+          trap 'docker rm -f "$postgres" >/dev/null 2>&1 || true; docker network rm "$network" >/dev/null 2>&1 || true' EXIT
+          export POSTGRES_PASSWORD="$(openssl rand -hex 32)"
+          export PGPASSWORD="$POSTGRES_PASSWORD"
+          export PAYLOADBAY_APP_DATABASE_PASSWORD="$(openssl rand -hex 32)"
+          export PAYLOADBAY_WORKER_DATABASE_PASSWORD="$(openssl rand -hex 32)"
+          docker network create "$network"
+          docker run --rm -d --name "$postgres" --network "$network" --network-alias postgres --env POSTGRES_USER=payloadbay_admin --env POSTGRES_DB=payloadbay --env POSTGRES_PASSWORD --tmpfs /var/lib/postgresql/data:size=536870912 postgres:17-bookworm@sha256:3645570cccdfa447589da9f57dd740faa29b30938e861289a5574b6ca6b03826
+          ready=false
+          for attempt in {1..60}; do
+            if docker exec "$postgres" pg_isready -h 127.0.0.1 -U payloadbay_admin -d payloadbay >/dev/null 2>&1; then ready=true; break; fi
+            sleep 1
+          done
+          if [[ "$ready" != 'true' ]]; then echo 'Candidate database did not become ready.' >&2; exit 1; fi
+          tag="candidate-$SOURCE_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          for attempt in 1 2; do
+            docker run --rm --network "$network" --read-only --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 128 --memory 1g --tmpfs /tmp:size=16777216 --env MIGRATION_DATABASE_URL=postgres://payloadbay_admin@postgres:5432/payloadbay --env PGPASSWORD --env PAYLOADBAY_APP_DATABASE_PASSWORD --env PAYLOADBAY_WORKER_DATABASE_PASSWORD "ghcr.io/$GITHUB_REPOSITORY-migrator:$tag"
+          done
+      - name: Publish candidates and record immutable coordinates
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.policy.outputs.ref }}
+        run: |
+          set -euo pipefail
+          export DOCKER_CONFIG="$RUNNER_TEMP/payloadbay-registry"
+          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          tag="candidate-$SOURCE_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          printf 'SOURCE_SHA=%s\n' "$SOURCE_SHA" > candidate/images.env
+          for service in app worker executor migrator; do
+            image="ghcr.io/$GITHUB_REPOSITORY-$service:$tag"
+            docker push "$image"
+            coordinate=$(docker image inspect --format '{{index .RepoDigests 0}}' "$image")
+            if [[ ! "$coordinate" =~ @sha256:[0-9a-f]{64}$ ]]; then echo 'Published digest is unavailable.' >&2; exit 1; fi
+            printf 'PAYLOADBAY_%s_IMAGE=%s\n' "${service^^}" "$coordinate" >> candidate/images.env
+          done
+          cp deploy/compose.yml candidate/compose.yml
+          cp deploy/release-manifest.json candidate/source-manifest.json
+          echo 'Candidate images published. Clean installation, upgrade and restore certification are still required; no release or floating version tag was created.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve candidate coordinates, including partial publication evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: candidate/
+          if-no-files-found: warn
+          retention-days: 30

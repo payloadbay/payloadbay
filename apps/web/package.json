@@ -1,0 +1,53 @@
+{
+	"name": "@payloadbay/web",
+	"version": "0.1.0",
+	"private": true,
+	"scripts": {
+		"dev": "node node_modules/next/dist/bin/next dev --webpack",
+		"build": "node node_modules/next/dist/bin/next build --webpack && node scripts/prepare-standalone.mjs",
+		"start": "node .next/standalone/apps/web/server.js",
+		"lint": "node node_modules/eslint/bin/eslint.js",
+		"typecheck": "node node_modules/next/dist/bin/next typegen && node node_modules/typescript/bin/tsc --noEmit"
+	},
+	"dependencies": {
+		"@better-auth/passkey": "1.7.7",
+		"@fontsource-variable/inter": "5.3.0",
+		"@heroui-pro/react": "1.0.0-beta.10",
+		"@heroui/react": "3.2.6",
+		"@heroui/styles": "3.2.6",
+		"@payloadbay/contracts": "workspace:*",
+		"@payloadbay/domain": "workspace:*",
+		"@payloadbay/script-sdk": "workspace:*",
+		"@scalar/api-reference-react": "0.9.81",
+		"@tabler/icons-react": "3.49.0",
+		"better-auth": "1.7.7",
+		"drizzle-orm": "0.45.4",
+		"monaco-editor": "0.57.0",
+		"motion": "14.2.0",
+		"next": "16.4.0",
+		"nodemailer": "10.1.0",
+		"pg": "8.23.1",
+		"prettier": "3.9.9",
+		"react": "19.3.0",
+		"react-aria-components": "1.22.1",
+		"react-dom": "19.3.0",
+		"react-resizable-panels": "4.14.5",
+		"recharts": "3.10.1",
+		"tailwind-merge": "3.7.0",
+		"tailwind-variants": "3.3.1",
+		"tailwindcss": "4.3.3",
+		"zod": "4.6.7"
+	},
+	"devDependencies": {
+		"@tailwindcss/postcss": "4.3.3",
+		"@types/node": "22.19.0",
+		"@types/react": "19.3.0",
+		"@types/react-dom": "19.3.0",
+		"eslint": "9.39.5",
+		"eslint-config-next": "16.4.0",
+		"typescript": "5.9.3",
+		"drizzle-kit": "0.31.11"
+	},
+	"packageManager": "bun@1.3.14",
+	"type": "module"
+}

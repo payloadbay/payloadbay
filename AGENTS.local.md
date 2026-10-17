@@ -5,9 +5,10 @@ Core product guidance.
 
 ## Current repository state
 
-Payload Bay is in early implementation. The README describes intended product
-capabilities and target repository boundaries; it does not prove that a feature,
-directory, API, table, or command already exists.
+Payload Bay has an implemented but unreleased alpha. The README distinguishes
+product direction from current behavior; use the preflight and test ledger for
+verified evidence. Published operator installation, upgrade/restore and complete
+coverage remain independent release gates.
 
 Use the current code, the scoped GitHub issue when one exists, and relevant
 repository documentation as the source of truth for the task at hand. Do not
@@ -16,24 +17,24 @@ the README.
 
 ## Architecture boundaries
 
-Payload Bay uses Supabase as its backend foundation:
+The maintainer approved replacing the Supabase foundation on 2026-10-13.
 
-- PostgreSQL for domain data, migrations, RLS, database functions, and RPCs.
-- Supabase Auth, Data API, Edge Functions, Queues (PGMQ), Cron, Realtime,
-  Storage, Vault, and Gateway where the product needs them.
-- Shared TypeScript modules for Payload Bay-specific logic.
+- Next.js/React owns the integrated dashboard and HTTP API, running on Node.js.
+- PostgreSQL owns domain data, append-only migrations and durable jobs.
+- Graphile Worker processes trusted background jobs with retries and priorities.
+- Better Auth owns authentication; application authorization owns domain access.
+- Published Docker images are the supported operator deployment interface.
+- Configured scripts use self-hosted workerd with an independently validated host sandbox (ordinary restricted Docker default, optional gVisor/runsc); never
+  grant the Next.js application a Docker socket or treat node:vm as isolation.
+- HeroUI, API-first Route Handlers, authenticated SSE and Zod/OpenAPI are selected.
+- Instance access, workspace ownership and project-scoped roles are distinct.
+  Ordinary admission is not global administration; granted roles inherit
+  instance → organization → workspace → project. Endpoints have separate ingress/processing scripts.
 
-Do not introduce an additional general backend server or substitute a separate
-general-purpose infrastructure layer. In particular, do not add Hono, Express,
-Drizzle, Better Auth, NATS JetStream, a transactional outbox, or required
-Valkey as an alternative foundation.
-
-The first delivery path must remain understandable as one product flow:
-
-```text
-Provider -> Ingress Edge Function -> ingest_event RPC -> PostgreSQL + PGMQ
--> worker wake-up -> Delivery Worker -> HTTP target -> attempt result
-```
+The request path runs bounded ingress code, commits event plus processing job
+atomically, then acknowledges. Destination delivery happens asynchronously.
+Do not add Supabase as a second supported backend or migrate experimental code
+into production without the revised SpecKit plan and scoped implementation work.
 
 Payload Bay promises at-least-once delivery. Do not imply exactly-once delivery
 or make a receiver's deduplication responsibility disappear.
@@ -43,13 +44,13 @@ or make a receiver's deduplication responsibility disappear.
 The root package uses Bun workspaces. Use Bun for dependency and script work;
 do not add npm, pnpm, or Yarn lockfiles.
 
-These paths are created when their work begins:
+Current source boundaries:
 
-- `supabase/` for migrations, functions, shared backend modules, queue and
-  cron configuration.
-- `apps/dashboard/` for the dashboard.
-- `packages/` for product packages such as API contract, SDK, and
-  integration packages.
+- `apps/web/` for the integrated Next.js dashboard and API.
+- `apps/worker/` for the trusted Graphile Worker entrypoint.
+- `apps/executor/` for compilation and separate workerd execution.
+- `packages/contracts/`, `packages/domain/` and `packages/script-sdk/` for
+  schemas, server services and configured-code lifecycle types.
 - `deploy/` for self-hosting and deployment material.
 - `scripts/` for product build and release tooling.
 
@@ -58,9 +59,8 @@ work into this repository without an explicit decision.
 
 ## Implementation rules
 
-- Keep domain data, authorization, and business commands in the Supabase
-  boundary. Do not bypass RLS or expose service-role credentials to the
-  dashboard, SDK, or Runner.
+- Keep authorization and business commands in shared server-only services,
+  called by API routes and later MCP tools.
 - Preserve incoming webhook bodies as bytes when verification, storage, or
   delivery semantics require the original request.
 - Treat migrations as append-only history. Do not rewrite applied migrations or
@@ -69,8 +69,8 @@ work into this repository without an explicit decision.
 - Keep public API contracts separate from internal table layout. Do not make
   internal tables an accidental public SDK contract.
 - Inspect existing package scripts before proposing validation commands. Once
-  local Supabase tooling exists, use the smallest relevant Supabase, migration,
-  function, and integration tests for the change.
+  product tooling exists, use the smallest relevant unit, migration,
+  worker, and integration tests for the change.
 
 ## SpecKit development
 
@@ -83,10 +83,15 @@ plans, tasks, verified test commands and graph artifacts remain Core-owned. Use
 an available Graphify graph for broad navigation and verify findings in source;
 use `rg` for exact searches or missing/stale graph coverage.
 
-The TDD extension is installed, but Core currently has no product test runner or
-verified TDD profile. Establish that capability as scoped work before the first
-behavioral implementation; do not record a fictional passing suite. SpecKit
-initialization does not implement the planned ingress/delivery flow.
+The TDD extension has a root runner/profile and registered domain, executor,
+integration, browser and deployment suites in `tests/config/inventory.json`.
+Use scoped tests for local work and the feature's release gates for completion;
+a green preview or infrastructure smoke does not certify the full alpha.
+The current application and delivery flow exist on the alpha branch. Coolify
+preview builds and scoped product tests have passed; optional host runsc and
+complete published-release installation/upgrade evidence remain separate gates.
+Keep new test files registered and record actual evidence without inventing Red
+cycles for work that was not implemented test-first.
 
 ## Task-specific context
 
@@ -94,7 +99,61 @@ Read additional material only when the task requires it:
 
 - For product behavior or public wording, use the README and the central Brand
   and Product references from the root baseline.
-- For database, RLS, Edge Function, queue, or deployment work, inspect the
-  relevant `supabase/` or `deploy/` files that exist.
+- For database, authorization, queue, or deployment work, inspect the
+  relevant application, package, or `deploy/` files that exist.
 - For a new subsystem, document the decision in the relevant issue or
   architecture documentation before spreading the assumption across packages.
+
+## Dashboard source organization
+
+For web UI, follow `apps/web/AGENTS.md`, which links the project-scoped official
+HeroUI skill and the required design, styling, composition and interaction review.
+The central baseline owns the library-neutral UI review rule.
+
+Page-specific presentation and state live directly in that route's `page.tsx`.
+Use a client page when it owns browser interaction; do not extract a one-use
+component merely to put `use client` on it. Reserve `components/` for reusable
+UI such as the dashboard shell, auth flow, membership editor, Monaco editor,
+secret binding controls and notification inbox. A real server/client split
+requires a separate client boundary because the directive covers the module;
+use that split only when the page actually needs server-only work.
+
+## Database and formatting workflow
+
+Drizzle schema source owns all tables, defaults, keys, indexes and checks. Use
+`bun run db:push` for disposable development databases. Feature branches never
+generate or commit ordinary release migration files; master CI creates one
+migration after merge. Database behavior (roles, functions, immutable-history
+triggers) lives in `packages/domain/sql/runtime.sql` and CI includes it in the
+same generated migration. Applied release history stays immutable.
+`tests/fixtures/schema-history/` contains explicit mechanism/upgrade fixtures,
+not operator release migrations.
+
+Import the centrally managed ESLint and Prettier presets from `.github/tooling/`.
+They match Clipify's settings: tabs, JSX single quotes, printWidth 500.
+Keep schema object declarations multiline for readability. Run `bun run lint`,
+`bun run typecheck` and `bun run format:check`; do not disable rules to hide
+findings. `bun run format` regenerates the SDK declaration snapshot afterward.
+
+ESLint enforces a blank line after module directives and the import block,
+between functions and logical hook/type sections, and before returns. Use one
+declaration per statement, including a separate `const [value, setValue] =
+useState(...)` for each hook. Expand objects with four or more properties.
+Group related state declarations together; separate effects and handlers.
+
+Use meaningful TypeScript entry-point aliases in the web app: `@api/*` for
+shared server API helpers, `@lib/*` for utilities, `@components/*` for reusable
+UI, `@styles/*` for styles, and `@types` for shared app types in
+`src/app/types.ts`. Keep page-local types in their page. The web app uses
+`@contracts/*`, `@domain/*`, and `@sdk/*` for shared package entry points.
+Workers, executors and other Node tooling use the corresponding `@payloadbay/*`
+workspace exports so production Node resolves them without an alias loader.
+Do not traverse parent directories in web application imports.
+
+Use bottom-positioned HeroUI toasts for action failures and completion feedback
+that is not already clear from the resulting view. Normal flow transitions, such
+as email entry advancing to OTP entry, communicate through the next step rather
+than a success toast. Do not render inline success/error boxes. Keep field validation and code diagnostics associated with
+inputs; loading/empty/unavailable views and the durable notification inbox are
+separate product states. Test-only SQL under tests/fixtures/schema-history is not
+release migration history; CI owns packages/domain/drizzle artifacts.

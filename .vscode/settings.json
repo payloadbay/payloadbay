@@ -1,0 +1,24 @@
+{
+	"search.exclude": {
+		"**/.next": true,
+		"**/node_modules": true,
+		"**/coverage": true,
+		"**/.swc": true,
+		"**/.next/standalone": true
+	},
+	"files.exclude": {
+		"**/.next": true,
+		"**/.swc": true,
+		"**/coverage": true
+	},
+	"tailwindCSS.lint.suggestCanonicalClasses": "ignore",
+	"js/ts.preferences.importModuleSpecifier": "non-relative",
+	"editor.insertSpaces": false,
+	"editor.tabSize": 2,
+	"editor.detectIndentation": false,
+	"editor.defaultFormatter": "esbenp.prettier-vscode",
+	"editor.formatOnSave": true,
+	"editor.codeActionsOnSave": {
+		"source.fixAll.eslint": "explicit"
+	}
+}
