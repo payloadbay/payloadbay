@@ -880,3 +880,5 @@ original alpha release gates remain open. No release SQL was generated locally.
 - AD03 DONE: failed next-page request must retry on Load more without discarding visible audit history. Browser test proves the second click never requests the unchanged cursor.
 
 - IH01 DONE: instance settings/health inspection projects safe configuration and measured database/executor health, distinguishes unmeasured services and denies lower-scope/current-rights removal.
+
+- TG01 DONE: registered files with unknown owning lanes must fail inventory validation instead of being omitted; performance is a recognized separate lane.

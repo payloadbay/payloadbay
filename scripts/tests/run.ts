@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { build } from "esbuild";
 import { inventory, registry } from "./inventory.ts";
-import { selectAffected, assertNonemptyRun, checkCoverage } from "./policy.ts";
+import { selectAffected, assertNonemptyRun, checkCoverage, testLanes } from "./policy.ts";
 
 const args = process.argv.slice(2);
 const mode = args.shift() ?? "suite";
@@ -37,14 +37,14 @@ if (mode === "file") {
 	}
 
 	files = selectAffected(args, all, dependencies);
-} else if (mode !== "suite" && mode !== "coverage" && !["unit", "node", "executor", "browser", "deployment"].includes(mode)) throw Error("Unknown test mode");
-if (["unit", "node", "executor", "browser", "deployment"].includes(mode)) files = all.filter((f) => registry.owners[f] === mode);
+} else if (mode !== "suite" && mode !== "coverage" && !testLanes.some((lane) => lane === mode)) throw Error("Unknown test mode");
+if (testLanes.some((lane) => lane === mode)) files = all.filter((f) => registry.owners[f] === mode);
 if (!files.length) throw Error("Empty test selection");
 const grep = mode === "file" && args[0] === "--name" ? args[1] : undefined;
 if (mode === "file" && args.length && (!grep || args.length !== 2)) throw Error("Expected --name followed by test name");
 const runId = process.env.PAB_TEST_RUN_ID ?? randomUUID();
 const reports = `test-results/${runId}`;
-const lanes = ["unit", "node", "executor", "browser", "deployment"];
+const lanes = testLanes;
 let passed = 0;
 for (const lane of lanes) {
 	const selected = files.filter((f) => registry.owners[f] === lane);
@@ -72,7 +72,7 @@ for (const lane of lanes) {
 		options = ["--import", "tsx", "scripts/tests/browser.ts", ...selected, ...(grep ? ["--grep", grep] : [])];
 	} else {
 		command = "node";
-		options = ["--import", "tsx", "--test", "--test-concurrency=2", ...(grep ? ["--test-name-pattern", grep] : []), ...selected];
+		options = ["--import", "tsx", "--test", lane === "performance" ? "--test-concurrency=1" : "--test-concurrency=2", ...(grep ? ["--test-name-pattern", grep] : []), ...selected];
 	}
 
 	const result = spawnSync(command, options, { encoding: "utf8", env, maxBuffer: 16 * 1024 * 1024 });

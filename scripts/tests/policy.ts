@@ -1,8 +1,13 @@
 import { resolve } from "node:path";
 
+export const testLanes = ["unit", "node", "executor", "browser", "performance", "deployment"] as const;
+
 export function validateInventory(files: string[], owners: Record<string, string>) {
 	for (const file of files) if (!owners[file]) throw new Error(`Unowned test: ${file}`);
-	for (const file of Object.keys(owners)) if (!files.includes(file)) throw new Error(`Missing test: ${file}`);
+	for (const [file, lane] of Object.entries(owners)) {
+		if (!files.includes(file)) throw new Error(`Missing test: ${file}`);
+		if (!testLanes.some((known) => known === lane)) throw new Error(`Unknown test lane: ${lane} (${file})`);
+	}
 
 	return files;
 }

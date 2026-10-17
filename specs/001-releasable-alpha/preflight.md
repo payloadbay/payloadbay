@@ -123,3 +123,12 @@ configuration is not host attestation. Desktop/mobile screenshots were inspected
 All current static checks and final-source unit47/47 pass. Complete browser56/56
 passed in one invocation; full backend verification follows. These installation changes are not yet
 part of the exact deployed-source claim above.
+
+
+Complete installation/audit regression passed: browser56/56, backend259/259,
+unit48/48 (including the new inventory safeguard), lint, web/tooling TypeScript,
+format and inventory. Product source195b39e is pushed. Known test lanes now include
+serialized performance; an invalid owner name fails rather than disappearing.
+The attempted Bun coverage command did not produce a fresh LCOV report; the old
+October14 file is not accepted as current evidence. Coverage remains open, along
+with performance, retention and published-release gates.

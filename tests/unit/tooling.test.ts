@@ -65,3 +65,8 @@ test("U283 OTP selector matches new recipient mail despite stale index count", (
 	const nextOwner = { ...owner, ID: "owner-new" };
 	assert.equal(selectVerificationMail([owner, nextOwner], "owner@example.test", previous)?.ID, "owner-new");
 });
+
+test("registered tests with an unknown owning lane cannot disappear from a full run", () => {
+	expect(() => validateInventory(["tests/unit/a.test.ts"], { "tests/unit/a.test.ts": "typo-lane" })).toThrow("Unknown test lane");
+	expect(validateInventory(["tests/performance/load.test.ts"], { "tests/performance/load.test.ts": "performance" })).toEqual(["tests/performance/load.test.ts"]);
+});
