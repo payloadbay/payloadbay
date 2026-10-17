@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { executorCompatibility } from "./compatibility.ts";
 
 export const installationSettingsSchema = z.object({
 	smtpConfigured: z.boolean(),
@@ -11,6 +12,9 @@ export const installationSettingsSchema = z.object({
 });
 
 export const executorHealthSchema = z.object({
+	protocolVersion: z.literal(executorCompatibility.protocolVersion),
+	sdkVersion: z.literal(executorCompatibility.sdkVersion),
+	compatibilityDate: z.literal(executorCompatibility.compatibilityDate),
 	ready: z.boolean(),
 	runtime: z.literal("workerd"),
 	configuredMode: z.enum(["runc", "runsc"]),

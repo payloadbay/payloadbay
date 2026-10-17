@@ -1,3 +1,4 @@
+import { probeExecutor } from "@payloadbay/domain/installation";
 import { workerLanes } from "./runner-lanes.ts";
 import { startNotificationProducer } from "./notifications.ts";
 import { run, type Runner } from "graphile-worker";
@@ -12,7 +13,7 @@ import { startRetentionProducer } from "./retention.ts";
 const config = readServerConfig(process.env);
 const pool = database(config.databaseUrl);
 const runners: Runner[] = [];
-const recovery = startRecovery(pool);
+let recovery: ReturnType<typeof startRecovery> | undefined;
 const broker = createBroker(pool, config);
 let notificationProducer: ReturnType<typeof startNotificationProducer> | undefined;
 let retentionProducer: ReturnType<typeof startRetentionProducer> | undefined;
@@ -25,7 +26,7 @@ async function shutdown(code: number) {
 	timer.unref();
 	broker.closeAllConnections();
 	await new Promise<void>((resolve) => broker.close(() => resolve())).catch(() => {});
-	await recovery.stop();
+	await recovery?.stop();
 	await notificationProducer?.stop();
 	await retentionProducer?.stop();
 	await Promise.allSettled(runners.map((runner) => runner.stop()));
@@ -36,8 +37,9 @@ async function shutdown(code: number) {
 
 try {
 	await pool.query("SELECT max_attempts FROM payloadbay.execution LIMIT 0");
-	const executor = await fetch(new URL("/health", config.executorUrl), { signal: AbortSignal.timeout(5000) });
-	if (!executor.ok) throw Error("Executor unavailable");
+	const executor = await probeExecutor(config);
+	if (executor.state !== "ready") throw Error("Executor compatibility/readiness unavailable");
+	recovery = startRecovery(pool);
 	const event = processEventTask(pool, config);
 	const platform = platformJobTask(pool, config);
 	// Independent reserved pools prevent bulk work from consuming the critical delivery/mail slots.
@@ -62,6 +64,6 @@ try {
 	process.on("SIGTERM", () => void shutdown(0));
 	process.on("SIGINT", () => void shutdown(0));
 } catch {
-	console.error("Worker startup failed; check database migration, executor readiness and server configuration");
+	console.error("Worker startup failed; check database migration, executor compatibility/readiness and server configuration");
 	await shutdown(1);
 }

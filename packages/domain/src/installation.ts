@@ -15,7 +15,7 @@ export async function readInstallationSettings(pool: Pool, actor: Actor, install
 	});
 }
 
-async function probeExecutor(config: ServerConfig): Promise<InstallationHealth["executor"]> {
+export async function probeExecutor(config: Pick<ServerConfig, "executorUrl">): Promise<InstallationHealth["executor"]> {
 	try {
 		const response = await fetch(new URL("/health", config.executorUrl), { signal: AbortSignal.timeout(3000), redirect: "error" });
 		const reader = response.body?.getReader();

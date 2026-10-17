@@ -58,3 +58,61 @@ test("U250 executor HTTP invocation preserves binary bodies", async () => {
 		await fixture.stop();
 	}
 });
+
+test("RV01 worker refuses an incompatible executor before starting job runners", async () => {
+	const { authFixture } = await import("../helpers/auth-fixtures.ts");
+	const { fixtureEnvironment } = await import("../helpers/fixture-environment.ts");
+	const { createServer } = await import("node:http");
+	const { spawn } = await import("node:child_process");
+	await authFixture(async (fixture) => {
+		let probes = 0;
+		const executor = createServer((_request, response) => {
+			probes++;
+			response.writeHead(200, { "content-type": "application/json" }).end(
+				JSON.stringify({
+					ready: true,
+					runtime: "workerd",
+					configuredMode: "runc",
+					hostAttestation: false,
+					protocolVersion: 2,
+					sdkVersion: "1",
+					compatibilityDate: "2026-07-01",
+				}),
+			);
+		});
+		executor.listen(0, "127.0.0.1");
+		await once(executor, "listening");
+		const address = executor.address();
+		assert.ok(address && typeof address !== "string");
+		const child = spawn(process.execPath, ["--import", "tsx", "apps/worker/src/main.ts"], {
+			env: { ...fixtureEnvironment(fixture, "http://localhost:3000"), EXECUTOR_URL: `http://127.0.0.1:${address.port}`, PORT: "0" },
+			stdio: ["ignore", "ignore", "pipe"],
+		});
+		let output = "";
+		child.stderr.on("data", (chunk) => {
+			output += String(chunk);
+		});
+		const exited = once(child, "exit");
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		try {
+			const code = await Promise.race([
+				exited.then(([code]) => code),
+				new Promise<null>((resolve) => {
+					timer = setTimeout(() => resolve(null), 5000);
+				}),
+			]);
+			assert.equal(probes, 1, "The actual worker must reach the incompatible readiness response");
+			assert.equal(code, 1, "An HTTP200 alone must not authorize an incompatible executor");
+			assert.match(output, /executor.*(compatib|readiness)/i);
+			assert.equal(output.includes(fixture.databaseUrl), false);
+		} finally {
+			clearTimeout(timer);
+			if (child.exitCode === null) child.kill("SIGTERM");
+			const killer = setTimeout(() => child.kill("SIGKILL"), 12000);
+			await exited;
+			clearTimeout(killer);
+			executor.closeAllConnections();
+			await new Promise<void>((resolve) => executor.close(() => resolve()));
+		}
+	});
+});

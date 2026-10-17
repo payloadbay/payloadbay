@@ -321,7 +321,19 @@ test("RT12 actual worker startup schedules and executes enabled retention withou
 		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
 		const event = (await db.query("INSERT INTO payloadbay.event(endpoint_id,publication_id,received_at,original_body,accepted_body,headers,content_type,ingress_outcome) VALUES($1,$2,statement_timestamp()-interval '40 days',$3,$3,'{}','text/plain','reject') RETURNING id", [scope.endpoint, scope.publication, Buffer.from("synthetic expired request")])).rows[0].id;
 		// Startup readiness dependency only: no script is executed by this fixture.
-		const executor = createServer((_request, response) => response.writeHead(200).end("{}"));
+		const executor = createServer((_request, response) =>
+			response.writeHead(200).end(
+				JSON.stringify({
+					ready: true,
+					runtime: "workerd",
+					configuredMode: "runc",
+					hostAttestation: false,
+					protocolVersion: 1,
+					sdkVersion: "1",
+					compatibilityDate: "2026-07-01",
+				}),
+			),
+		);
 		executor.listen(0, "127.0.0.1");
 		await once(executor, "listening");
 		const address = executor.address();

@@ -2985,3 +2985,22 @@ historical planning and synthetic schema-history evidence. Corrected scaffold-er
 README/web/agent status, package paths/aliases and contributor sign-in instructions
 (plain optional note, no demo selector). Web/tooling TypeScript, ESLint and formatting
 pass after cleanup. No release migration or operator release is claimed.
+
+
+Coordinated startup compatibility RV01/U241: real restricted executor health
+initially omitted protocolVersion (actual U241 RED undefined != 1). The actual
+worker reached an HTTP200 health response advertising unsupported protocol2,
+but stayed running (RV01 RED null != 1). This is behavioral evidence, not a
+missing-entrypoint failure. Shared protocol/SDK/date constants now drive health,
+compiled-stage validation and workerd configuration. The bounded validated probe
+runs before recovery, runners and producers. Unsupported/missing metadata fails
+startup with a safe message. Public installation projection still reports only
+readiness/mode, not host attestation.
+
+GREEN: affected complete configuration3/3, executor-client3/3, retention13/13
+and full real executor28/28. Earlier scoped U241/RV01 also passed. The RV01
+server is health-only fixture data, not runtime/isolation proof; U241 uses the
+actual restricted image. Local image tests still use the six preserved Docker
+drafts; cold committed-source CI follows. This verifies startup compatibility,
+not per-RPC hot replacement, published pending-job upgrade or backup/restore.
+No release SQL was generated and no timeout/coverage threshold was relaxed.

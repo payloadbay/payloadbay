@@ -59,6 +59,9 @@ test("IH02 installation probes reject redirects oversized bodies and false host 
 		else
 			response.writeHead(200, { "content-type": "application/json" }).end(
 				JSON.stringify({
+					protocolVersion: behavior === "missing-protocol" ? undefined : behavior === "wrong-protocol" ? 2 : 1,
+					sdkVersion: behavior === "wrong-sdk" ? "2" : "1",
+					compatibilityDate: behavior === "wrong-date" ? "2027-01-01" : "2026-07-01",
 					ready: behavior !== "not-ready",
 					runtime: "workerd",
 					configuredMode: "runsc",
@@ -91,7 +94,7 @@ test("IH02 installation probes reject redirects oversized bodies and false host 
 			assert.equal(health.executor.hostAttestation, false);
 			behavior = "not-ready";
 			assert.equal((await readInstallationHealth(fixture.pool, actor, scope.installation, config)).executor.state, "not_ready");
-			for (behavior of ["redirect", "oversized", "raw-error", "false-attestation"]) {
+			for (behavior of ["redirect", "oversized", "raw-error", "false-attestation", "wrong-protocol", "wrong-sdk", "wrong-date", "missing-protocol"]) {
 				const before: number = calls;
 				const result = await readInstallationHealth(fixture.pool, actor, scope.installation, config);
 				assert.equal(result.executor.state, "unavailable", behavior);

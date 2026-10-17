@@ -184,3 +184,12 @@ is installed in Graphify's tool environment. Nineteen unresolved raw references,
 158 coalesced same-endpoint edges, 12 self-loops and one valid-TypeScript parser gap
 are disclosed in `graphify-out/GRAPH_REPORT.md`. This is navigation assistance,
 not complete runtime, security or coverage proof.
+
+
+## Executor compatibility checkpoint
+
+Protocol/SDK/compatibility-date validation now gates worker startup before
+recovery and queue/producers. Actual prior Red and affected complete Greens
+(config3, executor-client3, retention13, executor28) are in the cycle ledger.
+The public installation view remains a bounded readiness projection. This does
+not close pending-job release upgrades or imply per-request negotiation.

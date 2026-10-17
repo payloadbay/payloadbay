@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { executorCompatibility } from "./compatibility.ts";
 
 export const compiledStageSchema = z
 	.object({
@@ -11,9 +12,9 @@ export const compiledStageSchema = z
 		bodyLineOffset: z.number().int().min(0),
 		bundleDigest: z.string().regex(/^[a-f0-9]{64}$/),
 		bodyDigest: z.string().regex(/^[a-f0-9]{64}$/),
-		sdkVersion: z.literal("1"),
+		sdkVersion: z.literal(executorCompatibility.sdkVersion),
 		sharedVersions: z.record(z.string(), z.string()),
-		compatibilityDate: z.literal("2026-07-01"),
+		compatibilityDate: z.literal(executorCompatibility.compatibilityDate),
 		compatibilityFlags: z.array(z.string()).max(0),
 	})
 	.strict();

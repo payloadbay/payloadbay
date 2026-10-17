@@ -1,3 +1,4 @@
+import { executorCompatibility } from "../../../packages/contracts/src/compatibility.ts";
 import { packWire, unpackWire } from "../../../packages/contracts/src/wire.ts";
 import { compileIsolated } from "./compile-rpc.ts";
 import { CompilationError } from "../../../packages/contracts/src/compilation.ts";
@@ -21,6 +22,7 @@ const server = createServer(async (request, response) => {
 		if (request.url === "/health" && request.method === "GET") {
 			response.writeHead(ready ? 200 : 503, { "content-type": "application/json" }).end(
 				JSON.stringify({
+					...executorCompatibility,
 					ready,
 					runtime: "workerd",
 					configuredMode: process.env.PAYLOADBAY_EXECUTOR_RUNTIME || "runc",

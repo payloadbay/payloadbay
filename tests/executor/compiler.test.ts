@@ -79,6 +79,10 @@ test("U241 prebuilt executor provides authenticated compilation", async () => {
 		}
 
 		assert.equal(ready, true);
+		const health = await (await fetch(url + "/health")).json();
+		assert.equal(health.protocolVersion, 1, "Release readiness must identify the executor protocol");
+		assert.equal(health.sdkVersion, "1");
+		assert.equal(health.compatibilityDate, "2026-07-01");
 
 		const post = (body: unknown, authenticated = true) => fetch(url + "/compile", { method: "POST", headers: { "content-type": "application/json", ...(authenticated ? { authorization: "Bearer " + token } : {}) }, body: JSON.stringify(body) });
 

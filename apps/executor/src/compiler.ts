@@ -1,3 +1,4 @@
+import { executorCompatibility } from "../../../packages/contracts/src/compatibility.ts";
 import { build } from "esbuild";
 import { createHash } from "node:crypto";
 import { CompilationError } from "../../../packages/contracts/src/compilation.ts";
@@ -274,9 +275,9 @@ export default async function __payloadbayIngress(ctx: IngressContext): Promise<
 		bodyLineOffset: header.split("\n").length - 1,
 		bundleDigest: createHash("sha256").update(bundle).digest("hex"),
 		bodyDigest: createHash("sha256").update(body).digest("hex"),
-		sdkVersion: "1",
+		sdkVersion: executorCompatibility.sdkVersion,
 		sharedVersions: Object.fromEntries(Object.entries(sharedModules).map(([name, value]) => [name, value.revisionId])),
-		compatibilityDate: "2026-07-01",
+		compatibilityDate: executorCompatibility.compatibilityDate,
 		compatibilityFlags: [] as string[],
 	};
 }
