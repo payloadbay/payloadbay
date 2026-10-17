@@ -3448,3 +3448,24 @@ is241/241; this is the prior source, not the new runtime fix. The unrelated loca
 draft diff checksum remains93399599d5b523f77e6e626195efda4816325b5dd9788e94f538366d0684bb11.
 The SpecKit profile now separates current product/coverage commands from its
 historical bootstrap-only evidence, with mutation strength explicitly unmeasured.
+
+
+## Exact clean017cd69 source verification
+
+CI39056043199 is fully GREEN at017cd69983151b7d7e924ed49a9499c998502861:
+static, unit51/51, backend297/297, executor34/34, browser70/70, deployment32/32,
+performance1/1 and mandatory merged source coverage241/241. Downloaded provenance
+for every owner is complete, dirty=false and exact-SHA. Performance records
+600/600 accepted/delivered, zero failed requests/deadlocks, ACKp9551.801ms and
+first-attemptp9551.541ms/max84.912ms. T054 and EX34 are verified against this
+fixture without erasing preceding failures or attributing the unclassified CI
+request failure to the independently proven port race.
+
+Release automation remains a real prerequisite: the committed migration workflow
+expects DEPLOY_KEY, but only HEROUI_AUTH_TOKEN is listed at repository scope and
+no organization secrets are listed. Branch bypass allows OrganizationAdmin and
+existing Integration4383086, not an arbitrary deploy key. The existing approved
+App needs credential wiring for its master migration commit; no new credential
+or bypass was created. Master merge, generated SQL, coordinated published images
+and operator installation/upgrade/restore remain unexecuted. Six unrelated drafts
+remain unchanged. This final reconciliation changes documentation only.

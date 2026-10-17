@@ -173,7 +173,7 @@ actual editor is `components/code-editor.tsx`, scoped code is under
 
 - [ ] T052 [US3] Red: Add pinned processing outcome/exception/timeout and critical event under email/replay backlog cases in tests/integration/delivery.test.ts and tests/performance/delivery.test.ts; trace FR008/025. Behavior markers: [U105] [U106] [U107] [U108] [U109] [U110] [U111] [U112] [U113] [U114].
 - [ ] T053 [US3] Green: Implement apps/worker/src/main.ts, apps/worker/src/tasks/process-event.ts and packages/domain/src/dispatch.ts for generation claim/heartbeats, reserved critical/mail capacity, independently reserved ingress, destination concurrency and complete/retry/fail; initial processing30s, targetRSS256MiB, defaultmax5 bounded exponential/jitter attempts. (after T052). Behavior markers: [U105] [U106] [U107] [U108] [U109] [U110] [U111] [U112] [U113] [U114].
-- [ ] T054 [US3] Refactor/verify: Measure documented10events/sec×60s fixture: p95ack≤1s, acceptance-to-first-attempt≤2s, no critical wait>10s in tests/performance/delivery.test.ts; report hardware/cold starts/counts and never silently relax failed targets. (after T053). Behavior markers: [U105] [U106] [U107] [U108] [U109] [U110] [U111] [U112] [U113] [U114].
+- [x] T054 [US3] Refactor/verify: Measure documented10events/sec×60s fixture: p95ack≤1s, acceptance-to-first-attempt≤2s, no critical wait>10s in tests/performance/delivery.test.ts; report hardware/cold starts/counts and never silently relax failed targets. (after T053). Behavior markers: [U105] [U106] [U107] [U108] [U109] [U110] [U111] [U112] [U113] [U114].
 
 ### Destination and basic event dashboard
 

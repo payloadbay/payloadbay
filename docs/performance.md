@@ -101,3 +101,15 @@ sequence/status/error classification/correlation/timing and aggregate database
 and ingress outcomes. It never records raw responses, credentials or payloads.
 No production diagnostic logger is introduced. T054 remains open pending
 classification and resolution; a later successful repeat alone is not a fix.
+
+
+## Native bound-port fix — exact clean017cd69
+
+[CI39056043199](https://github.com/payloadbay/payloadbay/actions/runs/39056043199)
+passes at017cd69983151b7d7e924ed49a9499c998502861 with600/600 accepted/delivered,
+zero failed requests and zero database deadlocks. ACKp95 is51.801ms, first-attempt
+p9551.541ms and maximum84.912ms under the unchanged fixture and thresholds.
+The deterministic EX34 collision test proves the removed port release/rebind
+race; the earlier unclassified request failure cannot be attributed retrospectively.
+This exact source closes the changed-runtime fixture gate, not the published
+operator release gates or shared-host latency guarantees.

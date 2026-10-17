@@ -1,7 +1,7 @@
 ---
 detected_at: '6223754'
-current_source_checkpoint: 'effbdf7'
-current_release_gate: 'open-performance-investigation'
+current_source_checkpoint: '017cd69'
+current_release_gate: 'published-images-and-migration-automation'
 ecosystems:
 - typescript
 default: typescript
@@ -72,8 +72,10 @@ deployment31, performance1 and merged coverage241/241. Later db2fb3e
 CI39053349674 passed all functional owners (deployment32), but failed performance
 availability; its coverage merge was skipped. Local subsequent latency failures
 also remain recorded. Clean effbdf7 CI39055051450 subsequently passes all owners and241/241 coverage;
-its performance result does not explain the preceding failure. A new local bind-race
-fix passes executor34/34 and real HTTP3/3 but awaits its own clean CI. Refer to the
+its performance result does not explain the preceding failure. The native bind-race
+fix now passes complete clean017cd69 CI39056043199: unit51/backend297/executor34/
+browser70/deployment32/performance1 and coverage241/241. Published-release
+automation and operator acceptance remain separate open gates. Refer to the
 feature preflight/cycle log for the latest outcome; do not treat the earlier green
 checkpoint as closure of a subsequent failure.
 

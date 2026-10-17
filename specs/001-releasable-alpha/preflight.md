@@ -5,12 +5,12 @@ bootstrap-only snapshot is historical; it does not describe the current app.
 
 ## Latest complete clean verification
 
-Source `effbdf7`, GitHub CI `39055051450`: static, unit51/51, backend297/297,
-executor33/33, deployment32/32, browser70/70 and performance1/1 pass. All five
+Source `017cd69`, GitHub CI `39056043199`: static, unit51/51, backend297/297,
+executor34/34, deployment32/32, browser70/70 and performance1/1 pass. All five
 coverage owners are clean, complete and exact-SHA (downloaded provenance checked).
 Mandatory merged coverage passes241/241 files under unchanged80% per-file minima.
-This clean source includes the final public HTTP protocol case and synchronized
-master baseline. It predates the local executor bind-race fix described below.
+This clean source includes the final public HTTP protocol case, synchronized
+master baseline and the deterministically verified executor bind-race fix.
 Functional results do not certify a published release. Dirty local reports are
 diagnostic; preceding failures remain in `tdd/cycle-log.md`.
 
@@ -33,8 +33,9 @@ first-attemptp9585.157ms/max240.788ms and zero deadlocks; it does not establish
 the earlier failure's cause. A separate deterministic regression proves a real
 executor bind-close-rebind startup race. Workerd now binds port zero atomically
 and reports its bound port through its native control channel. Local executor34/34
-and real HTTP client3/3 pass, plus TypeScript/lint; clean CI for this new runtime
-change remains pending. T054 stays open for that changed-runtime verification.
+and real HTTP client3/3 pass, plus TypeScript/lint; clean CI39056043199 now passes the changed runtime with600/600 accepted/delivered,
+ACKp9551.801ms, first-attemptp9551.541ms/max84.912ms and zero deadlocks. T054 is
+verified for this exact fixture; historical failures and attribution limits remain.
 
 ## Original acceptance reconciliation
 
@@ -285,3 +286,16 @@ through normal SMTP OTP and one-time owner setup. Fresh-cluster roles recovery
 retains the original bootstrap/grantor identity and rejects all errors except the
 documented duplicate bootstrap-role creation. Published-image installation,
 pending-job upgrades and release rollback remain separate open gates.
+
+
+## Verified release automation prerequisite
+
+The committed Generate Migrations workflow uses DEPLOY_KEY, but read-only
+GitHub checks list only HEROUI_AUTH_TOKEN at repository scope and no organization
+secrets. The protected default branch permits OrganizationAdmin and the existing
+GitHub App4383086 to bypass; arbitrary deploy keys are not approved bypass actors.
+The existing approved App identity needs to be wired into migration generation
+with its credential before that workflow can push the CI-owned migration commit.
+No key was created, no protection changed, and the unrelated dirty workflow draft
+was not edited. Approved merge and coordinated published images still precede
+operator installation/upgrade/restore certification.

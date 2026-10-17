@@ -912,4 +912,4 @@ original alpha release gates remain open. No release SQL was generated locally.
 
 | id | behavior | traces | kind | state | test |
 |---|---|---|---|---|---|
-| EX34 | Another listener reclaiming a released ephemeral port cannot break ingress startup | FR-011, FR-017, FR-025 | example | GREEN34/34 local owner; clean CI pending | `tests/executor/isolation.test.ts::EX34 ingress startup survives another listener taking a released ephemeral port` |
+| EX34 | Another listener reclaiming a released ephemeral port cannot break ingress startup | FR-011, FR-017, FR-025 | example | DONE; clean CI39056043199 executor34/34 | `tests/executor/isolation.test.ts::EX34 ingress startup survives another listener taking a released ephemeral port` |
