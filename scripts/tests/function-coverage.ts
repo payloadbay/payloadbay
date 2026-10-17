@@ -75,7 +75,9 @@ export function createFunctionNormalizer() {
 			const source = names.get(mapping.name);
 			// Callback names can be inferred from repeated assignments/properties.
 			// They are not unique source declarations and keep their mapped ranges.
-			const canonical = source?.length === 1 && source[0].declared ? source[0].mapping : mapping;
+			// Source maps can begin before a declaration; require overlapping ranges.
+			// Coincident minified names in disjoint authored ranges remain distinct.
+			const canonical = source?.length === 1 && source[0].declared && mapping.loc.end.line >= source[0].mapping.loc.start.line && mapping.loc.start.line <= source[0].mapping.loc.end.line ? source[0].mapping : mapping;
 			const key = canonical.name + ":" + JSON.stringify(canonical.loc);
 			let target = identities.get(key);
 			if (target === undefined) {

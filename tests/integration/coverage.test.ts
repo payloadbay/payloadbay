@@ -364,3 +364,45 @@ test("CV14 inferred callback names at distinct locations must not be coalesced",
 		await rm(directory, { recursive: true, force: true });
 	}
 });
+
+test("CV15 a coincident minified name outside the declared function range cannot gain its coverage", async () => {
+	const directory = await mkdtemp(resolve("test-results/function-name-collision-"));
+	const source = resolve(directory, "named.ts");
+	try {
+		await writeFile(source, "export function shared() {\n return 1;\n}\nexport function another() {\n return 2;\n}\n");
+		const first = { start: { line: 1, column: 0 }, end: { line: 3, column: 1 } };
+		const second = { start: { line: 4, column: 0 }, end: { line: 6, column: 1 } };
+		// A native/minified name can coincide with a different authored declaration.
+		// Source ranges must overlap before normalizing declaration identities.
+		const report = {
+			[source]: {
+				path: source,
+				statementMap: { "0": first, "1": second },
+				s: { "0": 0, "1": 1 },
+				branchMap: {},
+				b: {},
+				fnMap: {
+					"0": {
+						name: "shared",
+						decl: first,
+						loc: first,
+						line: 1,
+					},
+					"1": {
+						name: "shared",
+						decl: second,
+						loc: second,
+						line: 4,
+					},
+				},
+				f: { "0": 0, "1": 1 },
+			},
+		};
+		const summary = mergeNodeCoverage([report]).fileCoverageFor(source).toSummary();
+		assert.equal(summary.functions.total, 2);
+		assert.equal(summary.functions.covered, 1);
+		assert.equal(evaluateCoverage([report], "", [source], 0.8).passed, false);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});

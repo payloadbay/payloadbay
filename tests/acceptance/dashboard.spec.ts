@@ -127,6 +127,15 @@ test("U63 member editing preserves presets and customized rights", async ({ page
 	await expect(page.getByRole("heading", { name: "Instance members" })).toBeVisible();
 	await page.getByRole("button", { name: "Edit permissions for Editable member" }).click();
 	await expect(page.getByRole("dialog")).toBeVisible();
+	await page.getByLabel("Role preset").selectOption("admin");
+	await page.getByRole("dialog").getByRole("button", { name: "Cancel", exact: true }).click();
+	await expect(page.getByRole("dialog")).toHaveCount(0);
+	const unchanged = await (await page.request.get("/api/v1/members?scopeType=instance&scopeId=" + me.instanceId)).json();
+	expect(unchanged.find((member: { user_id: string }) => member.user_id === memberId).role_preset).toBe("viewer");
+	await page.getByRole("button", { name: "Edit permissions for Editable member" }).click();
+	await page.keyboard.press("Escape");
+	await expect(page.getByRole("dialog")).toHaveCount(0);
+	await page.getByRole("button", { name: "Edit permissions for Editable member" }).click();
 	await page.getByLabel("Role preset").selectOption("operator");
 	await expect(page.getByRole("checkbox", { name: "Read event payloads", exact: true })).toBeChecked();
 	await page.getByText("Read event payloads", { exact: true }).click();
@@ -300,7 +309,13 @@ test("U116 event inspector displays HTML payload as escaped text", async ({ page
 		await pool.end();
 	}
 
-	await page.goto("/projects/" + project.id + "/events");
+	await page.goto("/events");
+	await page.getByLabel("Event workspace", { exact: true }).selectOption(workspace.id);
+	await page.getByLabel("Event project", { exact: true }).selectOption(project.id);
+	await page.getByLabel("Event route", { exact: true }).selectOption(route.id);
+	await page.getByRole("button", { name: /Processing version filter/ }).click();
+	await page.getByRole("option", { name: /^v1\b/ }).click();
+	await page.getByRole("button", { name: "Refresh events", exact: true }).click();
 	await expect(page.getByRole("grid", { name: "Stored events" }), "Event inspection screen must exist").toBeVisible();
 	await page.getByRole("button", { name: /Inspect event/ }).click();
 	await expect(page.getByLabel("Original request body")).toHaveText(body);
@@ -338,6 +353,14 @@ test("U116 event inspector displays HTML payload as escaped text", async ({ page
 	await page.getByRole("button", { name: "Replay selected events", exact: true }).click();
 	const replayDialog = page.getByRole("dialog", { name: "Replay selected events", exact: true });
 	await expect(replayDialog).toContainText("1 selected events");
+	await replayDialog.getByLabel("Bulk replay version policy", { exact: true }).selectOption("current");
+	await replayDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+	await expect(replayDialog).not.toBeVisible();
+	expect((await (await page.request.get("/api/v1/events/" + entry.id)).json()).executions).toHaveLength(before);
+	await page.getByRole("button", { name: "Replay selected events", exact: true }).click();
+	await page.keyboard.press("Escape");
+	await expect(replayDialog).not.toBeVisible();
+	await page.getByRole("button", { name: "Replay selected events", exact: true }).click();
 	await replayDialog.getByRole("button", { name: "Queue replay", exact: true }).click();
 	await expect(replayDialog).not.toBeVisible();
 	await expect.poll(async () => (await (await page.request.get("/api/v1/events/" + entry.id)).json()).executions.length).toBe(before + 1);
@@ -352,10 +375,14 @@ test("U116 event inspector displays HTML payload as escaped text", async ({ page
 	await replayInspector.getByRole("tab", { name: "Processing", exact: true }).click();
 	await expect(replayInspector.getByText("Handler completed", { exact: true })).toBeVisible();
 	await expect(replayInspector.getByText("Accepted · queued", { exact: true })).toBeVisible();
+	await replayInspector.getByRole("button", { name: "Replay event", exact: true }).click();
+	await expect.poll(async () => (await (await page.request.get("/api/v1/events/" + entry.id)).json()).executions.length).toBe(before + 2);
 	await replayInspector.getByRole("button", { name: "Close", exact: true }).click();
 	await expect(replayInspector).toHaveCount(0);
 	await page.getByRole("button", { name: "Select all matching replayable events", exact: true }).click();
 	await expect(page.getByText("1 selected", { exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "Clear selection", exact: true }).click();
+	await expect(page.getByText("0 selected", { exact: true })).toBeVisible();
 });
 
 test("U275 stored event appears through authenticated live updates", async ({ page }) => {
@@ -423,9 +450,32 @@ test("U292 project code page creates helper version and processing middleware", 
 	await page.getByRole("button", { name: "Save helper version", exact: true }).click();
 	await expect(page.getByRole("alertdialog", { name: "Code status", exact: true })).toContainText("Saved a new immutable helper version");
 	await expect(page.getByRole("heading", { name: "Messages", exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "Edit as new version", exact: true }).click();
+	await expect(page.getByRole("dialog")).toBeVisible();
+	await page.keyboard.press("Escape");
+	await expect(page.getByRole("dialog")).toHaveCount(0);
+	await page.getByRole("button", { name: "Edit as new version", exact: true }).click();
+	await code.focus();
+	await page.keyboard.press("ControlOrMeta+A");
+	await page.keyboard.insertText('export function message(){return "shared v2";}');
+	await page.keyboard.press("ControlOrMeta+s");
+	await expect(page.getByRole("dialog")).toHaveCount(0);
+	const helperVersions = await (await page.request.get("/api/v1/shared-code?scopeType=project&scopeId=" + project.id)).json();
+	const newestHelper = await (await page.request.get("/api/v1/shared-code/" + helperVersions[0].id)).json();
+	expect(newestHelper.source).toContain("shared v2");
 	await page.getByRole("tab", { name: "Middleware", exact: true }).click();
 	await page.getByRole("button", { name: "Create middleware", exact: true }).click();
 	await page.getByLabel("Middleware name", { exact: true }).fill("Project policy");
+	await page.getByLabel("Middleware stage", { exact: true }).selectOption("ingress");
+	await page.getByLabel("Middleware stage", { exact: true }).selectOption("processing");
+	await page.getByRole("textbox", { name: /^Position/ }).fill("5");
+	await page.getByRole("textbox", { name: /^Position/ }).press("Tab");
+	await page.getByRole("textbox", { name: /^Position/ }).fill("0");
+	await page.getByRole("textbox", { name: /^Position/ }).press("Tab");
+	await page.getByLabel("Middleware failure behavior", { exact: true }).selectOption("optional");
+	await page.getByLabel("Middleware failure behavior", { exact: true }).selectOption("required");
+	await page.getByLabel("Middleware child overrides", { exact: true }).selectOption("forbidden");
+	await page.getByLabel("Middleware required failure outcome", { exact: true }).selectOption("fail");
 	await expect(page.locator(".monaco-editor .view-lines").first()).toContainText("ProcessingMiddlewareContext");
 	await page.getByRole("button", { name: "Save middleware", exact: true }).click();
 	await expect(page.getByRole("alertdialog", { name: "Code status", exact: true })).toContainText("Middleware saved");
@@ -434,6 +484,8 @@ test("U292 project code page creates helper version and processing middleware", 
 	expect(bindings).toHaveLength(1);
 	expect(bindings[0].scope.id).toBe(project.id);
 	expect(bindings[0].stage).toBe("processing");
+	expect(bindings[0].overridePolicy).toBe("forbidden");
+	expect(bindings[0].requiredAction).toBe("fail");
 	await expect(page.getByRole("grid", { name: "Middleware execution order" })).toBeVisible();
 	const secondResponse = await page.request.post("/api/v1/middleware", {
 		headers,
@@ -566,17 +618,51 @@ test("U300 route editor tests unsaved ingress with synthetic fixture", async ({ 
 	const code = page.getByRole("textbox", { name: "Ingress code", exact: true });
 	await code.focus();
 	await page.keyboard.press("ControlOrMeta+A");
-	await page.keyboard.insertText('export async function POST(ctx: IngressContext): Promise<IngressDecision> { return ctx.respondOnly({status:200,body:"synthetic:"+new TextDecoder().decode(ctx.request.body)}); }');
+	await page.keyboard.insertText('export async function PATCH(ctx: IngressContext): Promise<IngressDecision> { ctx.log.info("Fixture processed"); ctx.log.warn("Review warning"); return ctx.respondOnly({status:200,body:"synthetic:"+new TextDecoder().decode(ctx.request.body)+":"+ctx.request.headers["x-review"]+":"+(ctx.secrets.MODE === "synthetic" ? "configured" : "missing")}); }');
 	await page.getByRole("row", { name: "Script test", exact: true }).click();
+	await page.getByLabel("Synthetic HTTP method", { exact: true }).selectOption("PATCH");
 	await page.getByLabel("Synthetic request body", { exact: true }).fill("hello");
+	await page.getByLabel("Synthetic headers", { exact: true }).fill('{"x-review":"review"}');
+	await page.getByLabel("Synthetic secrets", { exact: true }).fill('{"MODE":"synthetic"}');
 	await page.getByRole("button", { name: "Test ingress (dry)", exact: true }).click();
-	await expect(page.getByLabel("Synthetic test result", { exact: true })).toContainText("synthetic:hello", { timeout: 20000 });
+	await expect(page.getByLabel("Synthetic test result", { exact: true })).toContainText("synthetic:hello:review:configured", { timeout: 20000 });
 	await expect(page.locator('[data-slot="toast"]').filter({ hasText: "Synthetic test completed" })).toHaveCount(0);
+	await page.getByLabel("Log level", { exact: true }).selectOption("warn");
+	await expect(page.getByLabel("Synthetic test result", { exact: true })).toContainText("Review warning");
+	await expect(page.getByLabel("Synthetic test result", { exact: true })).not.toContainText("Fixture processed");
+	await page.getByRole("textbox", { name: "Search execution logs", exact: true }).fill("not-a-matching-message");
+	await expect(page.getByText("No logs match these filters.", { exact: true })).toBeVisible();
+	await page.getByRole("textbox", { name: "Search execution logs", exact: true }).clear();
+	await page.getByLabel("Script stage", { exact: true }).selectOption("processing");
+	await page.getByRole("button", { name: "Test processing (dry)", exact: true }).click();
+	await expect(page.getByLabel("Synthetic test result", { exact: true })).toContainText("complete", { timeout: 20000 });
 	const saved = await (await page.request.get("/api/v1/endpoints/" + route.id + "/drafts/ingress")).json();
 	expect(saved.version).toBe(1);
 	expect(saved.body).not.toContain("synthetic:");
 	const events = await (await page.request.get("/api/v1/projects/" + project.id + "/events")).json();
 	expect(events.items).toHaveLength(0);
+
+	const beforeUnload = page.waitForEvent("dialog");
+	const cancelledReload = page.reload({ timeout: 3000 }).then(
+		() => null,
+		(error: Error) => error,
+	);
+	const prompt = await beforeUnload;
+	expect(prompt.type()).toBe("beforeunload");
+	await prompt.dismiss();
+	await cancelledReload;
+	await expect(page).toHaveURL(new RegExp("/projects/" + project.id + "/routes/" + route.id));
+	await page.getByRole("link", { name: "Back to project", exact: true }).click();
+	await expect(page.getByRole("heading", { name: "Discard unsaved changes?", exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "Keep editing", exact: true }).click();
+	await page.getByRole("link", { name: "Back to project", exact: true }).click();
+	await page.keyboard.press("Escape");
+	await expect(page.getByRole("heading", { name: "Discard unsaved changes?", exact: true })).toHaveCount(0);
+	await page.getByRole("link", { name: "Back to project", exact: true }).click();
+	await page.getByRole("button", { name: "Discard changes", exact: true }).click();
+	await expect(page.getByRole("heading", { name: "Test project", exact: true })).toBeVisible();
+	const unchangedDraft = await (await page.request.get("/api/v1/endpoints/" + route.id + "/drafts/ingress")).json();
+	expect(unchangedDraft).toEqual(saved);
 });
 
 test("U301 code creation follows workspace and project page scope", async ({ page }) => {

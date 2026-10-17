@@ -3276,3 +3276,59 @@ and disabling. K01 API-key scope selection, actual saved7-day expiry, cancellati
 of revocation and eventual bearer denial passes1/1. No product change was needed
 for these selector corrections. Final owned-change ESLint, Prettier and test
 TypeScript pass; all tests remain registered. Complete clean CI remains pending.
+
+## Exact clean a7d4e76 and remaining UI interactions
+
+CI39050305378 at a7d4e7665fb45f7740883c70611a884562a7e2af passes static,
+unit51/51, backend296/296, executor33/33, deployment31/31, browser67/67 and
+performance1/1. Downloaded provenance is clean, complete and exact-SHA for all
+five coverage owners. Mandatory coverage remains RED233/241: eight UI files
+need complete function coverage. No release is certified.
+
+Further local browser checks pass2/2 for catalog-created notification modules,
+keyboard publication, pause/enable, active-version rollback, real queued email
+test, and overview outage recovery/tooltip values. Initial module tests used an
+incorrect return-link label, then asserted navigation before the real compile/
+publish response; both are corrected using the actual link and HTTP completion.
+Expanded event scope/version filters, replay cancellation/single/bulk actions,
+helper keyboard revisions/middleware settings and synthetic method/header/secret/
+log filters pass3/3. The initial event-version selector incorrectly assumed a
+native HTML select; the retained test uses HeroUI trigger/option roles.
+
+Member cancellation passes in a1/2 invocation. Its unsaved-reload case observed
+the actual beforeunload prompt but consumed the test budget waiting for an
+intentionally dismissed navigation. Giving only that cancelled reload action a
+bounded3s wait (no deadline increase) makes the full dry-test/keep/edit/Escape/
+explicit-discard case pass1/1, with stored draft unchanged.
+
+The route version-pin case initially published the intentionally rejecting new
+route default and observed its legitimate plain-text503. Its fixture now explicitly
+configures acceptance before publication; keyboard-save/rollback/queued-pin
+verification and final member/code controls remain pending at this log point.
+These are tests of existing behavior, not invented test-first product changes.
+
+Final route version-pin browser case is GREEN1/1: the configured accepting handler
+acknowledges202, keyboard-save persists processing draft2, clipboard contains the
+actual receiving URL, activating publication1 leaves the accepted event and queued
+execution pinned to publication2. The fixture also corrected its initial unquoted
+If-Match value, which properly returned428. Final U292 code settings are GREEN1/1
+including committed numeric edits and closing/reopening a clean helper editor.
+An initial Escape was sent before the asynchronous editor request opened the
+modal; waiting for the actual dialog fixes the test. U63 member cancellation
+passed in the preceding1/2 invocation; the unrelated code test failure is retained,
+not retroactively declared a passing complete owner.
+
+Coverage-integrity CV15 is an actual RED1!==2 for a coincident function name in a
+disjoint authored source range. Requiring authored-name uniqueness and overlapping
+source ranges makes all15 canaries GREEN. A first overly strict start-line check
+also kept genuine duplicate webpack records: clean maps for saveEmailSettings
+span26–42 while its declaration spans29–52. Requiring interval overlap preserves
+that observed compiler layout while disjoint names remain separate. This is not
+perfect anonymous/minified reconstruction; previously documented mapper limits
+remain. ESLint expands the new four-property mapping fixtures as required.
+
+Local mixed diagnostics now pass240/241; the remaining member file lacks counters
+from its passing case because its containing invocation failed another case.
+Those partial results are deliberately not promoted to complete-owner evidence.
+The unchanged mandatory clean-CI gate remains authoritative; new clean full browser
+and all owning lanes are pending. No80% threshold or executable inventory changed.
