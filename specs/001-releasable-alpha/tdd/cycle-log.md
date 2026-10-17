@@ -3004,3 +3004,23 @@ actual restricted image. Local image tests still use the six preserved Docker
 drafts; cold committed-source CI follows. This verifies startup compatibility,
 not per-RPC hot replacement, published pending-job upgrade or backup/restore.
 No release SQL was generated and no timeout/coverage threshold was relaxed.
+
+
+Release packaging RI01/RI02: added a separate non-root one-shot migration image
+using the locked domain dependency graph, no licensed installer or runtime source
+push. It refuses absent CI release SQL. Actual restricted-image tests apply an
+explicit synthetic historical fixture, verify auth/queue/domain initialization
+and unchanged migration digests on a second run. This new packaging had no
+pre-existing executable entrypoint; no fabricated behavioral Red is claimed.
+
+Real PostgreSQL17 archive round trip preserves binary event bytes, queued jobs,
+pinned publications, encrypted credentials and immutable-code triggers. Initial
+fixture command lacked pg_restore's required --dbname; corrected as a test-command
+error. A stronger ownership assertion then caught actual --no-owner behavior:
+retention function owner became fixture instead of payloadbay_retention (RED).
+Removing that flag preserves original ownership and PUBLIC execute denial.
+Complete owner GREEN2/2; TypeScript/ESLint/inventory pass. Archive tests restore
+an empty database in the same disposable cluster, whose roles already exist;
+cross-host role provisioning, published installation and release rollback remain
+open. No production data, generated release SQL or host Docker configuration used.
+The six unrelated Docker/workflow drafts remain unstaged.

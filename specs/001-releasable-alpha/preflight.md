@@ -193,3 +193,12 @@ recovery and queue/producers. Actual prior Red and affected complete Greens
 (config3, executor-client3, retention13, executor28) are in the cycle ledger.
 The public installation view remains a bounded readiness projection. This does
 not close pending-job release upgrades or imply per-request negotiation.
+
+
+## Migration-image and archive mechanism checkpoint
+
+The separate restricted migration image and PostgreSQL17 archive tests pass2/2.
+Recovery assertions include original restricted-function ownership and ACLs as
+well as durable records. Historical fixture migrations and a same-cluster empty
+restore target are explicit; this does not certify published release installation
+or fresh-host role provisioning. See docs/deployment/backup.md.

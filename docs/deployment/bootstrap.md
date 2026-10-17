@@ -114,3 +114,18 @@ licensed installer step receives it. Public dependency downloads are cached befo
 licensed installation; the licensed CLI uses a separate uncached directory.
 Neither cache nor uploaded test evidence should contain the installer credential
 or licensed dependency archives. Test runners receive no production credentials.
+
+## Release migration container
+
+`deploy/Dockerfile.migrator` builds a separate non-root, one-shot migration
+image without HeroUI credentials or a host Node/Bun requirement. It includes the
+CI-generated `packages/domain/drizzle` directory and runs the existing locked,
+digest-checked release migrator. `MIGRATION_DATABASE_URL` is supplied only to
+that privileged one-shot service, not to the executor. A branch with no generated
+release SQL fails safely; it never substitutes development schema push.
+
+The registered migration-container test uses an explicitly mounted synthetic
+historical fixture directory. It proves packaging, auth/queue initialization and
+idempotence, not installation of a published alpha. The production Compose and
+published coordinated image gates remain open. See [database recovery](backup.md)
+for the data, role, encryption-key and rollback boundaries.
