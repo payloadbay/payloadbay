@@ -3,7 +3,7 @@ import { nextFixture } from "../helpers/next-fixture.ts";
 import { identity, setupSecret, fixtureConfig } from "../helpers/auth-fixtures.ts";
 import { bootstrapOwner } from "../../packages/domain/src/bootstrap.ts";
 import { runOnce } from "../../apps/worker/node_modules/graphile-worker/dist/index.js";
-import { notificationDeliveryTask } from "../../apps/worker/src/tasks/notification-delivery.ts";
+import { platformJobTask } from "../../apps/worker/src/tasks/platform-job.ts";
 
 test("FT06b a verified new customer creates an organization through the mobile setup flow", async ({ page }) => {
 	await nextFixture(
@@ -21,7 +21,7 @@ test("FT06b a verified new customer creates an organization through the mobile s
 					pgPool: f.pool,
 					noHandleSignals: true,
 					concurrency: 1,
-					taskList: { platform_job: notificationDeliveryTask(f.pool, fixtureConfig(f)) },
+					taskList: { platform_job: platformJobTask(f.pool, fixtureConfig(f)) },
 				});
 				const messages = await (await fetch(f.mailUrl + "/api/v1/messages")).json();
 				const message = await (await fetch(f.mailUrl + "/api/v1/message/" + messages.messages[0].ID)).json();

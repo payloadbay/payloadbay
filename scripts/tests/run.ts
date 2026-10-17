@@ -2,8 +2,9 @@ import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { createServer } from "node:net";
 import { spawnSync } from "node:child_process";
-import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { readFileSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { build } from "esbuild";
+import { ensureNextBuild } from "./next-build.ts";
 import { inventory, registry } from "./inventory.ts";
 import { selectAffected, assertNonemptyRun, checkCoverage, testLanes } from "./policy.ts";
 
@@ -44,6 +45,7 @@ const grep = mode === "file" && args[0] === "--name" ? args[1] : undefined;
 if (mode === "file" && args.length && (!grep || args.length !== 2)) throw Error("Expected --name followed by test name");
 const runId = process.env.PAB_TEST_RUN_ID ?? randomUUID();
 const reports = `test-results/${runId}`;
+const coverageFile = resolve(`${reports}/unit/coverage/lcov.info`);
 const lanes = testLanes;
 let passed = 0;
 for (const lane of lanes) {
@@ -64,10 +66,33 @@ for (const lane of lanes) {
 		await new Promise<void>((r) => listener.close(() => r()));
 	}
 
+	// Build once before parallel Node owners can request the shared fixture.
+	if (lane === "node" && selected.some((file) => registry.nextBuildConsumers.includes(file))) ensureNextBuild();
+
 	let command = "bun";
 	let options: string[] = [];
-	if (lane === "unit") options = ["test", ...selected, ...(grep ? ["--test-name-pattern", grep] : []), ...(mode === "coverage" ? ["--coverage", "--coverage-reporter=text", "--coverage-reporter=lcov"] : [])];
-	else if (lane === "browser") {
+	if (lane === "unit") {
+		options = ["test", ...selected, ...(grep ? ["--test-name-pattern", grep] : [])];
+		if (mode === "coverage") {
+			// Pinned Bun favors bunfig reporting settings over CLI overrides. Collect
+			// fresh LCOV alone, then enforce our existing explicit line/function gate.
+			let configuration = readFileSync("bunfig.toml", "utf8");
+			for (const [key, value] of [
+				["root", JSON.stringify(resolve("tests/unit"))],
+				["coverageReporter", '["lcov"]'],
+				["coverageDir", JSON.stringify(resolve(`${reports}/unit/coverage`))],
+			]) {
+				const field = new RegExp(`^${key}\\s*=.*$`, "m");
+				if (!field.test(configuration)) throw Error(`Missing coverage configuration: ${key}`);
+				configuration = configuration.replace(field, `${key} = ${value}`);
+			}
+
+			const configurationFile = resolve(`${reports}/unit/bunfig.coverage.toml`);
+			writeFileSync(configurationFile, configuration);
+			rmSync(coverageFile, { force: true });
+			options.push(`--config=${configurationFile}`, "--coverage");
+		}
+	} else if (lane === "browser") {
 		command = "node";
 		options = ["--import", "tsx", "scripts/tests/browser.ts", ...selected, ...(grep ? ["--grep", grep] : [])];
 	} else {
@@ -90,7 +115,11 @@ for (const lane of lanes) {
 }
 
 if (!passed) throw Error("No passing tests");
-if (mode === "coverage") console.log("Coverage gate:", checkCoverage(readFileSync("coverage/unit/lcov.info", "utf8"), registry.coverageSources, 0.8));
+if (mode === "coverage") {
+	const configuration = Bun.TOML.parse(readFileSync("bunfig.toml", "utf8")) as { test: { coverageThreshold: number | { lines: number; functions: number } } };
+	console.log("Unit-loaded coverage gate:", checkCoverage(readFileSync(coverageFile, "utf8"), registry.coverageSources, configuration.test.coverageThreshold));
+}
+
 writeFileSync(
 	`${reports}/summary.json`,
 	JSON.stringify(

@@ -1,12 +1,13 @@
-import { nextOrganizationFlags } from "../../../packages/domain/src/organization-scheduling.ts";
+import { workerLanes } from "./runner-lanes.ts";
 import { startNotificationProducer } from "./notifications.ts";
 import { run, type Runner } from "graphile-worker";
 import { readServerConfig } from "../../../packages/domain/src/config.ts";
 import { database } from "../../../packages/domain/src/db.ts";
-import { notificationDeliveryTask } from "./tasks/notification-delivery.ts";
+import { platformJobTask } from "./tasks/platform-job.ts";
 import { processEventTask } from "./tasks/process-event.ts";
 import { startRecovery } from "./recovery.ts";
 import { createBroker } from "./broker.ts";
+import { startRetentionProducer } from "./retention.ts";
 
 const config = readServerConfig(process.env);
 const pool = database(config.databaseUrl);
@@ -14,6 +15,7 @@ const runners: Runner[] = [];
 const recovery = startRecovery(pool);
 const broker = createBroker(pool, config);
 let notificationProducer: ReturnType<typeof startNotificationProducer> | undefined;
+let retentionProducer: ReturnType<typeof startRetentionProducer> | undefined;
 let closing = false;
 
 async function shutdown(code: number) {
@@ -25,6 +27,7 @@ async function shutdown(code: number) {
 	await new Promise<void>((resolve) => broker.close(() => resolve())).catch(() => {});
 	await recovery.stop();
 	await notificationProducer?.stop();
+	await retentionProducer?.stop();
 	await Promise.allSettled(runners.map((runner) => runner.stop()));
 	await pool.end();
 	clearTimeout(timer);
@@ -36,13 +39,9 @@ try {
 	const executor = await fetch(new URL("/health", config.executorUrl), { signal: AbortSignal.timeout(5000) });
 	if (!executor.ok) throw Error("Executor unavailable");
 	const event = processEventTask(pool, config);
-	const mail = notificationDeliveryTask(pool, config);
+	const platform = platformJobTask(pool, config);
 	// Independent reserved pools prevent bulk work from consuming the critical delivery/mail slots.
-	for (const lane of [
-		{ taskList: { process_event: event }, forbiddenFlags: () => nextOrganizationFlags(pool, "critical"), concurrency: 2 },
-		{ taskList: { process_event: event }, forbiddenFlags: () => nextOrganizationFlags(pool, "bulk"), concurrency: 1 },
-		{ taskList: { platform_job: mail }, forbiddenFlags: ["critical", "bulk"], concurrency: 1 },
-	]) {
+	for (const lane of workerLanes(pool, { process_event: event, platform_job: platform })) {
 		const runner = await run({
 			pgPool: pool,
 			noHandleSignals: true,
@@ -58,6 +57,7 @@ try {
 	}
 
 	notificationProducer = startNotificationProducer(pool, { encryptionKey: config.encryptionKey, publicUrl: config.publicUrl });
+	retentionProducer = startRetentionProducer(pool, config);
 	broker.listen(Number(process.env.PORT ?? 8081), "0.0.0.0");
 	process.on("SIGTERM", () => void shutdown(0));
 	process.on("SIGINT", () => void shutdown(0));

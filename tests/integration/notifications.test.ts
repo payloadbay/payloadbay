@@ -262,7 +262,7 @@ test("U314 active incident email dispatch is durable and deduplicated", async ()
 
 test("U315 opted-in authorized recipient receives an SMTP incident summary", async () => {
 	const { queueIncidentNotifications } = await import("../../packages/domain/src/notification-dispatch.ts");
-	const { notificationDeliveryTask } = await import("../../apps/worker/src/tasks/notification-delivery.ts");
+	const { platformJobTask } = await import("../../apps/worker/src/tasks/platform-job.ts");
 	await notificationMailFixture(async (fixture) => {
 		const before = await (await fetch(fixture.mailUrl + "/api/v1/messages")).json();
 		const previousIds = new Set(before.messages.map((message: { ID: string }) => message.ID));
@@ -270,7 +270,7 @@ test("U315 opted-in authorized recipient receives an SMTP incident summary", asy
 		await fixture.db.query("UPDATE payloadbay.notification_incident SET redacted_data=redacted_data||$2::jsonb WHERE id=$1", [fixture.incident.id, JSON.stringify({ payload: "private-webhook-payload", secret: "fixture-private-secret" })]);
 		await queueIncidentNotifications(fixture.pool, fixture.incident.id, config.encryptionKey);
 		const job = (await fixture.db.query("SELECT * FROM payloadbay.platform_job WHERE kind='notification_mail'")).rows[0];
-		await notificationDeliveryTask(fixture.pool, config)({ jobId: job.id, generation: job.generation });
+		await platformJobTask(fixture.pool, config)({ jobId: job.id, generation: job.generation });
 		assert.equal((await fixture.db.query("SELECT state FROM payloadbay.platform_job WHERE id=$1", [job.id])).rows[0].state, "succeeded", "Notification mail must use the real SMTP worker path");
 		let delivered: { ID: string; Subject: string; To: { Address: string }[] } | undefined;
 		for (let attempt = 0; attempt < 50 && !delivered; attempt++) {
@@ -284,14 +284,14 @@ test("U315 opted-in authorized recipient receives an SMTP incident summary", asy
 		assert.match(message.Text, new RegExp("/projects/" + fixture.scope.project + "/notifications"));
 		assert.ok(!message.Text.includes("private-webhook-payload"));
 		assert.ok(!message.Text.includes("fixture-private-secret"));
-		await notificationDeliveryTask(fixture.pool, config)({ jobId: job.id, generation: job.generation });
+		await platformJobTask(fixture.pool, config)({ jobId: job.id, generation: job.generation });
 		assert.equal((await fixture.db.query("SELECT state FROM payloadbay.notification_dispatch WHERE platform_job_id=$1", [job.id])).rows[0].state, "sent");
 	});
 });
 
 test("U179 revoked access prevents already queued notification email", async () => {
 	const { queueIncidentNotifications } = await import("../../packages/domain/src/notification-dispatch.ts");
-	const { notificationDeliveryTask } = await import("../../apps/worker/src/tasks/notification-delivery.ts");
+	const { platformJobTask } = await import("../../apps/worker/src/tasks/platform-job.ts");
 	for (const revocation of ["grant", "admission"]) {
 		await notificationMailFixture(async (fixture) => {
 			const config = fixtureConfig(fixture);
@@ -300,7 +300,7 @@ test("U179 revoked access prevents already queued notification email", async () 
 			const before = await (await fetch(fixture.mailUrl + "/api/v1/messages")).json();
 			if (revocation === "grant") await fixture.db.query("UPDATE payloadbay.grant_record SET permissions=ARRAY[]::text[] WHERE user_id='fixture-owner'");
 			else await fixture.db.query("UPDATE payloadbay.admission SET active=false WHERE user_id='fixture-owner'");
-			await notificationDeliveryTask(fixture.pool, config)({ jobId: job.id, generation: job.generation });
+			await platformJobTask(fixture.pool, config)({ jobId: job.id, generation: job.generation });
 			const current = (await fixture.db.query("SELECT state FROM payloadbay.platform_job WHERE id=$1", [job.id])).rows[0];
 			assert.equal(current.state, "expired", "Revoked recipients must not receive queued email");
 			const after = await (await fetch(fixture.mailUrl + "/api/v1/messages")).json();
@@ -312,7 +312,7 @@ test("U179 revoked access prevents already queued notification email", async () 
 
 test("U316 continuous failure producer queues opted-in SMTP notifications", async () => {
 	const { startNotificationProducer } = await import("../../apps/worker/src/notifications.ts");
-	const { notificationDeliveryTask } = await import("../../apps/worker/src/tasks/notification-delivery.ts");
+	const { platformJobTask } = await import("../../apps/worker/src/tasks/platform-job.ts");
 	const { createRequire } = await import("node:module");
 	const { run } = createRequire(new URL("../../apps/worker/package.json", import.meta.url))("graphile-worker") as typeof import("../../apps/worker/node_modules/graphile-worker");
 	const { seedEvent } = await import("../helpers/domain-fixtures.ts");
@@ -328,7 +328,7 @@ test("U316 continuous failure producer queues opted-in SMTP notifications", asyn
 			pollInterval: 50,
 			parsedCronItems: [],
 			concurrency: 1,
-			taskList: { platform_job: notificationDeliveryTask(fixture.pool, config) },
+			taskList: { platform_job: platformJobTask(fixture.pool, config) },
 		});
 		const producer = startNotificationProducer(fixture.pool, { intervalMs: 20, encryptionKey: config.encryptionKey });
 		try {
@@ -560,7 +560,7 @@ test("queued notification delivery pins channel code and branding across later e
 test("custom HTTP notification delivery uses the isolated executor and respects pause before send", async () => {
 	const { publishNotificationChannel, updateNotificationChannel } = await import("../../packages/domain/src/notification-channels.ts");
 	const { queueChannelTest } = await import("../../packages/domain/src/notification-testing.ts");
-	const { notificationDeliveryTask } = await import("../../apps/worker/src/tasks/notification-delivery.ts");
+	const { platformJobTask } = await import("../../apps/worker/src/tasks/platform-job.ts");
 	const { compileSource } = await import("../../packages/domain/src/executor-client.ts");
 	const { executorFixture } = await import("../helpers/executor-fixture.ts");
 	const { permissions } = await import("../../packages/contracts/src/permissions.ts");
@@ -581,7 +581,7 @@ test("custom HTTP notification delivery uses the isolated executor and respects 
 			});
 			const queued = await queueChannelTest(fixture.pool, actor, module.id, config);
 			const job = (await fixture.db.query("SELECT generation FROM payloadbay.platform_job WHERE id=$1", [queued.jobId])).rows[0];
-			await notificationDeliveryTask(fixture.pool, config)({ jobId: queued.jobId, generation: job.generation });
+			await platformJobTask(fixture.pool, config)({ jobId: queued.jobId, generation: job.generation });
 			assert.equal((await fixture.db.query("SELECT state FROM payloadbay.platform_job WHERE id=$1", [queued.jobId])).rows[0].state, "succeeded");
 			const receipts = await (await fetch(fixture.httpUrl + "/receipts")).json();
 			assert.equal(receipts.length, 1);
@@ -590,7 +590,7 @@ test("custom HTTP notification delivery uses the isolated executor and respects 
 			assert.equal(body.attempt, 1);
 			const paused = await queueChannelTest(fixture.pool, actor, module.id, config);
 			await updateNotificationChannel(fixture.pool, actor, module.id, { expectedVersion: module.version, enabled: false });
-			await notificationDeliveryTask(fixture.pool, config)({ jobId: paused.jobId, generation: 1 });
+			await platformJobTask(fixture.pool, config)({ jobId: paused.jobId, generation: 1 });
 			assert.equal((await fixture.db.query("SELECT state FROM payloadbay.platform_job WHERE id=$1", [paused.jobId])).rows[0].state, "expired");
 			assert.equal((await (await fetch(fixture.httpUrl + "/receipts")).json()).length, 1);
 			assert.equal((await (await fetch(fixture.mailUrl + "/api/v1/messages")).json()).total, 0, "HTTP notifications must not also send SMTP mail");
@@ -601,12 +601,12 @@ test("custom HTTP notification delivery uses the isolated executor and respects 
 				compile: (input) => compileSource(config, input),
 			});
 			const retryJob = await queueChannelTest(fixture.pool, actor, retrying.id, config);
-			await notificationDeliveryTask(fixture.pool, config)({ jobId: retryJob.jobId, generation: 1 });
+			await platformJobTask(fixture.pool, config)({ jobId: retryJob.jobId, generation: 1 });
 			const pending = (await fixture.db.query("SELECT state,generation,attempt_number FROM payloadbay.platform_job WHERE id=$1", [retryJob.jobId])).rows[0];
 			assert.deepEqual(pending, { state: "queued", generation: 2, attempt_number: 1 });
 			const scheduled = (await fixture.db.query("SELECT priority FROM graphile_worker.jobs WHERE key=$1", [`platform:${retryJob.jobId}:2`])).rows[0];
 			assert.equal(scheduled.priority, 30, "Notification retries must not gain authentication-mail priority");
-			await notificationDeliveryTask(fixture.pool, config)({ jobId: retryJob.jobId, generation: 2 });
+			await platformJobTask(fixture.pool, config)({ jobId: retryJob.jobId, generation: 2 });
 			assert.equal((await fixture.db.query("SELECT state FROM payloadbay.platform_job WHERE id=$1", [retryJob.jobId])).rows[0].state, "succeeded");
 		} finally {
 			await executor.stop();

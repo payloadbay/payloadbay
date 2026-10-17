@@ -8,7 +8,7 @@ import { database } from "../../packages/domain/src/db.ts";
 import { prepareDevelopmentDatabase as migrate } from "../../packages/domain/src/development.ts";
 import { readServerConfig } from "../../packages/domain/src/config.ts";
 import { run } from "../../apps/worker/node_modules/graphile-worker/dist/index.js";
-import { notificationDeliveryTask } from "../../apps/worker/src/tasks/notification-delivery.ts";
+import { platformJobTask } from "../../apps/worker/src/tasks/platform-job.ts";
 
 let status = 1;
 try {
@@ -24,7 +24,7 @@ try {
 			noHandleSignals: true,
 			pollInterval: 100,
 			concurrency: 1,
-			taskList: { platform_job: notificationDeliveryTask(pool, readServerConfig(env)) },
+			taskList: { platform_job: platformJobTask(pool, readServerConfig(env)) },
 		});
 		try {
 			const child = spawn("bun", ["x", "--no-install", "playwright", "test", "--config=tests/config/playwright.config.ts", ...process.argv.slice(2)], { env, stdio: "inherit" });

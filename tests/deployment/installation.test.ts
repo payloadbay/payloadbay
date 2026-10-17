@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { setupSecret, fixtureConfig } from "../helpers/auth-fixtures.ts";
 import { nextFixture } from "../helpers/next-fixture.ts";
 import { runOnce } from "../../apps/worker/node_modules/graphile-worker/dist/index.js";
-import { notificationDeliveryTask } from "../../apps/worker/src/tasks/notification-delivery.ts";
+import { platformJobTask } from "../../apps/worker/src/tasks/platform-job.ts";
 
 test("U223 Next auth route mounts passwordless service", async () => {
 	await nextFixture(async ({ url }) => {
@@ -42,7 +42,7 @@ test("A1 real Next installation completes one verified owner", async () => {
 			pgPool: f.pool,
 			noHandleSignals: true,
 			concurrency: 1,
-			taskList: { platform_job: notificationDeliveryTask(f.pool, fixtureConfig(f)) },
+			taskList: { platform_job: platformJobTask(f.pool, fixtureConfig(f)) },
 		});
 		const messages = await (await fetch(f.mailUrl + "/api/v1/messages")).json();
 		assert.equal(messages.total, 1);
@@ -168,7 +168,7 @@ test("A5 API draft changes leave published runtime behavior unchanged", async ()
 			pgPool: f.pool,
 			noHandleSignals: true,
 			concurrency: 1,
-			taskList: { platform_job: notificationDeliveryTask(f.pool, fixtureConfig(f)) },
+			taskList: { platform_job: platformJobTask(f.pool, fixtureConfig(f)) },
 		});
 		const messages = await (await fetch(f.mailUrl + "/api/v1/messages")).json();
 		const message = await (await fetch(f.mailUrl + "/api/v1/message/" + messages.messages[0].ID)).json();

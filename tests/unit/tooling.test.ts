@@ -70,3 +70,15 @@ test("registered tests with an unknown owning lane cannot disappear from a full 
 	expect(() => validateInventory(["tests/unit/a.test.ts"], { "tests/unit/a.test.ts": "typo-lane" })).toThrow("Unknown test lane");
 	expect(validateInventory(["tests/performance/load.test.ts"], { "tests/performance/load.test.ts": "performance" })).toEqual(["tests/performance/load.test.ts"]);
 });
+
+test("coverage honors distinct configured line and function thresholds", () => {
+	const report = "SF:a.ts\nLF:10\nLH:8\nFNF:10\nFNH:9\nend_of_record\n";
+	expect(checkCoverage(report, ["a.ts"], { lines: 0.8, functions: 0.9 })).toEqual({ lines: 0.8, functions: 0.9 });
+	expect(() => checkCoverage(report, ["a.ts"], { lines: 0.9, functions: 0.8 })).toThrow("Line coverage");
+	expect(() => checkCoverage(report, ["a.ts"], { lines: 0.8, functions: 1 })).toThrow("Function coverage");
+});
+
+test("coverage cannot hide a below-threshold file behind a high aggregate", () => {
+	const report = "SF:large.ts\nLF:100\nLH:100\nFNF:100\nFNH:100\nend_of_record\nSF:small.ts\nLF:10\nLH:0\nFNF:10\nFNH:0\nend_of_record\n";
+	expect(() => checkCoverage(report, ["large.ts", "small.ts"], 0.8)).toThrow("small.ts");
+});

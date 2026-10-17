@@ -884,3 +884,21 @@ original alpha release gates remain open. No release SQL was generated locally.
 - TG01 DONE: registered files with unknown owning lanes must fail inventory validation instead of being omitted; performance is a recognized separate lane.
 
 - PF01 DONE: measured release acceptance, 600 real HTTP requests at10/s for60s with1000 lower-priority queued executions; p95 ACK<=1s, p95 stored acceptance-to-first-attempt<=2s, no critical wait>10s. Record fixture/image/resource conditions and all results before asserting. Existing-system acceptance; no fabricated pre-implementation Red.
+
+- RT01 DONE: event retention configuration defaults disabled, accepts explicit whole-day windows and rejects invalid/negative/fractional/out-of-bounds values.
+
+
+- RT03 DONE (test-after): disabled cleanup and actual non-superuser app/worker capability/immutability/batch boundaries.
+- RT04 DONE (test-after): lease expiry mid-delete rolls back pruning and audit together.
+
+- RT05 DONE: pruning wins the event lock; concurrent replay returns controlled not_found.
+
+- RT06 DONE: post-lock fresh-snapshot eligibility preserves newly committed replay work; non-read-committed calls are rejected by the deletion capability.
+
+- RT02 DONE: old completed/protocol-only event pruning preserves pending work and usage/audit/code history.
+- RT07 DONE: full bounded batches queue a single durable continuation; duplicate references and short batches do not extend it.
+- RT08 DONE: recovered maintenance preserves low priority and dedicated queue classification.
+- RT09 DONE: actual Graphile runners keep platform/mail capacity available while maintenance is blocked (behavioral Red then Green).
+- RT10 DONE: concurrent producers deduplicate hourly work; default-disabled config schedules nothing (initial missing-entrypoint observation, no fabricated behavioral Red).
+- RT11 DONE: producer immediate scheduling and stop/drain lifecycle (initial missing-module observation, no fabricated behavioral Red).
+- RT12 DONE (test-after): real worker startup schedules and executes opt-in cleanup without an operator command.

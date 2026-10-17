@@ -315,13 +315,32 @@ test("U152 slow SSE consumer is disconnected at bounded output", async () => {
 		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
 		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','project',$1,'custom',ARRAY['metadata.read'])", [scope.project]);
 		const abort = new AbortController();
-		const response = await streamChanges(pool, { userId: "fixture-owner" }, { type: "project", id: scope.project }, "0", abort.signal, { pollMs: 10 });
+		let detached!: () => void;
+		const disconnected = new Promise<void>((resolve) => {
+			detached = resolve;
+		});
+		// Observe cleanup without draining the stream or assuming database throughput.
+		// Reader completion below separately verifies this is a real disconnect.
+		const signal = new Proxy(abort.signal, {
+			get(target, key) {
+				if (key === "removeEventListener")
+					return (...args: Parameters<AbortSignal["removeEventListener"]>) => {
+						target.removeEventListener(...args);
+						if (args[0] === "abort") detached();
+					};
+
+				const value = Reflect.get(target, key, target);
+
+				return typeof value === "function" ? value.bind(target) : value;
+			},
+		});
+		const response = await streamChanges(pool, { userId: "fixture-owner" }, { type: "project", id: scope.project }, "0", signal, { pollMs: 10, heartbeatMs: 20 });
 		const reader = response.body!.getReader();
 		await reader.read();
 		await db.query("SELECT payloadbay.append_change('project',$1,'event.accepted',repeat('x',120)||n::text,'{}'::jsonb) FROM generate_series(1,1800)n", [scope.project]);
-		await new Promise((resolve) => setTimeout(resolve, 1500));
 		let total = 0;
 		try {
+			await Promise.race([disconnected, new Promise((_, reject) => setTimeout(() => reject(Error("Slow stream did not disconnect")), 10000).unref())]);
 			const drained = (async () => {
 				while (true) {
 					const next = await reader.read();

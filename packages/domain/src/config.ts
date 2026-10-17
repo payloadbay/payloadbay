@@ -56,6 +56,7 @@ const serverSchema = z.object({
 	maxAttempts: z.coerce.number().int().min(1).max(20),
 	otpRequestLimit: z.coerce.number().int().min(1).max(100),
 	registrationPolicy: z.enum(["invite_only", "organization"]),
+	eventRetentionDays: z.coerce.number().int().min(0).max(36500),
 });
 
 export function readServerConfig(env: Record<string, string | undefined>) {
@@ -84,6 +85,7 @@ export function readServerConfig(env: Record<string, string | undefined>) {
 		maxAttempts: env.PAYLOADBAY_MAX_ATTEMPTS ?? 5,
 		otpRequestLimit: env.PAYLOADBAY_OTP_REQUEST_LIMIT ?? 5,
 		registrationPolicy: env.PAYLOADBAY_REGISTRATION_POLICY ?? "invite_only",
+		eventRetentionDays: env.PAYLOADBAY_EVENT_RETENTION_DAYS ?? 0,
 	});
 	if (!parsed.success) throw new AppError("configuration_required", 503, "Server configuration requires attention");
 

@@ -33,8 +33,9 @@ export function assertNonemptyRun(runner: string, output: string) {
 	return Number(pass[1]);
 }
 
-export function checkCoverage(lcov: string, required: string[], threshold: number) {
-	if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) throw new Error("Invalid coverage threshold");
+export function checkCoverage(lcov: string, required: string[], threshold: number | { lines: number; functions: number }) {
+	const minimum = typeof threshold === "number" ? { lines: threshold, functions: threshold } : threshold;
+	if (!minimum || [minimum.lines, minimum.functions].some((value) => !Number.isFinite(value) || value < 0 || value > 1)) throw new Error("Invalid coverage threshold");
 	const records = lcov.split("end_of_record").filter((record) => record.includes("SF:"));
 	const paths = records.map((record) => resolve(record.match(/SF:(.+)/)![1]));
 	for (const file of required) if (!paths.includes(resolve(file))) throw new Error(`Missing coverage: ${file}`);
@@ -45,6 +46,11 @@ export function checkCoverage(lcov: string, required: string[], threshold: numbe
 	for (const record of records) {
 		const value = (key: string) => Number(record.match(new RegExp(`(?:^|\\n)${key}:(\\d+)`))?.[1] ?? 0);
 
+		const path = record.match(/SF:(.+)/)![1];
+		const label = path.startsWith("data:") ? "compiled test module" : path;
+		if (value("LF") && value("LH") / value("LF") < minimum.lines) throw new Error(`${label}: Line coverage below ${minimum.lines}`);
+		if (value("FNF") && value("FNH") / value("FNF") < minimum.functions) throw new Error(`${label}: Function coverage below ${minimum.functions}`);
+
 		lf += value("LF");
 		lh += value("LH");
 		fnf += value("FNF");
@@ -54,8 +60,8 @@ export function checkCoverage(lcov: string, required: string[], threshold: numbe
 	if (!lf) throw new Error("No line coverage");
 	const lines = lh / lf;
 	const functions = fnf ? fnh / fnf : 1;
-	if (lines < threshold) throw new Error(`Line coverage ${lines} below ${threshold}`);
-	if (functions < threshold) throw new Error(`Function coverage ${functions} below ${threshold}`);
+	if (lines < minimum.lines) throw new Error(`Line coverage ${lines} below ${minimum.lines}`);
+	if (functions < minimum.functions) throw new Error(`Function coverage ${functions} below ${minimum.functions}`);
 
 	return { lines, functions };
 }

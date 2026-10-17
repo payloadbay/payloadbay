@@ -36,7 +36,14 @@ CREATE TRIGGER immutable_project_parent BEFORE UPDATE OF workspace_id ON payload
 DROP TRIGGER IF EXISTS immutable_endpoint_parent ON payloadbay.endpoint;
 CREATE TRIGGER immutable_endpoint_parent BEFORE UPDATE OF project_id ON payloadbay.endpoint FOR EACH ROW EXECUTE FUNCTION payloadbay.reject_resource_parent('project_id');
 
-CREATE OR REPLACE FUNCTION payloadbay.reject_history_mutation() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'immutable history'; END $$;
+CREATE OR REPLACE FUNCTION payloadbay.reject_history_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF current_user='payloadbay_retention' AND TG_OP='DELETE'
+    AND TG_TABLE_SCHEMA='payloadbay' AND TG_TABLE_NAME IN ('event','receipt') THEN
+  RETURN OLD;
+ END IF;
+ RAISE EXCEPTION 'immutable history';
+END $$;
 DROP TRIGGER IF EXISTS immutable_stage ON payloadbay.stage_revision;
 CREATE TRIGGER immutable_stage BEFORE UPDATE OR DELETE ON payloadbay.stage_revision FOR EACH ROW EXECUTE FUNCTION payloadbay.reject_history_mutation();
 DROP TRIGGER IF EXISTS immutable_shared ON payloadbay.shared_module_revision;
@@ -93,7 +100,7 @@ CREATE OR REPLACE FUNCTION payloadbay.enqueue(identifier text,payload json,run_a
 DECLARE job_id bigint;job_flags text[];job_organization uuid;
 BEGIN
  IF identifier NOT IN ('process_event','platform_job') THEN RAISE EXCEPTION 'unsupported job type'; END IF;
- job_flags:=CASE WHEN identifier='platform_job' THEN ARRAY['platform'] WHEN priority<=0 THEN ARRAY['critical'] ELSE ARRAY['bulk'] END;
+ job_flags:=CASE WHEN identifier='platform_job' AND priority>=1000 THEN ARRAY['maintenance'] WHEN identifier='platform_job' THEN ARRAY['platform'] WHEN priority<=0 THEN ARRAY['critical'] ELSE ARRAY['bulk'] END;
  IF identifier='process_event' THEN
   SELECT w.organization_id INTO job_organization FROM payloadbay.execution x JOIN payloadbay.endpoint e ON e.id=x.endpoint_id JOIN payloadbay.project p ON p.id=e.project_id JOIN payloadbay.workspace w ON w.id=p.workspace_id WHERE x.id=(payload->>'executionId')::uuid;
   IF job_organization IS NOT NULL THEN job_flags:=array_append(job_flags,'organization:'||job_organization::text); END IF;
@@ -121,3 +128,121 @@ REVOKE INSERT ON payloadbay.change_record FROM payloadbay_app,payloadbay_worker;
 
 DROP TRIGGER IF EXISTS immutable_notification_channel_revision ON payloadbay.notification_channel_revision;
 CREATE TRIGGER immutable_notification_channel_revision BEFORE UPDATE OR DELETE ON payloadbay.notification_channel_revision FOR EACH ROW EXECUTE FUNCTION payloadbay.reject_history_mutation();
+
+
+-- Only this non-login function owner may bypass event/receipt DELETE guards.
+-- No application/worker role receives membership in the owner role.
+DO $$ BEGIN
+ IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='payloadbay_retention') THEN
+  CREATE ROLE payloadbay_retention NOLOGIN;
+ END IF;
+END $$;
+GRANT USAGE,CREATE ON SCHEMA payloadbay TO payloadbay_retention;
+GRANT SELECT ON payloadbay.event,payloadbay.receipt,payloadbay.execution,
+ payloadbay.endpoint,payloadbay.project,payloadbay.workspace,payloadbay.organization,
+ payloadbay.usage_fact,payloadbay.managed_operation,payloadbay.delivery_attempt,
+ payloadbay.dispatch,payloadbay.replay_key TO payloadbay_retention;
+GRANT DELETE ON payloadbay.event,payloadbay.receipt,payloadbay.execution,
+ payloadbay.managed_operation,payloadbay.delivery_attempt,payloadbay.dispatch,
+ payloadbay.replay_key TO payloadbay_retention;
+-- PostgreSQL requires UPDATE privilege for row locking; the trigger still rejects UPDATE.
+GRANT UPDATE(id) ON payloadbay.event TO payloadbay_retention;
+GRANT UPDATE(successful_attempt_id) ON payloadbay.managed_operation TO payloadbay_retention;
+
+CREATE OR REPLACE FUNCTION payloadbay.retention_event_eligible(candidate_id uuid,cutoff timestamptz)
+ RETURNS boolean LANGUAGE sql STABLE SET search_path=pg_catalog AS $$
+ SELECT EXISTS(
+  SELECT 1 FROM payloadbay.event e
+  JOIN payloadbay.endpoint ep ON ep.id=e.endpoint_id
+  JOIN payloadbay.project p ON p.id=ep.project_id
+  JOIN payloadbay.workspace w ON w.id=p.workspace_id
+  WHERE e.id=candidate_id AND e.received_at<=cutoff
+   AND (e.ingress_outcome<>'accept' OR EXISTS(
+    SELECT 1 FROM payloadbay.execution x WHERE x.event_id=e.id
+   ))
+   AND NOT EXISTS(
+    SELECT 1 FROM payloadbay.execution x WHERE x.event_id=e.id AND (
+     x.state NOT IN ('succeeded','failed_terminal') OR NOT EXISTS(
+      SELECT 1 FROM payloadbay.usage_fact f
+      WHERE f.organization_id=w.organization_id
+       AND f.metric=CASE WHEN x.state='succeeded' THEN 'execution.succeeded' ELSE 'execution.failed' END
+       AND f.source_key=x.id::text AND f.occurred_at<=cutoff
+     )
+    )
+   )
+   AND NOT EXISTS(
+    SELECT 1 FROM payloadbay.receipt r WHERE r.event_id=e.id AND r.accepted_at>cutoff
+   )
+   AND NOT EXISTS(
+    SELECT 1 FROM payloadbay.managed_operation op
+    JOIN payloadbay.execution x ON x.id=op.execution_id
+    WHERE x.event_id=e.id AND op.state IN ('ready','sending','uncertain')
+   )
+   AND NOT EXISTS(
+    SELECT 1 FROM payloadbay.delivery_attempt a
+    JOIN payloadbay.execution x ON x.id=a.execution_id
+    WHERE x.event_id=e.id AND a.ended_at IS NULL
+   )
+   AND NOT EXISTS(
+    SELECT 1 FROM payloadbay.event child WHERE child.derived_from_event_id=e.id
+   )
+   AND NOT EXISTS(
+    SELECT 1 FROM payloadbay.execution parent
+    JOIN payloadbay.execution child ON child.replay_of_id=parent.id
+    WHERE parent.event_id=e.id AND child.event_id<>e.id
+   )
+   AND NOT EXISTS(
+    SELECT 1 FROM payloadbay.replay_key k
+    JOIN payloadbay.execution x ON x.id=k.execution_id
+    WHERE (k.event_id=e.id OR x.event_id=e.id) AND k.event_id<>x.event_id
+   )
+ );
+$$;
+REVOKE ALL ON FUNCTION payloadbay.retention_event_eligible(uuid,timestamptz) FROM PUBLIC,payloadbay_app,payloadbay_worker;
+GRANT EXECUTE ON FUNCTION payloadbay.retention_event_eligible(uuid,timestamptz) TO payloadbay_retention;
+
+CREATE OR REPLACE FUNCTION payloadbay.prune_expired_events(cutoff timestamptz,batch_size integer)
+ RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $$
+DECLARE selected uuid[]; removed integer;
+BEGIN
+ IF current_setting('transaction_isolation')<>'read committed' THEN
+  RAISE EXCEPTION 'retention requires read committed isolation';
+ END IF;
+ IF cutoff IS NULL OR NOT isfinite(cutoff)
+    OR cutoff>statement_timestamp()-interval '1 day'
+    OR batch_size IS NULL OR batch_size<1 OR batch_size>200 THEN
+  RAISE EXCEPTION 'invalid retention bounds';
+ END IF;
+ SELECT coalesce(array_agg(candidate.id),ARRAY[]::uuid[]) INTO selected FROM (
+  SELECT e.id FROM payloadbay.event e
+  WHERE e.received_at<=cutoff AND payloadbay.retention_event_eligible(e.id,cutoff)
+  ORDER BY e.received_at,e.id LIMIT batch_size FOR UPDATE OF e SKIP LOCKED
+ ) candidate;
+ IF cardinality(selected)=0 THEN RETURN 0; END IF;
+
+ -- A replay can commit between the selection snapshot and its event row lock.
+ -- This separate statement sees that commit while locks prevent new replay work.
+ SELECT coalesce(array_agg(e.id),ARRAY[]::uuid[]) INTO selected
+ FROM payloadbay.event e
+ WHERE e.id=ANY(selected) AND payloadbay.retention_event_eligible(e.id,cutoff);
+ IF cardinality(selected)=0 THEN RETURN 0; END IF;
+
+ UPDATE payloadbay.managed_operation SET successful_attempt_id=NULL
+ WHERE execution_id IN(SELECT id FROM payloadbay.execution WHERE event_id=ANY(selected));
+ DELETE FROM payloadbay.delivery_attempt
+ WHERE execution_id IN(SELECT id FROM payloadbay.execution WHERE event_id=ANY(selected));
+ DELETE FROM payloadbay.managed_operation
+ WHERE execution_id IN(SELECT id FROM payloadbay.execution WHERE event_id=ANY(selected));
+ DELETE FROM payloadbay.dispatch
+ WHERE execution_id IN(SELECT id FROM payloadbay.execution WHERE event_id=ANY(selected));
+ DELETE FROM payloadbay.replay_key WHERE event_id=ANY(selected);
+ DELETE FROM payloadbay.execution WHERE event_id=ANY(selected);
+ DELETE FROM payloadbay.receipt WHERE event_id=ANY(selected);
+ DELETE FROM payloadbay.event WHERE id=ANY(selected);
+ GET DIAGNOSTICS removed=ROW_COUNT;
+ RETURN removed;
+END $$;
+ALTER FUNCTION payloadbay.prune_expired_events(timestamptz,integer) OWNER TO payloadbay_retention;
+REVOKE CREATE ON SCHEMA payloadbay FROM payloadbay_retention;
+REVOKE ALL ON FUNCTION payloadbay.prune_expired_events(timestamptz,integer) FROM PUBLIC,payloadbay_app;
+GRANT EXECUTE ON FUNCTION payloadbay.prune_expired_events(timestamptz,integer) TO payloadbay_worker;

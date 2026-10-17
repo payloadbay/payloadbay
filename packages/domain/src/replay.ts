@@ -41,6 +41,8 @@ async function replayInTransaction(db: PoolClient, actor: Actor, input: Paramete
 	if (!event) throw new AppError("not_found", 404, "Event unavailable");
 	await requirePermission(db, actor, { type: "project", id: event.project_id }, "events.replay");
 	if (event.ingress_outcome !== "accept") throw new AppError("request_not_accepted", 409, "Only accepted events can be replayed for delivery");
+	// Serialize with retention before creating new durable work or reusing a replay key.
+	if (!(await db.query("SELECT id FROM payloadbay.event WHERE id=$1 FOR UPDATE", [event.id])).rowCount) throw new AppError("not_found", 404, "Event unavailable");
 	await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [JSON.stringify(["replay", actor.userId, input.eventId, input.key])]);
 	const prior = (await db.query("SELECT input_digest,execution_id FROM payloadbay.replay_key WHERE actor=$1 AND event_id=$2 AND key=$3", [actor.userId, input.eventId, input.key])).rows[0];
 	if (prior) {

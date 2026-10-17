@@ -1,4 +1,6 @@
 import type { Pool } from "pg";
+import { cleanupTask } from "./cleanup.ts";
+import { platformJobPriority } from "@payloadbay/domain/platform-jobs";
 import nodemailer from "nodemailer";
 import { transaction } from "../../../../packages/domain/src/db.ts";
 import { decryptPrivate } from "../../../../packages/domain/src/private-crypto.ts";
@@ -10,7 +12,7 @@ import { notificationMessage } from "./notification-message.ts";
 import type { EmailContent } from "../../../../packages/contracts/src/notification-channels.ts";
 import type { ServerConfig } from "../../../../packages/domain/src/config.ts";
 
-type MailJob = {
+type PlatformJob = {
 	id: string;
 	kind: string;
 	generation: number;
@@ -33,7 +35,7 @@ type MailPayload = {
 };
 
 /** Resolve live policy on every attempt; script output never selects the SMTP recipient. */
-async function resolveMessage(pool: Pool, job: MailJob, data: MailPayload, config: ServerConfig) {
+async function resolveMessage(pool: Pool, job: PlatformJob, data: MailPayload, config: ServerConfig) {
 	const snapshot = data.channelSnapshot ?? {
 		requestedKey: "smtp",
 		channelId: null,
@@ -97,11 +99,11 @@ async function resolveMessage(pool: Pool, job: MailJob, data: MailPayload, confi
 	};
 }
 
-export function notificationDeliveryTask(pool: Pool, config: ServerConfig) {
+export function platformJobTask(pool: Pool, config: ServerConfig) {
 	return async (input: unknown) => {
 		const payload = input as { jobId?: unknown; generation?: unknown };
 		if (!payload || typeof payload.jobId !== "string" || !/^[-0-9a-f]{36}$/i.test(payload.jobId) || typeof payload.generation !== "number" || !Number.isInteger(payload.generation) || payload.generation < 1) throw Error("Invalid mail job reference");
-		const claimed = (await pool.query("UPDATE payloadbay.platform_job SET state='running',attempt_number=attempt_number+1,lease_owner='mail-worker',lease_expiry=clock_timestamp()+interval '30 seconds' WHERE id=$1 AND generation=$2 AND state='queued' AND attempt_number<max_attempts RETURNING *", [payload.jobId, payload.generation])).rows[0] as MailJob | undefined;
+		const claimed = (await pool.query("UPDATE payloadbay.platform_job SET state='running',attempt_number=attempt_number+1,lease_owner='mail-worker',lease_expiry=clock_timestamp()+interval '30 seconds' WHERE id=$1 AND generation=$2 AND state='queued' AND attempt_number<max_attempts RETURNING *", [payload.jobId, payload.generation])).rows[0] as PlatformJob | undefined;
 		if (!claimed) return;
 		const job = claimed;
 
@@ -116,11 +118,17 @@ export function notificationDeliveryTask(pool: Pool, config: ServerConfig) {
 			if (job.expiry && Date.now() + delay >= job.expiry.getTime()) return finish("expired", reason);
 			await transaction(pool, async (db) => {
 				const fresh = (await db.query("UPDATE payloadbay.platform_job SET state='queued',last_error=$3,generation=generation+1,lease_owner=NULL,lease_expiry=NULL,due_at=clock_timestamp()+($4::integer*interval '1 millisecond'),claim_deadline_at=clock_timestamp()+($4::integer*interval '1 millisecond')+interval '30 seconds' WHERE id=$1 AND generation=$2 AND state='running' AND lease_expiry>clock_timestamp() RETURNING *", [job.id, job.generation, reason, delay])).rows[0];
-				if (fresh) await db.query("SELECT payloadbay.enqueue('platform_job',$1::json,$2,$3,$4::smallint)", [JSON.stringify({ jobId: fresh.id, generation: fresh.generation }), fresh.due_at, `platform:${fresh.id}:${fresh.generation}`, job.kind === "otp_mail" || job.kind === "invitation_mail" ? 10 : 30]);
+				if (fresh) await db.query("SELECT payloadbay.enqueue('platform_job',$1::json,$2,$3,$4::smallint)", [JSON.stringify({ jobId: fresh.id, generation: fresh.generation }), fresh.due_at, `platform:${fresh.id}:${fresh.generation}`, platformJobPriority(job.kind)]);
 			});
 		}
 
 		try {
+			if (job.kind === "event_retention") {
+				await cleanupTask(pool, config)(job);
+
+				return;
+			}
+
 			const data = decryptPrivate<MailPayload>(job.encrypted_payload, config.encryptionKey);
 			const message = await resolveMessage(pool, job, data, config);
 			if (!message) return finish("expired");
@@ -166,7 +174,7 @@ export function notificationDeliveryTask(pool: Pool, config: ServerConfig) {
 
 			await finish("succeeded");
 		} catch {
-			await retry("Notification delivery failed; inspect SMTP configuration and the published channel");
+			await retry(job.kind === "event_retention" ? "Event retention failed; inspect database configuration" : "Notification delivery failed; inspect SMTP configuration and the published channel");
 		}
 	};
 }

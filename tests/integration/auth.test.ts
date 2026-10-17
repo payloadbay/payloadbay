@@ -147,7 +147,7 @@ test("U218 private provisioning creates non admitted identity", async () => {
 	});
 });
 
-import { notificationDeliveryTask } from "../../apps/worker/src/tasks/notification-delivery.ts";
+import { platformJobTask } from "../../apps/worker/src/tasks/platform-job.ts";
 
 test("U48 expired queued OTP mail is not sent", async () => {
 	await authFixture(async (f) => {
@@ -164,7 +164,7 @@ test("U48 expired queued OTP mail is not sent", async () => {
 			},
 			config.encryptionKey,
 		);
-		await notificationDeliveryTask(f.pool, config)({ jobId, generation: 1 });
+		await platformJobTask(f.pool, config)({ jobId, generation: 1 });
 		assert.equal((await f.db.query("SELECT state FROM payloadbay.platform_job WHERE id=$1", [jobId])).rows[0].state, "expired");
 		assert.equal((await (await fetch(f.mailUrl + "/api/v1/messages")).json()).total, 0);
 	});
@@ -294,7 +294,7 @@ test("U221 trusted OTP job sends current code through SMTP", async () => {
 				pgPool: f.pool,
 				noHandleSignals: true,
 				concurrency: 1,
-				taskList: { platform_job: notificationDeliveryTask(f.pool, config) },
+				taskList: { platform_job: platformJobTask(f.pool, config) },
 			});
 			let messages: any;
 			for (let i = 0; i < 50; i++) {
@@ -325,7 +325,7 @@ test("A3 admitted operator signs in through SMTP code", async () => {
 				pgPool: f.pool,
 				noHandleSignals: true,
 				concurrency: 1,
-				taskList: { platform_job: notificationDeliveryTask(f.pool, config) },
+				taskList: { platform_job: platformJobTask(f.pool, config) },
 			});
 			const messages = await (await fetch(f.mailUrl + "/api/v1/messages")).json();
 			assert.equal(messages.total, 1);
@@ -349,7 +349,7 @@ test("A3 admitted operator signs in through SMTP code", async () => {
 
 test("U222 malformed mail reference fails before SQL", async () => {
 	await authFixture(async (f) => {
-		await assert.rejects(notificationDeliveryTask(f.pool, fixtureConfig(f))({ jobId: "operator@example.test", generation: 1 }), /Invalid mail job reference/);
+		await assert.rejects(platformJobTask(f.pool, fixtureConfig(f))({ jobId: "operator@example.test", generation: 1 }), /Invalid mail job reference/);
 		assert.equal((await (await fetch(f.mailUrl + "/api/v1/messages")).json()).total, 0);
 	});
 });
@@ -363,7 +363,7 @@ test("U224 superseded queued OTP code is not sent", async () => {
 			await service.api.sendVerificationOTP({ body: { email: "operator@example.test", type: "sign-in" } });
 			const job = (await f.db.query("SELECT id,generation FROM payloadbay.platform_job")).rows[0];
 			await f.db.query("UPDATE auth.verification SET value='superseded-verifier:0'");
-			await notificationDeliveryTask(f.pool, config)({ jobId: job.id, generation: job.generation });
+			await platformJobTask(f.pool, config)({ jobId: job.id, generation: job.generation });
 			assert.equal((await (await fetch(f.mailUrl + "/api/v1/messages")).json()).total, 0);
 			assert.equal((await f.db.query("SELECT state FROM payloadbay.platform_job")).rows[0].state, "expired");
 		} finally {
@@ -486,7 +486,7 @@ test("U227 claimed mail increments bounded attempt count", async () => {
 		try {
 			await service.api.sendVerificationOTP({ body: { email: "operator@example.test", type: "sign-in" } });
 			const job = (await f.db.query("SELECT id,generation FROM payloadbay.platform_job")).rows[0];
-			await notificationDeliveryTask(f.pool, config)({ jobId: job.id, generation: job.generation });
+			await platformJobTask(f.pool, config)({ jobId: job.id, generation: job.generation });
 			assert.equal((await f.db.query("SELECT attempt_number FROM payloadbay.platform_job WHERE id=$1", [job.id])).rows[0].attempt_number, 1);
 		} finally {
 			await service.close();
@@ -502,7 +502,7 @@ test("U228 SMTP failure schedules fresh delayed retry", async () => {
 		try {
 			await service.api.sendVerificationOTP({ body: { email: "operator@example.test", type: "sign-in" } });
 			const job = (await f.db.query("SELECT id,generation FROM payloadbay.platform_job")).rows[0];
-			await notificationDeliveryTask(f.pool, { ...config, smtp: { ...config.smtp, user: "fixture-invalid", password: "fixture-invalid" } })({ jobId: job.id, generation: job.generation });
+			await platformJobTask(f.pool, { ...config, smtp: { ...config.smtp, user: "fixture-invalid", password: "fixture-invalid" } })({ jobId: job.id, generation: job.generation });
 			const retry = (await f.db.query("SELECT state,generation,due_at>clock_timestamp() AS delayed FROM payloadbay.platform_job WHERE id=$1", [job.id])).rows[0];
 			assert.deepEqual(retry, { state: "queued", generation: 2, delayed: true });
 		} finally {
@@ -520,7 +520,7 @@ test("U229 fifth failed mail attempt is terminal", async () => {
 			await service.api.sendVerificationOTP({ body: { email: "operator@example.test", type: "sign-in" } });
 			const job = (await f.db.query("SELECT id,generation FROM payloadbay.platform_job")).rows[0];
 			await f.db.query("UPDATE payloadbay.platform_job SET attempt_number=4 WHERE id=$1", [job.id]);
-			await notificationDeliveryTask(f.pool, { ...config, smtp: { ...config.smtp, user: "fixture-invalid", password: "fixture-invalid" } })({ jobId: job.id, generation: job.generation });
+			await platformJobTask(f.pool, { ...config, smtp: { ...config.smtp, user: "fixture-invalid", password: "fixture-invalid" } })({ jobId: job.id, generation: job.generation });
 			assert.equal((await f.db.query("SELECT state FROM payloadbay.platform_job WHERE id=$1", [job.id])).rows[0].state, "failed");
 		} finally {
 			await service.close();
@@ -637,7 +637,7 @@ test("invitations keep project access pending until verified acceptance and supp
 	const { createInvitation, acceptInvitation, cancelInvitation, invitationDetails, listInvitations } = await import("../../packages/domain/src/invitations.ts");
 	const { decryptPrivate } = await import("../../packages/domain/src/private-crypto.ts");
 	const { actorPermissions } = await import("../../packages/domain/src/membership.ts");
-	const { notificationDeliveryTask } = await import("../../apps/worker/src/tasks/notification-delivery.ts");
+	const { platformJobTask } = await import("../../apps/worker/src/tasks/platform-job.ts");
 	await authFixture(async (f) => {
 		const config = fixtureConfig(f);
 		const service = createAuth(f.pool, config);
@@ -655,7 +655,7 @@ test("invitations keep project access pending until verified acceptance and supp
 			const data = decryptPrivate<{ url: string }>(job.encrypted_payload, config.encryptionKey);
 			const token = new URL(data.url).pathname.split("/").at(-1)!;
 			assert.equal((await invitationDetails(f.pool, token)).email, invite.email);
-			await notificationDeliveryTask(f.pool, config)({ jobId: job.id, generation: job.generation });
+			await platformJobTask(f.pool, config)({ jobId: job.id, generation: job.generation });
 			assert.equal((await f.db.query("SELECT state FROM payloadbay.platform_job WHERE id=$1", [job.id])).rows[0].state, "succeeded");
 			await assert.rejects(acceptInvitation(f.pool, { userId: user.id }, token), { code: "invitation_identity" });
 			await f.db.query('UPDATE auth."user" SET "emailVerified"=true WHERE id=$1', [user.id]);
@@ -711,8 +711,8 @@ test("rotated OTP mail uses the newest verification and suppresses the old code"
 			const first = (await f.db.query("SELECT id,encrypted_payload FROM payloadbay.platform_job ORDER BY created_at DESC LIMIT 1")).rows[0];
 			await service.api.sendVerificationOTP({ body: { email: "operator@example.test", type: "sign-in" } });
 			const second = (await f.db.query("SELECT id,encrypted_payload FROM payloadbay.platform_job WHERE id<>$1", [first.id])).rows[0];
-			await notificationDeliveryTask(f.pool, config)({ jobId: first.id, generation: 1 });
-			await notificationDeliveryTask(f.pool, config)({ jobId: second.id, generation: 1 });
+			await platformJobTask(f.pool, config)({ jobId: first.id, generation: 1 });
+			await platformJobTask(f.pool, config)({ jobId: second.id, generation: 1 });
 			assert.equal((await f.db.query("SELECT state FROM payloadbay.platform_job WHERE id=$1", [first.id])).rows[0].state, "expired");
 			assert.equal((await f.db.query("SELECT state FROM payloadbay.platform_job WHERE id=$1", [second.id])).rows[0].state, "succeeded");
 			assert.equal((await (await fetch(f.mailUrl + "/api/v1/messages")).json()).total, 1);

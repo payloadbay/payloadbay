@@ -439,6 +439,7 @@ export const event = domain.table(
 		unique("event_id_publication").on(t.id, t.publicationId),
 		index("event_endpoint_time").on(t.endpointId, t.receivedAt.desc(), t.id.desc()),
 		index("event_global_history").on(t.receivedAt.desc(), t.id.desc()),
+		index("event_derived_parent").on(t.derivedFromEventId),
 	],
 );
 
@@ -482,6 +483,7 @@ export const execution = domain.table(
 		check("execution_max_attempts", sql`${t.maxAttempts} BETWEEN 1 AND 20`),
 		index("execution_recovery").on(t.state, t.dueAt, t.leaseExpiry),
 		index("execution_event_history").on(t.eventId, t.createdAt.desc(), t.id.desc()),
+		index("execution_replay_parent").on(t.replayOfId),
 	],
 );
 
@@ -697,7 +699,7 @@ export const replayKey = domain.table(
 			.notNull()
 			.references((): AnyPgColumn => execution.id),
 	},
-	(t) => [primaryKey({ columns: [t.actor, t.eventId, t.key] })],
+	(t) => [primaryKey({ columns: [t.actor, t.eventId, t.key] }), index("replay_key_event").on(t.eventId), index("replay_key_execution").on(t.executionId)],
 );
 
 export const authRequestWindow = domain.table("auth_request_window", { key: text("key").primaryKey(), windowStartedAt: time("window_started_at").notNull(), count: integer("count").notNull() }, (t) => [check("auth_request_window_count", sql`${t.count}>=0`)]);

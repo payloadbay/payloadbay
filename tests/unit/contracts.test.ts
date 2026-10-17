@@ -270,3 +270,10 @@ export async function POST(ctx: IngressContext): Promise<IngressDecision> { retu
 	expect(await module.default({ request: { method: "DELETE" }, respondOnly: response })).toEqual({ status: 405, headers: { allow: "GET, POST" }, body: "Method not allowed" });
 	expect(await module.default({ request: { method: "POST", body: "event", contentType: "text/plain" }, accept: response })).toEqual({ event: { body: "event", contentType: "text/plain" }, response: { status: 202, body: "queued" } });
 });
+
+test("RT01 event retention is opt-in and rejects invalid deletion windows", () => {
+	expect(readServerConfig(serverEnv).eventRetentionDays).toBe(0);
+	expect(readServerConfig({ ...serverEnv, PAYLOADBAY_EVENT_RETENTION_DAYS: "0" }).eventRetentionDays).toBe(0);
+	expect(readServerConfig({ ...serverEnv, PAYLOADBAY_EVENT_RETENTION_DAYS: "30" }).eventRetentionDays).toBe(30);
+	for (const value of ["-1", "0.5", "36501", "not-a-number"]) expect(() => readServerConfig({ ...serverEnv, PAYLOADBAY_EVENT_RETENTION_DAYS: value })).toThrow("Server configuration requires attention");
+});

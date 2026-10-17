@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import { transaction } from "./db.ts";
+import { platformJobPriority } from "./platform-jobs.ts";
 
 export async function recoverPlatformJobs(pool: Pool) {
 	return transaction(pool, async (client) => {
@@ -20,7 +21,7 @@ export async function recoverPlatformJobs(pool: Pool) {
 
 			const fresh = (await client.query("UPDATE payloadbay.platform_job SET generation=generation+1,state='queued',lease_owner=NULL,lease_expiry=NULL,due_at=clock_timestamp(),claim_deadline_at=clock_timestamp()+interval '30 seconds' WHERE id=$1 AND generation=$2 RETURNING *", [job.id, job.generation])).rows[0];
 			if (!fresh) continue;
-			await client.query("SELECT payloadbay.enqueue('platform_job',$1::json,$2,$3,$4::smallint)", [JSON.stringify({ jobId: fresh.id, generation: fresh.generation }), fresh.due_at, `platform:${fresh.id}:${fresh.generation}`, job.kind === "otp_mail" || job.kind === "invitation_mail" ? 10 : 30]);
+			await client.query("SELECT payloadbay.enqueue('platform_job',$1::json,$2,$3,$4::smallint)", [JSON.stringify({ jobId: fresh.id, generation: fresh.generation }), fresh.due_at, `platform:${fresh.id}:${fresh.generation}`, platformJobPriority(job.kind)]);
 			recovered.push(fresh.id);
 		}
 

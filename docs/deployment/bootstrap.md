@@ -60,3 +60,17 @@ unavailable explicitly selected runtime fails rather than silently downgrading.
 The web app does not receive the Docker socket. `bun run sandbox:check` verifies
 the selected host capability. Host gVisor validation and complete release-image
 installation/upgrade evidence remain separately tracked acceptance gates.
+
+## Verification artifacts and retention
+
+`bun run test:coverage` runs the unit owners with fresh LCOV under that run's
+`test-results/<run-id>/unit/coverage/` directory. The explicit checker reads the
+per-file line/function minima from `bunfig.toml`, verifies required source files loaded,
+and rejects missing reports or failing/empty tests. This measures unit-loaded
+sources; it does not certify the application's complete production coverage.
+Integration files that use Next share one parent-built standalone fixture before
+parallel Node execution. Keep separate Next-consuming commands sequential.
+
+Event retention defaults to disabled. See [event retention](retention.md) for
+opt-in configuration, preserved unfinished work, irreversible deletion and the
+remaining alpha verification limits.
