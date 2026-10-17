@@ -186,6 +186,14 @@ this list alone is not a completion claim.
 
 These are source-audit findings, not newly implemented behavior:
 
+- A bare endpoint middleware deep link (`/code/endpoint/:id`) without its
+  project-context query crashes the shell. Normal contextual navigation includes
+  the query and passes. Confirmed on the pre-review source as well; resolve the
+  endpoint ancestry rather than assuming a project object exists.
+- The mobile request-client toolbar leaves too little width for its URL input.
+  The separate receiving URL remains available, but the client itself should
+  give the editable URL its own usable row.
+
 - Hosted customer privacy also needs an explicit policy for instance-wide code.
   Middleware currently inherits from the physical instance ancestry. Removing
   implicit customer grants does not by itself isolate customer processing from

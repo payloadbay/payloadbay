@@ -455,10 +455,13 @@ test("U292 project code page creates helper version and processing middleware", 
 	await expect(page.getByRole("heading", { name: "Code and middleware", exact: true }), "Code management page must be available").toBeVisible();
 	await page.getByRole("button", { name: "Create helper", exact: true }).click();
 	await page.getByLabel("Helper name", { exact: true }).fill("Messages");
+	await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
 	const code = page.getByRole("textbox", { name: "Shared helper code", exact: true });
 	await code.focus();
 	await page.keyboard.press("ControlOrMeta+A");
-	await page.keyboard.insertText('export function message(){return "shared";}');
+	await page.evaluate(() => navigator.clipboard.writeText('export function message(){return "shared";}'));
+	await page.keyboard.press("ControlOrMeta+V");
+	await expect(page.locator(".monaco-editor .view-lines")).toContainText("shared");
 	await page.getByRole("button", { name: "Save helper version", exact: true }).click();
 	await expect(page.getByRole("alertdialog", { name: "Code status", exact: true })).toContainText("Saved a new immutable helper version");
 	await expect(page.getByRole("heading", { name: "Messages", exact: true })).toBeVisible();
@@ -469,7 +472,9 @@ test("U292 project code page creates helper version and processing middleware", 
 	await page.getByRole("button", { name: "Edit as new version", exact: true }).click();
 	await code.focus();
 	await page.keyboard.press("ControlOrMeta+A");
-	await page.keyboard.insertText('export function message(){return "shared v2";}');
+	await page.evaluate(() => navigator.clipboard.writeText('export function message(){return "shared v2";}'));
+	await page.keyboard.press("ControlOrMeta+V");
+	await expect(page.locator(".monaco-editor .view-lines")).toContainText("shared v2");
 	await page.keyboard.press("ControlOrMeta+s");
 	await expect(page.getByRole("dialog")).toHaveCount(0);
 	const helperVersions = await (await page.request.get("/api/v1/shared-code?scopeType=project&scopeId=" + project.id)).json();

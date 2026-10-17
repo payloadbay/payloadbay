@@ -113,6 +113,12 @@ review does not replace the previous complete clean-CI checkpoint above. Public
 hosted certification, instance middleware trust policy, physical Android input
 and published release acceptance remain separate work.
 
+CI39072637374 on b3a9d1f passes every functional owner except browser
+(70/71); coverage merge is skipped. U292 posted unchanged helper source after
+low-level insertText on Monaco. Native clipboard paste plus a visible-editor
+assertion retains the saved-source assertion and passes the scoped U292 flow.
+No product editor workaround or timeout increase was added.
+
 ## Historical bootstrap profile
 
 The root TypeScript entrypoint dispatches each file to its explicit owning runner. Bun never replaces production Node integration. All five exemplar files/helpers were read and run. HEAD6223754 plus current uncommitted bootstrap files; refresh after runner changes.
