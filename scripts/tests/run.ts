@@ -4,12 +4,16 @@ import { createServer } from "node:net";
 import { spawnSync } from "node:child_process";
 import { readFileSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { build } from "esbuild";
+import { runNodeCoverage } from "./coverage.ts";
 import { ensureNextBuild } from "./next-build.ts";
 import { inventory, registry } from "./inventory.ts";
 import { selectAffected, assertNonemptyRun, checkCoverage, testLanes } from "./policy.ts";
 
 const args = process.argv.slice(2);
 const mode = args.shift() ?? "suite";
+const coverageAt = args.indexOf("--collect-coverage");
+const collectCoverage = coverageAt >= 0;
+if (collectCoverage) args.splice(coverageAt, 1);
 const all = inventory();
 let files = all;
 if (mode === "file") {
@@ -41,6 +45,7 @@ if (mode === "file") {
 } else if (mode !== "suite" && mode !== "coverage" && !testLanes.some((lane) => lane === mode)) throw Error("Unknown test mode");
 if (testLanes.some((lane) => lane === mode)) files = all.filter((f) => registry.owners[f] === mode);
 if (!files.length) throw Error("Empty test selection");
+if (collectCoverage && files.some((file) => !["node", "executor", "deployment"].includes(registry.owners[file]))) throw Error("Source-mapped collection currently supports Node, executor and deployment owners only");
 const grep = mode === "file" && args[0] === "--name" ? args[1] : undefined;
 if (mode === "file" && args.length && (!grep || args.length !== 2)) throw Error("Expected --name followed by test name");
 const runId = process.env.PAB_TEST_RUN_ID ?? randomUUID();
@@ -100,7 +105,7 @@ for (const lane of lanes) {
 		options = ["--import", "tsx", "--test", lane === "performance" ? "--test-concurrency=1" : "--test-concurrency=2", ...(grep ? ["--test-name-pattern", grep] : []), ...selected];
 	}
 
-	const result = spawnSync(command, options, { encoding: "utf8", env, maxBuffer: 16 * 1024 * 1024 });
+	const result = collectCoverage ? runNodeCoverage(options, { directory: `${env.PAB_TEST_ARTIFACT_DIR}/coverage`, env, include: ["apps/**/src/**/*.ts", "packages/**/src/**/*.ts", "packages/**/src/**/*.tsx", "scripts/**/*.ts"] }) : spawnSync(command, options, { encoding: "utf8", env, maxBuffer: 16 * 1024 * 1024 });
 	writeFileSync(`${env.PAB_TEST_ARTIFACT_DIR}/console.txt`, (result.stdout ?? "") + (result.stderr ?? ""));
 	process.stdout.write(result.stdout ?? "");
 	process.stderr.write(result.stderr ?? "");

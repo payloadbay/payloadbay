@@ -71,7 +71,8 @@ deployment for this newer settings/UI checkpoint remains pending.
 
 ## Remaining release gates
 
-- Finish remaining notification boundary acceptance and retention cleanup.
+- Reconcile remaining notification boundary acceptance; opt-in retention cleanup
+  and scoped UI/live invalidation are implemented and verified below.
   Queue/age/job inspection and instance audit/configuration inspection are now
   implemented; coordinated whole-stack release readiness remains separate.
 - Finish remaining middleware ordering and script-test client presentation
@@ -93,7 +94,6 @@ without commercial ceilings or a required billing/license/telemetry service.
 There is no released alpha, production rollout or authorization to merge PR #13
 implied by this preflight.
 
-
 ### Exact remote settings/jobs checkpoint — 2026-10-17
 
 Coolify deployed `9d0c3f7` successfully at 08:54:25 UTC. Real synthetic owner/viewer
@@ -105,7 +105,6 @@ sign-in hint text is configurable, but preview Compose is still loaded from
 master; its optional text is not claimed visible remotely.
 
 Local live-update checkpoint: complete browser53/53, integration257/257 and unit47/47, plus lint, web/tooling TypeScript, formatting and inventory passed. One shared dashboard stream survives navigation; open attempt details refresh; successful replay preserves original history and creates a separate execution. Remote verification of these newer live changes is pending.
-
 
 ### Audit and installation inspection — 2026-10-17
 
@@ -124,7 +123,6 @@ All current static checks and final-source unit47/47 pass. Complete browser56/56
 passed in one invocation; full backend verification follows. These installation changes are not yet
 part of the exact deployed-source claim above.
 
-
 Complete installation/audit regression passed: browser56/56, backend259/259,
 unit48/48 (including the new inventory safeguard), lint, web/tooling TypeScript,
 format and inventory. Product source195b39e is pushed. Known test lanes now include
@@ -132,7 +130,6 @@ serialized performance; an invalid owner name fails rather than disappearing.
 The attempted Bun coverage command did not produce a fresh LCOV report; the old
 October14 file is not accepted as current evidence. Coverage remains open, along
 with performance, retention and published-release gates.
-
 
 The latency gate is now registered separately as `bun run test:performance`.
 Source-identical images with one CPU each delivered all 600 requests under
@@ -146,3 +143,27 @@ ifz6ql8qshyzhx9ebzeizkd9, finished10:19:42UTC. Real owner/viewer OTP, safe
 configuration, actual database/executor health, explicit worker/SMTP unmeasured
 states, one connected EventSource across client navigation, mobile containment
 and viewer denial passed. The mobile screenshot was visually inspected.
+
+## Retention and cold CI checkpoint — 2026-10-17
+
+Complete backend272/272, complete browser57/57, retention13/13and configuration3/3
+passed at the recorded source checkpoints (see cycle log). Pruning defaults
+disabled, retains unfinished/recent/unproven work, serializes both replay race
+orders and uses exact24-hour bounds across PostgreSQL daylight-saving offsets.
+Changes invalidate only affected project views; expired inspectors close quietly.
+Exact source e9724c7deployed and passed normal owner/viewer OTP, safe health and
+configuration, shared live connection, mobile containment and viewer denial.
+
+Fresh GitHub CI at ef479c4passes static, executor and all21deployment tests.
+These clean-checkout image tests use committed Dockerfiles, resolving the earlier
+local-draft evidence limitation; they are still source/candidate image tests,
+not published operator release installation/upgrade/restore certification.
+Latest-source performance passed600/600delivered, ACK p95116.789ms, first attempt
+p95131.701ms/max258.514mswith1000seeded bulk requests; see docs/performance.md.
+Backend/browser CI remain running at this checkpoint.
+
+Unit tests51/51pass, but their per-file coverage gate remains failing. The initial
+cold run's missing-rg prerequisite was corrected explicitly. Licensed installation
+works with the encrypted Actions credential. Central source policy PR#30checks and
+real App-token dry run passed; live external environment policy awaits approval
+and merge. No alpha merge or production migration generation is implied.

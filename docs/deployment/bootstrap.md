@@ -68,6 +68,15 @@ installation/upgrade evidence remain separately tracked acceptance gates.
 per-file line/function minima from `bunfig.toml`, verifies required source files loaded,
 and rejects missing reports or failing/empty tests. This measures unit-loaded
 sources; it does not certify the application's complete production coverage.
+Node, executor and deployment owners accept `--collect-coverage` for source-mapped
+V8 LCOV, for example `bun run test:executor --collect-coverage`. This collects the
+owning invocation once and removes raw V8 source-map caches before artifacts are
+uploaded. It is collection evidence, not an aggregate threshold pass. Bun LCOV
+does not identify individual functions, so summing its function counts with V8
+would be invalid; cross-engine function merging remains an open gate. Compiler
+children intentionally do not inherit diagnostic environment variables. Coverage
+does not weaken that boundary.
+
 Integration files that use Next share one parent-built standalone fixture before
 parallel Node execution. Keep separate Next-consuming commands sequential.
 

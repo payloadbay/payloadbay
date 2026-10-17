@@ -214,7 +214,7 @@
 ### Pause, retries, replay and retention
 
 - [ ] T070 [US5] Red: Add paused ingress/parked dispatch/bounded resume, exhaustion, failed/successful replay idempotency and original/current-publication policy cases in tests/integration/delivery.test.ts; trace US5.3/FR008/010/016. Behavior markers: [U140] [U141] [U142] [U143] [U144] [U145] [U146] [U147] [U148].
-- [ ] T071 [US5] Green: Implement packages/domain/src/replay.ts, packages/domain/src/pause.ts, packages/domain/src/retention.ts and apps/worker/src/tasks/cleanup.ts; "operator replay creates a new queued execution even from succeeded", same replay key/different input409, retained immutable attempts and unfinished-work/revision retention protection. (after T070). Behavior markers: [U140] [U141] [U142] [U143] [U144] [U145] [U146] [U147] [U148].
+- [x] T071 [US5] Green: Implement packages/domain/src/replay.ts, packages/domain/src/pause.ts, packages/domain/src/retention.ts and apps/worker/src/tasks/cleanup.ts; "operator replay creates a new queued execution even from succeeded", same replay key/different input409, retained immutable attempts and unfinished-work/revision retention protection. (after T070). Behavior markers: [U140] [U141] [U142] [U143] [U144] [U145] [U146] [U147] [U148].
 - [ ] T072 [US5] Refactor/verify: Run offline→retry→terminal→restore→replay and concurrency cases in tests/integration/delivery.test.ts; history outlives queue records and edited-payload replay remains deferred. (after T071). Behavior markers: [U140] [U141] [U142] [U143] [U144] [U145] [U146] [U147] [U148].
 
 ### Scoped live API and local interactive docs
@@ -226,7 +226,7 @@
 ### Recovery and job administration dashboard
 
 - [ ] T076 [US5] Red: Add live status/reconnect/replay/pause and privileged job/queue-age/metrics inspection flows in tests/acceptance/dashboard.spec.ts; trace US5/FR003/010/021/025. Behavior markers: [U157] [U158] [U159] [U160].
-- [ ] T077 [US5] Green: Implement apps/web/src/app/components/event-timeline.tsx, apps/web/src/app/components/live-subscription.tsx and apps/web/src/app/(dashboard)/admin/jobs/page.tsx; scoped event replay/pause routes under apps/web/src/app/api/v1/, installation health/audit/settings, factual configured isolation mode; notification attention control is implemented through the shared T104–T112 backbone, plus explicit metric denominators/time windows. (after T076). Behavior markers: [U157] [U158] [U159] [U160].
+- [x] T077 [US5] Green: Implement apps/web/src/app/components/event-browser.tsx, apps/web/src/app/components/live-subscription.tsx and apps/web/src/app/(dashboard)/admin/jobs/page.tsx; scoped event replay/pause routes under apps/web/src/app/api/v1/, installation health/audit/settings, factual configured isolation mode; notification attention control is implemented through the shared T104–T112 backbone, plus explicit metric denominators/time windows. (after T076). Behavior markers: [U157] [U158] [U159] [U160].
 - [ ] T078 [US5] Refactor/verify: Verify successful-event replay creates a new timeline, stale client refresh is safe, lower permissions conceal payload/admin controls and offline destination history remains inspectable in tests/acceptance/dashboard.spec.ts. (after T077). Behavior markers: [U157] [U158] [U159] [U160].
 
 ### Modular notification inbox and opt-in rules (FR027–028)
@@ -442,4 +442,9 @@ do not establish it. Retain the independent alpha release gates.
 
 Job administration checkpoint: U159/U160 now verified through the instance-protected
 `GET /api/v1/jobs` and `/admin/jobs` screen, with real scoped metadata and queue-age
-evidence. T076–T078 remain open for their other live/replay/admin acceptance.
+evidence. T071/T077 implementation is complete, with real replay/pause/retention,
+EventBrowser/shared stream, queue-age, audit and installation settings owners.
+T076 historical Red sequencing and T078 combined verification remain open until
+the remaining original acceptance evidence is reconciled; no retroactive Red is
+invented. Latest local complete backend272/browser57and retention13checks are
+recorded in the cycle log. Published release gates remain separate.

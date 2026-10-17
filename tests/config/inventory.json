@@ -33,7 +33,8 @@
 		"tests/acceptance/notification-inbox.spec.ts": "browser",
 		"tests/performance/delivery.test.ts": "performance",
 		"tests/integration/retention.test.ts": "node",
-		"tests/deployment/ci-policy.test.ts": "deployment"
+		"tests/deployment/ci-policy.test.ts": "deployment",
+		"tests/integration/coverage.test.ts": "node"
 	},
 	"coverageSources": ["scripts/tests/policy.ts", "scripts/tests/runtime.ts", "packages/domain/src/config.ts", "apps/executor/src/compiler.ts", "packages/contracts/src/config.ts", "packages/contracts/src/api.ts", "packages/contracts/src/errors.ts", "packages/contracts/src/lifecycle.ts", "packages/domain/src/authorization.ts"],
 	"plannedProductSuites": ["tests/unit/notifications.test.ts"],

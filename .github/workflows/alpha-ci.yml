@@ -157,11 +157,11 @@ jobs:
               bun run format:check
               ;;
             unit) bun run test:coverage ;;
-            node) bun run test:integration ;;
-            executor) bun run test:executor ;;
+            node) bun run test:integration --collect-coverage ;;
+            executor) bun run test:executor --collect-coverage ;;
             browser) bun run test:browser ;;
             performance) bun run test:performance ;;
-            deployment) bun run test:deployment ;;
+            deployment) bun run test:deployment --collect-coverage ;;
             *) exit 1 ;;
           esac
 
