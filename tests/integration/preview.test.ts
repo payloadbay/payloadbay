@@ -82,18 +82,22 @@ test("U321 preview warning is shown by runtime mode and absent outside previews"
 		async (f) => {
 			const html = await (await fetch(f.url + "/login")).text();
 			assert.match(html, /Disposable PR preview/);
-			assert.match(html, /Project admin · one project/);
-			assert.match(html, /Project viewer · read-only/);
+			assert.doesNotMatch(html, /Demo access/);
+			assert.doesNotMatch(html, /aria-label="Sign-in information"/);
 			assert.equal((await fetch(f.url + "/api/preview/receiver", { method: "POST", body: "synthetic event" })).status, 204);
 			assert.match(html, /Do not use production credentials or sensitive data/);
 		},
 		{ preview: true },
 	);
-	await nextFixture(async (f) => {
-		const html = await (await fetch(f.url + "/login")).text();
-		assert.doesNotMatch(html, /Disposable PR preview/);
-		assert.equal((await fetch(f.url + "/api/preview/receiver", { method: "POST" })).status, 404);
-	});
+	await nextFixture(
+		async (f) => {
+			const html = await (await fetch(f.url + "/login")).text();
+			assert.doesNotMatch(html, /Disposable PR preview/);
+			assert.match(html, /Optional operator sign-in information/);
+			assert.equal((await fetch(f.url + "/api/preview/receiver", { method: "POST" })).status, 404);
+		},
+		{ loginHint: "Optional operator sign-in information" },
+	);
 });
 
 import { setGrant } from "../../packages/domain/src/membership.ts";
