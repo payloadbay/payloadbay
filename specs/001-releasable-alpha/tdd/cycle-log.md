@@ -3098,3 +3098,13 @@ manifest. Historical images remain labeled bootstrap evidence; published image
 digests and release SQL remain absent. Standard PostgreSQL container tooling
 replaces a host backup-script runtime. No release SQL generated, no protected
 Docker/workflow draft staged, and no published install/upgrade is claimed.
+
+
+RX02 existing compiler-contract coverage: reserved/invalid helper bindings,
+non-async default lifecycle exports and forbidden host re-exports now have
+explicit behavioral assertions; scoped real compilerGREEN1/1. These cover
+previously implemented rejection paths, not a newly fixed bug or claimed Red.
+Using the standard source-location merger on passing backend276, executor29
+and scoped RX02 reports gives compiler238/283lines(84.09%) and8/8functions.
+The prior merged report was220/283lines(77.73%). This closes that source gap
+without weakening80%, but is not a full-product/browser/CI coverage gate pass.

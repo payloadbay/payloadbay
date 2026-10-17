@@ -304,3 +304,21 @@ test("RX01 isolated compiler child excludes Node's implicitly forwarded coverage
 		await rm(directory, { recursive: true, force: true });
 	}
 });
+
+test("RX02 publication rejects reserved bindings, invalid lifecycle exports and host re-exports", async () => {
+	const { compile, CompilationError } = await import("../../apps/executor/src/compiler.ts");
+	for (const name of ["ctx", "not-a-binding"]) {
+		await assert.rejects(
+			compile({
+				stage: "processing",
+				sourceId: "route-processing",
+				body: "return ctx.complete();",
+				sharedModules: { [name]: { source: "export const value = 1;", revisionId: "fixture" } },
+			}),
+			(error) => error instanceof CompilationError && error.diagnostics.some((diagnostic) => diagnostic.code === "invalid_binding" && diagnostic.sourceId === "route-processing"),
+		);
+	}
+
+	await assert.rejects(compile({ stage: "processing", sourceId: "route-processing", body: "export default function processEvent(ctx: ProcessingContext) { return ctx.complete(); }" }), (error) => error instanceof CompilationError && error.diagnostics.some((diagnostic) => diagnostic.code === "lifecycle_export"));
+	await assert.rejects(compile({ stage: "processing", body: "return ctx.complete();", sharedModules: { helper: { source: 'export { readFile } from "node:fs";', revisionId: "fixture" } } }), (error) => error instanceof CompilationError && error.diagnostics.some((diagnostic) => diagnostic.code === "unregistered_import" && diagnostic.sourceId === "helper"));
+});
