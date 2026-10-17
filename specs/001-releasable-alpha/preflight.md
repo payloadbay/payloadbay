@@ -202,3 +202,16 @@ Recovery assertions include original restricted-function ownership and ACLs as
 well as durable records. Historical fixture migrations and a same-cluster empty
 restore target are explicit; this does not certify published release installation
 or fresh-host role provisioning. See docs/deployment/backup.md.
+
+
+## Operator credential and recovery checkpoint
+
+Prebuilt-only operator Compose, migration-time restricted logins and worker-only
+Graphile RLS policies are implemented. Actual queue operation exposed and verified
+the needed private-table policies without global bypass or schema ownership.
+Complete runtime-login2/2, migration/recovery/Compose4/4, database16/16, retention13/13
+and installation API12/12pass. A1 uses real restricted app and mail-worker pools
+through normal SMTP OTP and one-time owner setup. Fresh-cluster roles recovery
+retains the original bootstrap/grantor identity and rejects all errors except the
+documented duplicate bootstrap-role creation. Published-image installation,
+pending-job upgrades and release rollback remain separate open gates.

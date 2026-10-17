@@ -14,56 +14,59 @@ test("U223 Next auth route mounts passwordless service", async () => {
 });
 
 test("A1 real Next installation completes one verified owner", async () => {
-	await nextFixture(async (f) => {
-		const post = (path: string, body: unknown, cookie = "") =>
-			fetch(f.url + path, {
-				method: "POST",
-				headers: {
-					origin: f.url,
-					"x-payloadbay-csrf": "1",
-					"content-type": "application/json",
-					cookie,
-				},
-				body: JSON.stringify(body),
-			});
+	await nextFixture(
+		async (f) => {
+			const post = (path: string, body: unknown, cookie = "") =>
+				fetch(f.url + path, {
+					method: "POST",
+					headers: {
+						origin: f.url,
+						"x-payloadbay-csrf": "1",
+						"content-type": "application/json",
+						cookie,
+					},
+					body: JSON.stringify(body),
+				});
 
-		const status = await fetch(f.url + "/api/v1/bootstrap");
-		assert.equal(status.status, 200, "bootstrap route must exist");
-		assert.deepEqual(await status.json(), { configured: false });
-		const input = {
-			action: "request-code",
-			secret: setupSecret,
-			email: "first@example.test",
-			name: "First owner",
-		};
-		assert.equal((await post("/api/v1/bootstrap", { ...input, secret: "wrong" })).status, 403);
-		assert.equal((await post("/api/v1/bootstrap", input)).status, 200);
-		await runOnce({
-			pgPool: f.pool,
-			noHandleSignals: true,
-			concurrency: 1,
-			taskList: { platform_job: platformJobTask(f.pool, fixtureConfig(f)) },
-		});
-		const messages = await (await fetch(f.mailUrl + "/api/v1/messages")).json();
-		assert.equal(messages.total, 1);
-		const message = await (await fetch(f.mailUrl + "/api/v1/message/" + messages.messages[0].ID)).json();
-		const otp = message.Text.match(/\b\d{6}\b/)?.[0];
-		assert.ok(otp);
-		const signed = await post("/api/auth/sign-in/email-otp", { email: input.email, otp });
-		assert.equal(signed.status, 200);
-		const cookie = signed.headers
-			.getSetCookie()
-			.map((c) => c.split(";")[0])
-			.join("; ");
-		assert.ok(cookie);
-		const results = await Promise.all([post("/api/v1/bootstrap", { action: "complete", secret: setupSecret }, cookie), post("/api/v1/bootstrap", { action: "complete", secret: setupSecret }, cookie)]);
-		assert.deepEqual(results.map((r) => r.status).sort(), [200, 409]);
-		assert.equal((await f.db.query("SELECT count(*)::int AS n FROM payloadbay.grant_record WHERE role_preset='owner'")).rows[0].n, 1);
-		assert.deepEqual(await (await fetch(f.url + "/api/v1/bootstrap")).json(), { configured: true });
-		assert.equal((await post("/api/v1/bootstrap", input)).status, 409);
-		const signup = await post("/api/auth/sign-up/email", { email: "outsider@example.test", name: "Outsider", password: "not-enabled" });
-		assert.equal(signup.status, 404);
-	});
+			const status = await fetch(f.url + "/api/v1/bootstrap");
+			assert.equal(status.status, 200, "bootstrap route must exist");
+			assert.deepEqual(await status.json(), { configured: false });
+			const input = {
+				action: "request-code",
+				secret: setupSecret,
+				email: "first@example.test",
+				name: "First owner",
+			};
+			assert.equal((await post("/api/v1/bootstrap", { ...input, secret: "wrong" })).status, 403);
+			assert.equal((await post("/api/v1/bootstrap", input)).status, 200);
+			await runOnce({
+				pgPool: f.pool,
+				noHandleSignals: true,
+				concurrency: 1,
+				taskList: { platform_job: platformJobTask(f.pool, fixtureConfig(f)) },
+			});
+			const messages = await (await fetch(f.mailUrl + "/api/v1/messages")).json();
+			assert.equal(messages.total, 1);
+			const message = await (await fetch(f.mailUrl + "/api/v1/message/" + messages.messages[0].ID)).json();
+			const otp = message.Text.match(/\b\d{6}\b/)?.[0];
+			assert.ok(otp);
+			const signed = await post("/api/auth/sign-in/email-otp", { email: input.email, otp });
+			assert.equal(signed.status, 200);
+			const cookie = signed.headers
+				.getSetCookie()
+				.map((c) => c.split(";")[0])
+				.join("; ");
+			assert.ok(cookie);
+			const results = await Promise.all([post("/api/v1/bootstrap", { action: "complete", secret: setupSecret }, cookie), post("/api/v1/bootstrap", { action: "complete", secret: setupSecret }, cookie)]);
+			assert.deepEqual(results.map((r) => r.status).sort(), [200, 409]);
+			assert.equal((await f.db.query("SELECT count(*)::int AS n FROM payloadbay.grant_record WHERE role_preset='owner'")).rows[0].n, 1);
+			assert.deepEqual(await (await fetch(f.url + "/api/v1/bootstrap")).json(), { configured: true });
+			assert.equal((await post("/api/v1/bootstrap", input)).status, 409);
+			const signup = await post("/api/auth/sign-up/email", { email: "outsider@example.test", name: "Outsider", password: "not-enabled" });
+			assert.equal(signup.status, 404);
+		},
+		{ runtimePasswords: { app: "fixture-owner-app-database-password-32-characters", worker: "fixture-owner-worker-database-password-32-characters" } },
+	);
 });
 
 test("A2 real API denies anonymous and inactive access", async () => {

@@ -1,77 +1,120 @@
 # Quickstart and validation guide
 
-## Current runnable scaffold
+## Current status
 
-From Core root with the installed licensed HeroUI artifacts:
+The alpha implements the dashboard/API, passwordless authentication, tenant
+permissions, editable scripts and durable delivery. It remains unreleased in
+PR #13. Use `preflight.md` and `tdd/cycle-log.md` for source-specific evidence;
+an installed tool, green selected test or working preview is not release approval.
 
-```bash
+Published operator installation, pending-job upgrades, complete coverage and
+release recovery acceptance remain separate gates. The encrypted HeroUI installer
+credential is configured in CI and clean builds have passed; it is not a missing
+operator runtime requirement.
+
+## Review the disposable preview
+
+Open the PR preview, read its disposable-data notice, and use a listed account
+through normal email-code sign-in. Preview Mailpit receives the synthetic codes;
+there is no selector or authentication bypass. The owner, organization owner,
+project administrator and viewer demonstrate different scopes. Do not use
+production credentials or sensitive events in a shared preview.
+
+Create a project/route and destination, edit or copy a template, test it, save a
+draft and publish. Send a synthetic request to the displayed ingress URL. Inspect
+the live event and its delivery attempts, including captured response details.
+Pause delivery, leave the receiving route active, then resume or replay retained
+work. Draft/helper edits must not change an already-published revision.
+
+## Source development
+
+Bun owns packages; Next.js and production integration tests run on Node. From the
+repository root:
+
+```sh
 bun install --frozen-lockfile
-bun run web:typecheck
-bun run web:lint
-bun run web:build
-bun run web:dev
+bun run test:inventory
+bun run typecheck
+bun run lint
+bun run format:check
+bun run test:file tests/integration/organizations.test.ts
+bun run test:affected packages/domain/src/ingress.ts
 ```
 
-Clean Pro installation requires local HeroUI CLI login or CI HEROUI_AUTH_TOKEN; install may relocate/remove licensed artifacts, so verify imports and restore through official installer. Bun is package manager; app scripts explicitly run Node. This workspace needs child-process permissions for full Next build; this is environment permission, not passing behavioral tests. To run built standalone output use bun run web:start (HOSTNAME/PORT configure binding). Build prepares local CSS/fonts. Theme source/checksum matches canonical brand/theme.css. Never expose auth/build credentials in client or image layers.
+A licensed source build requires the official HeroUI Pro installer, using local
+CLI login or an environment-provided CI credential. Never put its value in source,
+build arguments or application runtime configuration. Run the pinned installer
+from `apps/web` as documented in the CI workflow, then return to the root for
+`bun run web:build` or `bun run web:dev` with the operator-owned development
+configuration. Build prepares the standalone CSS, fonts and public assets.
 
-Verified before this planning run: typecheck, lint, production build and standalone HTML/CSS smoke. This command updates documentation, not app behavior. No running durable/auth/worker product implied by shell.
+Use disposable PostgreSQL/SMTP/HTTP fixtures for tests; the registered runner
+creates them with Docker and synthetic data. `bun run db:push` is for an explicitly
+selected disposable development database. Feature branches do not generate release
+SQL. Master CI creates the coordinated migration after approved merge.
 
-## Required foundation before full-flow checks
+## Operator deployment
 
-Bootstrap now supplies real fixture/image, unit/Node/workerd/browser commands and a verified TDD profile (see docs/deployment/bootstrap.md). Product migrations, full release build, sandbox and acceptance proofs remain tasks. Do not invoke absent product commands or claim an empty selection is a pass. Use local synthetic payloads and disposable Postgres/SMTP/HTTP fixtures; no production credentials. Operator deployment uses prebuilt published images, not Node/Bun installation on host.
+[Operator installation](../../docs/deployment/README.md) describes the prebuilt-only
+`deploy/compose.yml`, configuration, restricted runtime database credentials,
+SMTP, initial owner setup, network reachability and update order. No host Node/Bun
+or Docker socket is required. The default executor mode is ordinary restricted
+Docker/runc; optional runsc requires host installation and container recreation.
+An unavailable explicitly selected runtime fails instead of silently falling back.
 
-## Executable scenarios once tooling exists
+The Compose definition requires image references from one coordinated published
+release. Those image digests and release SQL are not available on this branch yet;
+do not substitute preview schema push or historical test SQL for a release.
 
-1. Clean image installation and migrations, configured local SMTP, concurrent owner bootstrap; exactly one owner, code login, no public signup.
-2. Instance/organization/workspace/project preset/custom grants; negative list/detail/payload/token/SSE checks and no privilege escalation.
-3. Create project/endpoints/destinations; body-editor compile/test/publish both stages, helper/middleware bindings, signature/policy errors and rollback without mutating old runs.
-4. Send exact JSON/binary fixtures; verification rejection, protocol-only challenge, commit rollback, acceptance followed by actual tracked delivery.
-5. Healthy critical events under replay/email/cleanup backlog: 10/sec for60s, p95 ack<=1s, acceptance-to-first-attempt<=2s, no critical wait>10s on documented fixture.
-6. Destination offline: acknowledgement still follows commit; bounded retries/exhaustion preserve histories; restore/replay creates new execution; successful-event replay supported.
-7. Pause/resume: ingestion continues; new sends pause, inflight may finish; retained backlog drains at bounded destination concurrency.
-8. Kill child and whole worker/executor container; after replacement services healthy, orphan work claimable<=60s. Inject DB partition and suspend old process; fresh generation rejects stale sends/results. HTTP remote-success/local-result-loss remains duplicate window.
-9. SSE reconnect/backfill/gap/resync and permission revocation; Scalar requests local API with scoped token, schemas/docs match actual errors.
-10. Executor forbidden imports/processes/files/secrets/network/forged IPC/resource abuse; siblings and ingress capacity survive within declared limits.
-11. Pending-job publication/config upgrade, forward migrations, backup/restore, redaction/retention and image compatibility.
+## Owning validation lanes
 
-## Test execution owners
+Use scoped owners for local changes, then affected/final owners when justified:
 
-See plan.md section14. Whole-file/scenario inner loop has no coverage overhead; affected routes broaden when uncertain; final lanes isolated by DB/ports/resources. Reuse JUnit/coverage artifacts, verify source/test inventory and deliberate threshold failure. Production Node tests cover Bun-runtime differences. Acceptance route paths are planned, not currently implemented scripts.
+```sh
+bun run test:unit
+bun run test:integration --collect-coverage
+bun run test:executor --collect-coverage
+bun run test:browser
+bun run test:deployment --collect-coverage
+bun run test:performance
+bun run test:coverage
+```
 
-## Release blockers
+Next-consuming owners share the local standalone directory and must run serially.
+Freeze runtime source through their build and test invocation. Different CI owners
+have isolated runners/databases/ports and explicit concurrency budgets. Preserve
+failures and reuse actual reports; do not silently increase deadlines or weaken
+coverage thresholds. The performance owner stays uninstrumented.
 
-CI Pro token remains absent. Real SMTP/operator configuration needed for live login. Worker/executor resource/recovery tests and versioned image pins remain unimplemented. Validate standard-container protections; test optional runsc separately and fail early if explicitly selected but absent. Do not publish raw licensed library artifacts/credentials; verify built image distribution against license. Tasks and verified bootstrap TDD profile/list now exist; product suites remain pending.
+Filtered source-mapped LCOV and Istanbul JSON can be collected from Node owners.
+The standard function-location merger has real complementary/duplicate-report
+canaries, but full-product/browser aggregation is not complete. The unit per-file
+80% gate still fails and must not be represented as passing aggregate coverage.
 
-## Organization foundation validation — planned, not yet executed
+## Release acceptance
 
-After F01–F12 implement/register their tests, use the existing scoped test runner.
-No new foundation test path is claimed runnable before it exists in the inventory.
-Required scenarios:
+- Verify exactly one owner bootstrap, real email-code sign-in, disabled default
+  registration and inherited instance/organization/workspace/project boundaries.
+- Verify original binary requests, exact protocol replies, rejection visibility,
+  transaction rollback and acceptance only after durable work commits.
+- Verify managed HTTP delivery, bounded retry/exhaustion, pause/resume, immutable
+  code/secret pins, uncertain outcomes and replay with receiver deduplication.
+- Verify scoped event/attempt visibility, live reconnect/revocation, local API
+  documentation and scoped API-key access without owner-cookie fallback.
+- Verify cleanup preserves active/reference-linked work, audit, usage and code.
+- Measure the declared critical/bulk contention scenario with counts, hardware,
+  cold-start policy and retained failures. A measured pass is not an SLA.
+- Verify the published coordinated images, migration locking, restricted runtime
+  roles, pending jobs across upgrade and complete backup/restore/rollback limits.
 
-1. Clean self-hosted OTP setup creates operator/default organization/workspace;
-   existing alpha-data mapping preserves IDs/history/jobs and scope-only grants.
-2. Policy-controlled verified customer creates organization/default workspace
-   idempotently without operator rights; invited project-only reviewer enters the
-   existing scope instead. Ordinary self-hosted signup remains disabled.
-3. Two organizations and a multi-organization user exercise lists/direct IDs,
-   aggregates, search, secret/helper/publication resolution, SSE/token revocation,
-   worker lineage and operator-only policy writes.
-4. Ingress/replay/recovery/managed sends produce exact durable fact/counter totals;
-   duplicate jobs/heartbeats/cached sends do not inflate logical executions;
-   transaction failure and payload pruning preserve the declared usage semantics.
-5. Concurrent resource creates respect one remaining slot. Capacity deferral does
-   not consume attempts; restart/stale generations recover authority; another
-   organization makes bounded progress under load. Accepted backlog survives a
-   policy downgrade.
-6. Verify commercially unlimited defaults still collect usage and require no
-   account/license/network service, while configured safety limits remain active.
-7. Exercise mobile setup, invitation, org/workspace/project switch, breadcrumbs,
-   search and scoped member/usage tables. Preview includes unrelated organization
-   examples as well as the existing project-only admin/viewer accounts.
+[Database recovery](../../docs/deployment/backup.md) documents archive, original
+roles/grantor identity, external encryption keys and replay/rollback limits.
+Historical migration fixtures, fresh-cluster mechanism tests and compatibility
+startup checks do not certify published release upgrades. See the
+[release checklist](../../docs/releases/alpha.md) for the remaining gates.
 
-Once implemented, run affected domain/integration/browser/recovery/deployment
-routes, ESLint, web/tooling TypeScript, Prettier and the actual final preview.
-Prior green alpha tests do not count as evidence for unimplemented foundation
-scenarios. Payments, enterprise activation and public hostile-tenant hosting are
-not validation prerequisites for this local foundation; their own release gates
-remain H01.
+Organization foundation scenarios F01–F12 are implemented and recorded in
+preflight: verified customer onboarding, two-organization isolation, scoped tokens,
+lineage, local usage/capacity and commercially unlimited self-hosted defaults.
+Payments, enterprise activation and hostile public-tenant hosting remain future
+H01 work; no commercial quota or billing integration is claimed.

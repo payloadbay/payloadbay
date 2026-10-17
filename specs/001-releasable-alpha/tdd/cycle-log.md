@@ -3060,3 +3060,41 @@ The preview-only Coolify login banner is present in rendered login. Cold97648ba
 run39037012993passed backend/executor/browser/deployment/performance. Static
 failed three logical-section blank lines introduced in final restore assertions;
 those are corrected. Unit tests pass but per-file coverage still fails.
+
+
+Operator packaging follow-up: deploy/compose.yml now uses only explicit prebuilt
+image references, persistent PostgreSQL, one-shot migration, separate app/worker
+logins and no executor database/auth/SMTP credentials. PostgreSQL health waits
+for the final TCP listener; app startup requires actual worker broker health.
+The migrator can transactionally provision/rotate distinct non-administrative
+runtime logins. Weak/shared passwords, administrative attributes and unexpected
+role memberships fail; a rejected second role rolls the first password change
+back. Passwords stay outside URLs through standard PGPASSWORD.
+
+Basic SQL grants alone initially passed, but the actual Graphile consumer
+returned0processed after private-table RLS denied insertion (RED42501). Added
+worker-only policies on Graphile's four private RLS tables; no global BYPASSRLS
+or schema ownership is granted. Complete runtime-login ownerGREEN2/2 includes
+real queue consumption, denied DDL/migration history/cross-role access, quoted
+credentials and atomic/unsafe-membership checks. Initial queue-test fixture
+errors (wrong workspace import, connectionString overriding explicit password)
+were corrected; they are not product regression Reds.
+
+The real packaged migrator provisions the logins and stays idempotent. Fresh
+cluster restore later exposed PostgreSQL17 grantor attribution when a different
+bootstrap administrator was used. Preserve the original bootstrap identity;
+PostgreSQL documents its duplicate CREATE ROLE as expected. The test accepts
+only that exact stderr line, rejects every other roles-restore error, and keeps
+strict archive restore. Complete migration/recovery/Compose ownerGREEN4/4.
+
+Existing A1 now runs Next with the restricted app login and sends its real queued
+SMTP code with the restricted worker pool; concurrent setup still completes one
+verified owner. Scoped A1GREEN and complete installation API owner12/12pass.
+Database/migration16/16 and retention13/13pass after the queue policy change.
+TypeScript/ESLint/Prettier/inventory pass at the packaging checkpoint.
+
+Updated operator/recovery/quickstart/release documents and stale bootstrap
+manifest. Historical images remain labeled bootstrap evidence; published image
+digests and release SQL remain absent. Standard PostgreSQL container tooling
+replaces a host backup-script runtime. No release SQL generated, no protected
+Docker/workflow draft staged, and no published install/upgrade is claimed.

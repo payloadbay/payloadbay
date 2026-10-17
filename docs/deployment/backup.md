@@ -8,9 +8,9 @@ The migration-image and archive tests are registered in
 `tests/deployment/migrator.test.ts`. They exercise a real PostgreSQL 17 custom
 archive, including binary request bytes, original publication references, queued
 jobs, encrypted secrets, immutable-code triggers and the restricted retention
-function's ownership/execute privileges. The restore target is an empty database
-in the disposable test cluster, where the original roles already exist. This is
-mechanism evidence; cross-host published-release recovery remains a release gate.
+function's ownership/execute privileges. Tests cover both an empty database in the disposable source cluster and a new
+PostgreSQL cluster whose roles are restored first. This is mechanism evidence;
+published-release recovery and controlled post-restore delivery remain release gates.
 
 ## Backup contents
 
@@ -26,9 +26,17 @@ The database archive does not contain the environment encryption key. Losing it
 makes stored encrypted credentials unusable; changing it is not a recovery step.
 Authentication secrets and external SMTP configuration are also operator-owned.
 
-A database dump does not include PostgreSQL cluster roles. A fresh host needs the
-original owners and runtime roles provisioned before restoring object ownership
-and ACLs. Never substitute `--no-owner` or `--no-acl` to hide missing-role errors:
+A database dump does not include PostgreSQL cluster roles. Capture those with
+`pg_dumpall --globals-only --no-role-passwords --no-tablespaces` and retain the
+original bootstrap administrator name with the recovery configuration. Initialize
+the new cluster with that same bootstrap name so PostgreSQL17 role-grant attribution
+remains valid. Its globals script reports the documented duplicate bootstrap-role
+creation; accept only that exact expected error, not arbitrary SQL errors. All
+other role restoration failures must stop recovery. Reset runtime passwords from
+operator secrets before reopening access, because this roles dump omits passwords.
+
+A fresh host needs the original owners and runtime roles provisioned before
+restoring object ownership and ACLs. Never substitute `--no-owner` or `--no-acl` to hide missing-role errors:
 that can broaden SECURITY DEFINER authority or remove access restrictions.
 
 ## Restore order and rollback limits
@@ -49,3 +57,8 @@ rollback is not a destructive database downgrade. After a schema change, use onl
 an explicitly tested compatible image or recover the complete earlier database
 snapshot into a separate target. Published upgrade/rollback compatibility is not
 established by the historical migration fixtures.
+
+PostgreSQL's [pg_dumpall notes](https://www.postgresql.org/docs/17/app-pg-dumpall.html#APP-PG-DUMPALL-NOTES)
+document the bootstrap-role duplicate. Payload Bay's fresh-cluster test checks
+the complete stderr against that one expected message; database archive restore
+continues to use --exit-on-error and a single transaction.

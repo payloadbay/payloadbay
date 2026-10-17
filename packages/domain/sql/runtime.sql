@@ -82,6 +82,20 @@ GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA auth TO payloadbay_app;
 GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA graphile_worker TO payloadbay_worker;
 GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA graphile_worker TO payloadbay_worker;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA graphile_worker TO payloadbay_worker;
+-- Graphile's private queue tables enable RLS. The trusted worker needs scoped
+-- data access, not global BYPASSRLS or ownership of either application schema.
+DO $$
+DECLARE queue_table text;
+BEGIN
+ FOREACH queue_table IN ARRAY ARRAY['_private_tasks','_private_jobs','_private_job_queues','_private_known_crontabs'] LOOP
+  IF EXISTS(SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+            WHERE n.nspname='graphile_worker' AND c.relname=queue_table AND c.relrowsecurity) THEN
+   EXECUTE format('DROP POLICY IF EXISTS payloadbay_worker_access ON graphile_worker.%I',queue_table);
+   EXECUTE format('CREATE POLICY payloadbay_worker_access ON graphile_worker.%I FOR ALL TO payloadbay_worker USING (true) WITH CHECK (true)',queue_table);
+  END IF;
+ END LOOP;
+END $$;
+
 CREATE OR REPLACE FUNCTION payloadbay.enqueue(identifier text,payload json,run_at timestamptz,job_key text,priority smallint)
  RETURNS bigint LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $$
 DECLARE job_id bigint;
