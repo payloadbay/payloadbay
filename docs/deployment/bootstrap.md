@@ -74,3 +74,34 @@ parallel Node execution. Keep separate Next-consuming commands sequential.
 Event retention defaults to disabled. See [event retention](retention.md) for
 opt-in configuration, preserved unfinished work, irreversible deletion and the
 remaining alpha verification limits.
+
+## Alpha CI and external contribution review
+
+The Alpha Validation workflow checks an immutable source SHA on fresh GitHub-hosted
+runners, with separate static, unit, backend, executor, browser, performance and
+deployment owners. The unit coverage command deliberately fails if a loaded file
+misses the configured minimum; passing unit tests alone are not a coverage pass.
+The current remaining coverage aggregation and published-release checks remain
+release gates rather than being waived by this workflow.
+
+Same-repository maintainer branches run automatically. External pull requests use
+the trusted base `pull_request_target` workflow, which first verifies that
+`alpha-ci-external` has required reviewers, without checking out the contribution.
+A native GitHub environment review then authorizes the exact source SHA before
+any check runner starts. That review authorizes running the whole contribution
+with the installer credential; BuildKit and secret masking do not make malicious
+approved code safe. New head commits require a new workflow authorization.
+The external path becomes available once this workflow exists on master.
+
+The source-controlled environment declaration lives in the central repository
+baseline ([policy PR #30](https://github.com/payloadbay/.github/pull/30)); the
+existing baseline workflow applies it after source approval. Missing or unreadable
+protection fails closed. No new required branch-protection check is enabled until
+the workflow has been validated. Coolify still owns PR previews separately;
+this does not introduce a replacement deployment pipeline.
+
+Configure `HEROUI_AUTH_TOKEN` as an encrypted repository Actions secret. Only the
+licensed installer step receives it. Public dependency downloads are cached before
+licensed installation; the licensed CLI uses a separate uncached directory.
+Neither cache nor uploaded test evidence should contain the installer credential
+or licensed dependency archives. Test runners receive no production credentials.
