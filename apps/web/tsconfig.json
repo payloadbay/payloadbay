@@ -29,7 +29,8 @@
 			"@sdk/*": ["../../packages/script-sdk/src/*"],
 			"@formatting": ["../../.github/tooling/prettier/base.mjs"]
 		},
-		"allowImportingTsExtensions": true
+		"allowImportingTsExtensions": true,
+		"types": ["node", "react", "react-dom"]
 	},
 	"include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", ".next/dev/types/**/*.ts", "**/*.mts"],
 	"exclude": ["node_modules"]

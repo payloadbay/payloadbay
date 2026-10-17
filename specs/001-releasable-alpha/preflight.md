@@ -1,21 +1,76 @@
-# Current implementation preflight
+# Alpha implementation preflight
 
-## Verified bootstrap
+Updated 2026-10-17. The alpha remains unreleased in draft PR #13. The original
+bootstrap-only snapshot is historical; it does not describe the current app.
 
-Next.js/Node web in apps/web/src/app, requested aliases, HeroUI Pro, canonical local theme/fonts, lint/typecheck/build and standalone HTML/CSS remain verified. Planned alpha packages are installed/pinned in owning Bun manifests; deploy/release-manifest.json records actual image digests and limitations. Tooling TypeScript check passes.
+## Implemented and verified foundation
 
-`bun run test`:13 passed,0 failed across5 implemented bootstrap files, measured20.94s. Bun9 tooling assertions; Node real PostgreSQL17 rollback, Graphile migration/job, Drizzle, SMTP/HTTP fixture check; Node local workerd feasibility; Playwright production Pro sheet; Node non-root standalone/runtime image smoke. Fixtures are synthetic, uniquely isolated and torn down. No product workflow acceptance is credited.
+The app uses Next.js/React/Node, PostgreSQL/Drizzle, Graphile Worker, Better Auth,
+HeroUI Pro and a separate workerd executor. Bun owns package management and unit
+feedback. Standard restricted Docker/runc is the default; optional runsc needs
+operator host setup. No Docker socket is mounted into the app.
 
-Known single-name selection executes exactly1 test; unmatched Bun/Node selections exit1. Inventory rejects missing/unowned files. Affected selection uses local import metadata and broad fallback. Unit coverage policy currently reports100% lines/functions for scripts/tests/policy.ts only, with80% required; missing required source and an actual under-covered Bun fixture fail. Product coverage is unmeasured. Initial fixture/import/browser-library problems were setup failures, not meaningful Red evidence. Tooling policy assertions failed against a loadable stub before implementation, but several infrastructure cases were exercised together; no formal alpha TDD cycles credited.
+Implemented product flows include SMTP OTP/bootstrap and passkeys; inherited
+roles/invitations; organization/workspace/project setup; editable ingress and
+processing, helper imports, middleware and encrypted secrets; immutable
+publication/rollback; durable acceptance, delivery/retry/pause/replay; live event
+and captured attempt inspection; scoped notifications, forkable notification
+modules and branded email; local usage and operator policy/capacity.
 
-Verified TDD profile: .specify/memory/tdd-profile.md. Feature test-list now has20 pending acceptance behaviors,180 pending inner behaviors and1 existing shell characterization after the notification design extension. cycle-log contains baseline only. Tasks preserve85 original IDs and add18 acceptance gates (114 total including the11 pending notification tasks). T001/T003/T004/T005/T006 complete with this evidence. T002 partial: local image targets/fixtures pass, clean licensed CI build and trusted worker image pending. T006 verified2026-10-14: default runc check passes, explicit unavailable runsc fails before container creation. Actual gVisor execution remains unverified. No host daemon configuration changed or fallback security claim made.
+Organization foundation F01–F12 is complete. Source `f5a71d5` deployed in Coolify
+`pgmz2eckz2wr057enfchfh1b` at 2026-10-16 15:58:21 UTC. Real OTP passed for four
+normal demo identities. Unrelated organization and project-only access, denied
+parent aggregates/mutations, a newly correlated queued HTTP delivery, local
+usage increments and the 390px usage page were verified. Evidence commit
+`4a56806` contains the detailed ledger and completed foundation tasks. These
+checks do not certify hostile public multi-tenancy.
 
-## Pending product and release work
+## Evidence and boundaries
 
-Domain migrations, login/authorization, public API/Scalar/SSE, durable ingress/processing/recovery, middleware/editor/dashboard, product tests and published images are not implemented. Pro CI HEROUI_AUTH_TOKEN remains absent; clean image build requires BuildKit secret heroui_auth_token. No credential is copied into source/image layers. Real SMTP/operator secrets are deployment inputs; tests use fixtures.
+- Full integration: 244/244 at `b26c421`; after two narrow final-source changes,
+  complete organization 23/23 and live-API 18/18 passed.
+- Unit 47/47; real executor 28/28. Browser broad run 40/41, plus the sole
+  infrastructure-blocked mobile onboarding rerun 1/1. Deployment broad run
+  14/15, plus the sole infrastructure-blocked container-delivery rerun 1/1.
+- Those are broad runs plus targeted reruns, not retroactively green complete
+  invocations. All 41 browser and 15 deployment behaviors were verified.
+- Lint, formatting, inventory and final-source web/tooling TypeScript passed at
+  that checkpoint. Source changes require their own affected evidence.
+- Local image checks used six pre-existing uncommitted Docker/build drafts,
+  excluded from foundation commits. The exact remote preview above used
+  committed Dockerfiles. Preserve those unrelated drafts.
+- No ordinary release SQL was generated locally. Development/preview uses
+  schema push; master CI owns the coordinated migration after merge. Legacy
+  mapping tests are not published-release installation/upgrade certification.
 
-Default container/capability/resource validation must pass before configured-code release. Optional gVisor compatibility requires separate evidence; standard mode requires trusted publishers and does not promise hostile-tenant isolation. Runtime-only local probe/image cannot satisfy them. Graphify index predates current architecture and stays marked stale; verify source.
+Subsequent work and actual red/green failures are recorded in
+`tdd/cycle-log.md`. Local API documentation now covers all 82 implemented
+operations with route/body/header/query parity. The locally bundled Scalar
+console passed real scoped-token calls and revocation without owner cookies.
+This checkpoint passed integration 250/250, unit 47/47, final live/API owner
+23/23 and a complete browser invocation 44/44. Remote API deployment verification
+is pending; the foundation deployment above predates these local changes.
 
-## Next stage
+## Remaining release gates
 
-$speckit-implement can start foundation implementation now. The remaining clean licensed CI build needs the HeroUI build secret, and the trusted worker image follows worker implementation; both remain image/release gates. Optional gVisor is not a default-installation prerequisite. `$speckit-implement` invokes mandatory `$speckit-tdd-run` against the verified profile/list. Do not disable that hook, claim empty product suites passed, or reinitialize SpecKit. See docs/deployment/bootstrap.md and executor.md for runnable tooling and scope.
+- Verify the newly completed local Scalar/OpenAPI console in the remote preview.
+- Finish privileged queue/age/metrics inspection, remaining notification
+  boundary acceptance and retention cleanup.
+- Finish remaining middleware ordering and script-test client presentation
+  review. Physical Android keyboard/browser-toolbar behavior needs a real
+  device; viewport emulation is not equivalent evidence.
+- Validate published pinned release images, clean operator installation,
+  pending-job upgrade, backup/restore and coordinated version readiness.
+- Execute the performance/latency and contention scenarios, measure product
+  coverage against the agreed thresholds, and reconcile original acceptance
+  tasks from their actual owning evidence. An installed test profile or green
+  selected suite does not satisfy those gates.
+- Refresh the stale Graphify architecture index from implemented source.
+- Optional runsc execution is unverified. Standard trusted-publisher mode must
+  remain explicit; no silent fallback or hostile-sandbox certification.
+
+Hosted checkout/subscriptions, commercial plan catalog/enterprise activation and
+production hostile-tenant rollout remain H01. Self-hosting records local usage
+without commercial ceilings or a required billing/license/telemetry service.
+There is no released alpha, production rollout or authorization to merge PR #13
+implied by this preflight.

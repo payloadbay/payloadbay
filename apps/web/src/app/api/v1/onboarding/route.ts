@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { onboardingInput } from "@contracts/http-inputs";
 import { getServices } from "@lib/server";
 import { handle, readJson } from "@api/handler";
 import { provisionCustomerOrganization } from "@domain/onboarding";
@@ -7,8 +7,6 @@ import { AppError, publicError } from "@contracts/errors";
 export const runtime = "nodejs";
 
 export const dynamic = "force-dynamic";
-
-const input = z.object({ name: z.string().trim().min(1).max(100), slug: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/) }).strict();
 
 export async function GET(request: Request) {
 	try {
@@ -48,6 +46,6 @@ export async function POST(request: Request) {
 				return session?.user.emailVerified ? { userId: session.user.id, active: true, transport: "cookie" as const } : null;
 			},
 		},
-		async ({ actor }) => provisionCustomerOrganization(pool, { ...(await readJson(request, input, 16384)), userId: actor.userId }, config.registrationPolicy),
+		async ({ actor }) => provisionCustomerOrganization(pool, { ...(await readJson(request, onboardingInput, 16384)), userId: actor.userId }, config.registrationPolicy),
 	);
 }

@@ -18,7 +18,7 @@
 		"@payloadbay/contracts": "workspace:*",
 		"@payloadbay/domain": "workspace:*",
 		"@payloadbay/script-sdk": "workspace:*",
-		"@scalar/nextjs-api-reference": "0.12.10",
+		"@scalar/api-reference-react": "0.9.81",
 		"@tabler/icons-react": "3.49.0",
 		"better-auth": "1.7.7",
 		"drizzle-orm": "0.45.4",

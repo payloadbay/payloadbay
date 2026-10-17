@@ -8,7 +8,7 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import { Avatar, Button, Dropdown, Header, Label, Breadcrumbs } from "@heroui/react";
 import { AppLayout, Sidebar, Command } from "@heroui-pro/react";
-import { IconHome, IconFolder, IconUsers, IconLogout, IconCode, IconSettings, IconInbox, IconBell, IconKey, IconFlask, IconHistory, IconRoute, IconBuilding, IconArrowLeft, IconSearch, IconBuildingCommunity, IconChartBar } from "@tabler/icons-react";
+import { IconHome, IconFolder, IconUsers, IconLogout, IconCode, IconSettings, IconInbox, IconBell, IconKey, IconFlask, IconHistory, IconRoute, IconBuilding, IconArrowLeft, IconSearch, IconBuildingCommunity, IconChartBar, IconBook } from "@tabler/icons-react";
 import { PreviewNotice } from "@components/preview-notice";
 import { NotificationInbox } from "@components/notification-inbox";
 import { api, ApiFailure } from "@lib/api-client";
@@ -626,6 +626,11 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 												<Dropdown.Item id='account' textValue='Account settings' href='/account'>
 													<IconSettings size={18} aria-hidden='true' />
 													<Label>Account settings</Label>
+												</Dropdown.Item>
+
+												<Dropdown.Item id='api-docs' textValue='API documentation' href='/docs/api'>
+													<IconBook size={18} aria-hidden='true' />
+													<Label>API documentation</Label>
 												</Dropdown.Item>
 
 												<Dropdown.Item className='text-danger' id='sign-out' textValue='Sign out' onAction={() => void signOut()}>

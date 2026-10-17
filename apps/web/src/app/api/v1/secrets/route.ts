@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { secretInput } from "@contracts/http-inputs";
 import { protectedRoute } from "@api/protected";
 import { readJson } from "@api/handler";
 import { scopeSchema } from "@contracts/resources";
@@ -8,7 +8,6 @@ import { AppError } from "@contracts/errors";
 export const runtime = "nodejs";
 
 export const dynamic = "force-dynamic";
-const input = z.object({ scope: scopeSchema, name: z.string().min(1).max(100), value: z.string().min(1).max(8192) }).strict();
 
 export async function GET(request: Request) {
 	return protectedRoute(request, ({ pool }, actor) => {
@@ -21,5 +20,5 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-	return protectedRoute(request, async ({ pool, config }, actor) => createSecret(pool, actor, await readJson(request, input), config.encryptionKey));
+	return protectedRoute(request, async ({ pool, config }, actor) => createSecret(pool, actor, await readJson(request, secretInput), config.encryptionKey));
 }

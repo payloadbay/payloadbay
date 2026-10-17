@@ -1,23 +1,13 @@
-import { z } from "zod";
+import { invitationInput } from "@contracts/http-inputs";
 import { protectedRoute } from "@api/protected";
 import { readJson } from "@api/handler";
-import { scopeSchema, grantInput } from "@contracts/resources";
+import { scopeSchema } from "@contracts/resources";
 import { AppError } from "@contracts/errors";
 import { createInvitation, listInvitations } from "@domain/invitations";
 
 export const runtime = "nodejs";
 
 export const dynamic = "force-dynamic";
-const input = z
-	.object({
-		scope: scopeSchema,
-		email: z.email().max(254),
-		grants: z
-			.array(grantInput.omit({ userId: true }))
-			.min(1)
-			.max(32),
-	})
-	.strict();
 
 export async function GET(request: Request) {
 	return protectedRoute(request, async ({ pool }, actor) => {
@@ -30,5 +20,5 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-	return protectedRoute(request, async ({ pool, identity, config }, actor) => createInvitation(pool, actor, await readJson(request, input), identity, config.encryptionKey, config.publicUrl));
+	return protectedRoute(request, async ({ pool, identity, config }, actor) => createInvitation(pool, actor, await readJson(request, invitationInput), identity, config.encryptionKey, config.publicUrl));
 }

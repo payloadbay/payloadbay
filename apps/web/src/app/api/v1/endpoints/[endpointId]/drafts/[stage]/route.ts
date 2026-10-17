@@ -1,3 +1,4 @@
+import { draftInput } from "@contracts/http-inputs";
 import { z } from "zod";
 import { protectedRoute } from "@api/protected";
 import { readJson } from "@api/handler";
@@ -9,7 +10,6 @@ import { AppError } from "@contracts/errors";
 export const runtime = "nodejs";
 
 export const dynamic = "force-dynamic";
-const input = z.object({ body: z.string().max(131072), sharedBindings: z.record(z.string(), z.uuid()).optional(), secretBindings: z.record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]{0,99}$/), z.uuid()).optional() }).strict();
 
 async function target(params: Promise<{ endpointId: string; stage: string }>) {
 	const p = await params;
@@ -28,5 +28,5 @@ export async function GET(request: Request, { params }: { params: Promise<{ endp
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ endpointId: string; stage: string }> }) {
-	return protectedRoute(request, async ({ pool }, actor) => saveDraft(pool, actor, { ...(await target(params)), ...(await readJson(request, input)), expectedVersion: version(request) }));
+	return protectedRoute(request, async ({ pool }, actor) => saveDraft(pool, actor, { ...(await target(params)), ...(await readJson(request, draftInput)), expectedVersion: version(request) }));
 }

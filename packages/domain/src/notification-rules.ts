@@ -1,4 +1,5 @@
-import { z } from "zod";
+import { notificationRuleInput, notificationRuleUpdateInput } from "../../contracts/src/notifications.ts";
+
 import { notificationRuleOutput } from "../../contracts/src/notifications.ts";
 import type { Pool } from "pg";
 import { transaction } from "./db.ts";
@@ -8,19 +9,7 @@ import { AppError } from "../../contracts/src/errors.ts";
 import { appendChange } from "./changes.ts";
 import { reconcileCondition } from "./notifications.ts";
 
-export const notificationRuleInput = z
-	.object({
-		endpointId: z.uuid().nullable().optional(),
-		destinationId: z.uuid().nullable().optional(),
-		enabled: z.boolean().default(false),
-		signal: z.literal("failed_operation").default("failed_operation"),
-		count: z.number().int().min(1).max(1000000),
-		windowSeconds: z.number().int().min(1).max(2678400),
-		severity: z.enum(["info", "warning", "critical"]).default("warning"),
-		recoveryPolicy: z.enum(["manual", "window"]).default("manual"),
-		cooldownSeconds: z.number().int().min(0).max(86400).default(0),
-	})
-	.strict();
+export { notificationRuleInput, notificationRuleUpdateInput } from "../../contracts/src/notifications.ts";
 
 type RuleScope = { type: "project" | "workspace"; id: string };
 
@@ -123,24 +112,6 @@ export async function evaluateFailureRules(pool: Pool) {
 
 	return incidents;
 }
-
-export const notificationRuleUpdateInput = notificationRuleInput
-	.omit({
-		enabled: true,
-		signal: true,
-		severity: true,
-		recoveryPolicy: true,
-		cooldownSeconds: true,
-	})
-	.partial()
-	.extend({
-		enabled: z.boolean().optional(),
-		signal: z.literal("failed_operation").optional(),
-		severity: z.enum(["info", "warning", "critical"]).optional(),
-		recoveryPolicy: z.enum(["manual", "window"]).optional(),
-		cooldownSeconds: z.number().int().min(0).max(86400).optional(),
-	})
-	.strict();
 
 export async function updateNotificationRule(pool: Pool, actor: Actor, id: string, expectedVersion: number, input: unknown) {
 	return transaction(pool, async (db) => {

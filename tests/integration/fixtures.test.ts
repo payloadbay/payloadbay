@@ -75,3 +75,28 @@ test("disposable PostgreSQL rollback SMTP delivery and byte-exact HTTP fixtures 
 		}
 	});
 });
+
+test("late-imported fixture cleanup removes the last stack when the test process exits", async () => {
+	const { execFileSync } = await import("node:child_process");
+	const moduleUrl = new URL("../../scripts/tests/fixtures.ts", import.meta.url).href;
+	const source = `
+		import test from 'node:test';
+		test('first late import', async () => {
+			const { withFixtures } = await import(${JSON.stringify(moduleUrl)});
+			await withFixtures(async fixture => console.log('fixture-network:' + fixture.network));
+		});
+		test('later fixture use', async () => {
+			const { withFixtures } = await import(${JSON.stringify(moduleUrl)});
+			await withFixtures(async fixture => console.log('fixture-network:' + fixture.network));
+		});
+	`;
+	const output = execFileSync(process.execPath, ["--import", "tsx", "--input-type=module", "--eval", source], { encoding: "utf8", timeout: 120000 });
+	const network = [...output.matchAll(/fixture-network:(pab-test-[a-f0-9]+_default)/g)].at(-1)?.[1];
+	assert.ok(network, "The subprocess must actually create disposable infrastructure");
+	try {
+		const remaining = execFileSync("docker", ["network", "ls", "--format", "{{.Name}}"], { encoding: "utf8" }).trim().split("\n");
+		assert.equal(remaining.includes(network), false, "The later test's stack must not leak after normal process exit");
+	} finally {
+		execFileSync("docker", ["compose", "-f", "deploy/compose.dev.yml", "-p", network.replace(/_default$/, ""), "down", "--volumes", "--remove-orphans", "--timeout", "5"], { stdio: "ignore" });
+	}
+});

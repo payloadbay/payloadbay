@@ -51,15 +51,31 @@ async function start() {
 	return fixture;
 }
 
+function removeInfrastructure() {
+	if (!infrastructure) return;
+	// Synchronous teardown also works during Node's final exit event.
+	docker(["down", "--volumes", "--remove-orphans", "--timeout", "5"]);
+	infrastructure = undefined;
+}
+
 export async function stopFixtures() {
-	if (infrastructure) {
-		await serial.catch(() => {});
-		docker(["down", "--volumes", "--remove-orphans", "--timeout", "5"]);
-		infrastructure = undefined;
-	}
+	if (!infrastructure) return;
+	await serial.catch(() => {});
+	removeInfrastructure();
 }
 
 after(stopFixtures);
+
+// A dynamic import inside a test attaches after() to that test, not the file.
+// Later fixture users still need cleanup when their owning process finishes.
+process.once("exit", () => {
+	try {
+		removeInfrastructure();
+	} catch {
+		console.error("Disposable test infrastructure cleanup failed");
+		process.exitCode ||= 1;
+	}
+});
 
 export async function withFixtures<T>(run: (fixture: Fixture) => Promise<T>): Promise<T> {
 	let release!: () => void;

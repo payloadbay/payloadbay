@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { publicationInput, activationInput } from "@contracts/http-inputs";
 import { protectedRoute } from "@api/protected";
 import { readJson } from "@api/handler";
 import { uuid } from "@api/parameters";
@@ -10,15 +10,13 @@ import { AppError } from "@contracts/errors";
 export const runtime = "nodejs";
 
 export const dynamic = "force-dynamic";
-const publishInput = z.object({ expectedVersion: z.number().int().positive(), draftVersions: z.object({ ingress: z.number().int().positive(), processing: z.number().int().positive() }).strict() }).strict();
-const rollbackInput = z.object({ publicationId: z.uuid(), expectedVersion: z.number().int().positive() }).strict();
 
 export async function POST(request: Request, { params }: { params: Promise<{ endpointId: string }> }) {
-	return protectedRoute(request, async ({ pool, config }, actor) => publish(pool, actor, { ...(await readJson(request, publishInput)), endpointId: uuid((await params).endpointId), compile: (input) => compileSource(config, input, request.signal) }));
+	return protectedRoute(request, async ({ pool, config }, actor) => publish(pool, actor, { ...(await readJson(request, publicationInput)), endpointId: uuid((await params).endpointId), compile: (input) => compileSource(config, input, request.signal) }));
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ endpointId: string }> }) {
-	return protectedRoute(request, async ({ pool }, actor) => activatePublication(pool, actor, { ...(await readJson(request, rollbackInput)), endpointId: uuid((await params).endpointId) }));
+	return protectedRoute(request, async ({ pool }, actor) => activatePublication(pool, actor, { ...(await readJson(request, activationInput)), endpointId: uuid((await params).endpointId) }));
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ endpointId: string }> }) {

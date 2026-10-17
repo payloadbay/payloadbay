@@ -1,9 +1,9 @@
+import { tokenRevokeInput } from "@contracts/http-inputs";
 import { protectedRoute } from "@api/protected";
 import { readJson } from "@api/handler";
 import { tokenInput, scopeSchema } from "@contracts/resources";
 import { createToken, listTokens, revokeToken } from "@domain/tokens";
 import { AppError } from "@contracts/errors";
-import { z } from "zod";
 
 export const runtime = "nodejs";
 
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
 	return protectedRoute(request, async ({ pool }, actor) => {
-		const body = await readJson(request, z.object({ scope: scopeSchema, id: z.uuid() }).strict());
+		const body = await readJson(request, tokenRevokeInput);
 		await revokeToken(pool, actor, body.scope, body.id);
 
 		return new Response(null, { status: 204 });

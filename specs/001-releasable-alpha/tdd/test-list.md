@@ -309,9 +309,9 @@ Boundary examples sample invariants; no property-based tool is installed. Timers
 | U151 | Permission revocation terminates the live stream | FR-020, FR-021 | example | DONE | `tests/integration/live-api.test.ts::U151 revoked permissions close existing stream` |
 | U152 | A slow client cannot retain unbounded output | FR-020, FR-021 | example | DONE | `tests/integration/live-api.test.ts::U152 slow SSE consumer is disconnected at bounded output` |
 | U153 | A15s heartbeat keeps the authenticated stream observable | FR-020, FR-021 | example | DONE | `tests/integration/live-api.test.ts::U153 live stream emits fifteen second heartbeat` |
-| U154 | Private bodies are not broadcast as change metadata | FR-020, FR-021 | example | PENDING | |
-| U155 | Generated OpenAPI agrees with the implemented API schemas | FR-020, FR-021 | example | PENDING | |
-| U156 | Local Scalar sends token-authenticated requests to this installation | FR-020, FR-021 | example | PENDING | |
+| U154 | Private bodies are not broadcast as change metadata | FR-020, FR-021 | example | DONE | `tests/integration/live-api.test.ts::U154 metadata-only SSE sends references even when persisted changes contain private event data` |
+| U155 | Generated OpenAPI agrees with the implemented API schemas | FR-020, FR-021 | example | DONE | `tests/integration/live-api.test.ts::U155a–d actual route, body, header and query parity` |
+| U156 | Local Scalar sends token-authenticated requests to this installation | FR-020, FR-021 | example | DONE | `tests/acceptance/api-docs.spec.ts::U156a–c local assets, scoped token/revocation and mobile navigation` |
 
 ### `apps/web/src/app/components/event-timeline.tsx`
 
