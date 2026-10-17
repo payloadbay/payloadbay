@@ -71,8 +71,9 @@ deployment for this newer settings/UI checkpoint remains pending.
 
 ## Remaining release gates
 
-- Finish privileged queue/age/metrics inspection, remaining notification
-  boundary acceptance and retention cleanup.
+- Finish remaining notification boundary acceptance and retention cleanup.
+  Queue/age/job inspection and instance audit/configuration inspection are now
+  implemented; coordinated whole-stack release readiness remains separate.
 - Finish remaining middleware ordering and script-test client presentation
   review. Physical Android keyboard/browser-toolbar behavior needs a real
   device; viewport emulation is not equivalent evidence.
@@ -104,3 +105,21 @@ sign-in hint text is configurable, but preview Compose is still loaded from
 master; its optional text is not claimed visible remotely.
 
 Local live-update checkpoint: complete browser53/53, integration257/257 and unit47/47, plus lint, web/tooling TypeScript, formatting and inventory passed. One shared dashboard stream survives navigation; open attempt details refresh; successful replay preserves original history and creates a separate execution. Remote verification of these newer live changes is pending.
+
+
+### Audit and installation inspection — 2026-10-17
+
+Audit source `931bf86` deployed in Coolify `qrencpsdsm3p0tozv56ju0yo`, finished
+09:56:28 UTC. Real owner/viewer OTP, metadata-only audit projection, cursor paging,
+mobile table containment and viewer denial passed. The screenshot was inspected.
+Authorization owner17/17 and HTTP/OpenAPI owner23/23 passed locally at that source.
+The audit retry follow-up passed its real503/retry browser pair2/2.
+
+Local installation settings/health passed IH01 browser1/1 and config owner3/3.
+Settings require instance settings.manage and expose no credentials or SMTP/database
+connection details. Real executor probes are bounded to3s/16KiB and reject
+redirects; worker processing/SMTP delivery remain explicitly unmeasured. Runtime
+configuration is not host attestation. Desktop/mobile screenshots were inspected.
+All current static checks and final-source unit47/47 pass. Complete browser56/56
+passed in one invocation; full backend verification follows. These installation changes are not yet
+part of the exact deployed-source claim above.

@@ -94,3 +94,20 @@ workspace audit rights do not grant instance administration. Use `limit` (1–20
 default 50) and the opaque `nextCursor` to page through history. Cursors preserve
 timestamp precision and use the record identifier to order simultaneous actions.
 The dashboard exposes the same read-only collection under Administration → Audit log.
+
+### Installation configuration and service checks
+
+`GET /api/v1/installation/settings` and `GET /api/v1/health` require current
+instance-level `settings.manage`. Settings are read-only operator configuration:
+SMTP configured state, enabled OAuth provider names, registration policy,
+configured executor mode and request/deadline limits. Credentials, database and
+SMTP connection details are excluded. Shared email content remains editable in
+Email settings; these endpoints do not rewrite deployment environment variables.
+
+Health checks query the installation schema and probe the configured executor's
+`/health` with a three-second deadline, a 16KiB response limit and redirects
+blocked. The snapshot distinguishes ready, not-ready and unavailable executor
+states, and never returns raw upstream errors. Worker processing and SMTP
+**delivery** are explicitly `not_checked`. Configured `runc`/`runsc` modes are
+reported separately for the app and executor, without claiming host attestation.
+This administrative snapshot is not an end-to-end readiness or delivery test.

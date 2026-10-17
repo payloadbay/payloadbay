@@ -876,3 +876,7 @@ original alpha release gates remain open. No release SQL was generated locally.
 - LIV01 DONE: dashboard events, overview and notification inbox share one authorized EventSource; real committed producers update both consumers and client navigation retains the same connection. `tests/acceptance/dashboard.spec.ts::U157 dashboard multiplexes`. Open-attempt timeline U157b also passed in the complete 53-test browser checkpoint.
 
 - AD01 DONE: instance-authorized audit API/UI exposes bounded metadata without raw diffs/secrets, stable pagination, invalid cursor/limit rejection and current-rights enforcement. Completes the audit portion of T077.
+
+- AD03 DONE: failed next-page request must retry on Load more without discarding visible audit history. Browser test proves the second click never requests the unchanged cursor.
+
+- IH01 DONE: instance settings/health inspection projects safe configuration and measured database/executor health, distinguishes unmeasured services and denies lower-scope/current-rights removal.

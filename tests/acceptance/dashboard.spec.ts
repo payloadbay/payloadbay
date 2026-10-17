@@ -1319,3 +1319,78 @@ test("AD01 instance audit log paginates safe metadata and enforces current right
 		await pool.end();
 	}
 });
+
+test("AD03 audit pagination retries a failed next page without losing history", async ({ page }) => {
+	const { ensureBrowserOwner } = await import("../helpers/browser-auth.ts");
+	await ensureBrowserOwner(page);
+	let nextRequests = 0;
+
+	const item = (id: string, operation: string) => ({
+		id,
+		operation,
+		actor: "fixture-owner",
+		scope: { type: "instance", id: "00000000-0000-4000-8000-000000000001" },
+		resourceId: null,
+		createdAt: "2026-10-17T01:02:03.123456Z",
+	});
+
+	await page.route("**/api/v1/audit?*", async (route) => {
+		if (new URL(route.request().url()).searchParams.has("cursor")) {
+			nextRequests++;
+			if (nextRequests === 1) await route.fulfill({ status: 503, json: { error: { code: "unavailable", message: "Try again" } } });
+			else await route.fulfill({ json: { items: [item("00000000-0000-4000-8000-000000000003", "fixture.older")], nextCursor: null } });
+		} else await route.fulfill({ json: { items: [item("00000000-0000-4000-8000-000000000002", "fixture.newer")], nextCursor: "fixture-cursor" } });
+	});
+	await page.goto("/admin/audit");
+	const table = page.getByRole("grid", { name: "Audit log" });
+	await expect(table).toContainText("fixture.newer");
+	await page.getByRole("button", { name: "Load more", exact: true }).click();
+	await expect(page.getByRole("alertdialog", { name: "Audit log could not be loaded" })).toBeVisible();
+	await expect(table).toContainText("fixture.newer");
+	await page.getByRole("button", { name: "Load more", exact: true }).click();
+	await expect(table).toContainText("fixture.older");
+	await expect(table).toContainText("fixture.newer");
+	await expect(page.getByRole("button", { name: "Load more", exact: true })).toHaveCount(0);
+	expect(nextRequests).toBe(2);
+});
+
+test("IH01 installation settings and health are factual and instance restricted", async ({ page }) => {
+	const { ensureBrowserOwner } = await import("../helpers/browser-auth.ts");
+	const { database } = await import("../../packages/domain/src/db.ts");
+	await ensureBrowserOwner(page);
+	const me = await (await page.request.get("/api/v1/me")).json();
+	const settingsResponse = await page.request.get("/api/v1/installation/settings");
+	expect(settingsResponse.status()).toBe(200);
+	const settings = await settingsResponse.json();
+	expect(settings.executorMode).toBe("runc");
+	expect(settings.smtpConfigured).toBe(true);
+	expect(settings).not.toHaveProperty("databaseUrl");
+	expect(settings).not.toHaveProperty("authSecret");
+	expect(settings).not.toHaveProperty("smtp");
+	const healthResponse = await page.request.get("/api/v1/health");
+	expect(healthResponse.status()).toBe(200);
+	const health = await healthResponse.json();
+	expect(health.database).toBe("available");
+	expect(health.executor.state).toBe("ready");
+	expect(health.executor.runtime).toBe("workerd");
+	expect(health.executor.hostAttestation).toBe(false);
+	expect(health.worker).toBe("not_checked");
+	expect(health.smtp).toBe("not_checked");
+	await page.goto("/admin/installation");
+	await expect(page.getByRole("heading", { name: "Installation", exact: true })).toBeVisible();
+	await expect(page.getByRole("grid", { name: "Service health" })).toContainText("Not checked");
+	await page.screenshot({ path: test.info().outputPath("installation-desktop.png") });
+	await page.setViewportSize({ width: 390, height: 844 });
+	await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+	await page.screenshot({ path: test.info().outputPath("installation-mobile.png") });
+	const pool = database(process.env.DATABASE_URL!);
+	try {
+		await pool.query("UPDATE payloadbay.grant_record SET role_preset='custom',permissions=array_remove(permissions,'settings.manage') WHERE user_id=$1", [me.user.id]);
+		expect((await page.request.get("/api/v1/installation/settings")).status()).toBe(403);
+		expect((await page.request.get("/api/v1/health")).status()).toBe(403);
+		await page.goto("/admin/installation");
+		await expect(page.getByRole("heading", { name: "Installation access is restricted", exact: true })).toBeVisible();
+	} finally {
+		await pool.end();
+	}
+});

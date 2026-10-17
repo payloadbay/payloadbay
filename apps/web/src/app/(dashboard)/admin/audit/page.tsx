@@ -16,6 +16,7 @@ export default function AuditLogPage() {
 
 	const [revision, setRevision] = useState(0);
 	const [cursor, setCursor] = useState("");
+	const [requestRevision, setRequestRevision] = useState(0);
 	const [result, setResult] = useState<{ revision: number; data: AuditPage } | null>(null);
 	const [pending, setPending] = useState(false);
 	const [error, setError] = useState("");
@@ -41,7 +42,7 @@ export default function AuditLogPage() {
 		return () => {
 			active = false;
 		};
-	}, [authorized, revision, cursor]);
+	}, [authorized, revision, cursor, requestRevision]);
 
 	function refresh() {
 		setError("");
@@ -123,6 +124,7 @@ export default function AuditLogPage() {
 								setError("");
 								setPending(true);
 								setCursor(data.nextCursor!);
+								setRequestRevision((value) => value + 1);
 							}}
 						>
 							Load more

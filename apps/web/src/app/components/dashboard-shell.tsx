@@ -8,7 +8,7 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import { Avatar, Button, Dropdown, Header, Label, Breadcrumbs } from "@heroui/react";
 import { AppLayout, Sidebar, Command } from "@heroui-pro/react";
-import { IconHome, IconFolder, IconUsers, IconLogout, IconCode, IconSettings, IconInbox, IconBell, IconKey, IconFlask, IconHistory, IconRoute, IconBuilding, IconArrowLeft, IconSearch, IconBuildingCommunity, IconChartBar, IconBook, IconActivity, IconClipboardList } from "@tabler/icons-react";
+import { IconHome, IconFolder, IconUsers, IconLogout, IconCode, IconSettings, IconInbox, IconBell, IconKey, IconFlask, IconHistory, IconRoute, IconBuilding, IconArrowLeft, IconSearch, IconBuildingCommunity, IconChartBar, IconBook, IconActivity, IconClipboardList, IconServer } from "@tabler/icons-react";
 import { PreviewNotice } from "@components/preview-notice";
 import { LiveSubscription } from "@components/live-subscription";
 import { NotificationInbox } from "@components/notification-inbox";
@@ -308,7 +308,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 				]
 			: [];
 
-	const administrationLabel = pathname === "/admin/audit" ? "Audit log" : pathname === "/admin/jobs" ? "Jobs and queues" : pathname.startsWith("/admin/notification-channels/") ? "Notification module" : pathname === "/admin/notification-channels" ? "Notification modules" : pathname === "/admin/email" ? "Email settings" : "Administration";
+	const administrationLabel = pathname === "/admin/installation" ? "Installation" : pathname === "/admin/audit" ? "Audit log" : pathname === "/admin/jobs" ? "Jobs and queues" : pathname.startsWith("/admin/notification-channels/") ? "Notification module" : pathname === "/admin/notification-channels" ? "Notification modules" : pathname === "/admin/email" ? "Email settings" : "Administration";
 	const globalLinks = [
 		{
 			id: "home",
@@ -433,6 +433,12 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 			: []),
 		...(data.me.permissions.includes("settings.manage")
 			? [
+					{
+						id: "installation",
+						label: "Installation",
+						href: "/admin/installation",
+						icon: IconServer,
+					},
 					{
 						id: "notification-modules",
 						label: "Notification modules",
@@ -607,6 +613,12 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 							)}
 							{data.me.permissions.includes("settings.manage") && (
 								<>
+									<Sidebar.MenuItem id='installation' href='/admin/installation' textValue='Installation' isCurrent={pathname === "/admin/installation"}>
+										<Sidebar.MenuIcon>
+											<IconServer size={18} />
+										</Sidebar.MenuIcon>
+										<Sidebar.MenuLabel>Installation</Sidebar.MenuLabel>
+									</Sidebar.MenuItem>
 									<Sidebar.MenuItem id='notification-modules' href='/admin/notification-channels' textValue='Notification modules' isCurrent={pathname.startsWith("/admin/notification-channels")}>
 										<Sidebar.MenuIcon>
 											<IconBell size={18} />
