@@ -1,9 +1,9 @@
 # Event retention
 
 Event retention is disabled by default. Operators may set
-`PAYLOADBAY_EVENT_RETENTION_DAYS` to an integer from 1 to 36500 in the trusted worker
+`PAYLOADBAY_EVENT_RETENTION_DAYS` to an integer from 1 to 36500 in the web and trusted worker
 configuration; 0 disables automatic pruning. Keep this setting consistent across
-worker replicas. The current preview does not enable retention.
+services and worker replicas. The current preview does not enable retention.
 
 The existing worker checks on startup and once per minute. PostgreSQL deduplicates
 one scheduled maintenance job per installation, configured window and UTC hour.
@@ -18,9 +18,8 @@ than the configured window. Recent receipts, pending or uncertain HTTP operation
 unended attempts, derived events and external replay references prevent deletion.
 Accepted events missing their processing record are preserved for investigation.
 Legacy terminal records without trustworthy completion facts are also preserved.
-The window currently uses PostgreSQL whole-day intervals in the worker database
-session's timezone; configure PostgreSQL sessions to UTC for consistent elapsed-day
-behavior.
+Each configured day is exactly 24 elapsed hours, independent of the database
+session timezone and daylight-saving changes.
 
 Eligible event bodies, receipts, execution/replay records and delivery attempts
 are removed together. Publications, code, usage facts/counters and audit history
@@ -39,5 +38,7 @@ together.
 Current verification covers actual PostgreSQL role boundaries, both replay race
 orders, lease-expiry rollback, bounded continuation, peer scheduling and reserved
 Graphile capacity. This is not yet published-release install/upgrade/restore
-certification. Retention setting display and scoped live deletion updates remain
-follow-up work before the alpha retention gate is closed.
+certification. The administrator settings view displays the configured window. Committed pruning
+pushes one payload-free invalidation per affected project through the existing
+authorized live stream; unrelated projects receive none. Published-release gates
+remain open.

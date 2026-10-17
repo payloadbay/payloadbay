@@ -41,7 +41,7 @@ export async function runEventRetention(pool: Pool, config: ServerConfig, refere
 				.int()
 				.min(0)
 				.max(batchSize)
-				.parse((await db.query("SELECT payloadbay.prune_expired_events(statement_timestamp()-$1::int*interval '1 day',$2::int) AS removed", [config.eventRetentionDays, batchSize])).rows[0].removed);
+				.parse((await db.query("SELECT payloadbay.prune_expired_events(statement_timestamp()-$1::int*interval '24 hours',$2::int) AS removed", [config.eventRetentionDays, batchSize])).rows[0].removed);
 			if (removed === batchSize) await enqueueRetentionJob(db, `event-retention-next:${job.id}`, config.encryptionKey);
 			if (removed > 0) await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation,resource_id,redacted_diff) VALUES('system:retention','instance',$1,'events.retained-history.pruned',$2,$3)", [installation.id, job.id, JSON.stringify({ removed, eventRetentionDays: config.eventRetentionDays })]);
 		}

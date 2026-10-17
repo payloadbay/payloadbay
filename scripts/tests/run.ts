@@ -66,8 +66,8 @@ for (const lane of lanes) {
 		await new Promise<void>((r) => listener.close(() => r()));
 	}
 
-	// Build once before parallel Node owners can request the shared fixture.
-	if (lane === "node" && selected.some((file) => registry.nextBuildConsumers.includes(file))) ensureNextBuild();
+	// Prepare shared app artifacts before launching owning test processes.
+	if (selected.some((file) => registry.nextBuildConsumers.includes(file))) ensureNextBuild();
 
 	let command = "bun";
 	let options: string[] = [];

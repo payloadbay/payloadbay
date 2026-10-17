@@ -116,7 +116,7 @@ CREATE OR REPLACE FUNCTION payloadbay.append_change(scope_type text,scope_id uui
 RETURNS bigint LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $$
 DECLARE assigned bigint;
 BEGIN
- IF scope_type NOT IN ('instance','organization','workspace','project') OR kind NOT IN ('event.recorded','event.accepted','execution.changed','attempt.completed','configuration.changed','health.changed','notification.changed') OR octet_length(resource_id)>128 OR jsonb_typeof(metadata)<>'object' OR octet_length(metadata::text)>8192 THEN RAISE EXCEPTION 'invalid change record';END IF;
+ IF scope_type NOT IN ('instance','organization','workspace','project') OR kind NOT IN ('event.recorded','event.accepted','events.pruned','execution.changed','attempt.completed','configuration.changed','health.changed','notification.changed') OR octet_length(resource_id)>128 OR jsonb_typeof(metadata)<>'object' OR octet_length(metadata::text)>8192 THEN RAISE EXCEPTION 'invalid change record';END IF;
  PERFORM pg_advisory_xact_lock(hashtextextended('payloadbay:change-commit-order:v1',0));
  INSERT INTO payloadbay.change_record(scope_type,scope_id,kind,resource_id,metadata) VALUES(scope_type,scope_id,kind,resource_id,metadata) RETURNING cursor INTO assigned;
  PERFORM pg_notify('payloadbay_changes',assigned::text);
@@ -148,6 +148,7 @@ GRANT DELETE ON payloadbay.event,payloadbay.receipt,payloadbay.execution,
 -- PostgreSQL requires UPDATE privilege for row locking; the trigger still rejects UPDATE.
 GRANT UPDATE(id) ON payloadbay.event TO payloadbay_retention;
 GRANT UPDATE(successful_attempt_id) ON payloadbay.managed_operation TO payloadbay_retention;
+GRANT EXECUTE ON FUNCTION payloadbay.append_change(text,uuid,text,text,jsonb) TO payloadbay_retention;
 
 CREATE OR REPLACE FUNCTION payloadbay.retention_event_eligible(candidate_id uuid,cutoff timestamptz)
  RETURNS boolean LANGUAGE sql STABLE SET search_path=pg_catalog AS $$
@@ -203,13 +204,13 @@ GRANT EXECUTE ON FUNCTION payloadbay.retention_event_eligible(uuid,timestamptz) 
 
 CREATE OR REPLACE FUNCTION payloadbay.prune_expired_events(cutoff timestamptz,batch_size integer)
  RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $$
-DECLARE selected uuid[]; removed integer;
+DECLARE selected uuid[]; affected_projects uuid[]; removed integer;
 BEGIN
  IF current_setting('transaction_isolation')<>'read committed' THEN
   RAISE EXCEPTION 'retention requires read committed isolation';
  END IF;
  IF cutoff IS NULL OR NOT isfinite(cutoff)
-    OR cutoff>statement_timestamp()-interval '1 day'
+    OR cutoff>statement_timestamp()-interval '24 hours'
     OR batch_size IS NULL OR batch_size<1 OR batch_size>200 THEN
   RAISE EXCEPTION 'invalid retention bounds';
  END IF;
@@ -227,6 +228,10 @@ BEGIN
  WHERE e.id=ANY(selected) AND payloadbay.retention_event_eligible(e.id,cutoff);
  IF cardinality(selected)=0 THEN RETURN 0; END IF;
 
+ SELECT array_agg(DISTINCT ep.project_id) INTO affected_projects
+ FROM payloadbay.event e JOIN payloadbay.endpoint ep ON ep.id=e.endpoint_id
+ WHERE e.id=ANY(selected);
+
  UPDATE payloadbay.managed_operation SET successful_attempt_id=NULL
  WHERE execution_id IN(SELECT id FROM payloadbay.execution WHERE event_id=ANY(selected));
  DELETE FROM payloadbay.delivery_attempt
@@ -240,6 +245,8 @@ BEGIN
  DELETE FROM payloadbay.receipt WHERE event_id=ANY(selected);
  DELETE FROM payloadbay.event WHERE id=ANY(selected);
  GET DIAGNOSTICS removed=ROW_COUNT;
+ PERFORM payloadbay.append_change('project',project_id,'events.pruned',project_id::text,'{}'::jsonb)
+ FROM unnest(affected_projects) AS project_id;
  RETURN removed;
 END $$;
 ALTER FUNCTION payloadbay.prune_expired_events(timestamptz,integer) OWNER TO payloadbay_retention;

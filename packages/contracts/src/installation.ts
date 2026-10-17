@@ -6,6 +6,7 @@ export const installationSettingsSchema = z.object({
 	executorMode: z.enum(["runc", "runsc"]),
 	limits: z.object({ body: z.number().int().positive(), headers: z.number().int().positive() }),
 	registrationPolicy: z.enum(["invite_only", "organization"]),
+	eventRetentionDays: z.number().int().min(0).max(36500),
 	deadlines: z.object({ ingressMs: z.number().int().positive(), processingMs: z.number().int().positive(), httpMs: z.number().int().positive() }),
 });
 

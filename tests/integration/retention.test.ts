@@ -119,6 +119,7 @@ test("RT04 a maintenance lease expiring during pruning rolls back both deletion 
 		await assert.rejects(runEventRetention(pool, config, job), /Maintenance lease expired/);
 		assert.equal((await db.query("SELECT count(*)::int AS count FROM payloadbay.event")).rows[0].count, 1);
 		assert.equal((await db.query("SELECT count(*)::int AS count FROM payloadbay.audit WHERE operation='events.retained-history.pruned'")).rows[0].count, 0);
+		assert.equal((await db.query("SELECT count(*)::int AS count FROM payloadbay.change_record WHERE kind='events.pruned'")).rows[0].count, 0, "Rolled-back deletion must not publish a live invalidation");
 		assert.equal((await db.query("SELECT state FROM payloadbay.platform_job WHERE id=$1", [job.id])).rows[0].state, "running");
 	});
 });
@@ -357,6 +358,54 @@ test("RT12 actual worker startup schedules and executes enabled retention withou
 			await exited;
 			clearTimeout(killer);
 			await new Promise<void>((resolve) => executor.close(() => resolve()));
+		}
+	});
+});
+
+test("RT14 committed pruning emits one payload-free live change only for affected projects", async () => {
+	const { readChanges } = await import("../../packages/domain/src/live.ts");
+	await authFixture(async ({ db, pool, ...fixture }) => {
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		const other = (await db.query("INSERT INTO payloadbay.project(workspace_id,name,slug,owner_user_id) VALUES($1,'Other project','other','fixture-owner') RETURNING id", [scope.workspace])).rows[0].id;
+		for (const project of [scope.project, other]) await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','project',$1,'custom',ARRAY['metadata.read'])", [project]);
+		await db.query("INSERT INTO payloadbay.event(endpoint_id,publication_id,received_at,original_body,accepted_body,headers,content_type,ingress_outcome) SELECT $1,$2,statement_timestamp()-interval '40 days',$3,$3,'{}','text/plain','reject' FROM generate_series(1,2)", [scope.endpoint, scope.publication, Buffer.from("synthetic private expired body")]);
+		const config = { ...fixtureConfig(fixture), eventRetentionDays: 30 };
+		const job = (await db.query("INSERT INTO payloadbay.platform_job(kind,encrypted_payload,job_key) VALUES('event_retention',$1,$2) RETURNING id,generation", [encryptPrivate({}, config.encryptionKey), randomUUID()])).rows[0];
+		await platformJobTask(pool, config)({ jobId: job.id, generation: job.generation });
+		const changes = await readChanges(pool, { userId: "fixture-owner" }, { scope: { type: "project", id: scope.project }, after: "0" });
+		assert.equal(changes.items.length, 1);
+		assert.equal(changes.items[0].kind, "events.pruned");
+		assert.equal(changes.items[0].resourceId, scope.project);
+		assert.equal(JSON.stringify(changes).includes("synthetic private"), false);
+		assert.equal((await readChanges(pool, { userId: "fixture-owner" }, { scope: { type: "project", id: other }, after: "0" })).items.length, 0);
+	});
+});
+
+test("RT16 retention days are elapsed 24-hour windows across database daylight-saving changes", async () => {
+	const { database } = await import("../../packages/domain/src/db.ts");
+	await authFixture(async ({ db, ...fixture }) => {
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await db.query("SET TIME ZONE 'Pacific/Auckland'");
+		const days = (await db.query("SELECT n FROM generate_series(1,365) n WHERE extract(timezone FROM statement_timestamp()-n*interval '24 hours')<>extract(timezone FROM statement_timestamp()) ORDER BY n LIMIT 1")).rows[0]?.n;
+		assert.ok(Number.isInteger(days) && days >= 1, "Fixture must select a real daylight-saving offset boundary");
+		const events = (await db.query("INSERT INTO payloadbay.event(endpoint_id,publication_id,received_at,original_body,accepted_body,headers,content_type,ingress_outcome) SELECT $1,$2,statement_timestamp()-$4::int*interval '24 hours'+offset_minutes*interval '1 minute',$3,$3,'{}','text/plain','reject' FROM (VALUES(-30),(30)) AS samples(offset_minutes) RETURNING id,received_at", [scope.endpoint, scope.publication, Buffer.from("synthetic timezone boundary request"), days])).rows;
+		events.sort((a, b) => a.received_at.getTime() - b.received_at.getTime());
+		const config = { ...fixtureConfig(fixture), eventRetentionDays: days };
+		const connection = new URL(fixture.databaseUrl);
+		connection.searchParams.set("options", "-c timezone=Pacific/Auckland");
+		const workerPool = database(connection.toString());
+		try {
+			const job = (await db.query("INSERT INTO payloadbay.platform_job(kind,encrypted_payload,job_key) VALUES('event_retention',$1,gen_random_uuid()::text) RETURNING id,generation", [encryptPrivate({}, config.encryptionKey)])).rows[0];
+			await platformJobTask(workerPool, config)({ jobId: job.id, generation: job.generation });
+			assert.deepEqual(
+				(await db.query("SELECT id FROM payloadbay.event ORDER BY id")).rows.map((row) => row.id),
+				[events[1].id],
+				"Prune only the event older than the elapsed-day boundary, independent of session timezone",
+			);
+		} finally {
+			await workerPool.end();
 		}
 	});
 });

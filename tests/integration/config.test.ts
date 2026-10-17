@@ -83,6 +83,8 @@ test("IH02 installation probes reject redirects oversized bodies and false host 
 			await fixture.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'custom',ARRAY['settings.manage'])", [scope.installation]);
 			const settings = await readInstallationSettings(fixture.pool, actor, scope.installation, config);
 			assert.equal(settings.executorMode, "runc");
+			assert.equal(settings.eventRetentionDays, 0, "Operators must see that retention defaults disabled");
+			assert.equal((await readInstallationSettings(fixture.pool, actor, scope.installation, { ...config, eventRetentionDays: 30 })).eventRetentionDays, 30);
 			const health = await readInstallationHealth(fixture.pool, actor, scope.installation, config);
 			assert.equal(health.executor.state, "ready");
 			assert.equal(health.executor.configuredMode, "runsc", "Report executor configuration separately from web configuration");

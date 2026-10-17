@@ -10,7 +10,7 @@ type LiveState = {
 	subscribe: (kind: LiveKind, listener: Listener) => () => void;
 };
 
-const kinds: LiveKind[] = ["event.recorded", "event.accepted", "execution.changed", "attempt.completed", "configuration.changed", "health.changed", "notification.changed", "resync-required"];
+const kinds: LiveKind[] = ["event.recorded", "event.accepted", "events.pruned", "execution.changed", "attempt.completed", "configuration.changed", "health.changed", "notification.changed", "resync-required"];
 const Context = createContext<LiveState | null>(null);
 
 /** One credentialed stream per mounted dashboard; consumers fetch their own authorized data. */

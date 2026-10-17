@@ -158,6 +158,10 @@ export default function InstallationPage() {
 								<dd>{data.settings.smtpConfigured ? "Configured · delivery not tested" : "Not configured"}</dd>
 							</div>
 							<div>
+								<dt className='text-muted'>Event retention</dt>
+								<dd>{data.settings.eventRetentionDays === 0 ? "Disabled · event history is retained" : `${data.settings.eventRetentionDays} days · completed events only`}</dd>
+							</div>
+							<div>
 								<dt className='text-muted'>Registration</dt>
 								<dd>{data.settings.registrationPolicy === "invite_only" ? "Invitation only" : "Organization onboarding"}</dd>
 							</div>

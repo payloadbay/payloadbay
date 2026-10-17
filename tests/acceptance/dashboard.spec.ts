@@ -1364,6 +1364,7 @@ test("IH01 installation settings and health are factual and instance restricted"
 	const settings = await settingsResponse.json();
 	expect(settings.executorMode).toBe("runc");
 	expect(settings.smtpConfigured).toBe(true);
+	expect(settings.eventRetentionDays).toBe(0);
 	expect(settings).not.toHaveProperty("databaseUrl");
 	expect(settings).not.toHaveProperty("authSecret");
 	expect(settings).not.toHaveProperty("smtp");
@@ -1379,10 +1380,15 @@ test("IH01 installation settings and health are factual and instance restricted"
 	await page.goto("/admin/installation");
 	await expect(page.getByRole("heading", { name: "Installation", exact: true })).toBeVisible();
 	await expect(page.getByRole("grid", { name: "Service health" })).toContainText("Not checked");
+	await expect(page.getByText("Disabled · event history is retained", { exact: true })).toBeVisible();
 	await page.screenshot({ path: test.info().outputPath("installation-desktop.png") });
 	await page.setViewportSize({ width: 390, height: 844 });
 	await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 	await page.screenshot({ path: test.info().outputPath("installation-mobile.png") });
+	await page.getByText("Disabled · event history is retained", { exact: true }).scrollIntoViewIfNeeded();
+	await expect(page.getByText("Disabled · event history is retained", { exact: true })).toBeInViewport();
+	await expect(page.getByText("Event retention", { exact: true })).toBeInViewport();
+	await page.screenshot({ path: test.info().outputPath("installation-retention-mobile.png") });
 	const pool = database(process.env.DATABASE_URL!);
 	try {
 		await pool.query("UPDATE payloadbay.grant_record SET role_preset='custom',permissions=array_remove(permissions,'settings.manage') WHERE user_id=$1", [me.user.id]);
@@ -1390,6 +1396,37 @@ test("IH01 installation settings and health are factual and instance restricted"
 		expect((await page.request.get("/api/v1/health")).status()).toBe(403);
 		await page.goto("/admin/installation");
 		await expect(page.getByRole("heading", { name: "Installation access is restricted", exact: true })).toBeVisible();
+	} finally {
+		await pool.end();
+	}
+});
+
+test("RT15 live retention removes expired rows and closes an open inspector without an action-error toast", async ({ page }) => {
+	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
+	const { database } = await import("../../packages/domain/src/db.ts");
+	const { readServerConfig } = await import("../../packages/domain/src/config.ts");
+	const { encryptPrivate } = await import("../../packages/domain/src/private-crypto.ts");
+	const { platformJobTask } = await import("../../apps/worker/src/tasks/platform-job.ts");
+	await ensureBrowserOwner(page);
+	const headers = commandHeaders();
+	const workspace = (await (await page.request.get("/api/v1/workspaces")).json())[0];
+	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Retained history", slug: "retained-history" } })).json();
+	const route = await (await page.request.post(`/api/v1/projects/${project.id}/endpoints`, { headers, data: { name: "Expired request", slug: "expired-request" } })).json();
+	const publication = await (await page.request.post(`/api/v1/endpoints/${route.id}/publications`, { headers, data: { expectedVersion: 1, draftVersions: { ingress: 1, processing: 1 } } })).json();
+	const pool = database(process.env.DATABASE_URL!);
+	try {
+		const event = (await pool.query("INSERT INTO payloadbay.event(endpoint_id,publication_id,received_at,original_body,accepted_body,headers,content_type,ingress_outcome) VALUES($1,$2,statement_timestamp()-interval '40 days',$3,$3,'{}','text/plain','reject') RETURNING id", [route.id, publication.id, Buffer.from("synthetic expired request")])).rows[0];
+		await page.goto(`/projects/${project.id}/events`);
+		const inspect = page.getByRole("button", { name: "Inspect event " + event.id.slice(0, 8), exact: true });
+		await inspect.click();
+		const dialog = page.getByRole("dialog", { name: "Event inspection", exact: true });
+		await expect(dialog).toBeVisible();
+		const config = readServerConfig({ ...process.env, PAYLOADBAY_EVENT_RETENTION_DAYS: "30" });
+		const job = (await pool.query("INSERT INTO payloadbay.platform_job(kind,encrypted_payload,job_key) VALUES('event_retention',$1,gen_random_uuid()::text) RETURNING id,generation", [encryptPrivate({}, config.encryptionKey)])).rows[0];
+		await platformJobTask(pool, config)({ jobId: job.id, generation: job.generation });
+		await expect(inspect).toHaveCount(0);
+		await expect(dialog).toHaveCount(0);
+		await expect(page.getByRole("alertdialog", { name: "Events error", exact: true })).toHaveCount(0);
 	} finally {
 		await pool.end();
 	}

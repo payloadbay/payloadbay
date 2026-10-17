@@ -902,3 +902,7 @@ original alpha release gates remain open. No release SQL was generated locally.
 - RT10 DONE: concurrent producers deduplicate hourly work; default-disabled config schedules nothing (initial missing-entrypoint observation, no fabricated behavioral Red).
 - RT11 DONE: producer immediate scheduling and stop/drain lifecycle (initial missing-module observation, no fabricated behavioral Red).
 - RT12 DONE (test-after): real worker startup schedules and executes opt-in cleanup without an operator command.
+- RT13 DONE: instance settings safely expose the default-disabled and configured retention window (IH02; native IH01 browser flow).
+- RT14 DONE: pruning invalidation is payload-free, limited to affected projects and rolled back with failed cleanup.
+- RT15 DONE: actual live pruning removes an expired row and closes an open inspector without an action-error toast.
+- RT16 DONE: real database daylight-saving offsets cannot shorten or extend the configured elapsed-day boundary.

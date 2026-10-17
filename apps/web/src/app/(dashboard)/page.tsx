@@ -78,7 +78,7 @@ export default function DashboardPage() {
 				}, 150);
 		};
 
-		const unsubscribe = (["event.recorded", "event.accepted", "execution.changed", "attempt.completed", "resync-required"] as const).map((kind) => subscribe(kind, refresh));
+		const unsubscribe = (["event.recorded", "event.accepted", "events.pruned", "execution.changed", "attempt.completed", "resync-required"] as const).map((kind) => subscribe(kind, refresh));
 
 		return () => {
 			for (const stop of unsubscribe) stop();

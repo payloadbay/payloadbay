@@ -10,6 +10,7 @@ export async function readInstallationSettings(pool: Pool, actor: Actor, install
 	return installationSettingsSchema.parse({
 		...publicConfiguration(config),
 		registrationPolicy: config.registrationPolicy,
+		eventRetentionDays: config.eventRetentionDays,
 		deadlines: { ingressMs: config.ingressDeadlineMs, processingMs: config.processingDeadlineMs, httpMs: config.httpTimeoutMs },
 	});
 }

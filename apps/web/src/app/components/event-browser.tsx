@@ -9,7 +9,7 @@ import { IconInbox, IconEye, IconRefresh, IconPlayerPlay } from "@tabler/icons-r
 import { useFeedbackToast } from "@lib/feedback";
 import { useDashboard } from "@components/dashboard-shell";
 import { PublicationPicker } from "@components/publication-picker";
-import { api } from "@lib/api-client";
+import { api, ApiFailure } from "@lib/api-client";
 
 type Summary = {
 	id: string;
@@ -201,7 +201,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 				}, 100);
 		};
 
-		const unsubscribe = (["event.recorded", "event.accepted", "execution.changed", "attempt.completed", "resync-required"] as const).map((kind) => subscribe(kind, refresh));
+		const unsubscribe = (["event.recorded", "event.accepted", "events.pruned", "execution.changed", "attempt.completed", "resync-required"] as const).map((kind) => subscribe(kind, refresh));
 
 		return () => {
 			for (const stop of unsubscribe) stop();
@@ -213,27 +213,23 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 		if (!selected) return;
 		let active = true;
 		api<Detail>("/events/" + selected)
-			.then(
-				async (next) => {
-					const canRead = projects.find((project) => project.id === next.projectId)?.permissions.includes("payload.read");
-					const body = canRead ? await api<Payload>("/events/" + selected + "/payload") : null;
-					if (active) {
-						setDetail(next);
-						setPayload(body);
-						setReplayVersion((previous) => previous || next.publicationId);
-					}
-				},
-				(cause) => {
-					if (active) {
-						setSelected(null);
-						setError(cause instanceof Error ? cause.message : "Could not inspect event");
-					}
-				},
-			)
+			.then(async (next) => {
+				const canRead = projects.find((project) => project.id === next.projectId)?.permissions.includes("payload.read");
+				const body = canRead ? await api<Payload>("/events/" + selected + "/payload") : null;
+				if (active) {
+					setDetail(next);
+					setPayload(body);
+					setReplayVersion((previous) => previous || next.publicationId);
+				}
+			})
 			.catch((cause) => {
 				if (active) {
 					setSelected(null);
-					setError(cause instanceof Error ? cause.message : "Could not load payload");
+					setSelectedAttempt(null);
+					setDetail(null);
+					setAttempt(null);
+					setPayload(null);
+					setError(cause instanceof ApiFailure && cause.status === 404 ? "" : cause instanceof Error ? cause.message : "Could not inspect event");
 				}
 			});
 
@@ -252,7 +248,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 			(cause) => {
 				if (active) {
 					setSelectedAttempt(null);
-					setError(cause instanceof Error ? cause.message : "Could not inspect attempt");
+					setError(cause instanceof ApiFailure && cause.status === 404 ? "" : cause instanceof Error ? cause.message : "Could not inspect attempt");
 				}
 			},
 		);
