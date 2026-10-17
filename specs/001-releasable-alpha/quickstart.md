@@ -71,10 +71,10 @@ do not substitute preview schema push or historical test SQL for a release.
 Use scoped owners for local changes, then affected/final owners when justified:
 
 ```sh
-bun run test:unit
+bun run test:unit --collect-coverage
 bun run test:integration --collect-coverage
 bun run test:executor --collect-coverage
-bun run test:browser
+bun run test:browser --collect-coverage
 bun run test:deployment --collect-coverage
 bun run test:performance
 bun run test:coverage
@@ -86,10 +86,23 @@ have isolated runners/databases/ports and explicit concurrency budgets. Preserve
 failures and reuse actual reports; do not silently increase deadlines or weaken
 coverage thresholds. The performance owner stays uninstrumented.
 
-Filtered source-mapped LCOV and Istanbul JSON can be collected from Node owners.
-The standard function-location merger has real complementary/duplicate-report
-canaries, but full-product/browser aggregation is not complete. The unit per-file
-80% gate still fails and must not be represented as passing aggregate coverage.
+Node and Chromium owners export filtered first-party source locations/counters.
+Only explicit test builds enable browser/server maps; normal builds keep maps
+disabled. Complete passing owners write SHA, inventory and cleanliness metadata.
+CI downloads the current run's five coverage owners, then runs:
+
+```sh
+bun run test:coverage:merge test-results/owners
+```
+
+The mandatory merged gate checks the unchanged80% line/function minima per file,
+including unloaded executable runtime files and the original required sources.
+It rejects missing/partial/dirty/cross-revision evidence. Unit summaries apply
+only to files without a source-mapped report; function counts from incompatible
+runtimes are never added. Local dirty/scoped reports are diagnostic only.
+`test:coverage` remains the stricter standalone unit-loaded diagnostic command;
+it is not the complete merged-owner release decision. Full clean CI and
+published-release acceptance remain pending until separately verified.
 
 ## Release acceptance
 

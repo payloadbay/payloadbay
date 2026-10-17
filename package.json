@@ -17,6 +17,7 @@
 		"test:browser": "bun scripts/tests/run.ts browser",
 		"test:deployment": "bun scripts/tests/run.ts deployment",
 		"test:coverage": "bun scripts/tests/run.ts coverage",
+		"test:coverage:merge": "bun scripts/tests/merge-coverage.ts",
 		"test:inventory": "bun scripts/tests/inventory.ts",
 		"sandbox:check": "bun scripts/tests/sandbox.ts",
 		"tooling:typecheck": "node node_modules/typescript/bin/tsc -p tests/config/tsconfig.json",
@@ -53,6 +54,7 @@
 		"prettier": "3.9.9",
 		"tsx": "4.20.6",
 		"typescript": "5.9.3",
+		"v8-to-istanbul": "9.3.0",
 		"workerd": "1.20261013.1"
 	},
 	"trustedDependencies": [

@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "../helpers/browser-test.ts";
 import { nextFixture } from "../helpers/next-fixture.ts";
 
 test("signed-out application root opens sign-in instead of a bootstrap landing page", async ({ page }) => {

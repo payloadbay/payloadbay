@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "../helpers/browser-test.ts";
 import { browserOrganization } from "../helpers/browser-auth.ts";
 import { resetBrowserData } from "../helpers/browser-data.ts";
 

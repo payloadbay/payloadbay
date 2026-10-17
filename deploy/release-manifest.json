@@ -28,6 +28,7 @@
         "prettier": "3.9.9",
         "tsx": "4.20.6",
         "typescript": "5.9.3",
+        "v8-to-istanbul": "9.3.0",
         "workerd": "1.20261013.1"
       }
     },

@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtemp, writeFile, readFile, rm, access } from "node:fs/promises";
 import { resolve, relative } from "node:path";
 import { transform } from "esbuild";
-import { runNodeCoverage, mergeNodeCoverage } from "../../scripts/tests/coverage.ts";
+import { evaluateCoverage, validateCoverageProvenance, runtimeCoverageSources } from "../../scripts/tests/merge-coverage.ts";
+import { runNodeCoverage, mergeNodeCoverage, browserSourcePath, convertBrowserCoverage } from "../../scripts/tests/coverage.ts";
 
 async function coverageFixture(exit: number, run: (report: string, status: number | null, directory: string) => Promise<void>) {
 	const directory = await mkdtemp(resolve("test-results/coverage-map-"));
@@ -95,10 +96,111 @@ test("CV03 complementary real source-map reports merge function identities witho
 		const merged = mergeNodeCoverage([first, second]).fileCoverageFor(source).toSummary();
 		assert.equal(merged.functions.total, 2);
 		assert.equal(merged.functions.covered, 2);
+		assert.equal(evaluateCoverage([first, second], "", [source], 0.8).passed, true);
+		const inflatedUnit = `SF:${source}\nLF:1\nLH:1\nFNF:2\nFNH:2\nend_of_record\n`;
+		assert.equal(evaluateCoverage([first], inflatedUnit, [source], 0.8).passed, false, "A unit summary cannot override mapped missing functions");
+		const other = resolve(directory, "unit-only.ts");
+		const disjointUnit = inflatedUnit.replace(source, other);
+		assert.equal(evaluateCoverage([first, second], disjointUnit, [source, other], 0.8).passed, true);
+		assert.equal(evaluateCoverage([first, second], "", [source, other], 0.8).passed, false, "Unloaded runtime source must fail");
+		assert.throws(() => evaluateCoverage([first], inflatedUnit + inflatedUnit, [source], 0.8), /Duplicate unit/);
 		const repeated = mergeNodeCoverage([first, first]).fileCoverageFor(source).toSummary();
 		assert.equal(repeated.functions.total, 2);
 		assert.equal(repeated.functions.covered, 1);
 		assert.throws(() => mergeNodeCoverage([]), /No source-mapped/);
 		assert.throws(() => mergeNodeCoverage([{}]), /Empty source-mapped/);
 	});
+});
+
+test("CV04 browser source maps require explicit test-build opt-in", async () => {
+	const { spawnSync } = await import("node:child_process");
+	const script = 'import config from "./apps/web/next.config.ts";console.log(JSON.stringify({browser:Boolean(config.productionBrowserSourceMaps),server:Boolean(config.experimental?.serverSourceMaps)}));';
+	for (const enabled of [false, true]) {
+		const result = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", script], { env: { ...process.env, PAB_TEST_SOURCE_COVERAGE: String(enabled), NODE_V8_COVERAGE: "" }, encoding: "utf8" });
+		assert.equal(result.status, 0, result.stderr);
+		assert.deepEqual(JSON.parse(result.stdout), { browser: enabled, server: enabled });
+	}
+});
+
+test("CV05 browser source names normalize to owned files and encoded asset traversal is denied", async () => {
+	const { nextBuildFingerprint } = await import("../../scripts/tests/next-build.ts");
+	assert.notEqual(nextBuildFingerprint(false), nextBuildFingerprint(true), "Coverage and ordinary builds must never share a cache identity");
+	assert.equal(browserSourcePath("webpack://_N_E/./src/app/page.tsx"), resolve("apps/web/src/app/page.tsx"));
+	assert.equal(browserSourcePath("webpack://@payloadbay/web/./src/app/api/v1/me/route.ts"), resolve("apps/web/src/app/api/v1/me/route.ts"));
+	assert.equal(browserSourcePath("webpack://_N_E/(app-pages-browser)/./src/app/page.tsx"), resolve("apps/web/src/app/page.tsx"));
+	assert.equal(browserSourcePath("webpack://_N_E/../../packages/contracts/src/api.ts"), resolve("packages/contracts/src/api.ts"));
+	await assert.rejects(
+		convertBrowserCoverage([
+			{
+				url: "http://localhost/_next/static/%2e%2e%2f%2e%2e%2fsecret.js",
+				scriptId: "traversal-canary",
+				source: "",
+				functions: [],
+			},
+		]),
+		/escapes the build directory/,
+	);
+});
+
+test("CV06 private Next maps keep original content while canonicalizing both server trees", async () => {
+	const { mkdir } = await import("node:fs/promises");
+	const { normalizeNextSourceMaps } = await import("../../scripts/tests/coverage.ts");
+	const root = await mkdtemp(resolve("test-results/next-map-"));
+	try {
+		const paths = ["apps/web/.next/server", "apps/web/.next/standalone/apps/web/.next/server"];
+		const original = {
+			version: 3,
+			sources: ["webpack://@payloadbay/web/./src/app/api/v1/me/route.ts"],
+			sourcesContent: ["synthetic original source"],
+			names: [],
+			mappings: "",
+		};
+		for (const folder of paths) {
+			await mkdir(resolve(root, folder), { recursive: true });
+			await writeFile(resolve(root, folder, "route.js.map"), JSON.stringify(original));
+		}
+
+		normalizeNextSourceMaps(root);
+		for (const folder of paths) {
+			const actual = JSON.parse(await readFile(resolve(root, folder, "route.js.map"), "utf8"));
+			assert.deepEqual(actual.sources, [resolve(root, "apps/web/src/app/api/v1/me/route.ts")]);
+			assert.deepEqual(actual.sourcesContent, original.sourcesContent);
+			assert.equal(actual.sourceRoot, "");
+		}
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+test("CV07 coverage provenance rejects partial, dirty or cross-revision owners", () => {
+	const sha = "a".repeat(40);
+	const files = ["tests/example.test.ts"];
+	const metadata = {
+		owner: "node",
+		sourceSha: sha,
+		sourceRoot: process.cwd(),
+		dirty: false,
+		complete: true,
+		testCount: 1,
+		testFiles: files,
+	};
+	assert.doesNotThrow(() => validateCoverageProvenance(metadata, sha, "node", files));
+	for (const patch of [{ dirty: true }, { complete: false }, { testCount: 0 }, { sourceSha: "b".repeat(40) }, { owner: "unit" }, { testFiles: [] }, { sourceRoot: "relative" }]) {
+		assert.throws(() => validateCoverageProvenance({ ...metadata, ...patch }, sha, "node", files));
+	}
+});
+
+test("CV08 runtime inventory includes unloaded executable modules and skips pure declarations", async () => {
+	const { mkdir } = await import("node:fs/promises");
+	const root = await mkdtemp(resolve("test-results/runtime-inventory-"));
+	try {
+		for (const directory of ["apps/web/src", "packages/contracts/src", "scripts"]) await mkdir(resolve(root, directory), { recursive: true });
+		await writeFile(resolve(root, "apps/web/src/unloaded.ts"), "export const value = 1;");
+		await writeFile(resolve(root, "packages/contracts/src/types.ts"), "export interface OnlyType { value: string }");
+		await writeFile(resolve(root, "packages/contracts/src/global.d.ts"), "declare const value: string;");
+		await writeFile(resolve(root, "scripts/migrate.ts"), "console.log('synthetic migrator');");
+		assert.deepEqual(runtimeCoverageSources(root), [resolve(root, "apps/web/src/unloaded.ts"), resolve(root, "scripts/migrate.ts")]);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
 });

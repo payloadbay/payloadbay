@@ -64,6 +64,10 @@ test("U283 OTP selector matches new recipient mail despite stale index count", (
 	assert.equal(selectVerificationMail([owner], "viewer@example.test", previous), undefined, "indexed list must contain requested recipient before verification");
 	const nextOwner = { ...owner, ID: "owner-new" };
 	assert.equal(selectVerificationMail([owner, nextOwner], "owner@example.test", previous)?.ID, "owner-new");
+	const newest = { ...nextOwner, ID: "owner-newest", Created: "2026-10-14T10:00:00Z" };
+	assert.equal(selectVerificationMail([nextOwner, newest], "OWNER@example.test", previous)?.ID, "owner-newest");
+	assert.equal(selectVerificationMail([{ ID: "undated", To: owner.To }, nextOwner], "owner@example.test", previous)?.ID, "owner-new");
+	assert.equal(selectVerificationMail([nextOwner, { ID: "undated", To: owner.To }], "owner@example.test", previous)?.ID, "owner-new");
 });
 
 test("registered tests with an unknown owning lane cannot disappear from a full run", () => {

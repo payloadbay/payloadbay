@@ -96,3 +96,25 @@ test("CI06 checkout and licensed steps depend on completed native authorization"
 			false,
 		);
 });
+
+test("CI07 final validation cannot pass without the mandatory merged coverage owner", () => {
+	assert.deepEqual(workflow.jobs.coverage.needs, ["policy", "authorize", "checks"]);
+	assert.deepEqual(workflow.jobs.result.needs, ["policy", "authorize", "checks", "coverage"]);
+	const gate = workflow.jobs.result.steps?.find((step) => step.run)?.run;
+	assert.ok(gate);
+	for (const state of ["success", "failure", "skipped", "cancelled", ""]) {
+		const result: import("node:child_process").SpawnSyncReturns<string> = spawnSync("bash", ["--noprofile", "--norc", "-e", "-c", gate], {
+			encoding: "utf8",
+			timeout: 3000,
+			env: {
+				PATH: process.env.PATH,
+				CHECK_RESULT: "success",
+				POLICY_RESULT: "success",
+				AUTHORIZATION_RESULT: "success",
+				COVERAGE_RESULT: state,
+			},
+		});
+		assert.equal(result.error, undefined);
+		assert.equal(result.status, state === "success" ? 0 : 1);
+	}
+});

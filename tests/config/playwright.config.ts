@@ -16,6 +16,7 @@ export default defineConfig({
 		command: "bun run web:start",
 		url: `http://localhost:${port}`,
 		reuseExistingServer: false,
+		gracefulShutdown: { signal: "SIGTERM", timeout: 5000 },
 		env: { PORT: port, HOSTNAME: "127.0.0.1" },
 		timeout: 60000,
 	},

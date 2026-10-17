@@ -3108,3 +3108,60 @@ Using the standard source-location merger on passing backend276, executor29
 and scoped RX02 reports gives compiler238/283lines(84.09%) and8/8functions.
 The prior merged report was220/283lines(77.73%). This closes that source gap
 without weakening80%, but is not a full-product/browser/CI coverage gate pass.
+
+## Source-mapped browser and merged-owner gate — 2026-10-17
+
+At committed793f206, clean CI39040287137 passed static, backend278/278,
+executor30/30, deployment25/25, browser57/57 and performance1/1. Unit51/51
+assertions passed but the unit-only per-file coverage gate remained failing.
+No alpha release was certified.
+
+Coverage now has explicit test-only Next browser/server source maps, a distinct
+build-cache identity, filtered first-party Chromium source counters and graceful
+Next shutdown so server V8 counters flush. Ordinary builds keep maps disabled.
+The initial real OTP browser run captured client files but only38 server source
+records; after canonicalizing the scoped webpack namespace and terminating
+Next gracefully, the same flow captured252 server source records including API
+routes. This is collection evidence, not a product correctness regression Red.
+The complete browser owner passed57/57 with collection enabled. TypeScript,
+ESLint and Prettier passed at this checkpoint.
+
+CV01–CV08 pass: actual complementary mapped function locations merge without
+count duplication; unit summaries cannot override a mapped missing function;
+missing executable runtime source fails; pure declarations are excluded; dirty,
+partial and cross-revision provenance is rejected. New CI07 plus the existing
+six authorization checks pass: missing/failed/skipped/cancelled merged coverage
+cannot produce final success. The merged gate keeps the existing80% per-file
+line/function requirement and original explicitly required sources, inventories
+all executable app/package sources and the shipped migration entrypoint, and
+requires complete clean reports from the same SHA. Unit collection runs once;
+Bun-only records are used only for files without a mapped report, never summed
+with incompatible function identities. Full current-owner collection and clean
+CI remain pending. Local WIP reports are diagnostic and marked dirty; they do
+not certify release readiness. No production logger, generated release SQL,
+protected Docker draft or alpha merge is part of this change.
+
+Additional uncovered-entrypoint contracts now pass: RX03/RX04/RX05 use the actual
+compiler stdin and executor HTTP source entrypoints, including byte-preserving
+wire data, auth, malformed requests, dry-run and actual local managed broker
+responses, rejected deliveries, child result/log bounds, bounded admission,
+cancellation and timeout. Covered scoped ownerGREEN3/3; compile-child1/1,
+compile-RPC4/4 and server2/2 mapped functions execute. These trusted host-process
+contracts complement restricted-image/isolation owners; they do not attest a
+host sandbox. RI07/CV09 source CLI ownerGREEN2/2 exercises real PostgreSQL install,
+repeat runs, restricted role provisioning, safe failures and isolated temporary
+Git staged-history policy. Historical fixture SQL remains explicit; no ordinary
+release migration is generated. New paths exercise existing behavior, so no
+product regression Red is claimed. Unit ownerGREEN51/51 after adding realistic
+multi-message/case-insensitive OTP selection assertions. Current strict tooling
+TypeScript, ESLint, Prettier and inventory pass; the full source-mapped backend
+owner remains in progress and clean CI has not yet run for this change.
+
+The complete current backend owner subsequently passed283/283 with source maps
+and coverage collection enabled (395.30s test duration, build prepared outside
+the instrumented invocation). This is local dirty-tree evidence, not clean
+cross-owner release provenance. Complete executor30/30 also passed under
+collection before the added scoped entrypoint tests; final clean inventory now
+includes those additional contracts. Browser57/57 remains the complete browser
+checkpoint for this collector implementation. No runtime source changed during
+the full backend run.

@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "../helpers/browser-test.ts";
 import { nextFixture } from "../helpers/next-fixture.ts";
 import { identity, setupSecret, fixtureConfig } from "../helpers/auth-fixtures.ts";
 import { bootstrapOwner } from "../../packages/domain/src/bootstrap.ts";
