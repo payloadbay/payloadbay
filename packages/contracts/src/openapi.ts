@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiRequestSchemas, versionedOperations } from "./api-request-schemas.ts";
 import { errorEnvelope } from "./api.ts";
 import { apiOperations } from "./api-operations.ts";
+import { jobAdministrationSchema } from "./jobs.ts";
 import { apiQuerySchemas } from "./api-query-schemas.ts";
 
 type Operation = {
@@ -30,6 +31,7 @@ const names: Record<string, string> = {
 	endpoints: "Ingress routes",
 	events: "Events and replay",
 	invitations: "Invitations",
+	jobs: "Jobs and queues",
 	me: "Current user",
 	members: "Members",
 	middleware: "Middleware",
@@ -115,6 +117,7 @@ export function openApiDocument() {
 				},
 			});
 
+		if (method === "get" && path === "/api/v1/jobs") operation.responses["200"] = { description: "Instance jobs.read required. Bounded platform-job metadata and currently due, unpaused processing backlog by priority. Queue ages are not provider acknowledgement latency.", content: { "application/json": { schema: z.toJSONSchema(jobAdministrationSchema, { target: "draft-2020-12" }) } } };
 		if (method === "get" && path === "/api/v1/changes") operation.responses["200"] = { description: "Authorized durable change references and heartbeat comments. Reconnect with Last-Event-ID; an expired cursor requests an HTTP resync. Private payload bytes are never broadcast.", content: { "text/event-stream": { schema: { type: "string" } } } };
 		if (method === "delete" && ["/api/v1/secrets/{secretId}", "/api/v1/tokens"].includes(path)) {
 			delete operation.responses["200"];

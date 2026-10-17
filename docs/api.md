@@ -66,3 +66,21 @@ publication dependencies. The server still enforces them. Successful response
 fields depend on the caller's permissions; the document does not expose internal
 tables as an automatically generated public SDK. Private errors use the shared
 safe envelope and correlation ID.
+
+
+## Jobs and queues
+
+`GET /api/v1/jobs` requires `jobs.read` at instance scope. A project-level grant
+with that name does not grant instance administration. The local API reference
+publishes the response schema. The dashboard entry is under Administration and
+is hidden without that instance permission.
+
+The response is an operational snapshot: up to 100 platform jobs in due-time
+order, plus counts of queued/retrying processing executions that are due now,
+grouped by numeric priority. Paused routes and future-due retries are excluded
+from that backlog. The oldest queued age starts at execution creation; oldest
+overdue age starts at its due timestamp. Neither is provider acknowledgement
+latency; that unmeasured field is explicitly null. The screen currently refreshes
+on request, rather than claiming a live feed. Job payloads and raw upstream
+errors are excluded. This read-only view does not cancel, rerun or delete jobs;
+event replay/pause remain in their existing event/route flows.

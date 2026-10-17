@@ -439,3 +439,7 @@ do not establish it. Retain the independent alpha release gates.
 - [x] R08 Audit bounded create/edit/confirmation overlays: centered desktop dialogs,
   deliberate mobile presentation, viewport-bound scrolling and reachable actions.
   Newly delivered clarification 2026-10-17; verify real desktop/mobile geometry.
+
+Job administration checkpoint: U159/U160 now verified through the instance-protected
+`GET /api/v1/jobs` and `/admin/jobs` screen, with real scoped metadata and queue-age
+evidence. T076–T078 remain open for their other live/replay/admin acceptance.

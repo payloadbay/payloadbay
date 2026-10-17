@@ -1090,3 +1090,69 @@ test("R08 bounded dialogs center on desktop and remain inside the mobile viewpor
 	await expect(dialog.getByRole("button", { name: "Cancel", exact: true })).toBeInViewport();
 	await page.screenshot({ path: test.info().outputPath("bounded-mobile-dialog.png") });
 });
+
+test("U159 job administration exposes safe metadata and denies lower rights", async ({ page }) => {
+	const { ensureBrowserOwner } = await import("../helpers/browser-auth.ts");
+	const { database } = await import("../../packages/domain/src/db.ts");
+	await ensureBrowserOwner(page);
+	const me = await (await page.request.get("/api/v1/me")).json();
+	const pool = database(process.env.DATABASE_URL!);
+	try {
+		const job = (await pool.query("INSERT INTO payloadbay.platform_job(kind,encrypted_payload,job_key,last_error) VALUES('email',$1,'browser-admin-inspection','synthetic-private-upstream-response') RETURNING id", [Buffer.from("synthetic-private-job-body")])).rows[0];
+		const response = await page.request.get("/api/v1/jobs");
+		expect(response.status()).toBe(200);
+		const data = await response.json();
+		expect(data.items.some((item: { id: string }) => item.id === job.id)).toBe(true);
+		expect(JSON.stringify(data)).not.toContain("synthetic-private");
+		expect(data.acknowledgmentLatency).toBeNull();
+		await page.goto("/");
+		await page.getByRole("row", { name: "Jobs and queues", exact: true }).click();
+		await expect(page.getByRole("heading", { name: "Jobs and queues", exact: true })).toBeVisible();
+		await expect(page.getByRole("grid", { name: "Platform jobs" }).getByRole("row").filter({ hasText: job.id })).toContainText("Queued");
+		await expect(page.getByText("Provider acknowledgement latency is not measured.", { exact: true })).toBeVisible();
+		await page.setViewportSize({ width: 390, height: 844 });
+		await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+		await pool.query("UPDATE payloadbay.grant_record SET role_preset='custom',permissions=array_remove(permissions,'jobs.read') WHERE user_id=$1", [me.user.id]);
+		expect((await page.request.get("/api/v1/jobs")).status()).toBe(403);
+		await page.goto("/admin/jobs");
+		await expect(page.getByRole("heading", { name: "Job administration is restricted", exact: true })).toBeVisible();
+		await expect(page.getByRole("grid", { name: "Platform jobs" })).toHaveCount(0);
+		await page.goto("/");
+		await page.getByRole("button", { name: "Toggle navigation", exact: true }).click();
+		await expect(page.getByRole("row", { name: "Jobs and queues", exact: true })).toHaveCount(0);
+	} finally {
+		await pool.end();
+	}
+});
+
+test("U160 job screen distinguishes due backlog age and excludes future or paused work", async ({ page }) => {
+	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
+	const { database } = await import("../../packages/domain/src/db.ts");
+	await ensureBrowserOwner(page);
+	const headers = commandHeaders();
+	const workspace = (await (await page.request.get("/api/v1/workspaces")).json())[0];
+	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Queue inspection", slug: "queue-inspection" } })).json();
+	const route = await (await page.request.post(`/api/v1/projects/${project.id}/endpoints`, { headers, data: { name: "Critical delivery", slug: "critical", priority: 0 } })).json();
+	const published = await page.request.post(`/api/v1/endpoints/${route.id}/publications`, { headers, data: { expectedVersion: 1, draftVersions: { ingress: 1, processing: 1 } } });
+	expect(published.status()).toBe(200);
+	const publication = await published.json();
+	const pool = database(process.env.DATABASE_URL!);
+	try {
+		const event = (await pool.query("INSERT INTO payloadbay.event(endpoint_id,publication_id,original_body,accepted_body,headers,content_type) VALUES($1,$2,''::bytea,''::bytea,'{}','application/json') RETURNING id", [route.id, publication.id])).rows[0];
+		await pool.query("INSERT INTO payloadbay.execution(event_id,endpoint_id,publication_id,created_at,due_at) VALUES($1,$2,$3,clock_timestamp()-interval '10 minutes',clock_timestamp()-interval '2 minutes'),($1,$2,$3,clock_timestamp()-interval '1 minute',clock_timestamp()+interval '1 hour')", [event.id, route.id, publication.id]);
+		await page.goto("/admin/jobs");
+		const grid = page.getByRole("grid", { name: "Due delivery backlog" });
+		await expect(grid.getByRole("row")).toHaveCount(2);
+		const cells = grid.getByRole("row").nth(1).getByRole("gridcell");
+		await expect(cells.nth(0)).toHaveText("1");
+		expect(Number((await cells.nth(1).innerText()).replace(/[^0-9]/g, ""))).toBeGreaterThanOrEqual(600);
+		expect(Number((await cells.nth(2).innerText()).replace(/[^0-9]/g, ""))).toBeGreaterThanOrEqual(120);
+		expect(Number((await cells.nth(2).innerText()).replace(/[^0-9]/g, ""))).toBeLessThan(180);
+		await pool.query("UPDATE payloadbay.endpoint SET paused=true WHERE id=$1", [route.id]);
+		await page.getByRole("button", { name: "Refresh", exact: true }).click();
+		await expect(grid).toContainText("No executions are waiting for delivery.");
+		await expect(page.getByText("Provider acknowledgement latency is not measured.", { exact: true })).toBeVisible();
+	} finally {
+		await pool.end();
+	}
+});
