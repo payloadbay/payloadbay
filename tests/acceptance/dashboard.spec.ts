@@ -330,7 +330,8 @@ test("U116 event inspector displays HTML payload as escaped text", async ({ page
 	await page.keyboard.press("Escape");
 	await expect(page.getByRole("grid", { name: "Stored events" })).toBeVisible();
 	const entry = (await (await page.request.get("/api/v1/projects/" + project.id + "/events")).json()).items[0];
-	const before = (await (await page.request.get("/api/v1/events/" + entry.id)).json()).executions.length;
+	const originalHistory = await (await page.request.get("/api/v1/events/" + entry.id)).json();
+	const before = originalHistory.executions.length;
 	const selectVisible = page.getByRole("checkbox", { name: "Select visible replayable events", exact: true });
 	await page.locator("label").filter({ has: selectVisible }).click();
 	await expect(selectVisible).toBeChecked();
@@ -340,6 +341,19 @@ test("U116 event inspector displays HTML payload as escaped text", async ({ page
 	await replayDialog.getByRole("button", { name: "Queue replay", exact: true }).click();
 	await expect(replayDialog).not.toBeVisible();
 	await expect.poll(async () => (await (await page.request.get("/api/v1/events/" + entry.id)).json()).executions.length).toBe(before + 1);
+	// U158: successful replay creates a separate execution without changing the original.
+	const replayedHistory = await (await page.request.get("/api/v1/events/" + entry.id)).json();
+	expect(replayedHistory.executions.find((execution: { id: string }) => execution.id === originalHistory.executions[0].id)).toEqual(originalHistory.executions[0]);
+	expect(replayedHistory.executions[0].replay_of_id).toBe(originalHistory.executions[0].id);
+	expect(replayedHistory.executions[0].state).toBe("queued");
+	expect(replayedHistory.attempts).toEqual(originalHistory.attempts);
+	await page.getByRole("button", { name: "Inspect event " + entry.id.slice(0, 8), exact: true }).click();
+	const replayInspector = page.getByRole("dialog", { name: "Event inspection", exact: true });
+	await replayInspector.getByRole("tab", { name: "Processing", exact: true }).click();
+	await expect(replayInspector.getByText("Handler completed", { exact: true })).toBeVisible();
+	await expect(replayInspector.getByText("Accepted · queued", { exact: true })).toBeVisible();
+	await replayInspector.getByRole("button", { name: "Close", exact: true }).click();
+	await expect(replayInspector).toHaveCount(0);
 	await page.getByRole("button", { name: "Select all matching replayable events", exact: true }).click();
 	await expect(page.getByText("1 selected", { exact: true })).toBeVisible();
 });
@@ -1223,6 +1237,45 @@ test("U157 dashboard multiplexes live events and notifications on one connection
 		await expect(page.getByRole("heading", { name: "Overview", exact: true })).toBeVisible();
 		expect(await page.evaluate(() => (Reflect.get(window, "__payloadbayStreams") as EventSource[]).length)).toBe(1);
 		await expect.poll(openStreams).toBe(1);
+	} finally {
+		await pool.end();
+	}
+});
+
+test("U157b open attempt inspector refreshes when delivery completes", async ({ page }) => {
+	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
+	const { database, transaction } = await import("../../packages/domain/src/db.ts");
+	const { appendChange } = await import("../../packages/domain/src/changes.ts");
+	await ensureBrowserOwner(page);
+	const headers = commandHeaders();
+	const workspace = (await (await page.request.get("/api/v1/workspaces")).json())[0];
+	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Live inspector", slug: "live-inspector" } })).json();
+	const route = await (await page.request.post(`/api/v1/projects/${project.id}/endpoints`, { headers, data: { name: "Inspector completion", slug: "inspector-completion" } })).json();
+	const published = await page.request.post(`/api/v1/endpoints/${route.id}/publications`, { headers, data: { expectedVersion: 1, draftVersions: { ingress: 1, processing: 1 } } });
+	expect(published.status()).toBe(200);
+	const publication = await published.json();
+	const pool = database(process.env.DATABASE_URL!);
+	try {
+		const event = (await pool.query("INSERT INTO payloadbay.event(endpoint_id,publication_id,original_body,accepted_body,headers,content_type) VALUES($1,$2,''::bytea,''::bytea,'{}','application/json') RETURNING id", [route.id, publication.id])).rows[0];
+		const execution = (await pool.query("INSERT INTO payloadbay.execution(event_id,endpoint_id,publication_id,state) VALUES($1,$2,$3,'running') RETURNING id", [event.id, route.id, publication.id])).rows[0];
+		await pool.query("INSERT INTO payloadbay.managed_operation(execution_id,operation_id,input_digest,destination_snapshot,generation) VALUES($1,'primary','fixture','{}',1)", [execution.id]);
+		const attempt = (await pool.query("INSERT INTO payloadbay.delivery_attempt(execution_id,operation_id,execution_attempt,generation) VALUES($1,'primary',1,1) RETURNING id", [execution.id])).rows[0];
+		await page.goto(`/projects/${project.id}/events`);
+		await page.getByRole("button", { name: "Inspect event " + event.id.slice(0, 8), exact: true }).click();
+		const dialog = page.getByRole("dialog", { name: "Event inspection", exact: true });
+		await dialog.getByRole("tab", { name: "Outgoing", exact: true }).click();
+		const attempts = dialog.getByRole("grid", { name: "Event delivery attempts", exact: true });
+		await expect(attempts).toContainText("Pending");
+		await dialog.getByRole("button", { name: "Inspect delivery attempt " + attempt.id.slice(0, 8), exact: true }).click();
+		await expect(dialog.getByRole("heading", { name: "Destination response", exact: true })).toBeVisible();
+		await transaction(pool, async (db) => {
+			await db.query("UPDATE payloadbay.delivery_attempt SET ended_at=clock_timestamp(),status_code=503,response_body=$2 WHERE id=$1", [attempt.id, Buffer.from("Try again later")]);
+			await db.query("UPDATE payloadbay.execution SET state='retry_wait',due_at=clock_timestamp()+interval '1 minute' WHERE id=$1", [execution.id]);
+			await appendChange(db, { scope: { type: "project", id: project.id }, kind: "attempt.completed", resourceId: attempt.id });
+		});
+		await expect(attempts).toContainText("HTTP 503");
+		await expect(dialog.getByLabel("Delivery response body", { exact: true })).toHaveText("Try again later");
+		await expect(dialog.getByRole("tab", { name: "Outgoing", exact: true })).toHaveAttribute("aria-selected", "true");
 	} finally {
 		await pool.end();
 	}

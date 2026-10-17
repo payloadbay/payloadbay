@@ -103,6 +103,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 	const [selectedIds, setSelectedIds] = useState<string[]>([]);
 	const [selected, setSelected] = useState<string | null>(null);
 	const [detail, setDetail] = useState<Detail | null>(null);
+	const [detailRevision, setDetailRevision] = useState(0);
 	const [payload, setPayload] = useState<Payload | null>(null);
 	const [tab, setTab] = useState("ingress");
 	const [selectedAttempt, setSelectedAttempt] = useState<string | null>(null);
@@ -195,6 +196,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 			if (!timer)
 				timer = setTimeout(() => {
 					timer = undefined;
+					setDetailRevision((value) => value + 1);
 					void load();
 				}, 100);
 		};
@@ -218,7 +220,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 					if (active) {
 						setDetail(next);
 						setPayload(body);
-						setReplayVersion(next.publicationId);
+						setReplayVersion((previous) => previous || next.publicationId);
 					}
 				},
 				(cause) => {
@@ -238,7 +240,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 		return () => {
 			active = false;
 		};
-	}, [selected, projects]);
+	}, [selected, projects, detailRevision]);
 
 	useEffect(() => {
 		if (!selectedAttempt) return;
@@ -258,7 +260,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 		return () => {
 			active = false;
 		};
-	}, [selectedAttempt]);
+	}, [selectedAttempt, detailRevision]);
 
 	useEffect(() => {
 		if (attempt) {
@@ -269,6 +271,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 
 	function inspect(id: string, section = "ingress") {
 		setSelected(id);
+		setReplayVersion("");
 		setDetail(null);
 		setPayload(null);
 		setSelectedAttempt(null);

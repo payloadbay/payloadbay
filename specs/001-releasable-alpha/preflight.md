@@ -95,7 +95,7 @@ implied by this preflight.
 
 ### Exact remote settings/jobs checkpoint — 2026-10-17
 
-Coolify deployed `9d0c3f7` successfully at08:54:25UTC. Real synthetic owner/viewer
+Coolify deployed `9d0c3f7` successfully at 08:54:25 UTC. Real synthetic owner/viewer
 OTP, scoped API-key creation/authentication/revocation, key settings screens,
 centered desktop workspace dialog, bounded mobile jobs screen, safe job metadata
 and viewer denial passed. Both screenshots were inspected. The shared-dashboard

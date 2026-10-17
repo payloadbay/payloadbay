@@ -317,8 +317,8 @@ Boundary examples sample invariants; no property-based tool is installed. Timers
 
 | id | behavior | traces | kind | state | test |
 |---|---|---|---|---|---|
-| U157 | Live attempt completion updates the timeline without polling reloads | FR-003, FR-010, FR-021, FR-025 | example | PENDING | |
-| U158 | Replaying a successful event creates a separate timeline | FR-003, FR-010, FR-021, FR-025 | example | PENDING | |
+| U157 | Live attempt completion updates the timeline without polling reloads | FR-003, FR-010, FR-021, FR-025 | example | DONE | `tests/acceptance/dashboard.spec.ts::U157b open attempt inspector refreshes when delivery completes` |
+| U158 | Replaying a successful event creates a separate timeline | FR-003, FR-010, FR-021, FR-025 | example | DONE | `tests/acceptance/dashboard.spec.ts::U116` successful replay lineage and preserved history |
 | U159 | Lower rights cannot inspect privileged job administration | FR-003, FR-010, FR-021, FR-025 | example | DONE | `tests/integration/authorization.test.ts::U159`; `tests/acceptance/dashboard.spec.ts::U159` |
 | U160 | Queue age distinguishes critical backlog from provider acknowledgement latency | FR-003, FR-010, FR-021, FR-025 | example | DONE | `tests/integration/authorization.test.ts::U160`; `tests/acceptance/dashboard.spec.ts::U160` |
 
