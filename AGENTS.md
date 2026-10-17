@@ -47,6 +47,21 @@ is allowed only when needed, must link its source in the pull request, and must
 not become a competing brand source of truth. Do not add automatic
 `curl`-based asset downloads.
 
+## UI library review
+
+For UI work, inspect the project's selected component library and relevant
+project-scoped skills before choosing controls or writing markup. Read its
+design principles, styling and composition guidance, then the matching component
+docs. Prefer purpose-built controls over generic inputs or custom replacements.
+Verify examples against the installed version's types; preserve semantic action
+hierarchy, accessible labels and keyboard behavior, brand tokens, and appropriate
+surface variants. Review complete task flows at desktop and mobile sizes,
+including loading, empty, error and success states; HTTP 200 is not UX validation.
+Do not use a toast for a normal step transition when the next screen already
+communicates the result. Keep library-specific instructions and vendor skills
+scoped to projects that use that library; this baseline does not select HeroUI
+for every repository. These rules apply with or without SpecKit.
+
 ## Shared rules
 
 - Work from current `master` unless local guidance says otherwise.
