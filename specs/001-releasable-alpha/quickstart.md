@@ -95,11 +95,16 @@ CI downloads the current run's five coverage owners, then runs:
 bun run test:coverage:merge test-results/owners
 ```
 
-The mandatory merged gate checks the unchanged80% line/function minima per file,
+The mandatory merged gate checks the unchanged 80% line/function minima per file,
 including unloaded executable runtime files and the original required sources.
-It rejects missing/partial/dirty/cross-revision evidence. Unit summaries apply
-only to files without a source-mapped report; function counts from incompatible
-runtimes are never added. Local dirty/scoped reports are diagnostic only.
+It rejects missing/partial/dirty/cross-revision evidence. Production runtime
+files use mapped reports whenever available. Two pure test
+runner modules (`scripts/tests/policy.ts` and `runtime.ts`) have explicit static
+unit-source ownership, so their complete Bun owner is authoritative rather than
+incidental partial execution in another lane. Other Bun summaries apply only to
+disjoint files. This selection is declared before measurement and never chooses
+the higher percentage; incompatible function counts are never added. Local
+dirty/scoped reports are diagnostic only.
 `test:coverage` remains the stricter standalone unit-loaded diagnostic command;
 it is not the complete merged-owner release decision. Full clean CI and
 published-release acceptance remain pending until separately verified.

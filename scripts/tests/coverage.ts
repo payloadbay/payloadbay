@@ -43,7 +43,10 @@ export function mergeNodeCoverage(reports: CoverageMapData[]) {
 	if (!reports.length) throw Error("No source-mapped coverage reports");
 	const merged = coverage.createCoverageMap({});
 	for (const report of reports) {
-		const current = coverage.createCoverageMap(structuredClone(report));
+		// CoverageMap.toJSON() may still contain live FileCoverage instances.
+		// Their JSON representation owns the counters; structuredClone loses the
+		// prototype's toJSON and leaves an invalid {data} wrapper instead.
+		const current = coverage.createCoverageMap(JSON.parse(JSON.stringify(report)));
 		if (!current.files().length) throw Error("Empty source-mapped coverage report");
 		merged.merge(current);
 	}

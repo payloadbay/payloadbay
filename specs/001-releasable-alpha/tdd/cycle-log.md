@@ -3165,3 +3165,52 @@ collection before the added scoped entrypoint tests; final clean inventory now
 includes those additional contracts. Browser57/57 remains the complete browser
 checkpoint for this collector implementation. No runtime source changed during
 the full backend run.
+
+## Exact clean1608a02 checkpoint
+
+CI39044376419 completed at1608a02: static, backend285/285, executor33/33,
+deployment26/26, browser57/57, unit51/51 and performance1/1 pass. Downloaded
+metadata verifies clean, complete exact-SHA ownership for all five coverage
+lanes. The mandatory merged gate correctly fails:209/241 measured files meet
+80% per-file line/function minima;32 gaps remain. No alpha completion is claimed.
+Current performance evidence delivers600/600, no failed requests, ACKp95
+126.627903ms, first-attemptp95159.678ms/max213.308ms under1,000bulk seed jobs.
+These numbers belong to this run, not the earlier source checkpoints.
+
+The subsequent coverage inspection exposed discarded hard-navigation counters
+for a passkey flow that functionally passed. Two attempted network-interceptor
+collectors failed hydration; those approaches are not retained. A continuously
+running profiler with snapshots before explicit test navigation avoids modifying
+requests/cache behavior. The first such real passkey flow completed but failed
+report teardown: structuredClone strips live FileCoverage.toJSON and leaves an
+invalid data wrapper. CV03 now covers live map serialization; JSON cloning fixes
+that failure and all8 coverage canaries pass. Scoped browser confirmation and
+full final owner remain pending at this log point. No production logger added.
+
+Prepared manual candidate publication is master-only and requires current
+CI-generated SQL plus exact successful master alpha CI. Its actual Git policy
+checks pass5/5, and shell syntax passes. It builds four non-root images and must
+apply packaged release SQL twice before any push. It has not been executed or
+published; branch SQL generation remains forbidden. New real Node contract
+checks pass2/2 for UTF-8 budgets, strict methods/fields and scoped token selectors.
+Initial settings recovery browser owner passes3/3; further targeted recovery and
+cancel/draft checks are added but not yet verified.
+
+Continuous-profiler passkey confirmationGREEN: the original registration/sign-in/
+removal browser case passes, and the actual registration function at source
+line54 now has counter1 (previously0). No request interceptor, cache modification
+or deadline increase is retained. Expanded settings ownerGREEN9/9 covers real
+organization conflict recovery/search, notification/job/installation/audit/usage/
+passkey retries, scope-preserving cancellation and email draft/reset behavior.
+Its first run8/9 had an incorrect expectation of visible brand text when the
+configured logo correctly exposes that name as alt text; asserting the actual
+image/source and draft footer fixes the test without changing product code.
+
+The complete unit owner remains authoritative for its two pure runner modules,
+policy.ts and runtime.ts, declared statically in coverageSourceOwners. Incidental
+partial Node calls must not force duplicate execution of their existing Bun
+assertions. Runtime production files continue using merged source locations;
+other Bun-only files remain disjoint fallbacks. New canaries prove selection
+never chooses the higher percentage and missing authoritative evidence fails.
+No threshold, runtime source inventory or complete-owner provenance is waived.
+Full corrected browser/clean final CI are still pending at this checkpoint.

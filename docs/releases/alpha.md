@@ -36,3 +36,33 @@ Ordinary restricted Docker is the approved trusted-publisher default. Optional
 runsc remains a separate operator-host validation; no hostile-tenant sandbox or
 physical Android keyboard certification is claimed. Hosted billing/licensing and
 commercial plan integration remain separate future work.
+
+
+## Coordinated candidate images
+
+The manual **Build Release Candidate** workflow is prepared for use after the
+alpha is approved and merged. Select the master workflow and provide the full
+master commit SHA. It rejects unmerged source, absent release SQL/journal,
+database-source changes after migration generation, and any SHA without a
+complete successful master Alpha Validation run. The branch preview remains
+separate; no candidate workflow has been executed yet.
+
+The workflow builds app, worker, executor and migrator together on Linux amd64.
+The licensed UI credential is available only as the app build's BuildKit secret.
+All four final images must use the non-root node identity. The packaged real
+release SQL must install and repeat successfully on disposable PostgreSQL17
+before any images are pushed. This cannot run against the current unmerged
+alpha, which deliberately has no CI-generated release SQL.
+
+Successful runs push unique candidate tags and export `candidate/images.env`
+with the exact source SHA and immutable image digest for each service, together
+with the operator Compose and repository source manifest. The source manifest
+is a template/readiness record; `images.env` records that run's actual published
+coordinates. A partial push can leave some images behind but cannot produce a
+successful candidate run. No floating version tag or GitHub release is created.
+
+Use those four digests for the independent operator install, real owner/email
+bootstrap, first HTTP delivery, pending-job/code-pin upgrade and backup/restore
+acceptance. Candidate publication and repeated SQL alone do not certify those
+flows, optional host runsc or a hostile public multi-tenant service. ARM image
+publication and multi-platform certification are not claimed by this workflow.

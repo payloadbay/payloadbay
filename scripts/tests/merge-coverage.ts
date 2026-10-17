@@ -67,8 +67,8 @@ export function validateCoverageProvenance(value: CoverageProvenance, sourceSha:
 	if (JSON.stringify([...value.testFiles].sort()) !== JSON.stringify([...testFiles].sort())) throw Error("Coverage test inventory differs from the checkout");
 }
 
-/** Prefer the merged location map; Bun summaries are used only for disjoint files. */
-export function evaluateCoverage(reports: CoverageMapData[], unitLcov: string, required: string[], threshold: Threshold, root = process.cwd()) {
+/** Merge runtime locations; explicitly unit-owned test tooling keeps its complete Bun report. */
+export function evaluateCoverage(reports: CoverageMapData[], unitLcov: string, required: string[], threshold: Threshold, root = process.cwd(), sourceOwners: Record<string, "unit"> = {}) {
 	const mapped = mergeNodeCoverage(reports);
 	const units = new Map<string, string>();
 	for (const record of unitLcov.split("end_of_record")) {
@@ -82,7 +82,7 @@ export function evaluateCoverage(reports: CoverageMapData[], unitLcov: string, r
 	const mappedFiles = new Map(mapped.files().map((file) => [resolve(file), file]));
 	const sources = [...new Set([...required.map((file) => resolve(root, file)), ...units.keys()])].sort();
 	const files = sources.map((file) => {
-		const mappedFile = mappedFiles.get(file);
+		const mappedFile = sourceOwners[relative(root, file).replaceAll("\\", "/")] === "unit" ? undefined : mappedFiles.get(file);
 		let record = units.get(file) ?? "";
 		if (mappedFile) {
 			const summary = mapped.fileCoverageFor(mappedFile).toSummary();
@@ -163,7 +163,10 @@ export function mergeCoverageArtifacts(folder: string, threshold: Threshold, roo
 		}
 	}
 
-	return evaluateCoverage(reports, unitLcov, [...runtimeCoverageSources(root), ...registry.coverageSources.map((file: string) => resolve(root, file))], threshold, root);
+	const sourceOwners = registry.coverageSourceOwners ?? {};
+	for (const [file, owner] of Object.entries(sourceOwners)) if (owner !== "unit" || !file.startsWith("scripts/tests/")) throw Error("Unit coverage source ownership is limited to test tooling");
+
+	return evaluateCoverage(reports, unitLcov, [...runtimeCoverageSources(root), ...registry.coverageSources.map((file: string) => resolve(root, file))], threshold, root, sourceOwners);
 }
 
 if (import.meta.main) {

@@ -92,6 +92,9 @@ test("CV03 complementary real source-map reports merge function identities witho
 		assert.equal(result.status, 0);
 		const second = JSON.parse(await readFile(resolve(secondDirectory, "coverage-final.json"), "utf8"));
 		assert.equal(mergeNodeCoverage([first]).fileCoverageFor(source).toSummary().functions.covered, 1);
+		const { default: istanbul } = await import("istanbul-lib-coverage");
+		const live = istanbul.createCoverageMap(first).toJSON();
+		assert.equal(mergeNodeCoverage([live]).fileCoverageFor(source).toSummary().functions.covered, 1, "Live browser snapshots must preserve FileCoverage serialization");
 		assert.equal(mergeNodeCoverage([second]).fileCoverageFor(source).toSummary().functions.covered, 1);
 		const merged = mergeNodeCoverage([first, second]).fileCoverageFor(source).toSummary();
 		assert.equal(merged.functions.total, 2);
@@ -99,6 +102,11 @@ test("CV03 complementary real source-map reports merge function identities witho
 		assert.equal(evaluateCoverage([first, second], "", [source], 0.8).passed, true);
 		const inflatedUnit = `SF:${source}\nLF:1\nLH:1\nFNF:2\nFNH:2\nend_of_record\n`;
 		assert.equal(evaluateCoverage([first], inflatedUnit, [source], 0.8).passed, false, "A unit summary cannot override mapped missing functions");
+		const owner = { [relative(process.cwd(), source)]: "unit" as const };
+		assert.equal(evaluateCoverage([first], inflatedUnit, [source], 0.8, process.cwd(), owner).passed, true);
+		assert.equal(evaluateCoverage([first, second], "", [source], 0.8, process.cwd(), owner).passed, false, "An absent authoritative owner cannot fall back to a different runtime");
+		const belowThresholdUnit = inflatedUnit.replace("FNH:2", "FNH:1");
+		assert.equal(evaluateCoverage([first, second], belowThresholdUnit, [source], 0.8, process.cwd(), owner).passed, false, "Declared ownership must not choose whichever runtime has the higher score");
 		const other = resolve(directory, "unit-only.ts");
 		const disjointUnit = inflatedUnit.replace(source, other);
 		assert.equal(evaluateCoverage([first, second], disjointUnit, [source, other], 0.8).passed, true);
