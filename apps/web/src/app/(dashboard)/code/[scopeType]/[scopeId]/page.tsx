@@ -384,7 +384,7 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 					</Link>
 					<p className='text-muted text-sm'>{selectedScope?.name ?? endpointScope?.name ?? "Scope"}</p>
 					<h1 className='text-3xl font-semibold'>Code and middleware</h1>
-					<p className='text-muted mt-2'>Versioned helpers and ordered lifecycle middleware. Existing publications keep their pinned code.</p>
+					<p className='text-muted mt-2'>Manage shared helpers and middleware.</p>
 				</div>
 				{canEdit && ((tab === "modules" && scopeType !== "endpoint") || (tab === "middleware" && canPublish)) && (
 					<Button onPress={start}>
@@ -394,23 +394,23 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 				)}
 			</header>
 
-			<p className='text-muted text-sm'>
-				Created here: <strong>{scopeType === "endpoint" ? "this ingress route" : "this " + scopeType}</strong>. {scopeType !== "endpoint" ? "Helpers and middleware are available to descendant scopes; creating here does not change a parent scope." : "Route middleware applies only to this ingress route."}
-			</p>
-			<Tabs selectedKey={tab} onSelectionChange={(key) => setTab(key as "modules" | "middleware")}>
-				<Tabs.List aria-label='Code category'>
-					{scopeType !== "endpoint" && (
-						<Tabs.Tab id='modules'>
-							Shared helpers
+			<p className='text-muted text-sm'>Scope: {scopeType === "endpoint" ? "this ingress route" : "this " + scopeType}</p>
+			{scopeType !== "endpoint" && (
+				<Tabs selectedKey={tab} onSelectionChange={(key) => setTab(key as "modules" | "middleware")}>
+					<Tabs.List aria-label='Code category'>
+						{scopeType !== "endpoint" && (
+							<Tabs.Tab id='modules'>
+								Shared helpers
+								<Tabs.Indicator />
+							</Tabs.Tab>
+						)}
+						<Tabs.Tab id='middleware'>
+							Middleware
 							<Tabs.Indicator />
 						</Tabs.Tab>
-					)}
-					<Tabs.Tab id='middleware'>
-						Middleware
-						<Tabs.Indicator />
-					</Tabs.Tab>
-				</Tabs.List>
-			</Tabs>
+					</Tabs.List>
+				</Tabs>
+			)}
 			{tab === "modules" && scopeType !== "endpoint" ? (
 				modules.length ? (
 					<div className='grid gap-4 md:grid-cols-2'>
@@ -629,7 +629,7 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 												</NativeSelect>
 											)}
 											{editingBinding && (
-												<Checkbox isSelected={enabled} onChange={setEnabled}>
+												<Checkbox variant='secondary' isSelected={enabled} onChange={setEnabled}>
 													<Checkbox.Content>
 														<Checkbox.Control>
 															<Checkbox.Indicator />

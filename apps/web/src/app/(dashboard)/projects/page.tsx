@@ -79,7 +79,7 @@ export default function DashboardPage() {
 				<Input variant='secondary' placeholder='Search projects…' />
 			</TextField>
 			{workspaces.length > 0 && (
-				<NativeSelect className='max-w-sm' fullWidth>
+				<NativeSelect variant='secondary' className='max-w-sm' fullWidth>
 					<Label htmlFor='workspace-filter'>Workspace</Label>
 					<NativeSelect.Trigger id='workspace-filter' aria-label='Workspace' value={filter} onChange={(e) => setFilter(e.target.value)}>
 						<NativeSelect.Option value=''>All accessible projects</NativeSelect.Option>

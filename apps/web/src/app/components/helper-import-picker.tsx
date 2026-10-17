@@ -97,6 +97,7 @@ export function HelperImportPicker({ scope, body, disabled, onImport }: HelperIm
 							<Modal.Body className='flex flex-col gap-4'>
 								<p className='text-muted text-sm'>Choose a saved helper and its exports. The import is inserted above the script; saving pins this revision.</p>
 								<Select
+									variant='secondary'
 									aria-label='Helper revision'
 									value={selected?.id ?? null}
 									onChange={(value) => {
@@ -124,7 +125,7 @@ export function HelperImportPicker({ scope, body, disabled, onImport }: HelperIm
 									</Select.Popover>
 								</Select>
 								{selected && (
-									<Select aria-label='Helper exports' selectionMode='multiple' value={exports} onChange={(keys) => setExports(keys.map(String))} placeholder='Select exports'>
+									<Select variant='secondary' aria-label='Helper exports' selectionMode='multiple' value={exports} onChange={(keys) => setExports(keys.map(String))} placeholder='Select exports'>
 										<Label>Exports</Label>
 										<Select.Trigger>
 											<Select.Value />

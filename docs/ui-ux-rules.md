@@ -7,7 +7,9 @@ that the current app satisfies them. The concrete dashboard findings remain in
 ## Context and hierarchy
 
 Use breadcrumbs for navigable ancestors so users can return directly to a parent
-resource. Global navigation stays separate from resource settings. Group settings
+resource. Give breadcrumbs the available width; preserve the first and nearest
+levels, collapsing middle ancestors into a navigable menu when space is tight.
+Global navigation stays separate from resource settings. Group settings
 by task; keep the active group expanded and expose in-page subsections only for
 the active page. Search must support direct navigation across authorized pages
 and resources, as well as contextual settings; label its scope explicitly.
@@ -46,6 +48,10 @@ interaction from cross-application command search.
 Choose layout from the task: tables for scanning/comparing repeated records,
 cards for summaries, and dedicated working areas for complex editing. Keep
 collection search, filters and actions together; use consistent row actions.
+Bulk-selection presets choose records without unexpectedly changing the visible
+collection filters. Keep selection criteria and the eventual action distinct.
+Use category tabs only when there is a choice between working areas; a single
+category needs a direct heading.
 
 Use a modal for a bounded create/edit task that should preserve the surrounding
 context. Center ordinary dialogs on desktop; use deliberate responsive placement
@@ -69,7 +75,11 @@ A visible resulting state often needs no additional success toast.
 Inspect HeroUI's available components and composition guidance before choosing
 controls. Use semantic library variants and the established brand tokens rather
 than hand-styling substitutes. Keep control choices consistent across similar
-screens.
+screens. Form inputs, selects, checkboxes and other controls that support
+surface variants use `secondary` inside cards, papers and modals; the primary
+variant still identifies the main action button. Put optional explanations behind
+contextual help instead of filling a task screen with implementation details.
+Safety-relevant effects should remain clear in concise labels and confirmations.
 
 Name things by what the user can do or understand. Explain consequential choices
 where they occur. Make configuration, simulation and real execution visibly

@@ -170,8 +170,8 @@ export function SecretBindings({ projectId, scope, bindings, onChange, canUse, c
 					<p className='text-muted text-sm'>No secrets bound. Add one only if your script needs it.</p>
 				)}
 
-				<div className='flex flex-wrap items-end gap-3'>
-					<TextField aria-label='Search secrets' value={query} onChange={setQuery} className='min-w-0 flex-1'>
+				<div className='flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end'>
+					<TextField aria-label='Search secrets' value={query} onChange={setQuery} className='min-w-0 w-full sm:min-w-48 sm:flex-1'>
 						<Input variant='secondary' placeholder='Search secrets…' />
 					</TextField>
 					{canUse && versions.some((version) => !version.revoked_at) && (
@@ -273,15 +273,15 @@ export function SecretBindings({ projectId, scope, bindings, onChange, canUse, c
 									<Modal.Heading>Create secret version</Modal.Heading>
 								</Modal.Header>
 								<Modal.Body>
-									<Form onSubmit={create} className='border-border flex flex-col gap-3 border-t pt-4'>
+									<Form onSubmit={create} autoComplete='off' className='border-border flex flex-col gap-3 border-t pt-4'>
 										<TextField isRequired value={name} onChange={setName} isDisabled={busy}>
 											<Label>Secret key</Label>
-											<Input variant='secondary' />
+											<Input variant='secondary' autoComplete='off' data-1p-ignore='true' data-lpignore='true' data-bwignore='true' spellCheck={false} />
 											<FieldError />
 										</TextField>
 										<TextField isRequired type='password' value={value} onChange={setValue} isDisabled={busy}>
 											<Label>Secret value</Label>
-											<Input variant='secondary' autoComplete='new-password' />
+											<Input variant='secondary' autoComplete='off' data-1p-ignore='true' data-lpignore='true' data-bwignore='true' spellCheck={false} />
 											<FieldError />
 										</TextField>
 										<p className='text-muted text-xs'>Stored encrypted in this project. Rotate by creating another version with the same key.</p>

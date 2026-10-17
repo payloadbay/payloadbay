@@ -8,7 +8,7 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import { Avatar, Button, Dropdown, Header, Label, Breadcrumbs } from "@heroui/react";
 import { AppLayout, Sidebar, Command } from "@heroui-pro/react";
-import { IconHome, IconFolder, IconUsers, IconLogout, IconCode, IconSettings, IconInbox, IconBell, IconKey, IconFlask, IconHistory, IconRoute, IconBuilding, IconArrowLeft, IconSearch, IconBuildingCommunity, IconChartBar, IconBook, IconActivity, IconClipboardList, IconServer } from "@tabler/icons-react";
+import { IconHome, IconFolder, IconUsers, IconLogout, IconCode, IconSettings, IconInbox, IconBell, IconKey, IconFlask, IconHistory, IconRoute, IconBuilding, IconArrowLeft, IconChevronRight, IconSearch, IconBuildingCommunity, IconChartBar, IconBook, IconActivity, IconClipboardList, IconServer } from "@tabler/icons-react";
 import { PreviewNotice } from "@components/preview-notice";
 import { LiveSubscription } from "@components/live-subscription";
 import { NotificationInbox } from "@components/notification-inbox";
@@ -309,6 +309,24 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 			: [];
 
 	const administrationLabel = pathname === "/admin/installation" ? "Installation" : pathname === "/admin/audit" ? "Audit log" : pathname === "/admin/jobs" ? "Jobs and queues" : pathname.startsWith("/admin/notification-channels/") ? "Notification module" : pathname === "/admin/notification-channels" ? "Notification modules" : pathname === "/admin/email" ? "Email settings" : "Administration";
+	const breadcrumbItems: { label: string; href?: string }[] = [{ label: "Overview", href: pathname === "/" ? undefined : "/" }];
+	if (currentOrganization) breadcrumbItems.push({ label: currentOrganization.name, href: "/organizations/" + currentOrganization.id });
+	if (currentWorkspace) breadcrumbItems.push({ label: currentWorkspace.name, href: "/workspaces/" + currentWorkspace.id });
+	if (currentProject) breadcrumbItems.push({ label: currentProject.name, href: "/projects/" + currentProject.id });
+	if (routeId) {
+		breadcrumbItems.push({ label: routeMetadata?.name ?? "Ingress route", href: routeAddress });
+		breadcrumbItems.push({ label: routeSection === "middleware" ? "Middleware" : (routeLinks.find((item) => item.id === routeSection)?.label ?? "Scripts") });
+	} else if (pathname.endsWith("/members")) breadcrumbItems.push({ label: currentProject ? "Project members" : currentWorkspace ? "Workspace members" : currentOrganization ? "Organization members" : "Instance members" });
+	else if (pathname.endsWith("/usage")) breadcrumbItems.push({ label: "Usage and limits" });
+	else if (pathname.endsWith("/api-keys")) breadcrumbItems.push({ label: currentOrganization ? "API keys" : "Personal API keys" });
+	else if (pathname.startsWith("/code/")) breadcrumbItems.push({ label: currentProject || currentWorkspace || currentOrganization ? "Code and middleware" : "Instance code and middleware" });
+	else if (pathname.endsWith("/notifications")) breadcrumbItems.push({ label: currentProject || currentWorkspace || currentOrganization ? "Notification rules" : "Notification settings" });
+	else if (pathname.startsWith("/admin/notification-channels/")) {
+		breadcrumbItems.push({ label: "Notification modules", href: "/admin/notification-channels" });
+		breadcrumbItems.push({ label: administrationLabel });
+	} else if (!currentOrganization && !currentWorkspace && !currentProject && pathname !== "/") breadcrumbItems.push({ label: pathname === "/organizations" ? "Organizations" : pathname === "/workspaces" ? "Workspaces" : pathname === "/projects" ? "Projects" : pathname === "/events" ? "Events" : pathname.startsWith("/account") ? "Account settings" : administrationLabel });
+	if (breadcrumbItems.length > 1) breadcrumbItems[breadcrumbItems.length - 1].href = undefined;
+
 	const globalLinks = [
 		{
 			id: "home",
@@ -714,79 +732,42 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 					}
 				>
 					<div className='mx-auto w-full min-w-0 max-w-6xl p-4 sm:p-6 lg:p-10'>
-						<nav aria-label='Breadcrumbs' className='mb-6 hidden overflow-x-auto sm:block'>
-							<Breadcrumbs className='min-w-max'>
-								<Breadcrumbs.Item href={pathname === "/" ? undefined : "/"}>Overview</Breadcrumbs.Item>
-								{currentOrganization && <Breadcrumbs.Item href={pathname === "/organizations/" + currentOrganization.id ? undefined : "/organizations/" + currentOrganization.id}>{currentOrganization.name}</Breadcrumbs.Item>}
-								{currentOrganization && pathname === "/organizations/" + currentOrganization.id + "/usage" && <Breadcrumbs.Item>Usage and limits</Breadcrumbs.Item>}
-								{currentOrganization && pathname === "/organizations/" + currentOrganization.id + "/api-keys" && <Breadcrumbs.Item>API keys</Breadcrumbs.Item>}
-								{currentWorkspace && <Breadcrumbs.Item href={pathname === "/workspaces/" + currentWorkspace.id ? undefined : "/workspaces/" + currentWorkspace.id}>{currentWorkspace.name}</Breadcrumbs.Item>}
-								{currentProject && <Breadcrumbs.Item href={pathname === "/projects/" + currentProject.id ? undefined : "/projects/" + currentProject.id}>{currentProject.name}</Breadcrumbs.Item>}
-								{routeId && <Breadcrumbs.Item href={routeAddress}>{routeMetadata && routeMetadata.id === routeId ? routeMetadata.name : "Ingress route"}</Breadcrumbs.Item>}
-								{routeId && <Breadcrumbs.Item>{routeSection === "middleware" ? "Middleware" : (routeLinks.find((item) => item.id === routeSection)?.label ?? "Scripts")}</Breadcrumbs.Item>}
-								{pathname.startsWith("/admin/notification-channels/") && <Breadcrumbs.Item href='/admin/notification-channels'>Notification modules</Breadcrumbs.Item>}
-								{!currentProject && !currentWorkspace && !currentOrganization && pathname !== "/" && (
-									<Breadcrumbs.Item>{pathname === "/organizations" ? "Organizations" : pathname === "/workspaces" ? "Workspaces" : pathname === "/projects" ? "Projects" : pathname === "/events" ? "Events" : pathname === "/account/api-keys" ? "Personal API keys" : pathname === "/account/notifications" ? "Notification settings" : pathname.startsWith("/account") ? "Account settings" : administrationLabel}</Breadcrumbs.Item>
-								)}
-							</Breadcrumbs>
-						</nav>
-						<nav aria-label='Breadcrumbs' className='mb-6 flex min-w-0 items-center gap-2 sm:hidden'>
-							{pathname !== "/" && (
-								<Dropdown>
-									<Dropdown.Trigger aria-label='Parent pages' className='button button--ghost size-9 shrink-0'>
-										…
-									</Dropdown.Trigger>
-									<Dropdown.Popover className='max-w-[calc(100vw-2rem)]'>
-										<Dropdown.Menu aria-label='Parent pages'>
-											{pathname.startsWith("/admin/notification-channels/") && (
-												<Dropdown.Item id='notification-catalog' href='/admin/notification-channels'>
-													Notification modules
-												</Dropdown.Item>
+						<nav aria-label='Breadcrumbs' className='mb-6 w-full min-w-0'>
+							<Breadcrumbs className='w-full min-w-0 flex-nowrap [&_.breadcrumbs__item]:min-w-0 [&_.breadcrumbs__link]:block [&_.breadcrumbs__link]:min-w-0 [&_.breadcrumbs__link]:max-w-full [&_.breadcrumbs__link]:truncate [&_.breadcrumbs__separator]:shrink-0'>
+								{breadcrumbItems.flatMap((item, index) => {
+									const collapsed = breadcrumbItems.length > 3 && index > 0 && index < breadcrumbItems.length - 2;
+									const crumb = (
+										<Breadcrumbs.Item key={item.href ?? item.label} href={item.href} className={collapsed ? "hidden min-w-0 shrink sm:flex" : index === 0 ? "shrink-0" : "min-w-0 shrink"}>
+											{item.label}
+										</Breadcrumbs.Item>
+									);
+									if (index !== 1 || breadcrumbItems.length <= 3) return [crumb];
+
+									return [
+										<Breadcrumbs.Item key='collapsed-parents' className='shrink-0 sm:hidden'>
+											{() => (
+												<>
+													<Dropdown>
+														<Dropdown.Trigger aria-label='Parent pages' className='button button--ghost size-8'>
+															…
+														</Dropdown.Trigger>
+														<Dropdown.Popover className='max-w-[calc(100vw-2rem)]'>
+															<Dropdown.Menu aria-label='Parent pages'>
+																{breadcrumbItems.slice(1, -2).map((parent) => (
+																	<Dropdown.Item key={parent.href ?? parent.label} id={parent.href ?? parent.label} href={parent.href}>
+																		{parent.label}
+																	</Dropdown.Item>
+																))}
+															</Dropdown.Menu>
+														</Dropdown.Popover>
+													</Dropdown>
+													<IconChevronRight aria-hidden='true' className='breadcrumbs__separator shrink-0' />
+												</>
 											)}
-											<Dropdown.Item id='home' href='/'>
-												Overview
-											</Dropdown.Item>
-											{currentOrganization && (
-												<Dropdown.Item id='organization' href={"/organizations/" + currentOrganization.id}>
-													{currentOrganization.name}
-												</Dropdown.Item>
-											)}
-											{currentWorkspace && (
-												<Dropdown.Item id='workspace' href={"/workspaces/" + currentWorkspace.id}>
-													{currentWorkspace.name}
-												</Dropdown.Item>
-											)}
-											{currentProject && (
-												<Dropdown.Item id='project' href={"/projects/" + currentProject.id}>
-													{currentProject.name}
-												</Dropdown.Item>
-											)}
-											{routeId && (
-												<Dropdown.Item id='route' href={routeAddress}>
-													{routeMetadata?.name ?? "Ingress route"}
-												</Dropdown.Item>
-											)}
-										</Dropdown.Menu>
-									</Dropdown.Popover>
-								</Dropdown>
-							)}
-							<Breadcrumbs className='min-w-0 [&_.breadcrumbs__link]:max-w-36 [&_.breadcrumbs__link]:truncate'>
-								{routeId ? (
-									<Breadcrumbs.Item href={routeAddress}>{routeMetadata?.name ?? "Ingress route"}</Breadcrumbs.Item>
-								) : currentProject ? (
-									<Breadcrumbs.Item href={pathname === "/projects/" + currentProject.id ? undefined : "/projects/" + currentProject.id}>{currentProject.name}</Breadcrumbs.Item>
-								) : currentWorkspace ? (
-									<Breadcrumbs.Item href={pathname === "/workspaces/" + currentWorkspace.id ? undefined : "/workspaces/" + currentWorkspace.id}>{currentWorkspace.name}</Breadcrumbs.Item>
-								) : currentOrganization ? (
-									<Breadcrumbs.Item href={pathname === "/organizations/" + currentOrganization.id ? undefined : "/organizations/" + currentOrganization.id}>{currentOrganization.name}</Breadcrumbs.Item>
-								) : null}
-								{currentOrganization && pathname === "/organizations/" + currentOrganization.id + "/usage" && <Breadcrumbs.Item>Usage and limits</Breadcrumbs.Item>}
-								{currentOrganization && pathname === "/organizations/" + currentOrganization.id + "/api-keys" && <Breadcrumbs.Item>API keys</Breadcrumbs.Item>}
-								{routeId ? (
-									<Breadcrumbs.Item>{routeSection === "middleware" ? "Middleware" : (routeLinks.find((item) => item.id === routeSection)?.label ?? "Scripts")}</Breadcrumbs.Item>
-								) : !currentProject && !currentWorkspace && !currentOrganization ? (
-									<Breadcrumbs.Item>{pathname === "/" ? "Overview" : pathname === "/organizations" ? "Organizations" : pathname === "/workspaces" ? "Workspaces" : pathname === "/projects" ? "Projects" : pathname === "/events" ? "Events" : pathname === "/account/api-keys" ? "Personal API keys" : pathname === "/account/notifications" ? "Notification settings" : pathname.startsWith("/account") ? "Account settings" : administrationLabel}</Breadcrumbs.Item>
-								) : null}
+										</Breadcrumbs.Item>,
+										crumb,
+									];
+								})}
 							</Breadcrumbs>
 						</nav>
 						{children}

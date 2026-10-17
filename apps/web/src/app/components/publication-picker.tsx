@@ -48,7 +48,7 @@ export function PublicationPicker({ endpointId, value, onChange, originalId, all
 	}, [endpointId]);
 
 	return (
-		<Select aria-label={label} value={value || (allowAll ? "all" : null)} onChange={(key) => onChange(key === "all" ? "" : String(key))} isDisabled={disabled} placeholder='Choose version' fullWidth>
+		<Select variant='secondary' aria-label={label} value={value || (allowAll ? "all" : null)} onChange={(key) => onChange(key === "all" ? "" : String(key))} isDisabled={disabled} placeholder='Choose version' fullWidth>
 			<Label>{label}</Label>
 			<Select.Trigger>
 				<Select.Value />

@@ -85,6 +85,31 @@ passes. Published-image install/upgrade/restore, optional host runsc, and physic
 Android keyboard behavior remain separate gates. Licensed CI installation now
 works through the configured secret; never copy a credential into these records.
 
+## Maintainer UX and hosted-access follow-up — 2026-10-17
+
+Actual Red evidence: mobile Overview was absent; publication-table UX53 could not
+find its grid; U116 could not find the delivery-attempt selector; HT01 inherited
+platform rights into hosted customer scopes; HT02 exposed customer audit activity.
+The strengthened mobile assertion also reproduced a current breadcrumb ending
+at 401px beyond its 374px container. Native HeroUI item sizing was corrected.
+
+Scoped Green evidence: authorization20/20, organizations23/23 and organization
+policy7/7. Eleven distinct browser flows pass across the scoped runs: U116, U83,
+U300, U157b, UX54, U265, U301, U292, mobile overview/hierarchy, UX53 and K01.
+The final four-flow run rechecks geometry, helper/script editing and native paste
+against the completed source. ESLint, web/tooling TypeScript and changed-source
+Prettier pass. HT03 verifies actual customer invitation, pending/accepted rights
+and revocation for a hosted staff account; it confirms an existing invitation
+path rather than claiming an invented Red cycle.
+
+Low-level Playwright insertText left JSON delimiter debris; real clipboard paste
+and the actual HTTP echo flow pass. The speculative select-all override was
+removed. No editor test backdoor, production logger, relaxed timeout, generated
+release migration or unrelated Docker/workflow draft was introduced. This scoped
+review does not replace the previous complete clean-CI checkpoint above. Public
+hosted certification, instance middleware trust policy, physical Android input
+and published release acceptance remain separate work.
+
 ## Historical bootstrap profile
 
 The root TypeScript entrypoint dispatches each file to its explicit owning runner. Bun never replaces production Node integration. All five exemplar files/helpers were read and run. HEAD6223754 plus current uncommitted bootstrap files; refresh after runner changes.

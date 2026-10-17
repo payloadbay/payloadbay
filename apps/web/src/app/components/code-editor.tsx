@@ -12,13 +12,14 @@ type CodeEditorProps = {
 	onChange: (value: string) => void;
 	label: string;
 	readOnly?: boolean;
+	language?: "typescript" | "json" | "plaintext";
 	stage?: ScriptStage;
 	bindings?: Record<string, string>;
 	onSave?: () => void;
 	helperScope?: { type: "instance" | "organization" | "workspace" | "project"; id: string };
 };
 
-export function CodeEditor({ value, onChange, label, readOnly = false, stage, bindings, onSave, helperScope }: CodeEditorProps) {
+export function CodeEditor({ value, onChange, label, readOnly = false, language = "typescript", stage, bindings, onSave, helperScope }: CodeEditorProps) {
 	const helperType = helperScope?.type;
 	const helperId = helperScope?.id;
 
@@ -63,8 +64,11 @@ export function CodeEditor({ value, onChange, label, readOnly = false, stage, bi
 			try {
 				const monaco = await import("monaco-editor");
 				const typescript = await import("monaco-editor/languages/features/typescript/register.js");
+				if (language === "json") await import("monaco-editor/languages/features/json/register.js");
 				if (disposed || !container.current) return;
-				(globalThis as typeof globalThis & { MonacoEnvironment?: unknown }).MonacoEnvironment = { getWorker: (_: string, language: string) => (language === "typescript" || language === "javascript" ? new Worker(new URL("monaco-editor/languages/features/typescript/ts.worker.js", import.meta.url), { type: "module" }) : new Worker(new URL("monaco-editor/editor/editor.worker.js", import.meta.url), { type: "module" })) };
+				(globalThis as typeof globalThis & { MonacoEnvironment?: unknown }).MonacoEnvironment = {
+					getWorker: (_: string, language: string) => (language === "typescript" || language === "javascript" ? new Worker(new URL("monaco-editor/languages/features/typescript/ts.worker.js", import.meta.url), { type: "module" }) : language === "json" ? new Worker(new URL("monaco-editor/languages/features/json/json.worker.js", import.meta.url), { type: "module" }) : new Worker(new URL("monaco-editor/editor/editor.worker.js", import.meta.url), { type: "module" })),
+				};
 				typescript.typescriptDefaults.setCompilerOptions({
 					target: typescript.ScriptTarget.ESNext,
 					module: typescript.ModuleKind.ESNext,
@@ -112,7 +116,7 @@ export function CodeEditor({ value, onChange, label, readOnly = false, stage, bi
 					}),
 				);
 				const instance = monaco.editor.create(container.current, {
-					model: monaco.editor.createModel(current.current, "typescript", monaco.Uri.parse("file:///scripts/" + crypto.randomUUID() + ".ts")),
+					model: monaco.editor.createModel(current.current, language, monaco.Uri.parse("file:///scripts/" + crypto.randomUUID() + (language === "typescript" ? ".ts" : language === "json" ? ".json" : ".txt"))),
 					theme: theme(),
 					ariaLabel: label,
 					readOnly: locked.current,
@@ -128,14 +132,14 @@ export function CodeEditor({ value, onChange, label, readOnly = false, stage, bi
 				editor.current = instance;
 				cleanups.push(
 					monaco.languages.registerDocumentFormattingEditProvider(
-						{ language: "typescript", pattern: instance.getModel()!.uri.path },
+						{ language, pattern: instance.getModel()!.uri.path },
 						{
 							provideDocumentFormattingEdits: async (model) => {
 								if (locked.current) return [];
 								const text = model.getValue();
 								const body = prefix ? text.slice(prefix.length, -suffix.length) : text;
 
-								return [{ range: model.getFullModelRange(), text: prefix + (await formatScript(body, stage, bindings)) + suffix }];
+								return [{ range: model.getFullModelRange(), text: prefix + (language === "typescript" ? await formatScript(body, stage, bindings) : language === "json" ? JSON.stringify(JSON.parse(body), null, "\t") + "\n" : body) + suffix }];
 							},
 						},
 					),
@@ -192,18 +196,21 @@ export function CodeEditor({ value, onChange, label, readOnly = false, stage, bi
 							try {
 								const text = instance.getValue();
 								const body = prefix ? text.slice(prefix.length, -suffix.length) : text;
-								changed.current(await formatScript(body, stage, bindings));
+								changed.current(language === "typescript" ? await formatScript(body, stage, bindings) : language === "json" ? JSON.stringify(JSON.parse(body), null, "\t") + "\n" : body);
 							} catch {
-								setError("Fix the TypeScript syntax before formatting.");
+								setError("Fix the document syntax before formatting.");
 							}
 						},
 					}),
 				);
 				observer = new MutationObserver(() => monaco.editor.setTheme(theme()));
 				observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme"] });
-				const getWorker = await typescript.getTypeScriptWorker();
-				const languageWorker = await getWorker(instance.getModel()!.uri);
-				await languageWorker.getQuickInfoAtPosition(instance.getModel()!.uri.toString(), Math.max(0, prefix.indexOf("ctx")));
+				if (language === "typescript") {
+					const getWorker = await typescript.getTypeScriptWorker();
+					const languageWorker = await getWorker(instance.getModel()!.uri);
+					await languageWorker.getQuickInfoAtPosition(instance.getModel()!.uri.toString(), Math.max(0, prefix.indexOf("ctx")));
+				}
+
 				if (!disposed) setReady(true);
 			} catch {
 				if (!disposed) setError("Could not load the code editor. Reload this page to retry.");
@@ -222,7 +229,7 @@ export function CodeEditor({ value, onChange, label, readOnly = false, stage, bi
 			model?.dispose();
 			editor.current = null;
 		};
-	}, [label, prefix, suffix, stage, bindings, helperType, helperId]);
+	}, [label, prefix, suffix, stage, bindings, helperType, helperId, language]);
 
 	return (
 		<div className='min-w-0 w-full'>

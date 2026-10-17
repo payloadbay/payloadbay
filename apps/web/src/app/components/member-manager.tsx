@@ -342,7 +342,7 @@ export function MemberManager({ scope: chosen, held: chosenHeld }: { scope?: Sco
 														<fieldset className='flex flex-col gap-3'>
 															<legend className='mb-2 font-medium'>Projects</legend>
 															{assignable.map((project) => (
-																<Checkbox key={project.id} isSelected={projectIds.includes(project.id)} onChange={(checked) => setProjectIds((previous) => (checked ? [...previous, project.id] : previous.filter((id) => id !== project.id)))}>
+																<Checkbox variant='secondary' key={project.id} isSelected={projectIds.includes(project.id)} onChange={(checked) => setProjectIds((previous) => (checked ? [...previous, project.id] : previous.filter((id) => id !== project.id)))}>
 																	<Checkbox.Content>
 																		<Checkbox.Control>
 																			<Checkbox.Indicator />

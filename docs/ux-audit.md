@@ -171,3 +171,59 @@ work supersedes earlier snapshots that still describe separate helper-import or
 request/attempt screens. Personal and organization API-key settings are newly
 tracked gaps, not previously implemented UI. Physical Android viewport behavior
 and the independent release gates remain unverified.
+
+## Maintainer review — 2026-10-17
+
+The current follow-up covers mobile breadcrumb context, coherent workspace
+navigation actions, secondary form controls on surfaces, secret-field autofill
+hints and mobile search layout, an editor-backed HTTP playground, optional
+script-test help, removal of the route's single-category tab strip, independent
+bulk-selection presets, publication history as a table, and delivery-attempt
+selection with response inspection. Validation evidence is recorded separately;
+this list alone is not a completion claim.
+
+### Additional findings awaiting maintainer direction
+
+These are source-audit findings, not newly implemented behavior:
+
+- Hosted customer privacy also needs an explicit policy for instance-wide code.
+  Middleware currently inherits from the physical instance ancestry. Removing
+  implicit customer grants does not by itself isolate customer processing from
+  platform-authored middleware. Decide whether hosted customer execution should
+  start inheritance at the organization boundary, while self-hosted inheritance
+  remains instance-wide. This has not been silently changed in the UX follow-up.
+
+- The HTTP playground has no cancellation control or explicit response-size
+  boundary. A slow or unusually large response can leave a reviewer waiting or
+  consume browser memory. Consider bounded capture plus Cancel, retaining the
+  actual HTTP result and clearly marking truncation.
+- Synthetic testing exercises one handler, not the effective middleware chain.
+  The main screen now keeps the explanation behind contextual help. A separate
+  full-flow simulation would need to pin the same middleware/helpers as a live
+  publication and show which stage stopped execution; it must preserve the
+  synthetic secret and network-effect boundary.
+- Code-editor load/format failures still render inline error text. This differs
+  from the agreed toast policy; a follow-up should distinguish retryable editor
+  availability from field syntax diagnostics rather than treating both as banners.
+- Publication history remains immutable. Archiving should be presentation
+  metadata, and deletion must preserve every publication referenced by stored
+  events/executions. The current follow-up adds activation, not destructive
+  version removal.
+- Helper collections still use cards. Converting these management collections
+  to comparable table rows is a separate composition change, with the editor
+  remaining the working surface.
+
+Browser emulation does not establish physical Android keyboard/pull-to-refresh
+behavior. Those interactions still need a real-device check.
+
+### Verification for the 2026-10-17 follow-up
+
+ESLint, web/tooling TypeScript and changed-source Prettier pass. Scoped backend
+runs pass authorization20/20, organizations23/23 and organization policy7/7.
+Eleven distinct browser flows pass: U116, U83, U300, U157b, UX54, U265, U301,
+U292, mobile overview/hierarchy, UX53 and K01. Final mobile geometry checks the
+current breadcrumb itself, not just its container. Native clipboard paste sends
+edited JSON body and headers through the real receiving endpoint. Publication
+activation preserves queued version pins; response inspection switches attempts
+and refreshes when an open attempt completes. These scoped results do not claim
+all release gates or physical-device behavior have passed.

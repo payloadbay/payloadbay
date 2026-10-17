@@ -35,16 +35,17 @@ export async function scopeAncestry(db: Pool | PoolClient, scope: ScopeRef): Pro
 
 export async function actorPermissions(db: Pool | PoolClient, actor: Actor, scope: ScopeRef) {
 	const ancestry = await scopeAncestry(db, scope);
-	const active = await db.query("SELECT active FROM payloadbay.admission WHERE installation_id=$1 AND user_id=$2 AND active", [ancestry[0].id, actor.userId]);
+	const active = await db.query("SELECT i.deployment_mode FROM payloadbay.admission a JOIN payloadbay.installation i ON i.id=a.installation_id WHERE a.installation_id=$1 AND a.user_id=$2 AND a.active", [ancestry[0].id, actor.userId]);
 	if (!active.rowCount) throw new AppError("unauthenticated", 401, "Authentication required");
+	const authorizationAncestry = active.rows[0].deployment_mode === "hosted" && scope.type !== "instance" ? ancestry.filter((parent) => parent.type !== "instance") : ancestry;
 	const rows = (await db.query("SELECT scope_type,scope_id,permissions FROM payloadbay.grant_record WHERE user_id=$1", [actor.userId])).rows;
 	let result = effectivePermissions(
 		rows.map((row) => ({ scopeType: row.scope_type, scopeId: row.scope_id, permissions: row.permissions })),
-		ancestry,
+		authorizationAncestry,
 	);
 	if (actor.token) {
 		const token = (await db.query("SELECT id,scope_type,scope_id,permissions,workspace_ids FROM payloadbay.api_token WHERE id=$1 AND user_id=$2 AND revoked_at IS NULL AND expires_at>clock_timestamp()", [actor.token.id, actor.userId])).rows[0];
-		if (!token || !ancestry.some((s) => s.type === token.scope_type && s.id === token.scope_id)) throw new AppError("unauthenticated", 401, "Authentication required");
+		if (!token || !authorizationAncestry.some((s) => s.type === token.scope_type && s.id === token.scope_id)) throw new AppError("unauthenticated", 401, "Authentication required");
 		if (token.workspace_ids !== null && !ancestry.some((s) => s.type === "workspace" && token.workspace_ids.includes(s.id))) return new Set<Permission>();
 		result = new Set([...result].filter((permission) => token.permissions.includes(permission)));
 	}

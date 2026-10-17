@@ -90,7 +90,7 @@ Invalid/missing verification; malformed/binary bodies; exact challenge bytes; co
 - **FR-016**: Define execution/revision/action identity and recovery semantics so recorded completed actions are reused; intentional replay creates a new run. Do not promise transparent continuation of arbitrary JS state.
 - **FR-017**: Support draft/test/publish/rollback, pinned compatible dependencies and bounded isolated execution with controlled capabilities/secrets, proven on supported runtime modes.
 - **FR-018**: Support shared/global code modules/functions; publishing pins dependency revisions and does not silently mutate active handlers.
-- **FR-019**: Support instance/organization/workspace/project/endpoint-scoped user middleware with explicit order, versioned bindings and configurable required/optional failure behavior. Permission inheritance follows instance → organization → workspace → project.
+- **FR-019**: Support instance/organization/workspace/project/endpoint-scoped user middleware with explicit order, versioned bindings and configurable required/optional failure behavior. Permission inheritance follows instance → organization → workspace → project on self-hosted installations; hosted customer authorization begins at organization.
 
 ### Shared deployment foundation — confirmed 2026-10-16
 
@@ -139,7 +139,7 @@ First alpha includes the plain editor/template/shared-code/middleware and two-st
 - **FR-020**: Provide a versioned API-first dashboard/API using Zod schemas and locally bundled Scalar/OpenAPI, shared server-only authorization, cookie/token transport and future MCP-compatible capability scopes.
 - **FR-021**: Provide one authenticated SSE change subscription with reconnect/backfill and permission revocation; do not require polling to see event/job updates.
 - **FR-022**: Default to SMTP email-code sign-in, public registration/passwords disabled; support atomic owner bootstrap, scoped invitation acceptance/cancellation, and optional user-registered passkeys with email-code recovery. Supported OAuth providers enable only from complete operator configuration.
-- **FR-023**: Role/custom-permission grants inherit instance → every workspace/project, workspace → child projects, project → itself. Admission alone grants no global data access; protect last-owner/transfer and grant escalation.
+- **FR-023**: Self-hosted role/custom-permission grants inherit instance → organization → workspace → project. Hosted instance roles grant no customer-scope access or authority to self-grant it. A customer may invite a staff account as an ordinary member; only customer-selected rights apply after acceptance, and removal revokes them. Organization/workspace/project grants inherit only within their descendants. Admission alone grants no global data access; protect last-owner/transfer and grant escalation.
 - **FR-024**: Each endpoint binds a complete editable Ingress module with named HTTP method exports and a separate Processing body with a protected lifecycle wrapper. The generated dispatcher returns 405 for unsupported methods. Monaco diagnostics and server publication validation reject missing/invalid entrypoints; shared modules/middleware are versioned and pinned.
 - **FR-025**: Prompt delivery to healthy destinations is independently measured from provider acknowledgement. Continuous workers, critical priority/reserved capacity and visible queue age prevent bulk background backlog from silently delaying critical events for minutes.
 - **FR-026**: Use the saved HeroUI Pro theme via canonical brand CSS with provenance, bundled fonts/assets and no runtime theme/font-CDN requirement.
@@ -202,3 +202,11 @@ retain saved pins on subsequent edits, and pin them in publications/queued work.
 Processing/middleware full modules retain a checked async default lifecycle export;
 its descriptive function name is not the runtime dispatch identity. Monaco exposes
 available module paths and exported types, and formatting preserves native source.
+
+
+### Hosted privacy clarification — confirmed 2026-10-17
+
+The instance-role boundary also applies to resource lists and scoped API tokens.
+Hosted platform audit views exclude customer-scope activity. Automatic
+instance-wide middleware inheritance is a separate unresolved trust-model finding;
+the role changes alone do not certify a confidential public hosted service.

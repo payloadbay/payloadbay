@@ -3,7 +3,7 @@
 import { useLiveSubscription } from "@components/live-subscription";
 import { LoadingState } from "@components/loading-state";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Button, Table, Label, Chip, Select, ListBox, Checkbox, Tabs, Modal } from "@heroui/react";
+import { Button, Table, Label, Chip, Select, ListBox, Checkbox, Tabs, Modal, Dropdown } from "@heroui/react";
 import { EmptyState, NativeSelect } from "@heroui-pro/react";
 import { IconInbox, IconEye, IconRefresh, IconPlayerPlay } from "@tabler/icons-react";
 import { useFeedbackToast } from "@lib/feedback";
@@ -111,6 +111,9 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 	const response = useRef<HTMLElement>(null);
 	const [replayVersion, setReplayVersion] = useState("");
 	const [bulkOpen, setBulkOpen] = useState(false);
+	const [selectionOpen, setSelectionOpen] = useState(false);
+	const [selectionState, setSelectionState] = useState("delivery_failed");
+	const [selectionVersion, setSelectionVersion] = useState("");
 	const [bulkPolicy, setBulkPolicy] = useState<"original" | "current" | "selected">("original");
 	const [bulkVersion, setBulkVersion] = useState("");
 	const [busy, setBusy] = useState(false);
@@ -285,11 +288,22 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 		setVersionFilter("");
 	}
 
-	async function selectMatching() {
+	async function selectMatching(state?: string, publicationId?: string) {
 		setBusy(true);
 		setError("");
 		try {
-			const result = await api<{ ids: string[] }>("/events/replay-selection?" + query());
+			const selection = query();
+			if (state) {
+				selection.delete("state");
+				selection.append("state", state);
+			}
+
+			if (publicationId !== undefined) {
+				selection.delete("publicationId");
+				if (publicationId) selection.set("publicationId", publicationId);
+			}
+
+			const result = await api<{ ids: string[] }>("/events/replay-selection?" + selection);
 			setSelectedIds(result.ids);
 		} catch (cause) {
 			setError(cause instanceof Error ? cause.message : "Could not select events");
@@ -358,7 +372,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 			<div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
 				{!projectId && (
 					<>
-						<NativeSelect fullWidth>
+						<NativeSelect variant='secondary' fullWidth>
 							<Label>Workspace</Label>
 							<NativeSelect.Trigger
 								aria-label='Event workspace'
@@ -379,7 +393,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 								<NativeSelect.Indicator />
 							</NativeSelect.Trigger>
 						</NativeSelect>
-						<NativeSelect fullWidth>
+						<NativeSelect variant='secondary' fullWidth>
 							<Label>Project</Label>
 							<NativeSelect.Trigger
 								aria-label='Event project'
@@ -404,7 +418,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 					</>
 				)}
 				{!endpointId && activeProject && (
-					<NativeSelect fullWidth>
+					<NativeSelect variant='secondary' fullWidth>
 						<Label>Ingress route</Label>
 						<NativeSelect.Trigger
 							aria-label='Event route'
@@ -425,6 +439,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 					</NativeSelect>
 				)}
 				<Select
+					variant='secondary'
 					aria-label='History status'
 					selectionMode='multiple'
 					value={states}
@@ -467,9 +482,30 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 			</div>
 			{canReplay && (
 				<div className='flex flex-wrap items-center gap-3'>
-					<Button variant='secondary' isDisabled={busy} onPress={() => void selectMatching()}>
-						Select all matching replayable events
-					</Button>
+					<Dropdown>
+						<Dropdown.Trigger className='button button--secondary' isDisabled={busy}>
+							Select events
+						</Dropdown.Trigger>
+						<Dropdown.Popover>
+							<Dropdown.Menu
+								aria-label='Event selection'
+								onAction={(key) => {
+									if (key === "custom") {
+										setSelectionVersion(versionFilter);
+										setSelectionOpen(true);
+									} else if (key === "visible") setSelectedIds(page.items.filter(replayable).map((event) => event.id));
+									else void selectMatching(key === "matching" ? undefined : String(key));
+								}}
+							>
+								<Dropdown.Item id='visible'>Visible replayable events</Dropdown.Item>
+								<Dropdown.Item id='matching'>All matching events</Dropdown.Item>
+								<Dropdown.Item id='delivery_failed'>Failed deliveries</Dropdown.Item>
+								<Dropdown.Item id='delivered'>Successful deliveries</Dropdown.Item>
+								<Dropdown.Item id='failed_terminal'>Failed processing</Dropdown.Item>
+								<Dropdown.Item id='custom'>Choose status and version…</Dropdown.Item>
+							</Dropdown.Menu>
+						</Dropdown.Popover>
+					</Dropdown>
 					<span className='text-muted text-sm'>{selectedIds.length} selected</span>
 					{selectedIds.length > 0 && (
 						<>
@@ -496,7 +532,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 							<Table.Header>
 								{canReplay && (
 									<Table.Column>
-										<Checkbox slot={null} aria-label='Select visible replayable events' isSelected={Boolean(visible.length) && visible.every((event) => selectedIds.includes(event.id))} onChange={(checked) => setSelectedIds((previous) => (checked ? [...new Set([...previous, ...visible.map((event) => event.id)])] : previous.filter((id) => !visible.some((event) => event.id === id))))}>
+										<Checkbox variant='secondary' slot={null} aria-label='Select visible replayable events' isSelected={Boolean(visible.length) && visible.every((event) => selectedIds.includes(event.id))} onChange={(checked) => setSelectedIds((previous) => (checked ? [...new Set([...previous, ...visible.map((event) => event.id)])] : previous.filter((id) => !visible.some((event) => event.id === id))))}>
 											<Checkbox.Content>
 												<Checkbox.Control>
 													<Checkbox.Indicator />
@@ -514,7 +550,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 									<Table.Row key={event.id} id={event.id} onAction={() => inspect(event.id)} className='cursor-pointer'>
 										{canReplay && (
 											<Table.Cell>
-												<Checkbox slot={null} aria-label={"Select event " + event.id.slice(0, 8)} isSelected={selectedIds.includes(event.id)} isDisabled={!replayable(event)} onChange={(checked) => setSelectedIds((previous) => (checked ? [...new Set([...previous, event.id])] : previous.filter((id) => id !== event.id)))}>
+												<Checkbox variant='secondary' slot={null} aria-label={"Select event " + event.id.slice(0, 8)} isSelected={selectedIds.includes(event.id)} isDisabled={!replayable(event)} onChange={(checked) => setSelectedIds((previous) => (checked ? [...new Set([...previous, event.id])] : previous.filter((id) => id !== event.id)))}>
 													<Checkbox.Content>
 														<Checkbox.Control>
 															<Checkbox.Indicator />
@@ -641,6 +677,46 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 											{!detail.executions.length && <p className='text-muted'>This request has no processing executions.</p>}
 										</Tabs.Panel>
 										<Tabs.Panel id='outgoing' className='flex flex-col gap-4 pt-4'>
+											{detail.attempts.length ? (
+												<Select
+													variant='secondary'
+													aria-label='Delivery attempt'
+													placeholder='Choose an attempt'
+													value={selectedAttempt || null}
+													onChange={(key) => {
+														setAttempt(null);
+														setSelectedAttempt(String(key));
+													}}
+												>
+													<Label>Delivery attempt</Label>
+													<Select.Trigger>
+														<Select.Value />
+														<Select.Indicator />
+													</Select.Trigger>
+													<Select.Popover>
+														<ListBox>
+															{[...detail.attempts].reverse().map((item, index) => (
+																<ListBox.Item key={item.id} id={item.id} textValue={"Attempt " + (index + 1) + " · " + (item.status_code ? "HTTP " + item.status_code : (item.network_error ?? "Pending")) + " · " + item.operation_id}>
+																	<div className='flex min-w-0 flex-col gap-1'>
+																		<div className='flex flex-wrap items-center gap-2'>
+																			<span>
+																				Attempt {index + 1} · {item.operation_id}
+																			</span>
+																			<Chip size='sm' color={item.status_code ? (item.status_code >= 200 && item.status_code < 300 ? "success" : "danger") : "default"}>
+																				{item.status_code ? "HTTP " + item.status_code : (item.network_error ?? "Pending")}
+																			</Chip>
+																		</div>
+																		<span className='text-muted text-xs'>{new Date(item.started_at).toLocaleString()}</span>
+																	</div>
+																	<ListBox.ItemIndicator />
+																</ListBox.Item>
+															))}
+														</ListBox>
+													</Select.Popover>
+												</Select>
+											) : (
+												<p className='text-muted'>No tracked HTTP attempts yet.</p>
+											)}
 											{selectedAttempt && (
 												<section ref={response} tabIndex={-1} aria-label='Selected delivery attempt' className='flex flex-col gap-3'>
 													<h3 className='font-semibold'>Destination response</h3>
@@ -665,58 +741,6 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 													)}
 												</section>
 											)}
-											<h3 className='font-semibold'>Delivery attempts</h3>
-											{detail.attempts.length ? (
-												<Table>
-													<Table.ScrollContainer>
-														<Table.Content aria-label='Event delivery attempts'>
-															<Table.Header>
-																<Table.Column isRowHeader>Operation</Table.Column>
-																<Table.Column>Response</Table.Column>
-																<Table.Column>Inspect</Table.Column>
-															</Table.Header>
-															<Table.Body>
-																{detail.attempts.map((item) => (
-																	<Table.Row
-																		key={item.id}
-																		id={item.id}
-																		onAction={() => {
-																			setAttempt(null);
-																			setSelectedAttempt(item.id);
-																		}}
-																		className='cursor-pointer'
-																	>
-																		<Table.Cell>
-																			{item.operation_id}
-																			<p className='text-muted text-xs'>{new Date(item.started_at).toLocaleString()}</p>
-																		</Table.Cell>
-																		<Table.Cell>
-																			<Chip size='sm' className='whitespace-nowrap' color={item.status_code && item.status_code >= 200 && item.status_code < 300 ? "success" : "danger"}>
-																				{item.status_code ? "HTTP " + item.status_code : (item.network_error ?? "Pending")}
-																			</Chip>
-																		</Table.Cell>
-																		<Table.Cell>
-																			<Button
-																				size='sm'
-																				variant='secondary'
-																				aria-label={"Inspect delivery attempt " + item.id.slice(0, 8)}
-																				onPress={() => {
-																					setAttempt(null);
-																					setSelectedAttempt(item.id);
-																				}}
-																			>
-																				Inspect
-																			</Button>
-																		</Table.Cell>
-																	</Table.Row>
-																))}
-															</Table.Body>
-														</Table.Content>
-													</Table.ScrollContainer>
-												</Table>
-											) : (
-												<p className='text-muted'>No tracked HTTP attempts yet.</p>
-											)}
 										</Tabs.Panel>
 									</Tabs>
 								)}
@@ -737,6 +761,45 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 					</Modal.Container>
 				</Modal.Backdrop>
 			</Modal>
+			<Modal isOpen={selectionOpen} onOpenChange={setSelectionOpen}>
+				<Modal.Backdrop>
+					<Modal.Container>
+						<Modal.Dialog aria-label='Select events by status and version'>
+							<Modal.CloseTrigger />
+							<Modal.Header>
+								<Modal.Heading>Select events</Modal.Heading>
+							</Modal.Header>
+							<Modal.Body className='flex flex-col gap-4'>
+								<NativeSelect variant='secondary' fullWidth>
+									<Label>Status</Label>
+									<NativeSelect.Trigger aria-label='Selection status' value={selectionState} onChange={(event) => setSelectionState(event.target.value)}>
+										<NativeSelect.Option value='delivery_failed'>Failed deliveries</NativeSelect.Option>
+										<NativeSelect.Option value='delivered'>Successful deliveries</NativeSelect.Option>
+										<NativeSelect.Option value='failed_terminal'>Failed processing</NativeSelect.Option>
+										<NativeSelect.Indicator />
+									</NativeSelect.Trigger>
+								</NativeSelect>
+								{activeRoute && <PublicationPicker endpointId={activeRoute} value={selectionVersion} onChange={setSelectionVersion} allowAll label='Selection script version' />}
+								<p className='text-muted text-sm'>Selects matching replayable events in this scope. Your visible list stays unchanged.</p>
+							</Modal.Body>
+							<Modal.Footer>
+								<Button slot='close' variant='tertiary'>
+									Cancel
+								</Button>
+								<Button
+									isDisabled={busy}
+									onPress={async () => {
+										await selectMatching(selectionState, selectionVersion);
+										setSelectionOpen(false);
+									}}
+								>
+									Select matching events
+								</Button>
+							</Modal.Footer>
+						</Modal.Dialog>
+					</Modal.Container>
+				</Modal.Backdrop>
+			</Modal>
 			<Modal
 				isOpen={bulkOpen}
 				onOpenChange={(open) => {
@@ -752,7 +815,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 							</Modal.Header>
 							<Modal.Body className='flex flex-col gap-4'>
 								<p>{selectedIds.length} selected events will get new processing executions. External effects can repeat. The selection is fixed; newly arriving events are not included.</p>
-								<NativeSelect fullWidth>
+								<NativeSelect variant='secondary' fullWidth>
 									<Label>Version policy</Label>
 									<NativeSelect.Trigger
 										aria-label='Bulk replay version policy'

@@ -88,8 +88,11 @@ row per attempt with the original event ID for inspection.
 
 ## Organization usage and policy extension — planned 2026-10-16
 
-Organization is required above workspace; grants inherit instance → organization
-→ workspace → project. Existing scope IDs/history survive an explicit additive
+Organization is required above workspace. Self-hosted grants inherit instance →
+organization → workspace → project. Hosted authorization begins at organization;
+platform instance grants never supply customer rights. Customer-invited staff
+use ordinary explicit membership, acceptance and revocation. The physical
+ownership chain remains instance → organization → workspace → project. Existing scope IDs/history survive an explicit additive
 alpha-data mapping; existing scoped members gain no broader grants. Cross-org
 moves are unavailable until a separately designed transfer exists.
 

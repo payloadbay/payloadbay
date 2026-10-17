@@ -306,7 +306,7 @@ export function ApiKeyManager({ organizationId }: { organizationId?: string }) {
 													<fieldset className='flex flex-col gap-2'>
 														<legend className='mb-2 font-medium'>Allowed workspaces</legend>
 														{availableWorkspaces.map((workspace) => (
-															<Checkbox key={workspace.id} isSelected={workspaceIds.includes(workspace.id)} onChange={(checked) => setWorkspaceIds((previous) => (checked ? [...previous, workspace.id] : previous.filter((id) => id !== workspace.id)))}>
+															<Checkbox variant='secondary' key={workspace.id} isSelected={workspaceIds.includes(workspace.id)} onChange={(checked) => setWorkspaceIds((previous) => (checked ? [...previous, workspace.id] : previous.filter((id) => id !== workspace.id)))}>
 																<Checkbox.Content>
 																	<Checkbox.Control>
 																		<Checkbox.Indicator />
@@ -324,7 +324,7 @@ export function ApiKeyManager({ organizationId }: { organizationId?: string }) {
 											<legend className='mb-2 font-medium'>Permissions</legend>
 											<p className='text-muted mb-2 text-sm'>Choose only the operations this integration needs.</p>
 											{scope?.permissions.map((permission) => (
-												<Checkbox key={permission} isSelected={selected.includes(permission)} onChange={(checked) => setSelected((previous) => (checked ? [...previous, permission] : previous.filter((item) => item !== permission)))}>
+												<Checkbox variant='secondary' key={permission} isSelected={selected.includes(permission)} onChange={(checked) => setSelected((previous) => (checked ? [...previous, permission] : previous.filter((item) => item !== permission)))}>
 													<Checkbox.Content>
 														<Checkbox.Control>
 															<Checkbox.Indicator />

@@ -325,9 +325,12 @@ test("U116 event inspector displays HTML payload as escaped text", async ({ page
 	await page.getByRole("tab", { name: "Processing", exact: true }).click();
 	await expect(page.getByText("Handler completed", { exact: true }).last()).toBeVisible();
 	await page.getByRole("tab", { name: "Outgoing", exact: true }).click();
-	const attempts = page.getByRole("grid", { name: "Event delivery attempts", exact: true });
-	await attempts.getByRole("row").filter({ hasText: "HTTP 503" }).click();
+	await page.getByRole("button", { name: /Delivery attempt/ }).click();
+	await page.getByRole("option", { name: /HTTP 503/ }).click();
 	await expect(page.getByLabel("Delivery response body")).toHaveText("Receiver is offline");
+	await page.getByRole("button", { name: /Delivery attempt/ }).click();
+	await page.getByRole("option", { name: /HTTP 204/ }).click();
+	await expect(page.getByLabel("Selected delivery attempt")).toContainText("HTTP 204");
 	const dialog = page.getByRole("dialog", { name: "Event inspection" });
 	const bounds = await dialog.boundingBox();
 	expect(bounds!.x).toBeGreaterThanOrEqual(0);
@@ -379,10 +382,19 @@ test("U116 event inspector displays HTML payload as escaped text", async ({ page
 	await expect.poll(async () => (await (await page.request.get("/api/v1/events/" + entry.id)).json()).executions.length).toBe(before + 2);
 	await replayInspector.getByRole("button", { name: "Close", exact: true }).click();
 	await expect(replayInspector).toHaveCount(0);
-	await page.getByRole("button", { name: "Select all matching replayable events", exact: true }).click();
+	await page.getByRole("button", { name: "Select events", exact: true }).click();
+	await page.getByRole("menuitem", { name: "All matching events", exact: true }).click();
 	await expect(page.getByText("1 selected", { exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "Clear selection", exact: true }).click();
 	await expect(page.getByText("0 selected", { exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "Select events", exact: true }).click();
+	await page.getByRole("menuitem", { name: "Choose status and version…", exact: true }).click();
+	const selection = page.getByRole("dialog", { name: "Select events by status and version", exact: true });
+	await selection.getByLabel("Selection status", { exact: true }).selectOption("delivered");
+	await selection.getByRole("button", { name: "Select matching events", exact: true }).click();
+	await expect(selection).toHaveCount(0);
+	await expect(page.getByRole("button", { name: /Inspect event/ })).toHaveCount(1);
+	await expect(page.getByText("1 selected", { exact: true })).toBeVisible();
 });
 
 test("U275 stored event appears through authenticated live updates", async ({ page }) => {
@@ -673,7 +685,7 @@ test("U301 code creation follows workspace and project page scope", async ({ pag
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Scope project", slug: "scope-project" } })).json();
 	await page.goto("/code/project/" + project.id);
 	await expect(page.getByLabel("Code scope", { exact: true })).toHaveCount(0);
-	await expect(page.getByText(/Created here: this project/)).toBeVisible();
+	await expect(page.getByText("Scope: this project", { exact: true })).toBeVisible();
 	await page.goto("/code/workspace/" + workspace.id);
 	await expect(page.getByRole("button", { name: "Create helper", exact: true })).toBeVisible();
 	await expect(page.getByLabel("Code scope", { exact: true })).toHaveCount(0);
@@ -978,8 +990,16 @@ test("overview and mobile hierarchy preserve context while search opens resource
 	await command.getByPlaceholder("Search pages and resources…").fill("Design project");
 	await command.getByRole("menuitem", { name: "Jump to Design project · Project", exact: true }).click();
 	await expect(page).toHaveURL(new RegExp("/projects/" + project.id + "$"));
+	const breadcrumbs = page.getByRole("navigation", { name: "Breadcrumbs", exact: true });
+	await expect(breadcrumbs.getByRole("link", { name: "Overview", exact: true })).toBeVisible();
+	await expect(breadcrumbs).toContainText("Design project");
+	expect((await breadcrumbs.boundingBox())!.width).toBeGreaterThan(330);
+	const breadcrumbBounds = (await breadcrumbs.boundingBox())!;
+	const currentCrumbBounds = (await breadcrumbs.getByText("Design project", { exact: true }).boundingBox())!;
+	expect(currentCrumbBounds.x + currentCrumbBounds.width).toBeLessThanOrEqual(breadcrumbBounds.x + breadcrumbBounds.width);
 	await page.getByRole("button", { name: "Parent pages", exact: true }).click();
-	await expect(page.getByRole("menuitem", { name: "Design workspace", exact: true })).toBeVisible();
+	await expect(breadcrumbs.getByRole("link", { name: "Design workspace", exact: true })).toBeVisible();
+	await expect(page.getByRole("menu", { name: "Parent pages", exact: true })).toBeVisible();
 	await page.keyboard.press("Escape");
 	await page.screenshot({ path: test.info().outputPath("project-mobile.png"), fullPage: true });
 	await page.getByRole("button", { name: "Toggle navigation" }).click();
@@ -1379,16 +1399,15 @@ test("U157b open attempt inspector refreshes when delivery completes", async ({ 
 		await page.getByRole("button", { name: "Inspect event " + event.id.slice(0, 8), exact: true }).click();
 		const dialog = page.getByRole("dialog", { name: "Event inspection", exact: true });
 		await dialog.getByRole("tab", { name: "Outgoing", exact: true }).click();
-		const attempts = dialog.getByRole("grid", { name: "Event delivery attempts", exact: true });
-		await expect(attempts).toContainText("Pending");
-		await dialog.getByRole("button", { name: "Inspect delivery attempt " + attempt.id.slice(0, 8), exact: true }).click();
+		await dialog.getByRole("button", { name: /Delivery attempt/ }).click();
+		await page.getByRole("option", { name: /Pending/ }).click();
 		await expect(dialog.getByRole("heading", { name: "Destination response", exact: true })).toBeVisible();
 		await transaction(pool, async (db) => {
 			await db.query("UPDATE payloadbay.delivery_attempt SET ended_at=clock_timestamp(),status_code=503,response_body=$2 WHERE id=$1", [attempt.id, Buffer.from("Try again later")]);
 			await db.query("UPDATE payloadbay.execution SET state='retry_wait',due_at=clock_timestamp()+interval '1 minute' WHERE id=$1", [execution.id]);
 			await appendChange(db, { scope: { type: "project", id: project.id }, kind: "attempt.completed", resourceId: attempt.id });
 		});
-		await expect(attempts).toContainText("HTTP 503");
+		await expect(dialog.getByRole("button", { name: /Delivery attempt/ })).toContainText("HTTP 503");
 		await expect(dialog.getByLabel("Delivery response body", { exact: true })).toHaveText("Try again later");
 		await expect(dialog.getByRole("tab", { name: "Outgoing", exact: true })).toHaveAttribute("aria-selected", "true");
 	} finally {
@@ -1545,4 +1564,36 @@ test("RT15 live retention removes expired rows and closes an open inspector with
 	} finally {
 		await pool.end();
 	}
+});
+
+test("UX54 request client sends edited body and headers", async ({ page }) => {
+	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
+	await ensureBrowserOwner(page);
+	const headers = commandHeaders();
+	const workspace = (await (await page.request.get("/api/v1/workspaces")).json())[0];
+	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Request client", slug: "request-client" } })).json();
+	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Echo", slug: "echo" } })).json();
+	const draft = await page.request.patch("/api/v1/endpoints/" + route.id + "/drafts/ingress", { headers: { ...headers, "if-match": JSON.stringify("1") }, data: { body: 'export async function POST(ctx: IngressContext): Promise<IngressDecision> { return ctx.respondOnly({status:200,body:new TextDecoder().decode(ctx.request.body)+"|"+ctx.request.headers["x-review"]}); }' } });
+	expect(draft.status()).toBe(200);
+	const published = await page.request.post("/api/v1/endpoints/" + route.id + "/publications", { headers, data: { expectedVersion: 1, draftVersions: { ingress: 2, processing: 1 } } });
+	expect(published.status()).toBe(200);
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+	await page.goto("/projects/" + project.id + "/routes/" + route.id + "?section=overview");
+	const requestBody = page.getByRole("textbox", { name: "Playground request body", exact: true });
+	await expect(page.getByText("Loading code editor…", { exact: true })).toHaveCount(0);
+	await requestBody.focus();
+	await page.keyboard.press("ControlOrMeta+A");
+	await page.evaluate(() => navigator.clipboard.writeText('{"review":true}'));
+	await page.keyboard.press("ControlOrMeta+V");
+	await page.getByRole("tab", { name: "Headers", exact: true }).first().click();
+	const requestHeaders = page.getByRole("textbox", { name: "Playground request headers", exact: true });
+	await expect(page.getByText("Loading code editor…", { exact: true })).toHaveCount(0);
+	await requestHeaders.focus();
+	await page.keyboard.press("ControlOrMeta+A");
+	await page.evaluate(() => navigator.clipboard.writeText('{"content-type":"application/json","x-review":"editor"}'));
+	await page.keyboard.press("ControlOrMeta+V");
+	await page.getByRole("button", { name: "Send request", exact: true }).click();
+	await expect(page.getByLabel("Response body", { exact: true })).toHaveText('{"review":true}|editor');
+	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });

@@ -157,7 +157,7 @@ export function NotificationRules({ projectId, workspaceId }: { projectId?: stri
 								</Modal.Header>
 								<Modal.Body>
 									<form onSubmit={save} className='flex flex-col gap-4'>
-										<Checkbox isSelected={enabled} onChange={setEnabled}>
+										<Checkbox variant='secondary' isSelected={enabled} onChange={setEnabled}>
 											<Checkbox.Content>
 												<Checkbox.Control>
 													<Checkbox.Indicator />

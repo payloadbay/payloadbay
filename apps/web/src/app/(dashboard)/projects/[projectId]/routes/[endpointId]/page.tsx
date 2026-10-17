@@ -8,11 +8,10 @@ import { EventBrowser } from "@components/event-browser";
 import { useUnsavedChanges } from "@components/unsaved-changes";
 import { ScriptingGuide } from "@components/scripting-guide";
 import { use, useState, useEffect, useCallback } from "react";
-import { Button, Card, Tabs, TextArea, Label, Input, Chip } from "@heroui/react";
-import { IconArrowLeft, IconCheck, IconUpload, IconPlayerPause, IconPlayerPlay, IconCopy } from "@tabler/icons-react";
+import { Button, Card, Tabs, TextArea, Label, Input, Chip, Table, Modal } from "@heroui/react";
+import { IconArrowLeft, IconCheck, IconUpload, IconPlayerPause, IconPlayerPlay, IconCopy, IconInfoCircle } from "@tabler/icons-react";
 import { NativeSelect } from "@heroui-pro/react";
 import { formatScript, formatScriptForDisplay, scriptDocument } from "@lib/script-document";
-import { PublicationPicker } from "@components/publication-picker";
 import { HelperImportPicker } from "@components/helper-import-picker";
 import { CodeEditor } from "@components/code-editor";
 import { SecretBindings } from "@components/secret-bindings";
@@ -41,7 +40,12 @@ type Route = {
 	permissions: Permission[];
 	ingressUrl?: string;
 };
-type Publication = { id: string; created_at: string };
+type Publication = {
+	id: string;
+	created_at: string;
+	version_number: number;
+	active: boolean;
+};
 
 type ScriptTestResult = {
 	mode: string;
@@ -58,7 +62,6 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 	const [drafts, setDrafts] = useState<Record<Stage, Draft> | null>(null);
 	const [savedDrafts, setSavedDrafts] = useState<Record<Stage, Draft> | null>(null);
 	const [history, setHistory] = useState<Publication[]>([]);
-	const [historyVersion, setHistoryVersion] = useState("");
 
 	const { dialog: unsavedDialog } = useUnsavedChanges(Boolean(drafts && savedDrafts && JSON.stringify(drafts) !== JSON.stringify(savedDrafts)));
 
@@ -74,6 +77,7 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 
 	const [testBody, setTestBody] = useState('{"type":"purchase.completed","data":{"orderId":"demo-001","amount":4900,"currency":"EUR"}}');
 	const [requestMethod, setRequestMethod] = useState("POST");
+	const [bodyLanguage, setBodyLanguage] = useState<"json" | "plaintext">("json");
 	const [requestHeaders, setRequestHeaders] = useState('{"content-type": "application/json"}');
 	const [sending, setSending] = useState(false);
 	const [requestResult, setRequestResult] = useState<{
@@ -531,10 +535,24 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 									</Tabs.List>
 								</Tabs.ListContainer>
 								<Tabs.Panel id='body' className='pt-4'>
-									{["GET", "HEAD"].includes(requestMethod) ? <p className='text-muted text-sm'>This method sends no request body.</p> : <TextArea variant='secondary' aria-label='Playground request body' value={testBody} onChange={(event) => setTestBody(event.target.value)} rows={10} className='font-mono' />}
+									{["GET", "HEAD"].includes(requestMethod) ? (
+										<p className='text-muted text-sm'>This method sends no request body.</p>
+									) : (
+										<div className='flex flex-col gap-3'>
+											<NativeSelect variant='secondary' className='w-40'>
+												<Label>Body format</Label>
+												<NativeSelect.Trigger aria-label='Body format' value={bodyLanguage} onChange={(event) => setBodyLanguage(event.target.value as "json" | "plaintext")}>
+													<NativeSelect.Option value='json'>JSON</NativeSelect.Option>
+													<NativeSelect.Option value='plaintext'>Text</NativeSelect.Option>
+													<NativeSelect.Indicator />
+												</NativeSelect.Trigger>
+											</NativeSelect>
+											<CodeEditor language={bodyLanguage} label='Playground request body' value={testBody} onChange={setTestBody} />
+										</div>
+									)}
 								</Tabs.Panel>
 								<Tabs.Panel id='headers' className='pt-4'>
-									<TextArea aria-label='Playground request headers' variant='secondary' value={requestHeaders} onChange={(event) => setRequestHeaders(event.target.value)} rows={10} className='font-mono' />
+									<CodeEditor language='json' label='Playground request headers' value={requestHeaders} onChange={setRequestHeaders} />
 									<p className='text-muted mt-2 text-xs'>A JSON object of header names and values.</p>
 								</Tabs.Panel>
 							</Tabs>
@@ -584,7 +602,31 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 				<Card>
 					<Card.Header>
 						<h2 className='text-lg font-semibold'>Synthetic script test</h2>
-						<Card.Description>Test the current {stage} handler without saving or publishing. Middleware is not evaluated in this handler-only test. Real secrets are not loaded. Direct fetch is blocked; managed sends are simulated as HTTP 204.</Card.Description>
+						<Card.Description>Try the current handler with sample input.</Card.Description>
+						<Modal>
+							<Button variant='ghost' size='sm'>
+								<IconInfoCircle size={18} aria-hidden='true' />
+								About script testing
+							</Button>
+							<Modal.Backdrop>
+								<Modal.Container size='md'>
+									<Modal.Dialog>
+										<Modal.CloseTrigger />
+										<Modal.Header>
+											<Modal.Heading>What this test runs</Modal.Heading>
+										</Modal.Header>
+										<Modal.Body className='flex flex-col gap-3'>
+											<p>This test runs the current {stage} handler without saving or publishing it. It does not run middleware.</p>
+											<p>Use sample secret values below. Real secrets are not loaded, direct fetch is blocked, and managed deliveries return a simulated HTTP 204.</p>
+											<p>To test middleware and actual HTTP behavior together, publish the route and use the webhook playground.</p>
+										</Modal.Body>
+										<Modal.Footer>
+											<Button slot='close'>Got it</Button>
+										</Modal.Footer>
+									</Modal.Dialog>
+								</Modal.Container>
+							</Modal.Backdrop>
+						</Modal>
 					</Card.Header>
 					<Card.Content className='flex flex-col gap-4'>
 						<div className='grid gap-4 sm:grid-cols-2'>
@@ -676,13 +718,43 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 						<Card.Description>Rollback changes new events; queued events retain their original publication.</Card.Description>
 					</Card.Header>
 					<Card.Content>
-						<PublicationPicker endpointId={endpointId} value={historyVersion || route.activePublicationId || history[0]?.id || ""} onChange={setHistoryVersion} label='Published script version' />
-						<p className='text-muted my-3 text-sm'>Active handles new events. Latest is the newest publication; it may differ after a rollback. Existing executions keep their pinned version.</p>
-						{publishable && historyVersion && historyVersion !== route.activePublicationId && (
-							<Button variant='secondary' isDisabled={busy} onPress={() => void rollback(historyVersion)}>
-								Activate selected version
-							</Button>
-						)}
+						<Table>
+							<Table.ScrollContainer>
+								<Table.Content aria-label='Publication history'>
+									<Table.Header>
+										<Table.Column isRowHeader>Version</Table.Column>
+										<Table.Column>Status</Table.Column>
+										<Table.Column>Published</Table.Column>
+										<Table.Column>Actions</Table.Column>
+									</Table.Header>
+									<Table.Body>
+										{history.map((publication, index) => (
+											<Table.Row key={publication.id} id={publication.id}>
+												<Table.Cell>v{publication.version_number}</Table.Cell>
+												<Table.Cell>
+													<div className='flex flex-wrap gap-2'>
+														{publication.id === route.activePublicationId && (
+															<Chip size='sm' color='success'>
+																Active
+															</Chip>
+														)}
+														{index === 0 && <Chip size='sm'>Latest</Chip>}
+													</div>
+												</Table.Cell>
+												<Table.Cell>{new Date(publication.created_at).toLocaleString()}</Table.Cell>
+												<Table.Cell>
+													{publishable && publication.id !== route.activePublicationId && (
+														<Button variant='secondary' size='sm' isDisabled={busy} onPress={() => void rollback(publication.id)}>
+															Activate
+														</Button>
+													)}
+												</Table.Cell>
+											</Table.Row>
+										))}
+									</Table.Body>
+								</Table.Content>
+							</Table.ScrollContainer>
+						</Table>
 					</Card.Content>
 				</Card>
 			)}

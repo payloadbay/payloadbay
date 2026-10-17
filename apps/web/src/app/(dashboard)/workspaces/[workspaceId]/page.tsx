@@ -53,12 +53,12 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
 			<div className='flex flex-wrap items-center gap-3'>
 				{workspace.permissions.includes("projects.create") && workspace.permissions.includes("ownership.transfer") && <Button onPress={() => setOpen(true)}>Create project</Button>}
 				{workspace.permissions.includes("members.manage") && (
-					<Link href={"/workspaces/" + workspaceId + "/members"} className='text-accent underline'>
+					<Link href={"/workspaces/" + workspaceId + "/members"} className='button button--secondary'>
 						Workspace members
 					</Link>
 				)}
 				{workspace.permissions.includes("code.read") && (
-					<Link href={"/code/workspace/" + workspaceId} className='text-accent underline'>
+					<Link href={"/code/workspace/" + workspaceId} className='button button--secondary'>
 						Shared code and middleware
 					</Link>
 				)}
