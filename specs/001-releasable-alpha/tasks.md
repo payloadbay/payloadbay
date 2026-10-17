@@ -341,7 +341,7 @@ review refreshed Coolify findings before applying that structural redesign.
   imports; do not block this implementation on the unreceived confirmation.
 - [x] Verify and deliver scope-only navigation, command search, named route/section
   breadcrumbs and native source imports with server-side immutable dependency pins.
-- [ ] Complete the remaining middleware ordering and test-client presentation review.
+- [x] Complete the remaining middleware ordering and test-client presentation review (superseded by verified R02 below).
 - [ ] Verify keyboard open/close and browser-toolbar resizing on mobile; no physical
   Android keyboard pass is claimed by a narrow desktop viewport alone.
 
@@ -422,3 +422,20 @@ do not establish it. Retain the independent alpha release gates.
   foundation is implemented and proven. No billing provider, price list or paid
   feature catalog is chosen by this research. Independently validate hostile-code
   execution/egress before enabling unrelated public tenants.
+
+
+## API-key settings — maintainer request 2026-10-17
+
+- [x] K01 Add personal key management under account settings: safe table, bounded
+  create modal, explicit permissions/expiry, show-once copy and revocation.
+- [x] K02 Add organization key management under organization settings; support
+  organization-wide or explicitly selected workspace scope and permission subsets.
+- [x] K03 Prove server-side scope restrictions, current-rights intersection,
+  foreign-workspace rejection, revocation and secret-safe metadata in owning tests.
+- [ ] K04 Verify personal/organization mobile flows and exact deployed revision;
+  reconcile chat feedback in docs/ux-review-2026-10-17.md and Linear. Existing
+  user-issued keys are not independent organization service accounts.
+
+- [x] R08 Audit bounded create/edit/confirmation overlays: centered desktop dialogs,
+  deliberate mobile presentation, viewport-bound scrolling and reachable actions.
+  Newly delivered clarification 2026-10-17; verify real desktop/mobile geometry.

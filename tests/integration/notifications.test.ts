@@ -646,3 +646,52 @@ test("custom channel subscriptions queue immutable code pins and deduplicate eac
 		assert.deepEqual((await listNotificationPreferences(fixture.pool, actor, fixture.scope.project))[0].channels, []);
 	});
 });
+
+test("U168 U175 U176 U177 opt-in thresholds exclude other routes destinations and expired failures", async () => {
+	const { createNotificationRule, evaluateFailureRules } = await import("../../packages/domain/src/notification-rules.ts");
+	const { queueIncidentNotifications } = await import("../../packages/domain/src/notification-dispatch.ts");
+	const { seedEvent } = await import("../helpers/domain-fixtures.ts");
+	await authFixture(async (fixture) => {
+		const { pool, db } = fixture;
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','project',$1,'custom',ARRAY['notifications.read','notifications.rules.manage'])", [scope.project]);
+		const destination = (await db.query("INSERT INTO payloadbay.destination(project_id,name,http_config) VALUES($1,'Selected','{}') RETURNING id", [scope.project])).rows[0].id;
+		const otherDestination = (await db.query("INSERT INTO payloadbay.destination(project_id,name,http_config) VALUES($1,'Other','{}') RETURNING id", [scope.project])).rows[0].id;
+		const otherEndpoint = (await db.query("INSERT INTO payloadbay.endpoint(project_id,name,slug,ingress_key) VALUES($1,'Other route','other',gen_random_uuid()::text) RETURNING id", [scope.project])).rows[0].id;
+		const otherPublication = (await db.query("INSERT INTO payloadbay.publication(endpoint_id,ingress_revision_id,processing_revision_id,dependency_digest,created_by) SELECT $1,ingress_revision_id,processing_revision_id,'fixture','fixture-owner' FROM payloadbay.publication WHERE id=$2 RETURNING id", [otherEndpoint, scope.publication])).rows[0].id;
+
+		async function failure(endpoint: string, publication: string, destinationId: string, secondsAgo = 0) {
+			const event = await seedEvent(db, { endpoint, publication });
+			const execution = (await db.query("INSERT INTO payloadbay.execution(event_id,endpoint_id,publication_id) VALUES($1,$2,$3) RETURNING id", [event, endpoint, publication])).rows[0].id;
+			await db.query("INSERT INTO payloadbay.managed_operation(execution_id,operation_id,input_digest,destination_snapshot,state,generation) VALUES($1,'main','fixture',$2,'failed',1)", [execution, JSON.stringify({ id: destinationId })]);
+			await db.query("INSERT INTO payloadbay.delivery_attempt(execution_id,operation_id,execution_attempt,generation,started_at,ended_at,status_code) VALUES($1,'main',1,1,clock_timestamp()-(($2::int+1)*interval '1 second'),clock_timestamp()-($2::int*interval '1 second'),503)", [execution, secondsAgo]);
+		}
+
+		await failure(otherEndpoint, otherPublication, destination);
+		await failure(scope.endpoint, scope.publication, otherDestination);
+		assert.deepEqual(await evaluateFailureRules(pool), []);
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.notification_incident")).rows[0].n, 0, "Failures must not invent an implicit rule");
+		await createNotificationRule(pool, { userId: "fixture-owner" }, scope.project, {
+			enabled: true,
+			count: 2,
+			windowSeconds: 60,
+			endpointId: scope.endpoint,
+			destinationId: destination,
+			recoveryPolicy: "window",
+		});
+		assert.deepEqual(await evaluateFailureRules(pool), [], "Other routes and destinations do not match this rule");
+		await failure(scope.endpoint, scope.publication, destination);
+		assert.deepEqual(await evaluateFailureRules(pool), [], "N-1 distinct operations must not trigger the rule");
+		await failure(scope.endpoint, scope.publication, destination, 120);
+		assert.deepEqual(await evaluateFailureRules(pool), [], "Expired failures do not fill the threshold");
+		await failure(scope.endpoint, scope.publication, destination);
+		const incidents = await evaluateFailureRules(pool);
+		assert.equal(incidents.length, 1);
+		assert.equal(incidents[0].redacted_data.observedCount, 2);
+		assert.equal((await evaluateFailureRules(pool))[0].id, incidents[0].id);
+		assert.equal(await queueIncidentNotifications(pool, incidents[0].id, fixtureConfig(fixture).encryptionKey), 0, "A rule does not create an implicit email subscription");
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.notification_dispatch")).rows[0].n, 0);
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.platform_job")).rows[0].n, 0);
+	});
+});

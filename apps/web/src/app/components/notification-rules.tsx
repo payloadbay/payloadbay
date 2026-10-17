@@ -3,8 +3,8 @@
 import { LoadingState } from "@components/loading-state";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { Button, Card, Checkbox, Label, NumberField, FieldError } from "@heroui/react";
-import { EmptyState, NativeSelect, Sheet } from "@heroui-pro/react";
+import { Button, Card, Checkbox, Label, NumberField, FieldError, Modal } from "@heroui/react";
+import { EmptyState, NativeSelect } from "@heroui-pro/react";
 import { IconBell, IconPlus, IconPencil, IconArrowLeft } from "@tabler/icons-react";
 import { api } from "@lib/api-client";
 import { useFeedbackToast } from "@lib/feedback";
@@ -142,20 +142,20 @@ export function NotificationRules({ projectId, workspaceId }: { projectId?: stri
 				</Button>
 			</header>
 			{open && (
-				<Sheet
+				<Modal
 					isOpen={open}
 					onOpenChange={(next) => {
 						if (!busy) setOpen(next);
 					}}
 				>
-					<Sheet.Backdrop>
-						<Sheet.Content>
-							<Sheet.Dialog className='max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-y-auto'>
-								<Sheet.CloseTrigger />
-								<Sheet.Header>
-									<Sheet.Heading>{editing ? "Edit notification rule" : "New notification rule"}</Sheet.Heading>
-								</Sheet.Header>
-								<Sheet.Body>
+					<Modal.Backdrop>
+						<Modal.Container placement='auto' size='lg'>
+							<Modal.Dialog className='max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-y-auto'>
+								<Modal.CloseTrigger />
+								<Modal.Header>
+									<Modal.Heading>{editing ? "Edit notification rule" : "New notification rule"}</Modal.Heading>
+								</Modal.Header>
+								<Modal.Body>
 									<form onSubmit={save} className='flex flex-col gap-4'>
 										<Checkbox isSelected={enabled} onChange={setEnabled}>
 											<Checkbox.Content>
@@ -248,11 +248,11 @@ export function NotificationRules({ projectId, workspaceId }: { projectId?: stri
 											</Button>
 										</div>
 									</form>
-								</Sheet.Body>
-							</Sheet.Dialog>
-						</Sheet.Content>
-					</Sheet.Backdrop>
-				</Sheet>
+								</Modal.Body>
+							</Modal.Dialog>
+						</Modal.Container>
+					</Modal.Backdrop>
+				</Modal>
 			)}
 			{loading ? (
 				<LoadingState label='Loading notification rules…' />

@@ -249,3 +249,75 @@ test("U160 job inspection measures due backlog by priority independently from ac
 		assert.deepEqual(paused.backlog, [], "Intentionally paused routes are not a dispatch backlog");
 	});
 });
+
+test("K03 organization keys enforce a persisted selected-workspace boundary", async () => {
+	const { createToken, authenticateToken } = await import("../../packages/domain/src/tokens.ts");
+	await authFixture(async ({ pool, db }) => {
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','organization',$1,'custom',ARRAY['tokens.manage','metadata.read'])", [scope.organization]);
+		const hidden = (await db.query("INSERT INTO payloadbay.workspace(installation_id,organization_id,name,slug,owner_user_id) VALUES($1,$2,'Hidden','hidden','fixture-owner') RETURNING id", [scope.installation, scope.organization])).rows[0].id;
+		const input = {
+			scope: { type: "organization" as const, id: scope.organization },
+			name: "Selected workspace",
+			permissions: ["metadata.read"] as const,
+			expiresAt: new Date(Date.now() + 3600000),
+		};
+		await assert.rejects(createToken(pool, { userId: "fixture-owner" }, { ...input, workspaceIds: [] }), { code: "invalid_input" });
+		await assert.rejects(createToken(pool, { userId: "fixture-owner" }, { ...input, workspaceIds: [crypto.randomUUID()] }), { code: "invalid_input" });
+		await assert.rejects(createToken(pool, { userId: "fixture-owner" }, { ...input, permissions: ["secrets.use"], workspaceIds: [scope.workspace] }), { code: "grant_escalation" });
+		const credential = await createToken(pool, { userId: "fixture-owner" }, { ...input, workspaceIds: [scope.workspace] });
+		const actor = await authenticateToken(pool, credential.secret);
+		assert.ok(actor);
+		assert.deepEqual([...(await policy.actorPermissions(pool, actor, { type: "workspace", id: scope.workspace }))], ["metadata.read"]);
+		assert.deepEqual([...(await policy.actorPermissions(pool, actor, { type: "workspace", id: hidden }))], [], "An organization key restricted to one workspace must not read its sibling");
+		assert.deepEqual([...(await policy.actorPermissions(pool, actor, { type: "organization", id: scope.organization }))], [], "Restricted keys cannot read all-organization aggregates");
+		const unrestricted = await createToken(pool, { userId: "fixture-owner" }, { ...input, name: "Organization-wide" });
+		const unrestrictedActor = await authenticateToken(pool, unrestricted.secret);
+		assert.ok(unrestrictedActor);
+		assert.deepEqual([...(await policy.actorPermissions(pool, unrestrictedActor, { type: "organization", id: scope.organization }))], ["metadata.read"]);
+		const multiple = await createToken(pool, { userId: "fixture-owner" }, { ...input, name: "Two workspaces", workspaceIds: [scope.workspace, hidden] });
+		const multipleActor = await authenticateToken(pool, multiple.secret);
+		assert.ok(multipleActor);
+		assert.deepEqual([...(await policy.actorPermissions(pool, multipleActor, { type: "workspace", id: hidden }))], ["metadata.read"]);
+		const foreignOrganization = (await db.query("INSERT INTO payloadbay.organization(installation_id,name,slug,owner_user_id) VALUES($1,'Foreign','foreign','fixture-owner') RETURNING id", [scope.installation])).rows[0].id;
+		const foreignWorkspace = (await db.query("INSERT INTO payloadbay.workspace(installation_id,organization_id,name,slug,owner_user_id) VALUES($1,$2,'Foreign','foreign','fixture-owner') RETURNING id", [scope.installation, foreignOrganization])).rows[0].id;
+		await assert.rejects(createToken(pool, { userId: "fixture-owner" }, { ...input, workspaceIds: [foreignWorkspace] }), { code: "invalid_input" });
+		const delegating = await createToken(pool, { userId: "fixture-owner" }, { ...input, permissions: ["metadata.read", "tokens.manage"], workspaceIds: [scope.workspace] });
+		const restrictedActor = await authenticateToken(pool, delegating.secret);
+		assert.ok(restrictedActor);
+		await assert.rejects(createToken(pool, restrictedActor, { ...input, name: "Cannot broaden" }), { code: "forbidden" });
+		await db.query("UPDATE payloadbay.api_token SET workspace_ids=ARRAY[$1]::uuid[] WHERE id=$2", [hidden, credential.id]);
+		assert.deepEqual([...(await policy.actorPermissions(pool, actor, { type: "workspace", id: scope.workspace }))], [], "Re-read stored scope instead of trusting an old in-memory actor");
+	});
+});
+
+test("K03 workspace restrictions apply before collection limits", async () => {
+	const { createToken, authenticateToken } = await import("../../packages/domain/src/tokens.ts");
+	const { listResources } = await import("../../packages/domain/src/resources.ts");
+	await authFixture(async ({ pool, db }) => {
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','organization',$1,'custom',ARRAY['tokens.manage','metadata.read'])", [scope.organization]);
+		const hidden = (await db.query("INSERT INTO payloadbay.workspace(installation_id,organization_id,name,slug,owner_user_id) VALUES($1,$2,'Hidden','hidden','fixture-owner') RETURNING id", [scope.installation, scope.organization])).rows[0].id;
+		await db.query("INSERT INTO payloadbay.project(workspace_id,name,slug,owner_user_id) SELECT $1,'AAA '||n,'hidden-'||n,'fixture-owner' FROM generate_series(1,205) n", [hidden]);
+		const credential = await createToken(
+			pool,
+			{ userId: "fixture-owner" },
+			{
+				scope: { type: "organization", id: scope.organization },
+				name: "Restricted collection",
+				permissions: ["metadata.read"],
+				expiresAt: new Date(Date.now() + 3600000),
+				workspaceIds: [scope.workspace],
+			},
+		);
+		const actor = await authenticateToken(pool, credential.secret);
+		assert.ok(actor);
+		assert.deepEqual(
+			(await listResources(pool, actor, "project")).map((item) => item.id),
+			[scope.project],
+			"Excluded workspaces must not consume the authorized listing limit",
+		);
+	});
+});

@@ -3,8 +3,8 @@
 import { use, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Button, Table, Form, TextField, Label, Input, FieldError } from "@heroui/react";
-import { Sheet } from "@heroui-pro/react";
+import { Button, Table, Form, TextField, Label, Input, FieldError, Modal } from "@heroui/react";
+
 import { api } from "@lib/api-client";
 import { useFeedbackToast } from "@lib/feedback";
 import { useDashboard } from "@components/dashboard-shell";
@@ -100,20 +100,20 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
 			) : (
 				<p className='text-muted'>No accessible projects in this workspace.</p>
 			)}
-			<Sheet
+			<Modal
 				isOpen={open}
 				onOpenChange={(next) => {
 					if (!busy) setOpen(next);
 				}}
 			>
-				<Sheet.Backdrop>
-					<Sheet.Content>
-						<Sheet.Dialog className='max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto'>
-							<Sheet.CloseTrigger />
-							<Sheet.Header>
-								<Sheet.Heading>New project</Sheet.Heading>
-							</Sheet.Header>
-							<Sheet.Body>
+				<Modal.Backdrop>
+					<Modal.Container placement='auto' size='lg'>
+						<Modal.Dialog className='max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto'>
+							<Modal.CloseTrigger />
+							<Modal.Header>
+								<Modal.Heading>New project</Modal.Heading>
+							</Modal.Header>
+							<Modal.Body>
 								<Form id='workspace-project' onSubmit={create} className='flex flex-col gap-4'>
 									<TextField
 										isRequired
@@ -139,19 +139,19 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
 										<FieldError />
 									</TextField>
 								</Form>
-							</Sheet.Body>
-							<Sheet.Footer>
+							</Modal.Body>
+							<Modal.Footer>
 								<Button variant='ghost' isDisabled={busy} onPress={() => setOpen(false)}>
 									Cancel
 								</Button>
 								<Button type='submit' form='workspace-project' isPending={busy} isDisabled={busy}>
 									Create project
 								</Button>
-							</Sheet.Footer>
-						</Sheet.Dialog>
-					</Sheet.Content>
-				</Sheet.Backdrop>
-			</Sheet>
+							</Modal.Footer>
+						</Modal.Dialog>
+					</Modal.Container>
+				</Modal.Backdrop>
+			</Modal>
 		</section>
 	);
 }

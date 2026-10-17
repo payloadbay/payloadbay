@@ -48,12 +48,29 @@ Subsequent work and actual red/green failures are recorded in
 operations with route/body/header/query parity. The locally bundled Scalar
 console passed real scoped-token calls and revocation without owner cookies.
 This checkpoint passed integration 250/250, unit 47/47, final live/API owner
-23/23 and a complete browser invocation 44/44. Remote API deployment verification
-is pending; the foundation deployment above predates these local changes.
+23/23 and a complete browser invocation 44/44. API source `9bdbfe7` deployed in Coolify `wgbpjaut8qbpgcg8plqirnp9` at
+2026-10-17 07:13:23 UTC. Its public console passed a real 390px browser check:
+200 response, all 82 operations, no external requests or page overflow, and the
+sticky preview notice. Scoped-token execution/revocation is locally browser-proven;
+that full token flow has not been repeated against the remote installation.
+
+## Current settings and UI checkpoint
+
+Personal API keys are available under account settings; organization settings
+provide organization-wide or selected-workspace keys with explicit permissions.
+Keys remain user-issued and intersect the issuer's current rights; selected scopes
+are persisted and filtered before collection limits. Secrets are shown once,
+listed only as metadata, and revocation is immediate.
+
+Ordinary form/confirmation/detail overlays now use native responsive HeroUI
+Modals: centered desktop placement, mobile placement and inside scrolling.
+Notification attention includes accessible count/highest severity and receives
+real scoped producer changes. Complete browser48/48, unit47/47 and notification
+owner19/19 and full backend integration256/256 passed locally. Exact preview
+deployment for this newer settings/UI checkpoint remains pending.
 
 ## Remaining release gates
 
-- Verify the newly completed local Scalar/OpenAPI console in the remote preview.
 - Finish privileged queue/age/metrics inspection, remaining notification
   boundary acceptance and retention cleanup.
 - Finish remaining middleware ordering and script-test client presentation

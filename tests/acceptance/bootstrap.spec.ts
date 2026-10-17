@@ -206,12 +206,12 @@ test.describe("unavailable and empty states", () => {
 		await page.goto("/");
 		await page.getByRole("button", { name: "Notifications", exact: true }).click();
 		await expect(page.getByText("Loading notifications…", { exact: true })).toBeVisible();
-		await expect(page.getByText("No active notifications.", { exact: true })).toHaveCount(0);
+		await expect(page.getByRole("dialog", { name: "Notifications", exact: true }).getByText("No active notifications.", { exact: true })).toHaveCount(0);
 		release();
-		await expect(page.getByText("Notifications unavailable.", { exact: true })).toBeVisible();
+		await expect(page.getByRole("dialog", { name: "Notifications", exact: true }).getByText("Notifications unavailable.", { exact: true })).toBeVisible();
 		unavailable = false;
 		await page.getByRole("button", { name: "Retry loading notifications" }).click();
-		await expect(page.getByText("No active notifications.", { exact: true })).toBeVisible();
+		await expect(page.getByRole("dialog", { name: "Notifications", exact: true }).getByText("No active notifications.", { exact: true })).toBeVisible();
 	});
 });
 

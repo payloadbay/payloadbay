@@ -1,8 +1,8 @@
 "use client";
 
 import { use, useState, type FormEvent } from "react";
-import { Button, Form, TextField, Input, Label, FieldError, Table } from "@heroui/react";
-import { Sheet } from "@heroui-pro/react";
+import { Button, Form, TextField, Input, Label, FieldError, Table, Modal } from "@heroui/react";
+
 import { useDashboard } from "@components/dashboard-shell";
 import { api } from "@lib/api-client";
 import { useFeedbackToast } from "@lib/feedback";
@@ -75,20 +75,20 @@ export default function OrganizationPage({ params }: { params: Promise<{ organiz
 				</Table.ScrollContainer>
 			</Table>
 			{!workspaces.length && <p className='text-muted'>No workspaces available. Project-only access does not grant workspace access.</p>}
-			<Sheet
+			<Modal
 				isOpen={open}
 				onOpenChange={(next) => {
 					if (!busy) setOpen(next);
 				}}
 			>
-				<Sheet.Backdrop>
-					<Sheet.Content>
-						<Sheet.Dialog className='max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto'>
-							<Sheet.CloseTrigger />
-							<Sheet.Header>
-								<Sheet.Heading>New workspace</Sheet.Heading>
-							</Sheet.Header>
-							<Sheet.Body>
+				<Modal.Backdrop>
+					<Modal.Container placement='auto' size='lg'>
+						<Modal.Dialog className='max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto'>
+							<Modal.CloseTrigger />
+							<Modal.Header>
+								<Modal.Heading>New workspace</Modal.Heading>
+							</Modal.Header>
+							<Modal.Body>
 								<Form id='new-workspace' onSubmit={create} className='flex flex-col gap-4'>
 									<TextField
 										isRequired
@@ -114,19 +114,19 @@ export default function OrganizationPage({ params }: { params: Promise<{ organiz
 										<FieldError />
 									</TextField>
 								</Form>
-							</Sheet.Body>
-							<Sheet.Footer>
+							</Modal.Body>
+							<Modal.Footer>
 								<Button variant='ghost' isDisabled={busy} onPress={() => setOpen(false)}>
 									Cancel
 								</Button>
 								<Button type='submit' form='new-workspace' isPending={busy} isDisabled={busy}>
 									Create workspace
 								</Button>
-							</Sheet.Footer>
-						</Sheet.Dialog>
-					</Sheet.Content>
-				</Sheet.Backdrop>
-			</Sheet>
+							</Modal.Footer>
+						</Modal.Dialog>
+					</Modal.Container>
+				</Modal.Backdrop>
+			</Modal>
 		</section>
 	);
 }

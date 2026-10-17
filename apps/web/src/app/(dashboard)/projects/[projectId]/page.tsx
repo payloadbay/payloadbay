@@ -3,8 +3,8 @@
 import { LoadingState } from "@components/loading-state";
 import { useFeedbackToast } from "@lib/feedback";
 import { use, useState, useEffect, useCallback, type FormEvent } from "react";
-import { Button, Table, Form, TextField, Label, Input, FieldError } from "@heroui/react";
-import { EmptyState, Sheet } from "@heroui-pro/react";
+import { Button, Table, Form, TextField, Label, Input, FieldError, Modal } from "@heroui/react";
+import { EmptyState } from "@heroui-pro/react";
 import { IconRoute, IconPlus, IconPlugConnected } from "@tabler/icons-react";
 import { api } from "@lib/api-client";
 import type { ProjectSummary } from "@types";
@@ -125,21 +125,21 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 			</header>
 
 			{form && (
-				<Sheet
+				<Modal
 					isOpen={Boolean(form)}
 					onOpenChange={(open) => {
 						if (!open && !busy) setForm(null);
 					}}
 				>
-					<Sheet.Backdrop>
-						<Sheet.Content>
-							<Sheet.Dialog className='max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto'>
-								<Sheet.CloseTrigger />
-								<Sheet.Header>
-									<Sheet.Heading>{form === "route" ? "New ingress route" : "New destination"}</Sheet.Heading>
+					<Modal.Backdrop>
+						<Modal.Container placement='auto' size='lg'>
+							<Modal.Dialog className='max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto'>
+								<Modal.CloseTrigger />
+								<Modal.Header>
+									<Modal.Heading>{form === "route" ? "New ingress route" : "New destination"}</Modal.Heading>
 									<p>{form === "route" ? "A receiving address with editable verification and processing code." : "An HTTP target reached from the Payload Bay worker. Private network targets are supported."}</p>
-								</Sheet.Header>
-								<Sheet.Body>
+								</Modal.Header>
+								<Modal.Body>
 									<Form onSubmit={create} className='flex flex-col gap-4'>
 										<TextField
 											isRequired
@@ -181,11 +181,11 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 											</Button>
 										</div>
 									</Form>
-								</Sheet.Body>
-							</Sheet.Dialog>
-						</Sheet.Content>
-					</Sheet.Backdrop>
-				</Sheet>
+								</Modal.Body>
+							</Modal.Dialog>
+						</Modal.Container>
+					</Modal.Backdrop>
+				</Modal>
 			)}
 			<section className='flex flex-col gap-4' aria-labelledby='destinations-heading'>
 				<div className='flex items-center justify-between'>

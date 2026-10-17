@@ -1,0 +1,7 @@
+"use client";
+
+import { ApiKeyManager } from "@components/api-key-manager";
+
+export default function PersonalApiKeysPage() {
+	return <ApiKeyManager />;
+}

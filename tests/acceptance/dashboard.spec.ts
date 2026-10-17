@@ -386,10 +386,10 @@ test("U276 administrator opens and personally dismisses runtime advice", async (
 	await expect(page.getByRole("heading", { name: "Scripts use ordinary Docker containment", exact: true })).toBeVisible();
 	await expect(page.getByText(/PAYLOADBAY_EXECUTOR_RUNTIME=runsc/)).toBeVisible();
 	await page.getByRole("button", { name: "Dismiss notification Scripts use ordinary Docker containment", exact: true }).click();
-	await expect(page.getByText("No active notifications.", { exact: true })).toBeVisible();
+	await expect(page.getByRole("dialog", { name: "Notifications", exact: true }).getByText("No active notifications.", { exact: true })).toBeVisible();
 	await page.reload();
 	await page.getByRole("button", { name: "Notifications", exact: true }).click();
-	await expect(page.getByText("No active notifications.", { exact: true })).toBeVisible();
+	await expect(page.getByRole("dialog", { name: "Notifications", exact: true }).getByText("No active notifications.", { exact: true })).toBeVisible();
 });
 
 test("U292 project code page creates helper version and processing middleware", async ({ page }) => {
@@ -658,7 +658,7 @@ test("U305 project dashboard configures explicit route failure notifications", a
 	await expect(page.getByRole("row", { name: "Notification rules", exact: true }), "Project notification configuration must be discoverable").toBeVisible();
 	await page.getByRole("button", { name: "Notifications", exact: true }).click();
 	await expect(page.getByRole("heading", { name: "Notifications", exact: true })).toBeVisible();
-	await expect(page.getByText("No active notifications.", { exact: true })).toBeVisible();
+	await expect(page.getByRole("dialog", { name: "Notifications", exact: true }).getByText("No active notifications.", { exact: true })).toBeVisible();
 	await page.keyboard.press("Escape");
 	await page.getByRole("row", { name: "Notification rules", exact: true }).click();
 	await expect(page.getByRole("heading", { name: "No failure notification rules", exact: true })).toBeVisible();
@@ -1053,4 +1053,40 @@ test("FT11b organization usage shows local counts and unlimited self-host defaul
 		animations: "disabled",
 		timeout: 5000,
 	});
+});
+
+test("R08 bounded dialogs center on desktop and remain inside the mobile viewport", async ({ page }) => {
+	const { ensureBrowserOwner } = await import("../helpers/browser-auth.ts");
+	await ensureBrowserOwner(page);
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await page.goto("/workspaces");
+	await page.getByRole("button", { name: "Create workspace", exact: true }).click();
+	const dialog = page.getByRole("dialog", { name: "New workspace", exact: true });
+	await expect(dialog).toBeVisible();
+	await dialog.getByLabel("Name", { exact: true }).click();
+	const box = await dialog.boundingBox();
+	expect(box).toBeTruthy();
+	expect(Math.abs(box!.y + box!.height / 2 - 450)).toBeLessThan(40);
+	expect(Math.abs(box!.x + box!.width / 2 - 640)).toBeLessThan(40);
+	await page.screenshot({ path: test.info().outputPath("centered-desktop-dialog.png") });
+	await page.getByRole("button", { name: "Cancel", exact: true }).click();
+	await expect(dialog).toHaveCount(0);
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.getByRole("button", { name: "Create workspace", exact: true }).click();
+	await expect(dialog).toBeVisible();
+	await expect
+		.poll(async () => {
+			const bounds = await dialog.boundingBox();
+
+			return bounds ? bounds.y + bounds.height : Number.POSITIVE_INFINITY;
+		})
+		.toBeLessThanOrEqual(844);
+	const mobile = await dialog.boundingBox();
+	expect(mobile).toBeTruthy();
+	expect(mobile!.x).toBeGreaterThanOrEqual(0);
+	expect(mobile!.y).toBeGreaterThanOrEqual(0);
+	expect(mobile!.x + mobile!.width).toBeLessThanOrEqual(390);
+	expect(mobile!.y + mobile!.height).toBeLessThanOrEqual(844);
+	await expect(dialog.getByRole("button", { name: "Cancel", exact: true })).toBeInViewport();
+	await page.screenshot({ path: test.info().outputPath("bounded-mobile-dialog.png") });
 });

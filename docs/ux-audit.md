@@ -163,3 +163,11 @@ and proposed coherent navigation/editor pass are in
 [ux-review-2026-10-16.md](ux-review-2026-10-16.md). The maintainer clarified the
 scope/native-import changes were already requested; that implementation and its
 verification are now recorded there separately from remaining review follow-ups.
+
+## Current reconciliation — 2026-10-17
+
+See [the chat-feedback reconciliation](ux-review-2026-10-17.md). Later R01–R06
+work supersedes earlier snapshots that still describe separate helper-import or
+request/attempt screens. Personal and organization API-key settings are newly
+tracked gaps, not previously implemented UI. Physical Android viewport behavior
+and the independent release gates remain unverified.

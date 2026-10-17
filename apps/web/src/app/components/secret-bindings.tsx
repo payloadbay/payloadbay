@@ -2,8 +2,8 @@
 
 import { useFeedbackToast } from "@lib/feedback";
 import { useState, useEffect, useCallback, type FormEvent } from "react";
-import { Button, Card, Form, TextField, Label, Input, FieldError, Table } from "@heroui/react";
-import { NativeSelect, Sheet } from "@heroui-pro/react";
+import { Button, Card, Form, TextField, Label, Input, FieldError, Table, Modal } from "@heroui/react";
+import { NativeSelect } from "@heroui-pro/react";
 import { IconKey, IconX } from "@tabler/icons-react";
 import { api } from "@lib/api-client";
 
@@ -217,15 +217,15 @@ export function SecretBindings({ projectId, scope, bindings, onChange, canUse, c
 						</Table.Content>
 					</Table.ScrollContainer>
 				</Table>
-				<Sheet isOpen={bindingOpen} onOpenChange={setBindingOpen}>
-					<Sheet.Backdrop>
-						<Sheet.Content>
-							<Sheet.Dialog className='max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto'>
-								<Sheet.CloseTrigger />
-								<Sheet.Header>
-									<Sheet.Heading>Bind a secret</Sheet.Heading>
-								</Sheet.Header>
-								<Sheet.Body>
+				<Modal isOpen={bindingOpen} onOpenChange={setBindingOpen}>
+					<Modal.Backdrop>
+						<Modal.Container placement='auto' size='lg'>
+							<Modal.Dialog className='max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto'>
+								<Modal.CloseTrigger />
+								<Modal.Header>
+									<Modal.Heading>Bind a secret</Modal.Heading>
+								</Modal.Header>
+								<Modal.Body>
 									<Form onSubmit={bind} className='flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end'>
 										<TextField isRequired value={binding} onChange={setBinding} isDisabled={disabled || busy} pattern='[A-Za-z_][A-Za-z0-9_]*'>
 											<Label>Script key</Label>
@@ -250,13 +250,13 @@ export function SecretBindings({ projectId, scope, bindings, onChange, canUse, c
 											Bind secret version
 										</Button>
 									</Form>
-								</Sheet.Body>
-							</Sheet.Dialog>
-						</Sheet.Content>
-					</Sheet.Backdrop>
-				</Sheet>
+								</Modal.Body>
+							</Modal.Dialog>
+						</Modal.Container>
+					</Modal.Backdrop>
+				</Modal>
 				{!versions.some((version) => !version.revoked_at) && <p className='text-muted text-sm'>No secret versions exist yet.{canManage ? " Create one, then bind it to your script." : " Ask a project administrator to create one."}</p>}
-				<Sheet
+				<Modal
 					isOpen={creating}
 					onOpenChange={(open) => {
 						if (!busy) {
@@ -265,14 +265,14 @@ export function SecretBindings({ projectId, scope, bindings, onChange, canUse, c
 						}
 					}}
 				>
-					<Sheet.Backdrop>
-						<Sheet.Content>
-							<Sheet.Dialog className='max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto'>
-								<Sheet.CloseTrigger />
-								<Sheet.Header>
-									<Sheet.Heading>Create secret version</Sheet.Heading>
-								</Sheet.Header>
-								<Sheet.Body>
+					<Modal.Backdrop>
+						<Modal.Container placement='auto' size='lg'>
+							<Modal.Dialog className='max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto'>
+								<Modal.CloseTrigger />
+								<Modal.Header>
+									<Modal.Heading>Create secret version</Modal.Heading>
+								</Modal.Header>
+								<Modal.Body>
 									<Form onSubmit={create} className='border-border flex flex-col gap-3 border-t pt-4'>
 										<TextField isRequired value={name} onChange={setName} isDisabled={busy}>
 											<Label>Secret key</Label>
@@ -301,11 +301,11 @@ export function SecretBindings({ projectId, scope, bindings, onChange, canUse, c
 											</Button>
 										</div>
 									</Form>
-								</Sheet.Body>
-							</Sheet.Dialog>
-						</Sheet.Content>
-					</Sheet.Backdrop>
-				</Sheet>
+								</Modal.Body>
+							</Modal.Dialog>
+						</Modal.Container>
+					</Modal.Backdrop>
+				</Modal>
 			</Card.Content>
 		</Card>
 	);

@@ -43,8 +43,9 @@ export async function actorPermissions(db: Pool | PoolClient, actor: Actor, scop
 		ancestry,
 	);
 	if (actor.token) {
-		const token = (await db.query("SELECT id,scope_type,scope_id,permissions FROM payloadbay.api_token WHERE id=$1 AND user_id=$2 AND revoked_at IS NULL AND expires_at>clock_timestamp()", [actor.token.id, actor.userId])).rows[0];
+		const token = (await db.query("SELECT id,scope_type,scope_id,permissions,workspace_ids FROM payloadbay.api_token WHERE id=$1 AND user_id=$2 AND revoked_at IS NULL AND expires_at>clock_timestamp()", [actor.token.id, actor.userId])).rows[0];
 		if (!token || !ancestry.some((s) => s.type === token.scope_type && s.id === token.scope_id)) throw new AppError("unauthenticated", 401, "Authentication required");
+		if (token.workspace_ids !== null && !ancestry.some((s) => s.type === "workspace" && token.workspace_ids.includes(s.id))) return new Set<Permission>();
 		result = new Set([...result].filter((permission) => token.permissions.includes(permission)));
 	}
 

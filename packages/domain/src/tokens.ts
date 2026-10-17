@@ -16,6 +16,7 @@ export async function createToken(
 		name: string;
 		permissions: readonly Permission[];
 		expiresAt: Date;
+		workspaceIds?: readonly string[];
 	},
 ) {
 	if (!input.name.trim() || input.name.length > 100 || !Number.isFinite(input.expiresAt.getTime()) || input.expiresAt.getTime() <= Date.now() || input.expiresAt.getTime() > Date.now() + 366 * 86400000) throw new AppError("invalid_input", 400, "Provide a name and future expiry within one year");
@@ -23,8 +24,15 @@ export async function createToken(
 	return transaction(pool, async (db) => {
 		const held = await requirePermission(db, actor, input.scope, "tokens.manage");
 		assertGrantSubset(held, input.permissions);
+		const workspaceIds = input.workspaceIds ? [...new Set(input.workspaceIds)] : null;
+		if (workspaceIds) {
+			if (input.scope.type !== "organization" || workspaceIds.length === 0 || workspaceIds.length > 200 || workspaceIds.some((id) => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))) throw new AppError("invalid_input", 400, "Choose workspaces within the organization");
+			const allowed = await db.query("SELECT id FROM payloadbay.workspace WHERE organization_id=$1 AND id=ANY($2::uuid[]) AND archived_at IS NULL", [input.scope.id, workspaceIds]);
+			if (allowed.rowCount !== workspaceIds.length) throw new AppError("invalid_input", 400, "Choose workspaces within the organization");
+		}
+
 		const secret = "pb_" + randomBytes(32).toString("base64url");
-		const result = await db.query("INSERT INTO payloadbay.api_token(user_id,scope_type,scope_id,name,permissions,hash,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,name,permissions,expires_at", [actor.userId, input.scope.type, input.scope.id, input.name.trim(), input.permissions, hash(secret), input.expiresAt]);
+		const result = await db.query("INSERT INTO payloadbay.api_token(user_id,scope_type,scope_id,name,permissions,hash,expires_at,workspace_ids) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,name,permissions,expires_at,workspace_ids", [actor.userId, input.scope.type, input.scope.id, input.name.trim(), input.permissions, hash(secret), input.expiresAt, workspaceIds]);
 		await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation,resource_id) VALUES($1,$2,$3,'token.created',$4)", [actor.userId, input.scope.type, input.scope.id, result.rows[0].id]);
 
 		return { ...result.rows[0], secret };
@@ -50,7 +58,7 @@ export async function authenticateToken(pool: Pool, secret: string): Promise<Act
 export async function listTokens(pool: Pool, actor: Actor, scope: ScopeRef) {
 	await requirePermission(pool, actor, scope, "tokens.manage");
 
-	return (await pool.query("SELECT id,name,permissions,expires_at,revoked_at,created_at FROM payloadbay.api_token WHERE user_id=$1 AND scope_type=$2 AND scope_id=$3 ORDER BY created_at DESC LIMIT 200", [actor.userId, scope.type, scope.id])).rows;
+	return (await pool.query("SELECT id,name,permissions,workspace_ids,expires_at,revoked_at,created_at FROM payloadbay.api_token WHERE user_id=$1 AND scope_type=$2 AND scope_id=$3 ORDER BY created_at DESC LIMIT 200", [actor.userId, scope.type, scope.id])).rows;
 }
 
 export async function revokeToken(pool: Pool, actor: Actor, scope: ScopeRef, id: string) {

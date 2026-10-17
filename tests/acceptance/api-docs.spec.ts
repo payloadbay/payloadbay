@@ -97,3 +97,68 @@ test("U156c mobile account help opens the local reference and returns to the sig
 	await expect(page.getByRole("grid", { name: "Projects", exact: true })).toBeVisible();
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
+
+test("K01 personal settings creates a show-once API key and revokes it", async ({ page, request }) => {
+	const { ensureBrowserOwner } = await import("../helpers/browser-auth.ts");
+	await ensureBrowserOwner(page);
+	await page.goto("/account");
+	await page.getByRole("link", { name: "Manage personal API keys", exact: true }).click();
+	await expect(page.getByRole("heading", { name: "Personal API keys", exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "Create API key", exact: true }).click();
+	await page.getByLabel("Key name", { exact: true }).fill("Review automation");
+	await page.getByText("metadata.read", { exact: true }).click();
+	await expect(page.getByRole("checkbox", { name: "metadata.read", exact: true })).toBeChecked();
+	await page.getByRole("button", { name: "Create key", exact: true }).click();
+	const secret = await page.getByRole("textbox", { name: "New API key", exact: true }).inputValue();
+	expect(/^pb_[A-Za-z0-9_-]{43}$/.test(secret)).toBe(true);
+	const response = await request.get("/api/v1/projects", { headers: { authorization: "Bearer " + secret } });
+	expect(response.status()).toBe(200);
+	await page.getByRole("button", { name: "I saved this key", exact: true }).click();
+	await expect(page.getByRole("textbox", { name: "New API key", exact: true })).toHaveCount(0);
+	const row = page.getByRole("row").filter({ hasText: "Review automation" });
+	await expect(row).toBeVisible();
+	await row.getByRole("button", { name: "Revoke", exact: true }).click();
+	await page.getByRole("dialog", { name: "Revoke API key" }).getByRole("button", { name: "Revoke key", exact: true }).click();
+	await expect(row).toContainText("Revoked");
+	expect((await request.get("/api/v1/projects", { headers: { authorization: "Bearer " + secret } })).status()).toBe(401);
+	await page.setViewportSize({ width: 390, height: 844 });
+	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test("K02 organization settings creates a key limited to selected workspaces", async ({ page, request }) => {
+	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
+	await ensureBrowserOwner(page);
+	const organization = (await (await page.request.get("/api/v1/organizations")).json())[0];
+	const workspace = (await (await page.request.get("/api/v1/workspaces")).json())[0];
+	const hiddenResponse = await page.request.post("/api/v1/workspaces", { headers: commandHeaders(), data: { parentId: organization.id, name: "Excluded workspace", slug: "excluded-workspace" } });
+	expect(hiddenResponse.status()).toBe(200);
+	const hidden = await hiddenResponse.json();
+
+	const createProject = async (parentId: string, name: string, slug: string) => {
+		const result = await page.request.post("/api/v1/projects", { headers: commandHeaders(), data: { parentId, name, slug } });
+		expect(result.status()).toBe(200);
+
+		return result.json();
+	};
+
+	const visible = await createProject(workspace.id, "Allowed integration", "allowed-integration");
+	await createProject(hidden.id, "Excluded integration", "excluded-integration");
+	await page.goto(`/organizations/${organization.id}`);
+	await page.getByRole("row", { name: "API keys", exact: true }).click();
+	await expect(page.getByRole("heading", { name: "Organization API keys", exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "Create API key", exact: true }).click();
+	const dialog = page.getByRole("dialog", { name: "Create API key", exact: true });
+	await dialog.getByLabel("Key name", { exact: true }).fill("Workspace integration");
+	await dialog.getByLabel("Workspace access", { exact: true }).selectOption("selected");
+	await dialog.getByText(workspace.name, { exact: true }).click();
+	await dialog.getByText("metadata.read", { exact: true }).click();
+	await dialog.getByRole("button", { name: "Create key", exact: true }).click();
+	const secret = await page.getByRole("textbox", { name: "New API key", exact: true }).inputValue();
+	const headers = { authorization: "Bearer " + secret };
+	const projects = await request.get("/api/v1/projects", { headers });
+	expect(projects.status()).toBe(200);
+	expect((await projects.json()).map((item: { id: string }) => item.id)).toEqual([visible.id]);
+	expect(await (await request.get(`/api/v1/projects?workspaceId=${hidden.id}`, { headers })).json()).toEqual([]);
+	await page.getByRole("button", { name: "I saved this key", exact: true }).click();
+	await expect(page.getByRole("row").filter({ hasText: "Workspace integration" })).toContainText("1 selected workspace");
+});

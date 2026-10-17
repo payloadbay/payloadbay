@@ -376,20 +376,20 @@ Standard mode is runc, optional gVisor is runsc. Missing explicitly selected run
 
 | id | behavior | traces | kind | state | test |
 |---|---|---|---|---|---|
-| U168 | Without a rule failed deliveries produce no incident | FR-028 | example | PENDING | |
+| U168 | Without a rule failed deliveries produce no incident | FR-028 | example | DONE | `tests/integration/notifications.test.ts::U168 U175 U176 U177 opt-in thresholds exclude other routes destinations and expired failures` |
 | U169 | Repeated active condition identity updates one incident | FR-027 | example | DONE | `tests/integration/notifications.test.ts::U169 active condition reconciles one durable incident` |
 | U170 | Resolved conditions preserve historical incident state | FR-027 | example | DONE | `tests/integration/notifications.test.ts::U170 disabled rules resolve incidents without deleting history` |
 | U171 | A project-only administrator cannot read instance notices | FR-027 | example | DONE | `tests/integration/notifications.test.ts::U171 project administrator cannot inspect instance runtime advice` |
 | U172 | Dismissal for one user survives restart without dismissing for another | FR-027 | example | DONE | `tests/integration/notifications.test.ts::U172 per user dismissal survives condition reconciliation` |
 | U173 | Configured runsc resolves isolation advice without claiming host attestation | FR-027 | example | DONE | `tests/integration/notifications.test.ts::U173 runsc configuration resolves advice without host attestation` |
 | U174 | Count1 fires on the first matching managed delivery failure | FR-028 | example | DONE | `tests/integration/notifications.test.ts::U174 trusted notification producer fires at the first matching failure` |
-| U175 | CountN does not fire at N-1 distinct operations | FR-028 | example | PENDING | |
-| U176 | CountN fires at exactly N distinct operations | FR-028 | example | PENDING | |
-| U177 | A failure outside the selected ingress route cannot trigger its rule | FR-028 | example | PENDING | |
+| U175 | CountN does not fire at N-1 distinct operations | FR-028 | example | DONE | `tests/integration/notifications.test.ts::U168 U175 U176 U177 opt-in thresholds exclude other routes destinations and expired failures` |
+| U176 | CountN fires at exactly N distinct operations | FR-028 | example | DONE | `tests/integration/notifications.test.ts::U168 U175 U176 U177 opt-in thresholds exclude other routes destinations and expired failures` |
+| U177 | A failure outside the selected ingress route cannot trigger its rule | FR-028 | example | DONE | `tests/integration/notifications.test.ts::U168 U175 U176 U177 opt-in thresholds exclude other routes destinations and expired failures` |
 | U178 | A retry of the same operation does not inflate distinct-delivery count | FR-028 | example | DONE | `tests/integration/notifications.test.ts::U178 opt-in threshold counts failed operations rather than retries` |
 | U179 | Revoked access prevents already queued notification email | FR-028 | example | DONE | `tests/integration/notifications.test.ts::U179 revoked access prevents already queued notification email` |
-| U180 | Unread severity selects an accessible bell warning or danger control | FR-027 | example | PENDING | |
-| U181 | A notice uses typed producer/service/inbox reconciliation rather than an environment-driven UI branch | FR-027 | example | PENDING | |
+| U180 | Unread severity selects an accessible bell warning or danger control | FR-027 | example | DONE | `tests/acceptance/notification-inbox.spec.ts::U180 U181 notification attention describes severity and follows real scoped producer changes` |
+| U181 | A notice uses typed producer/service/inbox reconciliation rather than an environment-driven UI branch | FR-027 | example | DONE | `tests/acceptance/notification-inbox.spec.ts::U180 U181 notification attention describes severity and follows real scoped producer changes` |
 
 ### Discovered public-result boundaries
 
@@ -858,3 +858,15 @@ f5a71d5; see cycle-log.md for broad lanes, infrastructure-blocked cases and thei
 passing targeted reruns. Four real OTP reviewer roles, unrelated-organization
 isolation, a new queued HTTP delivery and local usage passed on Coolify. Separate
 original alpha release gates remain open. No release SQL was generated locally.
+
+
+### API-key settings — maintainer 2026-10-17
+
+| id | behavior | traces | kind | state | test |
+|---|---|---|---|---|---|
+| K01a | Personal settings creates a scoped show-once key and revokes it | K01, K04 | example | DONE | `tests/acceptance/api-docs.spec.ts::K01 personal settings creates a show-once API key and revokes it` |
+| K02a | Organization settings supports all or selected workspace access | K02, K04 | example | DONE | `tests/acceptance/api-docs.spec.ts::K02 organization settings creates a key limited to selected workspaces` |
+| K03a | A persisted workspace restriction excludes siblings and organization-wide access | K03 | example | DONE | `tests/integration/authorization.test.ts::K03 organization keys enforce a persisted selected-workspace boundary` |
+| K03b | Foreign scopes, escalation and invalid workspace restrictions are refused | K03 | example | DONE | `tests/integration/authorization.test.ts::K03 organization keys enforce a persisted selected-workspace boundary` |
+
+| R08a | Bounded dialogs center on desktop and stay viewport-bound on mobile | R08 | example | DONE | `tests/acceptance/dashboard.spec.ts::R08 bounded dialogs center on desktop and remain inside the mobile viewport` |

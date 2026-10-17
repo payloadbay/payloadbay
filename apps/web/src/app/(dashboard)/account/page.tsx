@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { LoadingState } from "@components/loading-state";
 import { useState, useEffect, useCallback, type FormEvent } from "react";
 import { Button, Card, FieldError, Form, Input, Label, TextField, Table } from "@heroui/react";
@@ -105,6 +106,9 @@ export default function AccountPage() {
 				<h1 className='text-3xl font-semibold'>Account settings</h1>
 				<p className='text-muted mt-2'>Manage how your name appears in this instance.</p>
 			</header>
+			<Link href='/account/api-keys' className='text-accent w-fit font-medium'>
+				Manage personal API keys
+			</Link>
 			<Card>
 				<Card.Content>
 					<Form onSubmit={save} className='flex flex-col gap-5'>

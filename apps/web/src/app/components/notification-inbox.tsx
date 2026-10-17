@@ -2,9 +2,9 @@
 
 import { LoadingState } from "@components/loading-state";
 import { useFeedbackToast } from "@lib/feedback";
-import { useEffect, useState, useCallback } from "react";
-import { Button } from "@heroui/react";
-import { Sheet } from "@heroui-pro/react";
+import { useEffect, useState, useCallback, useId } from "react";
+import { Button, Modal } from "@heroui/react";
+
 import { IconBell, IconAlertTriangle, IconAlertOctagon, IconCheck } from "@tabler/icons-react";
 import { api } from "@lib/api-client";
 
@@ -18,6 +18,8 @@ type Notice = {
 };
 
 export function NotificationInbox({ scope, label = "Notifications" }: { scope: Scope; label?: string }) {
+	const descriptionId = useId();
+
 	const [open, setOpen] = useState(false);
 	const [items, setItems] = useState<Notice[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -87,23 +89,28 @@ export function NotificationInbox({ scope, label = "Notifications" }: { scope: S
 	const critical = items.some((item) => item.severity === "critical");
 	const warning = items.some((item) => item.severity === "warning");
 	const Icon = critical ? IconAlertOctagon : warning ? IconAlertTriangle : IconBell;
+	const severity = critical ? "critical" : warning ? "warning" : "info";
+	const description = loading ? "Loading notifications." : items.length > 0 ? `${items.length} active notification${items.length === 1 ? "" : "s"}. Highest severity: ${severity}.` : error ? "Notifications unavailable." : "No active notifications.";
 
 	return (
 		<>
-			<Button variant='ghost' aria-label={label} onPress={() => setOpen(true)} className={critical ? "text-danger" : warning ? "text-warning" : "text-accent"}>
-				<Icon size={20} />
+			<Button variant='ghost' aria-label={label} aria-describedby={descriptionId} onPress={() => setOpen(true)} className={critical ? "text-danger" : warning ? "text-warning" : "text-accent"}>
+				<span id={descriptionId} className='sr-only'>
+					{description}
+				</span>
+				<Icon size={20} aria-hidden='true' />
 				{items.length > 0 && <span aria-label='Active notification count'>{items.length}</span>}
 			</Button>
-			<Sheet isOpen={open} onOpenChange={setOpen}>
-				<Sheet.Backdrop>
-					<Sheet.Content>
-						<Sheet.Dialog>
-							<Sheet.CloseTrigger />
-							<Sheet.Header>
-								<Sheet.Heading>{label}</Sheet.Heading>
+			<Modal isOpen={open} onOpenChange={setOpen}>
+				<Modal.Backdrop>
+					<Modal.Container placement='auto' size='lg'>
+						<Modal.Dialog>
+							<Modal.CloseTrigger />
+							<Modal.Header>
+								<Modal.Heading>{label}</Modal.Heading>
 								<p className='text-muted text-sm'>Notices for this scope. Dismissal applies to your account.</p>
-							</Sheet.Header>
-							<Sheet.Body className='flex flex-col gap-4'>
+							</Modal.Header>
+							<Modal.Body className='flex flex-col gap-4'>
 								{loading ? (
 									<LoadingState label='Loading notifications…' />
 								) : error ? (
@@ -131,11 +138,11 @@ export function NotificationInbox({ scope, label = "Notifications" }: { scope: S
 										</Button>
 									</article>
 								))}
-							</Sheet.Body>
-						</Sheet.Dialog>
-					</Sheet.Content>
-				</Sheet.Backdrop>
-			</Sheet>
+							</Modal.Body>
+						</Modal.Dialog>
+					</Modal.Container>
+				</Modal.Backdrop>
+			</Modal>
 		</>
 	);
 }

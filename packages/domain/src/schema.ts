@@ -254,6 +254,7 @@ export const apiToken = domain.table(
 		scopeId: uuid("scope_id").notNull(),
 		name: text("name").notNull(),
 		permissions: text("permissions").array().notNull(),
+		workspaceIds: uuid("workspace_ids").array(),
 		hash: text("hash").notNull(),
 		expiresAt: time("expires_at").notNull(),
 		revokedAt: time("revoked_at"),

@@ -2,8 +2,8 @@
 
 import { useFeedbackToast } from "@lib/feedback";
 import { useState, type FormEvent } from "react";
-import { Button, Form, TextField, Label, Input, FieldError, Table } from "@heroui/react";
-import { EmptyState, NativeSelect, Sheet } from "@heroui-pro/react";
+import { Button, Form, TextField, Label, Input, FieldError, Table, Modal } from "@heroui/react";
+import { EmptyState, NativeSelect } from "@heroui-pro/react";
 import { IconFolderPlus, IconArrowRight } from "@tabler/icons-react";
 import { useDashboard } from "@components/dashboard-shell";
 import { api } from "@lib/api-client";
@@ -93,20 +93,20 @@ export default function DashboardPage() {
 				</NativeSelect>
 			)}
 			{form && (
-				<Sheet
+				<Modal
 					isOpen={Boolean(form)}
 					onOpenChange={(open) => {
 						if (!open && !busy) setForm(null);
 					}}
 				>
-					<Sheet.Backdrop>
-						<Sheet.Content>
-							<Sheet.Dialog className='max-h-[calc(100dvh-2rem)] w-full max-w-lg'>
-								<Sheet.CloseTrigger />
-								<Sheet.Header>
-									<Sheet.Heading>New {form}</Sheet.Heading>
-								</Sheet.Header>
-								<Sheet.Body>
+					<Modal.Backdrop>
+						<Modal.Container placement='auto' size='lg'>
+							<Modal.Dialog className='max-h-[calc(100dvh-2rem)] w-full max-w-lg'>
+								<Modal.CloseTrigger />
+								<Modal.Header>
+									<Modal.Heading>New {form}</Modal.Heading>
+								</Modal.Header>
+								<Modal.Body>
 									<Form className='flex flex-col gap-4' onSubmit={create}>
 										{form === "workspace" && (
 											<NativeSelect variant='secondary' fullWidth>
@@ -166,11 +166,11 @@ export default function DashboardPage() {
 											</Button>
 										</div>
 									</Form>
-								</Sheet.Body>
-							</Sheet.Dialog>
-						</Sheet.Content>
-					</Sheet.Backdrop>
-				</Sheet>
+								</Modal.Body>
+							</Modal.Dialog>
+						</Modal.Container>
+					</Modal.Backdrop>
+				</Modal>
 			)}
 			{visible.length ? (
 				<Table>

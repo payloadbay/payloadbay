@@ -199,6 +199,13 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 					visible: organization.permissions.includes("metadata.read"),
 				},
 				{
+					id: "organization-api-keys",
+					label: "API keys",
+					href: "/organizations/" + organization.id + "/api-keys",
+					icon: IconKey,
+					visible: organization.permissions.includes("tokens.manage"),
+				},
+				{
 					id: "organization-members",
 					label: "Organization members",
 					href: "/organizations/" + organization.id + "/members",
@@ -396,7 +403,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 			: null;
 	const contextualLinks = !browse && routeId ? [...routeLinks.map((item) => ({ ...item, href: routeAddress + "?section=" + item.id })), ...(middlewareLink ? [middlewareLink] : [])] : project ? projectLinks : workspace ? workspaceLinks : organization ? organizationLinks : [];
 	const groups = [
-		{ label: "Settings", items: contextualLinks.filter((item) => ["code", "helpers", "secrets", "middleware", "project-overview", "project-code", "project-members", "workspace", "workspace-members", "workspace-code", "organization", "organization-members", "organization-code"].includes(item.id)) },
+		{ label: "Settings", items: contextualLinks.filter((item) => ["code", "helpers", "secrets", "middleware", "project-overview", "project-code", "project-members", "workspace", "workspace-members", "workspace-code", "organization", "organization-members", "organization-code", "organization-api-keys"].includes(item.id)) },
 		{ label: "Observe and troubleshoot", items: contextualLinks.filter((item) => ["events", "project-events", "overview", "test", "organization-usage"].includes(item.id)) },
 		{ label: "Publish and history", items: contextualLinks.filter((item) => item.id === "history") },
 		{ label: "Automation", items: contextualLinks.filter((item) => ["project-notifications", "workspace-rules"].includes(item.id)) },
@@ -424,6 +431,12 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 			label: "Account settings",
 			href: "/account",
 			icon: IconSettings,
+		},
+		{
+			id: "personal-api-keys",
+			label: "Personal API keys",
+			href: "/account/api-keys",
+			icon: IconKey,
 		},
 		{
 			id: "personal-notifications",
@@ -628,6 +641,10 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 													<Label>Account settings</Label>
 												</Dropdown.Item>
 
+												<Dropdown.Item id='api-keys' textValue='Personal API keys' href='/account/api-keys'>
+													<IconKey size={18} aria-hidden='true' />
+													<Label>Personal API keys</Label>
+												</Dropdown.Item>
 												<Dropdown.Item id='api-docs' textValue='API documentation' href='/docs/api'>
 													<IconBook size={18} aria-hidden='true' />
 													<Label>API documentation</Label>
@@ -652,12 +669,15 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 							<Breadcrumbs.Item href={pathname === "/" ? undefined : "/"}>Overview</Breadcrumbs.Item>
 							{currentOrganization && <Breadcrumbs.Item href={pathname === "/organizations/" + currentOrganization.id ? undefined : "/organizations/" + currentOrganization.id}>{currentOrganization.name}</Breadcrumbs.Item>}
 							{currentOrganization && pathname === "/organizations/" + currentOrganization.id + "/usage" && <Breadcrumbs.Item>Usage and limits</Breadcrumbs.Item>}
+							{currentOrganization && pathname === "/organizations/" + currentOrganization.id + "/api-keys" && <Breadcrumbs.Item>API keys</Breadcrumbs.Item>}
 							{currentWorkspace && <Breadcrumbs.Item href={pathname === "/workspaces/" + currentWorkspace.id ? undefined : "/workspaces/" + currentWorkspace.id}>{currentWorkspace.name}</Breadcrumbs.Item>}
 							{currentProject && <Breadcrumbs.Item href={pathname === "/projects/" + currentProject.id ? undefined : "/projects/" + currentProject.id}>{currentProject.name}</Breadcrumbs.Item>}
 							{routeId && <Breadcrumbs.Item href={routeAddress}>{routeMetadata && routeMetadata.id === routeId ? routeMetadata.name : "Ingress route"}</Breadcrumbs.Item>}
 							{routeId && <Breadcrumbs.Item>{routeSection === "middleware" ? "Middleware" : (routeLinks.find((item) => item.id === routeSection)?.label ?? "Scripts")}</Breadcrumbs.Item>}
 							{pathname.startsWith("/admin/notification-channels/") && <Breadcrumbs.Item href='/admin/notification-channels'>Notification modules</Breadcrumbs.Item>}
-							{!currentProject && !currentWorkspace && !currentOrganization && pathname !== "/" && <Breadcrumbs.Item>{pathname === "/organizations" ? "Organizations" : pathname === "/workspaces" ? "Workspaces" : pathname === "/projects" ? "Projects" : pathname === "/events" ? "Events" : pathname.startsWith("/account") ? "Account settings" : administrationLabel}</Breadcrumbs.Item>}
+							{!currentProject && !currentWorkspace && !currentOrganization && pathname !== "/" && (
+								<Breadcrumbs.Item>{pathname === "/organizations" ? "Organizations" : pathname === "/workspaces" ? "Workspaces" : pathname === "/projects" ? "Projects" : pathname === "/events" ? "Events" : pathname === "/account/api-keys" ? "Personal API keys" : pathname === "/account/notifications" ? "Notification settings" : pathname.startsWith("/account") ? "Account settings" : administrationLabel}</Breadcrumbs.Item>
+							)}
 						</Breadcrumbs>
 					</nav>
 					<nav aria-label='Breadcrumbs' className='mb-6 flex min-w-0 items-center gap-2 sm:hidden'>
@@ -711,10 +731,11 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 								<Breadcrumbs.Item href={pathname === "/organizations/" + currentOrganization.id ? undefined : "/organizations/" + currentOrganization.id}>{currentOrganization.name}</Breadcrumbs.Item>
 							) : null}
 							{currentOrganization && pathname === "/organizations/" + currentOrganization.id + "/usage" && <Breadcrumbs.Item>Usage and limits</Breadcrumbs.Item>}
+							{currentOrganization && pathname === "/organizations/" + currentOrganization.id + "/api-keys" && <Breadcrumbs.Item>API keys</Breadcrumbs.Item>}
 							{routeId ? (
 								<Breadcrumbs.Item>{routeSection === "middleware" ? "Middleware" : (routeLinks.find((item) => item.id === routeSection)?.label ?? "Scripts")}</Breadcrumbs.Item>
 							) : !currentProject && !currentWorkspace && !currentOrganization ? (
-								<Breadcrumbs.Item>{pathname === "/" ? "Overview" : pathname === "/organizations" ? "Organizations" : pathname === "/workspaces" ? "Workspaces" : pathname === "/projects" ? "Projects" : pathname === "/events" ? "Events" : pathname.startsWith("/account") ? "Account settings" : administrationLabel}</Breadcrumbs.Item>
+								<Breadcrumbs.Item>{pathname === "/" ? "Overview" : pathname === "/organizations" ? "Organizations" : pathname === "/workspaces" ? "Workspaces" : pathname === "/projects" ? "Projects" : pathname === "/events" ? "Events" : pathname === "/account/api-keys" ? "Personal API keys" : pathname === "/account/notifications" ? "Notification settings" : pathname.startsWith("/account") ? "Account settings" : administrationLabel}</Breadcrumbs.Item>
 							) : null}
 						</Breadcrumbs>
 					</nav>

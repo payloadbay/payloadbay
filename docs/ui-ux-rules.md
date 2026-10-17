@@ -48,7 +48,9 @@ cards for summaries, and dedicated working areas for complex editing. Keep
 collection search, filters and actions together; use consistent row actions.
 
 Use a modal for a bounded create/edit task that should preserve the surrounding
-context. Use a page for substantial ongoing work. Avoid inserting forms that
+context. Center ordinary dialogs on desktop; use deliberate responsive placement
+on phones. Use the library’s modal primitive for these tasks rather than a
+bottom sheet on every screen. Navigation drawers retain their navigation role. Use a page for substantial ongoing work. Avoid inserting forms that
 unexpectedly move the content the user was interacting with.
 
 ## Flow and feedback

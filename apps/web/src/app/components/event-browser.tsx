@@ -3,7 +3,7 @@
 import { LoadingState } from "@components/loading-state";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button, Table, Label, Chip, Select, ListBox, Checkbox, Tabs, Modal } from "@heroui/react";
-import { EmptyState, Sheet, NativeSelect } from "@heroui-pro/react";
+import { EmptyState, NativeSelect } from "@heroui-pro/react";
 import { IconInbox, IconEye, IconRefresh, IconPlayerPlay } from "@tabler/icons-react";
 import { useFeedbackToast } from "@lib/feedback";
 import { useDashboard } from "@components/dashboard-shell";
@@ -569,7 +569,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 					Load more events
 				</Button>
 			)}
-			<Sheet
+			<Modal
 				isOpen={Boolean(selected)}
 				onOpenChange={(open) => {
 					if (!open && !busy) {
@@ -578,15 +578,15 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 					}
 				}}
 			>
-				<Sheet.Backdrop>
-					<Sheet.Content>
-						<Sheet.Dialog className='flex max-h-[calc(100dvh-1rem)] w-full min-w-0 max-w-2xl flex-col overflow-hidden'>
-							<Sheet.CloseTrigger />
-							<Sheet.Header>
-								<Sheet.Heading>Event inspection</Sheet.Heading>
+				<Modal.Backdrop>
+					<Modal.Container placement='auto' size='lg'>
+						<Modal.Dialog className='flex max-h-[calc(100dvh-1rem)] w-full min-w-0 max-w-2xl flex-col overflow-hidden'>
+							<Modal.CloseTrigger />
+							<Modal.Header>
+								<Modal.Heading>Event inspection</Modal.Heading>
 								<p className='text-muted break-all text-xs'>{selected}</p>
-							</Sheet.Header>
-							<Sheet.Body className='min-h-0 flex-1 overflow-y-auto'>
+							</Modal.Header>
+							<Modal.Body className='min-h-0 flex-1 overflow-y-auto'>
 								{!detail ? (
 									<LoadingState label='Loading event history…' />
 								) : (
@@ -723,8 +723,8 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 										</Tabs.Panel>
 									</Tabs>
 								)}
-							</Sheet.Body>
-							<Sheet.Footer className='shrink-0'>
+							</Modal.Body>
+							<Modal.Footer className='shrink-0'>
 								{detail?.ingressOutcome === "accept" && projects.find((project) => project.id === detail.projectId)?.permissions.includes("events.replay") && (
 									<div className='flex w-full flex-col gap-3'>
 										<PublicationPicker endpointId={detail.endpointId} originalId={detail.publicationId} value={replayVersion} onChange={setReplayVersion} label='Script version for replay' disabled={busy} />
@@ -735,11 +735,11 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 										</Button>
 									</div>
 								)}
-							</Sheet.Footer>
-						</Sheet.Dialog>
-					</Sheet.Content>
-				</Sheet.Backdrop>
-			</Sheet>
+							</Modal.Footer>
+						</Modal.Dialog>
+					</Modal.Container>
+				</Modal.Backdrop>
+			</Modal>
 			<Modal
 				isOpen={bulkOpen}
 				onOpenChange={(open) => {

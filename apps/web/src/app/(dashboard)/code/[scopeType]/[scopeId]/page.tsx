@@ -5,8 +5,8 @@ import { useFeedbackToast } from "@lib/feedback";
 import { use, useEffect, useCallback, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useDragAndDrop } from "react-aria-components";
-import { Button, Card, Form, TextField, Label, Input, FieldError, Tabs, NumberField, Checkbox, Table } from "@heroui/react";
-import { EmptyState, Sheet, NativeSelect } from "@heroui-pro/react";
+import { Button, Card, Form, TextField, Label, Input, FieldError, Tabs, NumberField, Checkbox, Table, Modal } from "@heroui/react";
+import { EmptyState, NativeSelect } from "@heroui-pro/react";
 import { IconCode, IconPlus, IconCopy, IconLock, IconArrowLeft, IconCheck, IconGripVertical, IconArrowUp, IconArrowDown } from "@tabler/icons-react";
 import { formatScript, formatScriptForDisplay, scriptDocument } from "@lib/script-document";
 import { useUnsavedChanges } from "@components/unsaved-changes";
@@ -526,7 +526,7 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 					)}
 				</div>
 			)}
-			<Sheet
+			<Modal
 				isOpen={open}
 				onOpenChange={(next) => {
 					if (!busy) {
@@ -535,14 +535,14 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 					}
 				}}
 			>
-				<Sheet.Backdrop>
-					<Sheet.Content>
-						<Sheet.Dialog className='flex max-h-[calc(100dvh-1rem)] w-full min-w-0 flex-col overflow-hidden'>
-							<Sheet.CloseTrigger />
-							<Sheet.Header>
-								<Sheet.Heading>{tab === "modules" ? "Shared helper source" : "Middleware configuration"}</Sheet.Heading>
-							</Sheet.Header>
-							<Sheet.Body className='min-h-0 flex-1 overflow-y-auto'>
+				<Modal.Backdrop>
+					<Modal.Container placement='auto' size='lg' className='sm:w-full'>
+						<Modal.Dialog className='flex max-h-[calc(100dvh-1rem)] w-full min-w-0 max-w-5xl flex-col overflow-hidden'>
+							<Modal.CloseTrigger />
+							<Modal.Header>
+								<Modal.Heading>{tab === "modules" ? "Shared helper source" : "Middleware configuration"}</Modal.Heading>
+							</Modal.Header>
+							<Modal.Body className='min-h-0 flex-1 overflow-y-auto'>
 								<Form id='code-editor-form' className='flex flex-col gap-4' onSubmit={save}>
 									{diagnostics.map((diagnostic, index) => (
 										<p key={index} role='alert' className='text-danger font-mono text-xs'>
@@ -665,8 +665,8 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 										readOnly={busy || !canEdit || (tab === "middleware" && !canPublish)}
 									/>
 								</Form>
-							</Sheet.Body>
-							<Sheet.Footer className='shrink-0'>
+							</Modal.Body>
+							<Modal.Footer className='shrink-0'>
 								{" "}
 								{canEdit && (tab === "modules" || canPublish) && (
 									<Button type='submit' form='code-editor-form' isDisabled={busy}>
@@ -674,11 +674,11 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 										{busy ? "Saving…" : tab === "modules" ? "Save helper version" : "Save middleware"}
 									</Button>
 								)}
-							</Sheet.Footer>
-						</Sheet.Dialog>
-					</Sheet.Content>
-				</Sheet.Backdrop>
-			</Sheet>
+							</Modal.Footer>
+						</Modal.Dialog>
+					</Modal.Container>
+				</Modal.Backdrop>
+			</Modal>
 		</section>
 	);
 }

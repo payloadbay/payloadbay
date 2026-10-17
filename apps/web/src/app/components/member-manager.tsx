@@ -3,8 +3,8 @@
 import { LoadingState } from "@components/loading-state";
 import { useFeedbackToast } from "@lib/feedback";
 import { useEffect, useState, useCallback, type FormEvent } from "react";
-import { Button, Form, Checkbox, Table, TextField, Label, Input, FieldError } from "@heroui/react";
-import { Sheet, EmptyState, NativeSelect } from "@heroui-pro/react";
+import { Button, Form, Checkbox, Table, TextField, Label, Input, FieldError, Modal } from "@heroui/react";
+import { EmptyState, NativeSelect } from "@heroui-pro/react";
 import { IconUsers, IconPencil, IconUserPlus, IconX } from "@tabler/icons-react";
 import { useDashboard } from "@components/dashboard-shell";
 import { api } from "@lib/api-client";
@@ -300,7 +300,7 @@ export function MemberManager({ scope: chosen, held: chosenHeld }: { scope?: Sco
 					</Table>
 				</section>
 			)}
-			<Sheet
+			<Modal
 				isOpen={Boolean(editing) || inviting}
 				onOpenChange={(open) => {
 					if (!open && !busy) {
@@ -309,17 +309,17 @@ export function MemberManager({ scope: chosen, held: chosenHeld }: { scope?: Sco
 					}
 				}}
 			>
-				<Sheet.Backdrop>
-					<Sheet.Content>
-						<Sheet.Dialog aria-describedby='member-permissions-description'>
-							<Sheet.CloseTrigger />
-							<Sheet.Header>
-								<Sheet.Heading>{inviting ? "Invite someone" : "Permissions for " + editing?.name}</Sheet.Heading>
+				<Modal.Backdrop>
+					<Modal.Container placement='auto' size='lg'>
+						<Modal.Dialog aria-describedby='member-permissions-description'>
+							<Modal.CloseTrigger />
+							<Modal.Header>
+								<Modal.Heading>{inviting ? "Invite someone" : "Permissions for " + editing?.name}</Modal.Heading>
 								<p id='member-permissions-description' className='text-muted text-sm'>
 									Start with a role preset, then customize individual permissions. Inviting someone new requires admission authority in their organization or the instance.
 								</p>
-							</Sheet.Header>
-							<Sheet.Body>
+							</Modal.Header>
+							<Modal.Body>
 								<Form id='member-permissions' className='flex flex-col gap-5' onSubmit={save}>
 									{inviting && (
 										<>
@@ -408,8 +408,8 @@ export function MemberManager({ scope: chosen, held: chosenHeld }: { scope?: Sco
 										})}
 									</fieldset>
 								</Form>
-							</Sheet.Body>
-							<Sheet.Footer>
+							</Modal.Body>
+							<Modal.Footer>
 								<Button type='submit' form='member-permissions' isDisabled={busy || (inviting && access === "projects" && projectIds.length === 0)}>
 									{busy ? "Saving…" : inviting ? "Send invitation" : "Save permissions"}
 								</Button>
@@ -423,11 +423,11 @@ export function MemberManager({ scope: chosen, held: chosenHeld }: { scope?: Sco
 								>
 									Cancel
 								</Button>
-							</Sheet.Footer>
-						</Sheet.Dialog>
-					</Sheet.Content>
-				</Sheet.Backdrop>
-			</Sheet>
+							</Modal.Footer>
+						</Modal.Dialog>
+					</Modal.Container>
+				</Modal.Backdrop>
+			</Modal>
 		</section>
 	);
 }

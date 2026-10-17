@@ -8,11 +8,13 @@ export const resourceInput = z.object({ parentId: z.uuid(), name: z.string().tri
 export const tokenInput = z
 	.object({
 		scope: scopeSchema,
+		workspaceIds: z.array(z.uuid()).min(1).max(200).optional(),
 		name: z.string().trim().min(1).max(100),
 		permissions: z.array(z.enum(permissions)).max(permissions.length),
 		expiresAt: z.iso.datetime(),
 	})
-	.strict();
+	.strict()
+	.refine((value) => !value.workspaceIds || value.scope.type === "organization", { message: "Workspace restrictions require an organization scope", path: ["workspaceIds"] });
 
 export const grantInput = z
 	.object({
