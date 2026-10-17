@@ -119,8 +119,15 @@ function relocate(file: string, sourceRoot: string, root: string) {
 	return resolve(root, path);
 }
 
+export function coveredRevision(root = process.cwd()) {
+	const sha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
+	if (execFileSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8" }).trim()) throw Error("Coverage merge requires a clean checkout of the covered revision");
+
+	return sha;
+}
+
 export function mergeCoverageArtifacts(folder: string, threshold: Threshold, root = process.cwd()) {
-	const sourceSha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
+	const sourceSha = coveredRevision(root);
 	const names = (readdirSync(folder, { recursive: true }) as string[]).map((file) => file.replaceAll("\\", "/"));
 	const reports: CoverageMapData[] = [];
 	let unitLcov = "";

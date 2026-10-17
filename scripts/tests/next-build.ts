@@ -7,7 +7,7 @@ let failedBuild: { hash: string; error: Error } | undefined;
 
 export function nextBuildFingerprint(sourceCoverage = false) {
 	const files = execFileSync("rg", ["--files", "apps/web/src", "packages/domain/src", "packages/contracts/src", "packages/script-sdk/src", "apps/executor/src"], { encoding: "utf8" }).trim().split("\n").sort();
-	files.push("bun.lock", "apps/web/package.json", "apps/web/next.config.ts", "apps/web/tsconfig.json", "apps/web/scripts/prepare-standalone.mjs", "scripts/tests/coverage.ts", "scripts/tests/next-build.ts");
+	files.push("bun.lock", "apps/web/package.json", "apps/web/next.config.ts", "apps/web/tsconfig.json", "apps/web/scripts/prepare-standalone.mjs", "scripts/tests/coverage.ts", "scripts/tests/function-coverage.ts", "scripts/tests/next-build.ts");
 	const digest = createHash("sha256");
 	for (const file of files) {
 		digest.update(file);

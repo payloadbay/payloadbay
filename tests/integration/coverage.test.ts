@@ -3,37 +3,49 @@ import assert from "node:assert/strict";
 import { mkdtemp, writeFile, readFile, rm, access } from "node:fs/promises";
 import { resolve, relative } from "node:path";
 import { transform } from "esbuild";
-import { evaluateCoverage, validateCoverageProvenance, runtimeCoverageSources } from "../../scripts/tests/merge-coverage.ts";
+import { evaluateCoverage, validateCoverageProvenance, runtimeCoverageSources, coveredRevision } from "../../scripts/tests/merge-coverage.ts";
 import { runNodeCoverage, mergeNodeCoverage, browserSourcePath, convertBrowserCoverage } from "../../scripts/tests/coverage.ts";
 
-async function coverageFixture(exit: number, run: (report: string, status: number | null, directory: string) => Promise<void>) {
+async function coverageFixture(
+	exit: number,
+	run: (report: string, status: number | null, directory: string) => Promise<void>,
+	options: {
+		keepNames?: boolean;
+		body?: string;
+		minify?: boolean;
+		fileName?: string;
+	} = {},
+) {
 	const directory = await mkdtemp(resolve("test-results/coverage-map-"));
 	try {
-		const source = resolve(directory, "source.ts");
+		const source = resolve(directory, options.fileName ?? "source.ts");
 		const rawPath = resolve(directory, "raw-path.txt");
-		const input = [
-			"// Source-map position canary: generated JS has a different layout.",
-			"",
-			"export function called(value: number) {",
-			"\treturn value + 1;",
-			"}",
-			"",
-			"export function neverCalled(value: number) {",
-			"\treturn value - 1;",
-			"}",
-			"",
-			`if (process.argv.at(-1) === "right") { if (neverCalled(1) !== 0) throw Error("wrong result"); } else if (called(1) !== 2) throw Error("wrong result");`,
-			`process.exitCode = ${exit};`,
-			`import { writeFileSync } from "node:fs";`,
-			`writeFileSync(${JSON.stringify(rawPath)}, process.env.NODE_V8_COVERAGE);`,
-		].join("\n");
+		const input = options.body
+			? options.body + `\nimport { writeFileSync } from "node:fs";writeFileSync(${JSON.stringify(rawPath)}, process.env.NODE_V8_COVERAGE);`
+			: [
+					"// Source-map position canary: generated JS has a different layout.",
+					"",
+					"export function called(value: number) {",
+					"\treturn value + 1;",
+					"}",
+					"",
+					"export function neverCalled(value: number) {",
+					"\treturn value - 1;",
+					"}",
+					"",
+					`if (process.argv.at(-1) === "right") { if (neverCalled(1) !== 0) throw Error("wrong result"); } else if (called(1) !== 2) throw Error("wrong result");`,
+					`process.exitCode = ${exit};`,
+					`import { writeFileSync } from "node:fs";`,
+					`writeFileSync(${JSON.stringify(rawPath)}, process.env.NODE_V8_COVERAGE);`,
+				].join("\n");
 		await writeFile(source, input);
 		const compiled = await transform(input, {
 			loader: "ts",
 			sourcefile: source,
 			sourcemap: "inline",
 			format: "esm",
-			minify: true,
+			minify: options.minify ?? true,
+			keepNames: options.keepNames,
 		});
 		const entry = resolve(directory, "compiled.mjs");
 		await writeFile(entry, compiled.code);
@@ -45,14 +57,17 @@ async function coverageFixture(exit: number, run: (report: string, status: numbe
 		const json = JSON.parse(await readFile(resolve(output, "coverage-final.json"), "utf8"));
 		const mapped = json[source];
 		assert.ok(mapped, "Mergeable coverage must refer to the original TypeScript source");
-		assert.equal(Object.keys(mapped.fnMap).length, 2);
-		const identities = Object.entries(mapped.fnMap) as [string, { decl: { start: { line: number } } }][];
-		const called = identities.find(([, value]) => value.decl.start.line === 3)?.[0];
-		const uncalled = identities.find(([, value]) => value.decl.start.line === 7)?.[0];
-		assert.ok(called);
-		assert.ok(uncalled);
-		assert.equal(mapped.f[called], 1);
-		assert.equal(mapped.f[uncalled], 0);
+		if (!options.keepNames && !options.body) {
+			assert.equal(Object.keys(mapped.fnMap).length, 2);
+			const identities = Object.entries(mapped.fnMap) as [string, { decl: { start: { line: number } } }][];
+			const called = identities.find(([, value]) => value.decl.start.line === 3)?.[0];
+			const uncalled = identities.find(([, value]) => value.decl.start.line === 7)?.[0];
+			assert.ok(called);
+			assert.ok(uncalled);
+			assert.equal(mapped.f[called], 1);
+			assert.equal(mapped.f[uncalled], 0);
+		}
+
 		await run(await readFile(resolve(output, "lcov.info"), "utf8"), result.status, output);
 	} finally {
 		await rm(directory, { recursive: true, force: true });
@@ -210,5 +225,142 @@ test("CV08 runtime inventory includes unloaded executable modules and skips pure
 		assert.deepEqual(runtimeCoverageSources(root), [resolve(root, "apps/web/src/unloaded.ts"), resolve(root, "scripts/migrate.ts")]);
 	} finally {
 		await rm(root, { recursive: true, force: true });
+	}
+});
+
+test("CV09 real name-preserving compiler helpers do not become authored function coverage", async () => {
+	await coverageFixture(
+		0,
+		async (_lcov, status, directory) => {
+			assert.equal(status, 0);
+			const report = JSON.parse(await readFile(resolve(directory, "coverage-final.json"), "utf8"));
+			const source = Object.keys(report)[0];
+			const summary = mergeNodeCoverage([report]).fileCoverageFor(source).toSummary();
+			assert.equal(summary.functions.total, 2, "Only the two authored functions belong in the denominator: " + JSON.stringify(report[source].fnMap));
+			assert.equal(summary.functions.covered, 1, "The uncalled function must remain uncovered");
+		},
+		{ keepNames: true, minify: false },
+	);
+});
+
+test("CV10 same-named functions in different scopes retain distinct source identities", async () => {
+	const body = ["export function left() {", "  return function work() {", '    return "left";', "  };", "}", "export function right() {", "  return function work() {", '    return "right";', "  };", "}", 'if (left()() !== "left") throw Error("wrong result");', "right();"].join("\n");
+	await coverageFixture(
+		0,
+		async (_lcov, status, directory) => {
+			assert.equal(status, 0);
+			const report = JSON.parse(await readFile(resolve(directory, "coverage-final.json"), "utf8"));
+			const source = Object.keys(report)[0];
+			const summary = mergeNodeCoverage([report]).fileCoverageFor(source).toSummary();
+			assert.equal(summary.functions.total, 4);
+			assert.equal(summary.functions.covered, 3);
+			assert.equal(evaluateCoverage([report], "", [source], 0.8).passed, false, "Generated helpers must not lift 3/4 authored functions to 80%");
+		},
+		{ keepNames: true, body, minify: false },
+	);
+});
+
+test("CV11 different real compiler layouts merge preserved function identities and retain uncovered functions", async () => {
+	await coverageFixture(
+		0,
+		async (_lcov, status, directory) => {
+			assert.equal(status, 0);
+			const first = JSON.parse(await readFile(resolve(directory, "coverage-final.json"), "utf8"));
+			const source = Object.keys(first)[0];
+			const compiled = await transform(await readFile(source, "utf8"), {
+				loader: "ts",
+				sourcefile: source,
+				sourcemap: "inline",
+				format: "esm",
+				minify: false,
+				keepNames: false,
+			});
+			const entry = resolve(directory, "..", "other-layout.mjs");
+			await writeFile(entry, compiled.code);
+			const output = resolve(directory, "other");
+			const result = runNodeCoverage([entry, "right"], { directory: output, env: process.env, include: [relative(process.cwd(), source)] });
+			assert.equal(result.status, 0);
+			const second = JSON.parse(await readFile(resolve(output, "coverage-final.json"), "utf8"));
+			const merged = mergeNodeCoverage([first, second]).fileCoverageFor(source).toSummary();
+			assert.equal(merged.functions.total, 2);
+			assert.equal(merged.functions.covered, 2);
+			const repeated = mergeNodeCoverage([first, first]).fileCoverageFor(source).toSummary();
+			assert.equal(repeated.functions.total, 2);
+			assert.equal(repeated.functions.covered, 1);
+		},
+		{ keepNames: true, minify: false },
+	);
+});
+
+test("CV12 a dirty merge checkout cannot certify clean historical owner reports", async () => {
+	const { execFileSync } = await import("node:child_process");
+	const root = await mkdtemp(resolve("test-results/covered-revision-"));
+
+	const git = (args: string[]) => execFileSync("git", ["-C", root, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+
+	try {
+		git(["init"]);
+		git(["config", "user.name", "Coverage Fixture"]);
+		git(["config", "user.email", "fixture@example.test"]);
+		await writeFile(resolve(root, "source.ts"), "export const value = 1;");
+		git(["add", "."]);
+		git(["commit", "-m", "test coverage source"]);
+		assert.equal(coveredRevision(root), git(["rev-parse", "HEAD"]));
+		await writeFile(resolve(root, "source.ts"), "export const value = 2;");
+		assert.throws(() => coveredRevision(root), /requires a clean checkout/);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+test("CV13 a production source ending in -test.ts is not silently excluded", async () => {
+	await coverageFixture(
+		0,
+		async (lcov, status) => {
+			assert.equal(status, 0);
+			assert.match(lcov, /SF:.*script-test\.ts/);
+		},
+		{ fileName: "script-test.ts" },
+	);
+});
+
+test("CV14 inferred callback names at distinct locations must not be coalesced", async () => {
+	const directory = await mkdtemp(resolve("test-results/callback-identities-"));
+	const source = resolve(directory, "callbacks.ts");
+	try {
+		await writeFile(source, 'let close = () => "initial";\nclose = () => "replacement";\nclose();\n');
+		const first = { start: { line: 1, column: 12 }, end: { line: 1, column: 27 } };
+		const second = { start: { line: 2, column: 8 }, end: { line: 2, column: 27 } };
+		// Browser/native reports can preserve inferred names that an esbuild
+		// wrapper makes anonymous. This tests mapping identity, not execution.
+		const report = {
+			[source]: {
+				path: source,
+				statementMap: { "0": first },
+				s: { "0": 1 },
+				branchMap: {},
+				b: {},
+				fnMap: {
+					"0": {
+						name: "close",
+						decl: first,
+						loc: first,
+						line: 1,
+					},
+					"1": {
+						name: "close",
+						decl: second,
+						loc: second,
+						line: 2,
+					},
+				},
+				f: { "0": 0, "1": 1 },
+			},
+		};
+		const summary = mergeNodeCoverage([report]).fileCoverageFor(source).toSummary();
+		assert.equal(summary.functions.total, 2);
+		assert.equal(summary.functions.covered, 1);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
 	}
 });

@@ -116,27 +116,33 @@ test("U105 continuous worker handles accepted event and records completion", asy
 			options,
 		);
 		assert.equal(response.status, 202);
-		const worker = await run({
-			pgPool: f.pool,
-			noHandleSignals: true,
-			pollInterval: 100,
-			concurrency: 1,
-			taskList: { process_event: processEventTask(f.pool, fixtureConfig(f), execute) },
-		});
+		const { executorFixture } = await import("../helpers/executor-fixture.ts");
+		const executor = await executorFixture();
 		try {
-			let state = "";
-			for (let i = 0; i < 50; i++) {
-				state = (await f.db.query("SELECT state FROM payloadbay.execution")).rows[0].state;
-				if (state === "succeeded") break;
-				await new Promise((r) => setTimeout(r, 50));
-			}
+			const worker = await run({
+				pgPool: f.pool,
+				noHandleSignals: true,
+				pollInterval: 100,
+				concurrency: 1,
+				taskList: { process_event: processEventTask(f.pool, { ...fixtureConfig(f), executorUrl: executor.url }) },
+			});
+			try {
+				let state = "";
+				for (let i = 0; i < 50; i++) {
+					state = (await f.db.query("SELECT state FROM payloadbay.execution")).rows[0].state;
+					if (state === "succeeded") break;
+					await new Promise((r) => setTimeout(r, 50));
+				}
 
-			assert.equal(state, "succeeded", "continuous worker must complete accepted execution");
-			const execution = (await f.db.query("SELECT * FROM payloadbay.execution")).rows[0];
-			assert.equal(execution.attempt_number, 1);
-			assert.deepEqual(execution.final_result, { kind: "complete" });
+				assert.equal(state, "succeeded", "continuous worker must complete accepted execution");
+				const execution = (await f.db.query("SELECT * FROM payloadbay.execution")).rows[0];
+				assert.equal(execution.attempt_number, 1);
+				assert.deepEqual(execution.final_result, { kind: "complete" });
+			} finally {
+				await worker.stop();
+			}
 		} finally {
-			await worker.stop();
+			await executor.stop();
 		}
 	});
 });

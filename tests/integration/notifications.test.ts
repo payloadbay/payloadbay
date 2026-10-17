@@ -695,3 +695,31 @@ test("U168 U175 U176 U177 opt-in thresholds exclude other routes destinations an
 		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.platform_job")).rows[0].n, 0);
 	});
 });
+
+test("NC11 email settings reads expose defaults and persisted branding only to instance settings managers", async () => {
+	const { getEmailSettings, saveEmailSettings } = await import("../../packages/domain/src/email-settings.ts");
+	await authFixture(async ({ pool, db }) => {
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'custom',ARRAY['settings.manage'])", [scope.installation]);
+		await identity(db, "settings-viewer");
+		await db.query("INSERT INTO payloadbay.admission(installation_id,user_id) VALUES($1,'settings-viewer')", [scope.installation]);
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('settings-viewer','project',$1,'viewer',ARRAY['metadata.read'])", [scope.project]);
+		const owner = { userId: "fixture-owner" };
+		const defaults = await getEmailSettings(pool, owner, "https://alpha.example.test");
+		assert.equal(defaults.version, 0);
+		assert.equal(defaults.channelKey, "smtp");
+		assert.equal(defaults.branding.logoUrl, "https://alpha.example.test/brand/payloadbay-email-logo.png");
+		assert.deepEqual(Object.keys(defaults).sort(), ["branding", "channelKey", "version"]);
+		await assert.rejects(getEmailSettings(pool, { userId: "settings-viewer" }), { status: 403 });
+		const branding = {
+			name: "Synthetic settings brand",
+			accent: "#123456",
+			footer: "Synthetic settings footer",
+			logoUrl: null,
+		};
+		await saveEmailSettings(pool, owner, { expectedVersion: 0, channelKey: "smtp", branding });
+		assert.deepEqual(await getEmailSettings(pool, owner), { version: 1, channelKey: "smtp", branding });
+		await assert.rejects(getEmailSettings(pool, { userId: "settings-viewer" }), { status: 403 });
+	});
+});

@@ -724,3 +724,32 @@ test("rotated OTP mail uses the newest verification and suppresses the old code"
 		}
 	});
 });
+
+test("RC10 recovery terminates expired and exhausted mail without reviving their queued references", async () => {
+	await authFixture(async (fixture) => {
+		const config = fixtureConfig(fixture);
+		const mail = {
+			email: "terminal-mail@example.test",
+			otp: "123456",
+			identifier: "synthetic-terminal",
+			verificationHash: "synthetic-hash",
+			expiresAt: new Date(Date.now() + 300000).toISOString(),
+		};
+		const expired = await queueMail(fixture.pool, "terminal-expired", { ...mail, expiresAt: new Date(Date.now() - 1000).toISOString() }, config.encryptionKey);
+		const exhausted = await queueMail(fixture.pool, "terminal-exhausted", mail, config.encryptionKey);
+		await fixture.db.query("UPDATE payloadbay.platform_job SET state='running',lease_owner='dead-fixture',lease_expiry=clock_timestamp()-interval '1 second',attempt_number=max_attempts WHERE id=ANY($1::uuid[])", [[expired, exhausted]]);
+		const queuedBefore = (await fixture.db.query("SELECT count(*)::int AS count FROM graphile_worker.jobs")).rows[0].count;
+		assert.deepEqual(await recoverPlatformJobs(fixture.pool), []);
+		const rows = (await fixture.db.query("SELECT id,state,generation,lease_owner,lease_expiry FROM payloadbay.platform_job WHERE id=ANY($1::uuid[])", [[expired, exhausted]])).rows;
+		assert.equal(rows.find((row) => row.id === expired).state, "expired", "Expiration takes precedence even after the retry budget is exhausted");
+		assert.equal(rows.find((row) => row.id === exhausted).state, "failed");
+		for (const row of rows) {
+			assert.equal(row.generation, 1);
+			assert.equal(row.lease_owner, null);
+			assert.equal(row.lease_expiry, null);
+		}
+
+		assert.equal((await fixture.db.query("SELECT count(*)::int AS count FROM graphile_worker.jobs")).rows[0].count, queuedBefore);
+		assert.deepEqual(await recoverPlatformJobs(fixture.pool), [], "Repeated recovery must not resurrect terminal work");
+	});
+});

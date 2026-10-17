@@ -3214,3 +3214,65 @@ other Bun-only files remain disjoint fallbacks. New canaries prove selection
 never chooses the higher percentage and missing authoritative evidence fails.
 No threshold, runtime source inventory or complete-owner provenance is waived.
 Full corrected browser/clean final CI are still pending at this checkpoint.
+
+## Clean383031a checkpoint and next coverage corrections
+
+CI39046596007 at383031a completes the functional owners: unit51/51,
+backend287/287, executor33/33, deployment31/31, browser66/66 and
+performance1/1. All five coverage owners carry clean, complete exact-SHA
+provenance. Mandatory coverage remains RED:218/241 files satisfy80% per-file
+line/function minima. This is not release completion; published-image operator
+installation/upgrade remains independent and unpublished.
+
+Further actual scoped checks pass for the broker HTTP/auth/body-size contract,
+terminal expired/exhausted OTP leases, U105's real executor HTTP processing path,
+and authorized persisted email-settings reads. No runtime behavior was changed
+for those checks. CV13 first fails because c8's default test filename glob hides
+the production contracts/script-test.ts module. Explicit dependency/declaration
+excludes retain the owned-source whitelist without treating that production
+filename as a test. The actual Node request-contract owner then passes2/2.
+
+Coverage function identity uses authored, unique explicit function declarations
+only. A real esbuild transform canary reconciles generated __name helpers and
+named-function offsets; nested same-name functions remain distinct. CV14 exposed
+an unsafe inferred-name merge for reassigned callbacks (1 function instead of2).
+The corrected normalizer preserves inferred/ambiguous/minified records and all14
+coverage canaries pass; tooling TypeScript and ESLint pass. This does not claim
+perfect reconstruction of anonymous/minified functions: installed V8-to-Istanbul
+omits unnamed native function entries, and coincident one-line source locations
+can remain ambiguous. Unknown records are retained rather than guessed away.
+
+The merge command now requires its own checkout clean as well as verifying the
+source revision and complete owner provenance. Mixed local diagnostic reports
+remain diagnostics only, never release evidence. Current full backend coverage
+and expanded browser interaction verification are pending at this checkpoint.
+
+Concurrent local unit collection is RED48/51: U11 exceeded the existing5s
+compiler test deadline; U14 and editable method dispatch then observed a stopped
+esbuild service. This ran during fresh Next build preparation. Contention is a
+hypothesis, not a proven root cause; the same complete owner must run alone
+without increasing deadlines. This failed invocation is not coverage evidence.
+The actual scoped2/2 Node report now contains the previously excluded production
+packages/contracts/src/script-test.ts source record. New browser assertions cover
+rule thresholds/severity/cooldown/destination persistence, helper export selection,
+API-key cancellation/expiry and scoped collection creation/filter/cancellation;
+these are pending actual browser execution.
+
+Full local backend owner GREEN295/295 with source collection after the collector
+changes. This invocation loaded live-api before LS01 was appended; the subsequent
+actual LS01 cancellation/capacity check passes1/1. Complete unit owner rerun alone
+is GREEN51/51 in3.46s under the unchanged deadline. The earlier concurrent48/51
+failure remains recorded; no timeout was increased. These dirty local reports
+remain diagnostic; clean exact-SHA CI is still required. Expanded browser cases
+are now executing serially against the frozen test build.
+
+Scoped browser verification: UX50 collection creation/filter/cancellation passes1/1;
+U83 helper cancellation and selecting only named exports passes within an initial
+1/2 invocation. U305 in that same invocation failed because getByLabel selected
+all three HeroUI NumberField input/decrement/increment controls. Correcting the
+test to the actual textbox role makes U305 pass1/1, including persisted threshold,
+window, cooldown, severity, recovery and selected destination, then cancellation
+and disabling. K01 API-key scope selection, actual saved7-day expiry, cancellation
+of revocation and eventual bearer denial passes1/1. No product change was needed
+for these selector corrections. Final owned-change ESLint, Prettier and test
+TypeScript pass; all tests remain registered. Complete clean CI remains pending.

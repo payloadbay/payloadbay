@@ -1,3 +1,4 @@
+import { createFunctionNormalizer } from "./function-coverage.ts";
 import v8ToIstanbul from "v8-to-istanbul";
 import type { Page } from "@playwright/test";
 
@@ -5,7 +6,7 @@ type JSCoverageEntry = Awaited<ReturnType<Page["coverage"]["stopJSCoverage"]>>[n
 
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import coverage, { type CoverageMapData } from "istanbul-lib-coverage";
+import coverage, { type CoverageMapData, type FileCoverageData } from "istanbul-lib-coverage";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, readdirSync, writeFileSync } from "node:fs";
 import { resolve, join, sep, isAbsolute } from "node:path";
@@ -27,7 +28,7 @@ export function runNodeCoverage(args: string[], options: CoverageOptions) {
 	rmSync(report, { force: true });
 	rmSync(resolve(directory, "coverage-final.json"), { force: true });
 	try {
-		const result = spawnSync("node", [resolve("node_modules/c8/bin/c8.js"), `--reports-dir=${directory}`, `--temp-directory=${raw}`, "--reporter=lcovonly", "--reporter=json", "--exclude-after-remap", "--merge-async", ...options.include.map((pattern) => `--include=${pattern}`), "node", ...args], { encoding: "utf8", env: options.env, maxBuffer: 16 * 1024 * 1024 });
+		const result = spawnSync("node", [resolve("node_modules/c8/bin/c8.js"), `--reports-dir=${directory}`, `--temp-directory=${raw}`, "--reporter=lcovonly", "--reporter=json", "--exclude-after-remap", "--merge-async", "--exclude=**/node_modules/**", "--exclude=**/*.d.ts", "--exclude=**/*.d.mts", "--exclude=**/*.d.cts", ...options.include.map((pattern) => `--include=${pattern}`), "node", ...args], { encoding: "utf8", env: options.env, maxBuffer: 16 * 1024 * 1024 });
 		if (result.error) throw result.error;
 		if (result.status === 0 && !readFileSync(report, "utf8").includes("SF:")) throw Error("Node coverage contains no source records");
 
@@ -42,11 +43,14 @@ export function runNodeCoverage(args: string[], options: CoverageOptions) {
 export function mergeNodeCoverage(reports: CoverageMapData[]) {
 	if (!reports.length) throw Error("No source-mapped coverage reports");
 	const merged = coverage.createCoverageMap({});
+	const normalizeFunctions = createFunctionNormalizer();
 	for (const report of reports) {
 		// CoverageMap.toJSON() may still contain live FileCoverage instances.
 		// Their JSON representation owns the counters; structuredClone loses the
 		// prototype's toJSON and leaves an invalid {data} wrapper instead.
-		const current = coverage.createCoverageMap(JSON.parse(JSON.stringify(report)));
+		const plain = JSON.parse(JSON.stringify(report)) as CoverageMapData;
+		for (const file of Object.values(plain)) normalizeFunctions(file as FileCoverageData);
+		const current = coverage.createCoverageMap(plain);
 		if (!current.files().length) throw Error("Empty source-mapped coverage report");
 		merged.merge(current);
 	}

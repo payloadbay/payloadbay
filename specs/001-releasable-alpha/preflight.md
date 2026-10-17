@@ -3,6 +3,20 @@
 Updated 2026-10-17. The alpha remains unreleased in draft PR #13. The original
 bootstrap-only snapshot is historical; it does not describe the current app.
 
+## Latest complete clean verification
+
+Source `383031a`, GitHub CI `39046596007`: static, unit51/51, backend287/287,
+executor33/33, deployment31/31, browser66/66 and performance1/1 pass. All five
+coverage owners are clean, complete and exact-SHA. Mandatory merged coverage
+remains RED:218/241 files meet the unchanged80% per-file line/function minima.
+These functional results do not certify the release. Subsequent local checks
+and failures are recorded in `tdd/cycle-log.md`; dirty local coverage is diagnostic.
+
+The coordinated candidate publication workflow is prepared and policy-tested,
+but has not published images. Master CI must generate ordinary release SQL only
+after an approved merge; exact-image operator installation/bootstrap/first
+delivery, pending-job upgrade and release restore remain open. PR13 stays draft.
+
 ## Implemented and verified foundation
 
 The app uses Next.js/React/Node, PostgreSQL/Drizzle, Graphile Worker, Better Auth,

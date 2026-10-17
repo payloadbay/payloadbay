@@ -547,3 +547,41 @@ test("U154 metadata-only SSE sends references even when persisted changes contai
 		}
 	});
 });
+
+test("LS01 cancelling a live response releases the per-user connection slot without aborting its request signal", async () => {
+	const { authFixture } = await import("../helpers/auth-fixtures.ts");
+	const { seedScope } = await import("../helpers/domain-fixtures.ts");
+	const { streamChanges } = await import("../../packages/domain/src/live.ts");
+	await authFixture(async ({ pool, db }) => {
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','project',$1,'custom',ARRAY['metadata.read'])", [scope.project]);
+		const responses: Response[] = [];
+		const signals: AbortSignal[] = [];
+
+		const connect = async () => {
+			const signal = new AbortController().signal;
+			signals.push(signal);
+			const response = await streamChanges(pool, { userId: "fixture-owner" }, { type: "project", id: scope.project }, "0", signal);
+			responses.push(response);
+
+			return response;
+		};
+
+		try {
+			for (let index = 0; index < 8; index++) await connect();
+			await assert.rejects(connect(), { code: "live_capacity", status: 429 });
+			await responses[0].body!.cancel();
+			const replacement = await connect();
+			assert.equal(replacement.status, 200);
+			assert.equal(replacement.headers.get("content-type"), "text/event-stream");
+			await assert.rejects(connect(), { code: "live_capacity", status: 429 });
+			assert.equal(
+				signals.some((signal) => signal.aborted),
+				false,
+			);
+		} finally {
+			await Promise.all(responses.map((response) => response.body!.cancel()));
+		}
+	});
+});

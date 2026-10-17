@@ -107,11 +107,21 @@ test("U251 HTTP broker requires current signed execution authority", async () =>
 		await once(server, "listening");
 		const url = "http://127.0.0.1:" + (server.address() as { port: number }).port + "/broker";
 		try {
+			const health = await fetch(new URL("/health", url));
+			assert.equal(health.status, 200);
+			assert.deepEqual(await health.json(), { ready: true });
+			assert.equal((await fetch(new URL("/unknown", url))).status, 404);
+			assert.equal((await fetch(url)).status, 404);
+			assert.equal((await fetch(url, { method: "POST", body: "{}" })).status, 403);
 			const body = new Uint8Array([0, 255, 42]);
 			const token = mintBrokerToken(config.brokerSecret, authority, Date.now() + 10000);
 			const response = await fetch(url, { method: "POST", headers: { authorization: "Bearer " + token }, body: JSON.stringify(packWire({ target: "primary", input: { operationId: "broker-send", body } })) });
 			assert.equal(response.status, 200, "valid live broker capability must send");
 			assert.equal((unpackWire(await response.json()) as { ok: boolean }).ok, true);
+			const oversized = await fetch(url, { method: "POST", headers: { authorization: "Bearer " + token }, body: "x".repeat(1572865) });
+			assert.equal(oversized.status, 413);
+			const malformed = await fetch(url, { method: "POST", headers: { authorization: "Bearer " + token }, body: "not JSON" });
+			assert.equal(malformed.status, 403);
 			const forged = await fetch(url, { method: "POST", headers: { authorization: "Bearer " + token + "tampered" }, body: "{}" });
 			assert.equal(forged.status, 403);
 			const stale = mintBrokerToken(config.brokerSecret, { ...authority, generation: 2 }, Date.now() + 10000);
