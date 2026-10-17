@@ -84,3 +84,13 @@ latency; that unmeasured field is explicitly null. The screen currently refreshe
 on request, rather than claiming a live feed. Job payloads and raw upstream
 errors are excluded. This read-only view does not cancel, rerun or delete jobs;
 event replay/pause remain in their existing event/route flows.
+
+### Instance audit history
+
+`GET /api/v1/audit` requires current instance-level `audit.read`. It returns
+newest-first action metadata (actor identifier, operation, scope, resource
+identifier and timestamp), never stored diffs or secret values. Project or
+workspace audit rights do not grant instance administration. Use `limit` (1–200,
+default 50) and the opaque `nextCursor` to page through history. Cursors preserve
+timestamp precision and use the record identifier to order simultaneous actions.
+The dashboard exposes the same read-only collection under Administration → Audit log.

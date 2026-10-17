@@ -8,7 +8,7 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import { Avatar, Button, Dropdown, Header, Label, Breadcrumbs } from "@heroui/react";
 import { AppLayout, Sidebar, Command } from "@heroui-pro/react";
-import { IconHome, IconFolder, IconUsers, IconLogout, IconCode, IconSettings, IconInbox, IconBell, IconKey, IconFlask, IconHistory, IconRoute, IconBuilding, IconArrowLeft, IconSearch, IconBuildingCommunity, IconChartBar, IconBook, IconActivity } from "@tabler/icons-react";
+import { IconHome, IconFolder, IconUsers, IconLogout, IconCode, IconSettings, IconInbox, IconBell, IconKey, IconFlask, IconHistory, IconRoute, IconBuilding, IconArrowLeft, IconSearch, IconBuildingCommunity, IconChartBar, IconBook, IconActivity, IconClipboardList } from "@tabler/icons-react";
 import { PreviewNotice } from "@components/preview-notice";
 import { LiveSubscription } from "@components/live-subscription";
 import { NotificationInbox } from "@components/notification-inbox";
@@ -308,7 +308,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 				]
 			: [];
 
-	const administrationLabel = pathname === "/admin/jobs" ? "Jobs and queues" : pathname.startsWith("/admin/notification-channels/") ? "Notification module" : pathname === "/admin/notification-channels" ? "Notification modules" : pathname === "/admin/email" ? "Email settings" : "Administration";
+	const administrationLabel = pathname === "/admin/audit" ? "Audit log" : pathname === "/admin/jobs" ? "Jobs and queues" : pathname.startsWith("/admin/notification-channels/") ? "Notification module" : pathname === "/admin/notification-channels" ? "Notification modules" : pathname === "/admin/email" ? "Email settings" : "Administration";
 	const globalLinks = [
 		{
 			id: "home",
@@ -411,6 +411,16 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 	];
 	const searchItems = [
 		...globalLinks.filter((item) => item.visible),
+		...(data.me.permissions.includes("audit.read")
+			? [
+					{
+						id: "instance-audit",
+						label: "Audit log",
+						href: "/admin/audit",
+						icon: IconClipboardList,
+					},
+				]
+			: []),
 		...(data.me.permissions.includes("jobs.read")
 			? [
 					{
@@ -566,11 +576,19 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 							</details>
 						))}
 			</Sidebar.Content>
-			{(admin || data.me.permissions.includes("settings.manage") || data.me.permissions.includes("jobs.read")) && !scoped && (
+			{(admin || data.me.permissions.includes("settings.manage") || data.me.permissions.includes("jobs.read") || data.me.permissions.includes("audit.read")) && !scoped && (
 				<Sidebar.Footer>
 					<Sidebar.Group>
 						<Sidebar.GroupLabel>Administration</Sidebar.GroupLabel>
 						<Sidebar.Menu aria-label='Instance administration'>
+							{data.me.permissions.includes("audit.read") && (
+								<Sidebar.MenuItem id='instance-audit' href='/admin/audit' textValue='Audit log' isCurrent={pathname === "/admin/audit"}>
+									<Sidebar.MenuIcon>
+										<IconClipboardList size={18} />
+									</Sidebar.MenuIcon>
+									<Sidebar.MenuLabel>Audit log</Sidebar.MenuLabel>
+								</Sidebar.MenuItem>
+							)}
 							{data.me.permissions.includes("jobs.read") && (
 								<Sidebar.MenuItem id='instance-jobs' href='/admin/jobs' textValue='Jobs and queues' isCurrent={pathname === "/admin/jobs"}>
 									<Sidebar.MenuIcon>

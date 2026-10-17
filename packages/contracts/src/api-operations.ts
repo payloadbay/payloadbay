@@ -30,6 +30,7 @@ export const apiOperations = [
 	["post", "/api/v1/invitations"],
 	["get", "/api/v1/invitations/token/{token}"],
 	["get", "/api/v1/jobs"],
+	["get", "/api/v1/audit"],
 	["get", "/api/v1/me"],
 	["get", "/api/v1/members"],
 	["put", "/api/v1/members"],

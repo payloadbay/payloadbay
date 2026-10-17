@@ -335,3 +335,40 @@ test("U159 active platform jobs remain visible beyond completed history", async 
 		assert.equal(result.items[0].id, queued.id, "Active work must not be hidden behind completed history");
 	});
 });
+
+test("AD02 audit history preserves microsecond pagination and scope boundaries", async () => {
+	const { listAudit } = await import("../../packages/domain/src/audit.ts");
+	await authFixture(async ({ db, pool }) => {
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','project',$1,'custom',ARRAY['audit.read'])", [scope.project]);
+		await assert.rejects(listAudit(pool, { userId: "fixture-owner" }, scope.installation, {}), { code: "forbidden" });
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'custom',ARRAY['audit.read'])", [scope.installation]);
+		const expected = [];
+		for (const [type, id] of [
+			["instance", scope.installation],
+			["organization", scope.organization],
+			["workspace", scope.workspace],
+			["project", scope.project],
+			["endpoint", scope.endpoint],
+		]) {
+			expected.push((await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation,redacted_diff,created_at) VALUES('fixture-owner',$1,$2,'fixture.audit',$3,'2026-10-17T01:02:03.123456Z') RETURNING id", [type, id, JSON.stringify({ private: "never return this diff" })])).rows[0].id);
+		}
+
+		await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation) VALUES('other','instance',gen_random_uuid(),'fixture.other')");
+		const actual = [];
+		let cursor: string | undefined;
+		do {
+			const page = await listAudit(pool, { userId: "fixture-owner" }, scope.installation, { limit: 1, cursor });
+			assert.equal(page.items.length, 1);
+			assert.equal(page.items[0].createdAt, "2026-10-17T01:02:03.123456Z");
+			assert.equal(JSON.stringify(page).includes("never return this diff"), false);
+			actual.push(page.items[0].id);
+			cursor = page.nextCursor ?? undefined;
+		} while (cursor);
+
+		assert.deepEqual(actual, expected.sort().reverse());
+		await db.query("UPDATE payloadbay.grant_record SET permissions='{}' WHERE scope_type='instance'");
+		await assert.rejects(listAudit(pool, { userId: "fixture-owner" }, scope.installation, {}), { code: "forbidden" });
+	});
+});

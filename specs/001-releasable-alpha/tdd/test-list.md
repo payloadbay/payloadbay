@@ -873,4 +873,6 @@ original alpha release gates remain open. No release SQL was generated locally.
 
 - L01 DONE: optional runtime sign-in information is escaped plain text, absent when blank (including preview), no account selector/prefill and hidden during OTP entry; bootstrap browser owner.
 
-- LIV01 DONE: dashboard events, overview and notification inbox share one authorized EventSource; real committed producers update both consumers and client navigation retains the same connection. `tests/acceptance/dashboard.spec.ts::U157 dashboard multiplexes`. Original U157 open-attempt timeline evidence remains pending.
+- LIV01 DONE: dashboard events, overview and notification inbox share one authorized EventSource; real committed producers update both consumers and client navigation retains the same connection. `tests/acceptance/dashboard.spec.ts::U157 dashboard multiplexes`. Open-attempt timeline U157b also passed in the complete 53-test browser checkpoint.
+
+- AD01 DONE: instance-authorized audit API/UI exposes bounded metadata without raw diffs/secrets, stable pagination, invalid cursor/limit rejection and current-rights enforcement. Completes the audit portion of T077.

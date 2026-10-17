@@ -1280,3 +1280,42 @@ test("U157b open attempt inspector refreshes when delivery completes", async ({ 
 		await pool.end();
 	}
 });
+
+test("AD01 instance audit log paginates safe metadata and enforces current rights", async ({ page }) => {
+	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
+	const { database } = await import("../../packages/domain/src/db.ts");
+	await ensureBrowserOwner(page);
+	const me = await (await page.request.get("/api/v1/me")).json();
+	const created = await page.request.post("/api/v1/secrets", { headers: commandHeaders(), data: { scope: { type: "instance", id: me.instanceId }, name: "AUDIT_SIGNING_KEY", value: "synthetic-private-audit-value" } });
+	expect(created.status()).toBe(200);
+	const pool = database(process.env.DATABASE_URL!);
+	try {
+		const row = (await pool.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation,redacted_diff) VALUES($1,'instance',$2,'fixture.private-diff',$3) RETURNING id", [me.user.id, me.instanceId, JSON.stringify({ secret: "synthetic-private-audit-value" })])).rows[0];
+		const response = await page.request.get("/api/v1/audit?limit=1");
+		expect(response.status()).toBe(200);
+		const first = await response.json();
+		expect(first.items).toHaveLength(1);
+		expect(first.items[0].id).toBe(row.id);
+		expect(JSON.stringify(first)).not.toContain("synthetic-private-audit-value");
+		expect(first.items[0]).not.toHaveProperty("redacted_diff");
+		expect(typeof first.nextCursor).toBe("string");
+		const second = await (await page.request.get("/api/v1/audit?limit=1&cursor=" + encodeURIComponent(first.nextCursor))).json();
+		expect(second.items).toHaveLength(1);
+		expect(second.items[0].id).not.toBe(first.items[0].id);
+		expect((await page.request.get("/api/v1/audit?limit=0")).status()).toBe(400);
+		expect((await page.request.get("/api/v1/audit?cursor=invalid-cursor")).status()).toBe(400);
+		await page.goto("/");
+		await page.getByRole("row", { name: "Audit log", exact: true }).click();
+		await expect(page.getByRole("heading", { name: "Audit log", exact: true })).toBeVisible();
+		await expect(page.getByRole("grid", { name: "Audit log" })).toContainText("fixture.private-diff");
+		await page.setViewportSize({ width: 390, height: 844 });
+		await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+		await pool.query("UPDATE payloadbay.grant_record SET role_preset='custom',permissions=array_remove(permissions,'audit.read') WHERE user_id=$1", [me.user.id]);
+		expect((await page.request.get("/api/v1/audit")).status()).toBe(403);
+		await page.goto("/admin/audit");
+		await expect(page.getByRole("heading", { name: "Audit access is restricted", exact: true })).toBeVisible();
+		await expect(page.getByRole("grid", { name: "Audit log" })).toHaveCount(0);
+	} finally {
+		await pool.end();
+	}
+});
