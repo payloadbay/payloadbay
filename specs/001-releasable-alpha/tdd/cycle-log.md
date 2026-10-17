@@ -2747,3 +2747,11 @@ Restored complete API-docs owner GREEN 2/2. U156c first corrected a fixture sele
 U156c mobile round-trip GREEN 1/1 after correcting its fixture to create the expected project. Complete integration lane GREEN 250/250 and unit lane GREEN 47/47 at this production-source checkpoint. U154 real metadata-only SSE characterization GREEN 1/1; a temporary local production mutant broadcasting row.metadata failed exactly `Persisted private content must never be broadcast to metadata readers`, `true !== false`. The finally block restored live.ts byte-for-byte (empty Git diff). Restored complete live/API owner GREEN 23/23. Full browser regression is running; no complete release pass is credited yet.
 
 2026-10-17 resumed checkpoint: interrupted complete browser invocation finished GREEN 44/44 (3.3 minutes), including all three local API-console cases. Complete live/API owner GREEN 23/23 after restored metadata mutant. U154–U156 are DONE; release-wide installation/performance gates remain open.
+
+U159 first slice RED: `Installation job administration must expose an authorized metadata service`, undefined versus function. Added instance jobs.read authorization and a bounded explicit operational projection excluding encrypted payloads and raw errors. This slice does not yet certify the job dashboard or backlog metrics; Green rerun follows.
+
+U159 metadata service GREEN 1/1, then complete authorization owner GREEN 12/12. Project jobs.read is denied at the instance boundary; instance jobs.read receives only explicit operational fields. Encrypted payload and raw upstream error markers remain absent. U159 UI concealment is not yet credited.
+
+U160 due-backlog RED: authenticated service returned no backlog property, so the real database case failed reading its length. Added due queued/retry_wait execution aggregation by endpoint priority, excluding paused routes and future schedules. Queue residence and due delay are separate seconds; acknowledgment latency is explicitly null because it is not currently measured. Green rerun follows.
+
+U160 due-backlog GREEN 1/1; complete authorization owner GREEN 13/13. Real rows prove ten-minute queue residence versus two-minute overdue delay; a future retry is excluded, and pausing its route removes the due backlog. No schema or release migration change. Job API/UI remain pending.

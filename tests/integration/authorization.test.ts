@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { authFixture } from "../helpers/auth-fixtures.ts";
-import { seedScope } from "../helpers/domain-fixtures.ts";
+import { seedScope, seedEvent } from "../helpers/domain-fixtures.ts";
 import * as policy from "../../packages/domain/src/membership.ts";
 
 test("U51 admission grants no resource access", async () => {
@@ -204,5 +204,48 @@ test("U237 inaccessible projects do not consume listing limit", async () => {
 			[visible],
 			"accessible projects must not be forced off the page",
 		);
+	});
+});
+
+test("U159 project job rights cannot expose installation job administration", async () => {
+	const overview = await import("../../packages/domain/src/overview.ts");
+	assert.equal(typeof overview.readJobAdministration, "function", "Installation job administration must expose an authorized metadata service");
+	await authFixture(async ({ pool, db }) => {
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','project',$1,'custom',ARRAY['jobs.read'])", [scope.project]);
+		await assert.rejects(overview.readJobAdministration(pool, { userId: "fixture-owner" }, scope.installation), { code: "forbidden", status: 403 });
+		await db.query("UPDATE payloadbay.grant_record SET scope_type='instance',scope_id=$1", [scope.installation]);
+		await db.query("INSERT INTO payloadbay.platform_job(kind,encrypted_payload,job_key,last_error) VALUES('email',$1,'admin-inspection','private raw upstream response')", [Buffer.from("synthetic-private-otp")]);
+		const result = await overview.readJobAdministration(pool, { userId: "fixture-owner" }, scope.installation);
+		assert.equal(result.items.length, 1);
+		assert.equal(result.items[0].kind, "email");
+		assert.equal(result.items[0].state, "queued");
+		assert.equal(JSON.stringify(result).includes("synthetic-private-otp"), false);
+		assert.equal(JSON.stringify(result).includes("private raw upstream response"), false);
+		assert.deepEqual(Object.keys(result.items[0]).sort(), ["attemptNumber", "createdAt", "dueAt", "id", "kind", "maxAttempts", "state"].sort());
+	});
+});
+
+test("U160 job inspection measures due backlog by priority independently from acknowledgment", async () => {
+	const { readJobAdministration } = await import("../../packages/domain/src/overview.ts");
+	await authFixture(async ({ pool, db }) => {
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'custom',ARRAY['jobs.read'])", [scope.installation]);
+		await db.query("UPDATE payloadbay.endpoint SET priority=-10 WHERE id=$1", [scope.endpoint]);
+		const eventId = await seedEvent(db, scope);
+		await db.query("INSERT INTO payloadbay.execution(event_id,endpoint_id,publication_id,created_at,due_at) VALUES($1,$2,$3,clock_timestamp()-interval '10 minutes',clock_timestamp()-interval '2 minutes'),($1,$2,$3,clock_timestamp()-interval '1 minute',clock_timestamp()+interval '1 hour')", [eventId, scope.endpoint, scope.publication]);
+		const result = await readJobAdministration(pool, { userId: "fixture-owner" }, scope.installation);
+		assert.equal(result.backlog.length, 1);
+		const lane = result.backlog[0];
+		assert.equal(lane.priority, -10);
+		assert.equal(lane.dueCount, 1, "Future scheduled work is not due backlog");
+		assert.ok(lane.oldestQueuedSeconds >= 600 && lane.oldestQueuedSeconds < 620);
+		assert.ok(lane.oldestDueSeconds >= 120 && lane.oldestDueSeconds < 140);
+		assert.equal(result.acknowledgmentLatency, null, "Do not substitute queue age for unmeasured acknowledgment latency");
+		await db.query("UPDATE payloadbay.endpoint SET paused=true WHERE id=$1", [scope.endpoint]);
+		const paused = await readJobAdministration(pool, { userId: "fixture-owner" }, scope.installation);
+		assert.deepEqual(paused.backlog, [], "Intentionally paused routes are not a dispatch backlog");
 	});
 });
