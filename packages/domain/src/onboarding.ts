@@ -22,7 +22,7 @@ export async function provisionCustomerOrganization(pool: Pool, input: { userId:
 		const existing = (await db.query("SELECT organization_id,workspace_id FROM payloadbay.customer_onboarding WHERE user_id=$1", [input.userId])).rows[0];
 		if (existing) return { organizationId: existing.organization_id as string, workspaceId: existing.workspace_id as string };
 		const parsed = resourceInput.safeParse({ parentId: installation.id, name: input.name, slug: input.slug });
-		if (!parsed.success) throw new AppError("invalid_input", 400, "Provide an organization name and lowercase URL name");
+		if (!parsed.success) throw new AppError("invalid_input", 400, "Provide an organization name and lowercase slug");
 		await db.query("INSERT INTO payloadbay.admission(installation_id,user_id,active) VALUES($1,$2,true) ON CONFLICT DO NOTHING", [installation.id, input.userId]);
 		const organization = (await db.query("INSERT INTO payloadbay.organization(installation_id,name,slug,owner_user_id) VALUES($1,$2,$3,$4) RETURNING id", [installation.id, parsed.data.name, parsed.data.slug, input.userId])).rows[0];
 		await assertResourceCapacity(db, organization.id, "workspace");
@@ -33,7 +33,7 @@ export async function provisionCustomerOrganization(pool: Pool, input: { userId:
 
 		return { organizationId: organization.id as string, workspaceId: workspace.id as string };
 	}).catch((error) => {
-		if (error?.code === "23505") throw new AppError("slug_conflict", 409, "This organization URL name is already in use");
+		if (error?.code === "23505") throw new AppError("slug_conflict", 409, "This organization slug is already in use");
 		throw error;
 	});
 }

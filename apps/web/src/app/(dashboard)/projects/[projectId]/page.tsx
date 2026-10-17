@@ -161,7 +161,7 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 										</TextField>
 										{form === "route" ? (
 											<TextField isRequired value={slug} onChange={setSlug} pattern='[a-z0-9][a-z0-9-]*'>
-												<Label>URL name</Label>
+												<Label>Slug</Label>
 												<Input variant='secondary' />
 												<FieldError />
 											</TextField>

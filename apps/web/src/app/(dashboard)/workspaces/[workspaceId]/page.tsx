@@ -134,7 +134,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
 										<FieldError />
 									</TextField>
 									<TextField isRequired value={slug} onChange={setSlug} pattern='[a-z0-9][a-z0-9-]*' maxLength={63}>
-										<Label>URL name</Label>
+										<Label>Slug</Label>
 										<Input variant='secondary' />
 										<FieldError />
 									</TextField>

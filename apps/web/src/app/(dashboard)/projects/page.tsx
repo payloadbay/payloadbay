@@ -153,7 +153,7 @@ export default function DashboardPage() {
 											<FieldError />
 										</TextField>
 										<TextField isRequired name='slug' maxLength={63} value={slug} onChange={setSlug} pattern='[a-z0-9][a-z0-9-]*'>
-											<Label>URL name</Label>
+											<Label>Slug</Label>
 											<Input variant='secondary' />
 											<FieldError />
 										</TextField>

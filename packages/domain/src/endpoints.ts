@@ -31,7 +31,7 @@ export async function createEndpoint(
 		priority?: 0 | 50;
 	},
 ) {
-	if (!input.name.trim() || input.name.length > 100 || !/^[a-z0-9][a-z0-9-]{0,62}$/.test(input.slug)) throw new AppError("invalid_input", 400, "Provide a name and lowercase URL name");
+	if (!input.name.trim() || input.name.length > 100 || !/^[a-z0-9][a-z0-9-]{0,62}$/.test(input.slug)) throw new AppError("invalid_input", 400, "Provide a name and lowercase slug");
 
 	return transaction(pool, async (db) => {
 		await requirePermission(db, actor, { type: "project", id: input.projectId }, "endpoints.configure");
@@ -41,7 +41,7 @@ export async function createEndpoint(
 
 		return endpoint;
 	}).catch((error) => {
-		if (error?.code === "23505") throw new AppError("slug_conflict", 409, "This URL name is already used in the project");
+		if (error?.code === "23505") throw new AppError("slug_conflict", 409, "This slug is already used in the project");
 		throw error;
 	});
 }
