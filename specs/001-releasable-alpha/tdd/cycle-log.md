@@ -3402,3 +3402,49 @@ observations narrow that latency symptom to queue wait, but do not establish
 its cause or explain the original CI acknowledgment failure. No thresholds,
 request retries or production concurrency were changed. TypeScript, ESLint,
 Prettier and diff whitespace checks pass for the benchmark reporting changes.
+
+The fourth local reproduction at effbdf7 also accepts/delivers600/600, zero HTTP
+failures and zero database deadlocks, but fails latency: first-attemptp95
+16031.598ms/max16446.260ms, queuep9515911.437ms, claim-to-attemptp95293.071ms
+and HTTPp9551.402ms. ACKp95 remains585.762ms. This violates both the2s p95 and
+10s maximum targets (the earlier assertion stops at p95). Host load moves from
+23.16/18.74/16.24 to29.74/21.70/17.47 on16 logical CPUs. Artifact
+`test-results/da1e1b9c-2269-44df-9f5d-345b29654558/performance/latency.json` is
+retained. The increasing shared-host load is a possible contributor, not a
+proven sole cause. Additional identical local runs are paused while the clean
+CI performance owner finishes; no passing-vote or threshold change is used.
+
+
+## EX34 native executor bind collision
+
+Inspection found a concrete startup race: the supervisor bound an ephemeral
+TCP port, closed it and later asked workerd to rebind that released port. A
+deterministic fault-injection test reclaims the released port before startup.
+The first fixture kept synthetic accepted sockets open and cancelled during
+cleanup; that is not credited as a product Red. After correcting the fixture to
+close its synthetic connections, the unchanged product fails EX34 with actual
+`runtime_startup_failed` (one failed test, no cancellations).
+
+The installed native workerd supports `--control-fd=3` and experimentally reports
+`listen`/`http` with its actual bound ephemeral port. Production now binds port
+zero directly in workerd and reads that bounded native control channel before
+its existing health probe. No free-port release/rebind window remains; malformed
+or absent notifications cannot select an arbitrary fallback port. Existing
+execution deadlines, network bridge policy, credentials and resource limits
+remain unchanged. EX34 becomes GREEN1/1. Complete executor, TypeScript/lint and
+real HTTP validation are in progress.
+
+This proves the collision bug and its local fix; the original db2fb3e failed
+request had no status/error classification, so attribution of that CI failure
+to this race is unproven. Clean effbdf7 performance independently passes600/600:
+ACKp9581.296ms, first-attemptp9585.157ms/max240.788ms, zero deadlocks. It predates
+the race fix and is not evidence that the new runtime has passed clean CI.
+
+EX34 complete local executor owner passes34/34 (46.4s); real executor HTTP owner
+passes3/3 (24.9s), including binary preservation and incompatible-runtime refusal.
+TypeScript, ESLint, formatting and whitespace checks pass. Downloaded effbdf7
+CI39055051450 provenance is clean/complete/exact for all five owners, and coverage
+is241/241; this is the prior source, not the new runtime fix. The unrelated local
+draft diff checksum remains93399599d5b523f77e6e626195efda4816325b5dd9788e94f538366d0684bb11.
+The SpecKit profile now separates current product/coverage commands from its
+historical bootstrap-only evidence, with mutation strength explicitly unmeasured.

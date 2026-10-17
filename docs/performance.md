@@ -77,3 +77,27 @@ budgets are unchanged. There are no warm-up webhook requests; per-request
 workerd startup is included, and the executor mode is ordinary runc. These
 measurements describe this fixture/run, not a production SLA or a new runtime
 optimization. Prior passing and contended failing runs remain above.
+
+
+## Subsequent availability and latency findings remain open
+
+At db2fb3e, [CI39053349674](https://github.com/payloadbay/payloadbay/actions/runs/39053349674)
+failed zero-request-failure acceptance: one of600 requests lacked the expected
+acknowledgment, with599 measured deliveries. Latency percentiles passed, but the
+original failure-count-only artifact cannot classify the HTTP/transport failure
+or establish whether the unacknowledged request committed. The prior successful
+run does not resolve this finding.
+
+Two local reproductions passed600/600. Two further local runs accepted and
+delivered600/600 but failed first-attempt latency: p953713ms/max3919ms, then
+p9516032ms/max16446ms. Queue wait accounts for most of that delay (p953607ms
+and15911ms respectively); both reports show zero database deadlocks. Their host
+load was above16 on the16-CPU shared host, a possible contributor rather than a
+proven explanation. Both failures remain recorded in the cycle log. No deadlines,
+worker concurrency, retries or acceptance thresholds changed.
+
+The existing latency.json artifact now retains sanitized failed-request
+sequence/status/error classification/correlation/timing and aggregate database
+and ingress outcomes. It never records raw responses, credentials or payloads.
+No production diagnostic logger is introduced. T054 remains open pending
+classification and resolution; a later successful repeat alone is not a fix.

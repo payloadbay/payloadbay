@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { compile } from "../../apps/executor/src/compiler.ts";
 import { execute } from "../../apps/executor/src/supervisor.ts";
+import { Server, createServer } from "node:net";
 
 test("U17 configured code cannot write host SSH key", async () => {
 	const directory = await mkdtemp(join(tmpdir(), "pab-ssh-fixture-"));
@@ -242,4 +243,41 @@ test("U258 quoted and multiline secrets are redacted from structured logs", asyn
 	const result = await execute({ stage: "processing", bundle: script.bundle, input: { secrets: { KEY: 'fixture-secret\n"quoted"' } } });
 	assert.equal(result.logs[0].message, "[redacted]", "structured logs must redact escaped secret values");
 	assert.deepEqual(result.logs[0].data, { nested: { value: "[redacted]" } });
+});
+
+test("EX34 ingress startup survives another listener taking a released ephemeral port", async () => {
+	const script = await compile({ stage: "ingress", body: 'return ctx.respondOnly({status:200,body:"own execution"});' });
+	const descriptor = Object.getOwnPropertyDescriptor(Server.prototype, "close")!;
+	const close = Server.prototype.close;
+	const competitors: Server[] = [];
+	let reclaimed = false;
+	let reclaimFailure: unknown;
+	Object.defineProperty(Server.prototype, "close", {
+		...descriptor,
+		value: function (this: Server, callback?: (error?: Error) => void) {
+			const address = this.address();
+			if (reclaimed || !address || typeof address === "string") return close.call(this, callback);
+			reclaimed = true;
+
+			return close.call(this, (error) => {
+				if (error) return callback?.(error);
+				const competitor = createServer((socket) => socket.destroy());
+				competitors.push(competitor);
+				competitor.once("error", (failure) => {
+					reclaimFailure = failure;
+					callback?.();
+				});
+				competitor.listen(address.port, address.address, () => callback?.());
+			});
+		},
+	});
+	try {
+		const result = await execute({ stage: "ingress", bundle: script.bundle, input: {} });
+		assert.equal(reclaimFailure, undefined);
+		assert.equal(reclaimed, true);
+		assert.deepEqual(result.decision, { kind: "respondOnly", response: { status: 200, body: "own execution" } });
+	} finally {
+		Object.defineProperty(Server.prototype, "close", descriptor);
+		await Promise.all(competitors.map((server) => new Promise<void>((resolve) => close.call(server, () => resolve()))));
+	}
 });

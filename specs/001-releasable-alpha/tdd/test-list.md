@@ -906,3 +906,10 @@ original alpha release gates remain open. No release SQL was generated locally.
 - RT14 DONE: pruning invalidation is payload-free, limited to affected projects and rolled back with failed cleanup.
 - RT15 DONE: actual live pruning removes an expired row and closes an open inspector without an action-error toast.
 - RT16 DONE: real database daylight-saving offsets cannot shorten or extend the configured elapsed-day boundary.
+
+
+### Executor native listener startup
+
+| id | behavior | traces | kind | state | test |
+|---|---|---|---|---|---|
+| EX34 | Another listener reclaiming a released ephemeral port cannot break ingress startup | FR-011, FR-017, FR-025 | example | GREEN34/34 local owner; clean CI pending | `tests/executor/isolation.test.ts::EX34 ingress startup survives another listener taking a released ephemeral port` |

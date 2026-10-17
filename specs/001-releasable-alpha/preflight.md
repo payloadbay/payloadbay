@@ -5,12 +5,14 @@ bootstrap-only snapshot is historical; it does not describe the current app.
 
 ## Latest complete clean verification
 
-Source `9046ae2`, GitHub CI `39052054695`: static, unit51/51, backend297/297,
-executor33/33, deployment31/31, browser70/70 and performance1/1 pass. All five
-coverage owners are clean, complete and exact-SHA. Mandatory merged coverage
-passes:241/241 files meet the unchanged80% per-file line/function minima.
-These functional results do not certify the release. Subsequent local checks
-and failures are recorded in `tdd/cycle-log.md`; dirty local coverage is diagnostic.
+Source `effbdf7`, GitHub CI `39055051450`: static, unit51/51, backend297/297,
+executor33/33, deployment32/32, browser70/70 and performance1/1 pass. All five
+coverage owners are clean, complete and exact-SHA (downloaded provenance checked).
+Mandatory merged coverage passes241/241 files under unchanged80% per-file minima.
+This clean source includes the final public HTTP protocol case and synchronized
+master baseline. It predates the local executor bind-race fix described below.
+Functional results do not certify a published release. Dirty local reports are
+diagnostic; preceding failures remain in `tdd/cycle-log.md`.
 
 The coordinated candidate publication workflow is prepared and policy-tested,
 but has not published images. Master CI must generate ordinary release SQL only
@@ -26,7 +28,13 @@ it does not establish whether the unacknowledged request committed. Two unchange
 local reproductions pass600/600, which does not explain or resolve the CI failure.
 A third local run accepts/delivers600/600 but fails first-attemptp95 at3713.417ms
 (queuep953607.356ms); this separate latency failure is retained in the ledger.
-T054 remains open; the earlier fully green checkpoint does not close this gate.
+The later effbdf7 clean performance result is600/600, ACKp9581.296ms,
+first-attemptp9585.157ms/max240.788ms and zero deadlocks; it does not establish
+the earlier failure's cause. A separate deterministic regression proves a real
+executor bind-close-rebind startup race. Workerd now binds port zero atomically
+and reports its bound port through its native control channel. Local executor34/34
+and real HTTP client3/3 pass, plus TypeScript/lint; clean CI for this new runtime
+change remains pending. T054 stays open for that changed-runtime verification.
 
 ## Original acceptance reconciliation
 

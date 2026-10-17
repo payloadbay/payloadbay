@@ -1,5 +1,7 @@
 ---
 detected_at: '6223754'
+current_source_checkpoint: 'effbdf7'
+current_release_gate: 'open-performance-investigation'
 ecosystems:
 - typescript
 default: typescript
@@ -41,6 +43,47 @@ suite_seconds: 20.94
 ---
 
 # Verified TDD stack profile
+
+## Current implementation profile — 2026-10-17
+
+The original bootstrap evidence below is historical. Product suites now exist
+across unit, backend, executor, browser, deployment and performance owners; the
+bootstrap counts, missing-credential note and unimplemented-product statements
+below must not be used as the current application status.
+
+The runner still uses the commands in the frontmatter. `bun run test` includes
+performance; run `bun run test:performance` separately from other local owning
+lanes when diagnosing latency. Node runs two owning files concurrently, while
+performance runs one. Unknown/unregistered or empty selections fail. All artifacts
+live under `test-results/<run-id>/<owner>/`, including unit LCOV under
+`unit/coverage/lcov.info`; do not use stale reports from an earlier invocation.
+
+`bun run test:coverage` is the unit-only feedback gate, not full product coverage.
+For source-mapped collection, use `bun scripts/tests/run.ts <owner> --collect-coverage` for each of unit/node/executor/browser/deployment. The merge
+command is `bun run test:coverage:merge <artifact-directory>`. It requires a clean
+checkout and one complete, clean, exact-SHA artifact from each owner, then checks
+the complete executable runtime inventory plus required sources against the
+unchanged80% per-file line/function minima. Mixed/dirty partial local reports are
+diagnostic only. Private browser/server maps belong to the test build, not the
+operator image. Coverage percentage does not measure mutation strength.
+
+Clean9046ae2 CI39052054695 passed unit51, backend297, executor33, browser70,
+deployment31, performance1 and merged coverage241/241. Later db2fb3e
+CI39053349674 passed all functional owners (deployment32), but failed performance
+availability; its coverage merge was skipped. Local subsequent latency failures
+also remain recorded. Clean effbdf7 CI39055051450 subsequently passes all owners and241/241 coverage;
+its performance result does not explain the preceding failure. A new local bind-race
+fix passes executor34/34 and real HTTP3/3 but awaits its own clean CI. Refer to the
+feature preflight/cycle log for the latest outcome; do not treat the earlier green
+checkpoint as closure of a subsequent failure.
+
+Mutation tooling remains null and no independent final TDD audit is claimed.
+Historical test-first evidence is not invented from retrospective acceptance
+passes. Published-image install/upgrade/restore, optional host runsc, and physical
+Android keyboard behavior remain separate gates. Licensed CI installation now
+works through the configured secret; never copy a credential into these records.
+
+## Historical bootstrap profile
 
 The root TypeScript entrypoint dispatches each file to its explicit owning runner. Bun never replaces production Node integration. All five exemplar files/helpers were read and run. HEAD6223754 plus current uncommitted bootstrap files; refresh after runner changes.
 

@@ -2,7 +2,6 @@ import { packWire, unpackWire, wireRuntimeSource } from "../../../packages/contr
 import { workerdConfig } from "./workerd-config.ts";
 import { spawn, type ChildProcess } from "node:child_process";
 import { mkdtemp, writeFile, rm, readFile } from "node:fs/promises";
-import { createServer } from "node:net";
 import { createServer as createHttpServer } from "node:http";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { once } from "node:events";
@@ -34,16 +33,6 @@ export type ExecutionResult = {
 	peakRssBytes: number;
 	durationMs: number;
 };
-
-async function port() {
-	const server = createServer();
-	server.listen(0, "127.0.0.1");
-	await once(server, "listening");
-	const p = (server.address() as { port: number }).port;
-	await new Promise<void>((r) => server.close(() => r()));
-
-	return p;
-}
 
 export async function execute(options: ExecuteOptions): Promise<ExecutionResult> {
 	const dir = await mkdtemp(join(tmpdir(), "payloadbay-run-"));
@@ -129,7 +118,7 @@ export async function execute(options: ExecuteOptions): Promise<ExecutionResult>
 	await once(proxy, "listening");
 	const proxyPort = (proxy.address() as { port: number }).port;
 	try {
-		const socketPort = await port();
+		let socketPort: number | undefined;
 		await writeFile(join(dir, "bundle.js"), options.bundle, { mode: 0o600 });
 		await writeFile(join(dir, "wire.js"), wireRuntimeSource, { mode: 0o600 });
 		await writeFile(
@@ -161,13 +150,36 @@ export async function execute(options: ExecuteOptions): Promise<ExecutionResult>
 			{ mode: 0o600 },
 		);
 		await writeFile(join(dir, "deny.js"), "export default {fetch(){return new Response('direct networking unavailable',{status:403})}};", { mode: 0o600 });
-		await writeFile(join(dir, "config.capnp"), workerdConfig(socketPort, proxyPort, token), { mode: 0o600 });
+		await writeFile(join(dir, "config.capnp"), workerdConfig(0, proxyPort, token), { mode: 0o600 });
 		const binary = process.env.WORKERD_BINARY ?? createRequire(import.meta.url)("workerd").default;
-		child = spawn(binary, ["serve", join(dir, "config.capnp")], {
+		child = spawn(binary, ["serve", join(dir, "config.capnp"), "--control-fd=3"], {
 			cwd: dir,
 			env: { PATH: process.env.PATH, NODE_ENV: "production", NODE_V8_COVERAGE: "" },
 			detached: true,
-			stdio: ["ignore", "pipe", "pipe"],
+			stdio: ["ignore", "pipe", "pipe", "pipe"],
+		});
+		// The child binds port zero atomically and reports its actual bound port.
+		// Probing a free port and releasing it before spawn lets another process take it.
+		let control = "";
+		child.stdio[3]?.on("data", (data: Buffer) => {
+			if (socketPort !== undefined) return;
+			control += data.toString("utf8");
+			if (Buffer.byteLength(control) > 4096) {
+				stoppedCode = "runtime_startup_failed";
+				runAbort.abort();
+
+				return;
+			}
+
+			let newline: number;
+			while ((newline = control.indexOf("\n")) >= 0) {
+				const line = control.slice(0, newline);
+				control = control.slice(newline + 1);
+				try {
+					const notification = JSON.parse(line);
+					if (notification.event === "listen" && notification.socket === "http" && Number.isInteger(notification.port) && notification.port > 0 && notification.port <= 65535) socketPort = notification.port;
+				} catch {}
+			}
 		});
 		rssTimer = setInterval(async () => {
 			if (!child?.pid) return;
@@ -198,6 +210,12 @@ export async function execute(options: ExecuteOptions): Promise<ExecutionResult>
 		let ready = false;
 		for (let i = 0; i < 100; i++) {
 			if (child.exitCode !== null || child.signalCode !== null) throw new ExecutionError("runtime_startup_failed");
+			if (runAbort.signal.aborted) throw new ExecutionError(stoppedCode);
+			if (socketPort === undefined) {
+				await new Promise((r) => setTimeout(r, 10));
+				continue;
+			}
+
 			try {
 				await fetch(`http://127.0.0.1:${socketPort}/health`, { signal: AbortSignal.any([runAbort.signal, AbortSignal.timeout(100)]) });
 				ready = true;
