@@ -44,7 +44,7 @@
 		"tests/integration/request-contracts.test.ts": "node"
 	},
 	"coverageSources": ["scripts/tests/policy.ts", "scripts/tests/runtime.ts", "packages/domain/src/config.ts", "apps/executor/src/compiler.ts", "packages/contracts/src/config.ts", "packages/contracts/src/api.ts", "packages/contracts/src/errors.ts", "packages/contracts/src/lifecycle.ts", "packages/domain/src/authorization.ts"],
-	"plannedProductSuites": ["tests/unit/notifications.test.ts"],
+	"plannedProductSuites": [],
 	"nextBuildConsumers": ["tests/integration/live-api.test.ts", "tests/integration/preview.test.ts", "tests/deployment/installation.test.ts", "tests/performance/delivery.test.ts", "tests/deployment/images.test.ts"],
 	"coverageSourceOwners": {
 		"scripts/tests/policy.ts": "unit",

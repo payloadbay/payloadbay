@@ -554,3 +554,96 @@ test("U317 scoped readers manage only their own SMTP preferences through API", a
 		assert.equal((await fetch(endpoint, { method: "PUT", headers, body: '{"enabled":false}' })).status, 200);
 	});
 });
+
+test("A6 A8 A9 A11 public HMAC ingress preserves challenge bytes and never acknowledges failed durable acceptance", async () => {
+	const { createHmac, randomUUID } = await import("node:crypto");
+	const { seedScope } = await import("../helpers/domain-fixtures.ts");
+	const { permissions } = await import("../../packages/contracts/src/permissions.ts");
+	const { publish } = await import("../../packages/domain/src/publication.ts");
+	const { createSecret } = await import("../../packages/domain/src/secrets.ts");
+	const { compileSource } = await import("../../packages/domain/src/executor-client.ts");
+	const { hmacHttpTemplate } = await import("../../packages/script-sdk/src/templates/hmac.ts");
+	await nextFixture(async (f) => {
+		const scope = await seedScope(f.db);
+		await f.db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, permissions]);
+		const config = { ...fixtureConfig(f), executorUrl: f.executorUrl };
+		const signingValue = randomUUID();
+		const secret = await createSecret(f.pool, { userId: "fixture-owner" }, { scope: { type: "project", id: scope.project }, name: "Synthetic signing fixture", value: signingValue }, config.encryptionKey);
+		const challenge = "challenge <literal>&\n";
+		const source = hmacHttpTemplate.source + '\nexport async function GET(ctx: IngressContext): Promise<IngressDecision> { return ctx.respondOnly({status:200,headers:{"content-type":"text/plain"},body:' + JSON.stringify(challenge) + "}); }";
+		await f.db.query("INSERT INTO payloadbay.draft(endpoint_id,stage,body,secret_bindings) VALUES($1,'ingress',$2,$3),($1,'processing','return ctx.complete();','{}')", [scope.endpoint, source, JSON.stringify({ SIGNING_SECRET: secret.id })]);
+		await publish(
+			f.pool,
+			{ userId: "fixture-owner" },
+			{
+				endpointId: scope.endpoint,
+				expectedVersion: 1,
+				draftVersions: { ingress: 1, processing: 1 },
+				compile: (input) => compileSource(config, input),
+			},
+		);
+		const key = (await f.db.query("SELECT ingress_key FROM payloadbay.endpoint WHERE id=$1", [scope.endpoint])).rows[0].ingress_key;
+		const url = f.url + "/ingress/" + key;
+
+		const counts = async () => {
+			const values: Record<string, number> = {};
+			for (const table of ["event", "receipt", "execution", "dispatch"]) values[table] = (await f.db.query("SELECT count(*)::int AS n FROM payloadbay." + table)).rows[0].n;
+			values.jobs = (await f.db.query("SELECT count(*)::int AS n FROM graphile_worker.jobs")).rows[0].n;
+
+			return values;
+		};
+
+		const challenged = await fetch(url);
+		assert.equal(challenged.status, 200);
+		assert.equal(challenged.headers.get("content-type"), "text/plain");
+		assert.deepEqual(Buffer.from(await challenged.arrayBuffer()), Buffer.from(challenge));
+		assert.deepEqual(await counts(), {
+			event: 1,
+			receipt: 0,
+			execution: 0,
+			dispatch: 0,
+			jobs: 0,
+		});
+		const body = Buffer.from([0, 255, 42, 10]);
+		const rejected = await fetch(url, { method: "POST", headers: { "content-type": "application/octet-stream", "x-payloadbay-signature": "0".repeat(64) }, body: new Uint8Array(body) });
+		assert.equal(rejected.status, 401);
+		assert.equal(await rejected.text(), "Invalid signature");
+		assert.deepEqual(await counts(), {
+			event: 2,
+			receipt: 0,
+			execution: 0,
+			dispatch: 0,
+			jobs: 0,
+		});
+
+		const signedRequest = (value: Buffer) => fetch(url, { method: "POST", headers: { "content-type": "application/octet-stream", "x-payloadbay-signature": createHmac("sha256", signingValue).update(value).digest("hex") }, body: new Uint8Array(value) });
+
+		const accepted = await signedRequest(body);
+		assert.equal(accepted.status, 202);
+		assert.equal(await accepted.text(), "Accepted");
+		assert.deepEqual(await counts(), {
+			event: 3,
+			receipt: 1,
+			execution: 1,
+			dispatch: 1,
+			jobs: 1,
+		});
+		const stored = (await f.db.query("SELECT original_body,accepted_body FROM payloadbay.event WHERE ingress_outcome='accept'")).rows[0];
+		assert.deepEqual(stored.original_body, body);
+		assert.deepEqual(stored.accepted_body, body);
+		await f.db.query("CREATE OR REPLACE FUNCTION payloadbay.enqueue(identifier text,payload json,run_at timestamptz,job_key text,priority smallint) RETURNS bigint LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic scheduling outage'; END $$");
+		const failed = await signedRequest(Buffer.from("distinct rollback fixture"));
+		assert.equal(failed.status, 500);
+		const failure = await failed.text();
+		assert.equal(failure.includes(signingValue), false);
+		assert.equal(failure.includes("synthetic scheduling outage"), false);
+		assert.deepEqual(await counts(), {
+			event: 3,
+			receipt: 1,
+			execution: 1,
+			dispatch: 1,
+			jobs: 1,
+		});
+	});
+});

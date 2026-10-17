@@ -61,3 +61,19 @@ unchanged. Host load moved from1.90/1.15/0.51to2.49/1.46/0.66.
 
 This clean-checkout result validates the changed worker under this fixture; it
 does not erase the earlier shared-host contention failure or establish an SLA.
+
+## Complete clean source checkpoint `9046ae2`
+
+[Alpha Validation 39052054695](https://github.com/payloadbay/payloadbay/actions/runs/39052054695)
+passes at exact source `9046ae25c96484e70f5aab438840b77489c63c8d`. Its performance
+artifact records 600/600 accepted and delivered, zero failed requests, ACK p95
+56.52 ms, first-attempt p95 60.21 ms and maximum 132.36 ms, competing with 1,000
+queued bulk jobs. Queue-to-claim p95 is 24.65 ms; claim-to-first-attempt p95 is
+37.79 ms.
+
+The x64 runner reports 4 logical CPUs and 16,766,414,848 bytes of host memory.
+The existing one-CPU container limits and 512/512/768 MiB app/worker/executor
+budgets are unchanged. There are no warm-up webhook requests; per-request
+workerd startup is included, and the executor mode is ordinary runc. These
+measurements describe this fixture/run, not a production SLA or a new runtime
+optimization. Prior passing and contended failing runs remain above.

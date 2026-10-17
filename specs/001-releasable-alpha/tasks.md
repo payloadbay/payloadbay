@@ -10,6 +10,25 @@
 
 **Format**: `- [ ] Tnnn [P?] [USn?] description with exact file paths`. `[P]` permits work only after the phase prerequisites; it never authorizes parallel Red/Green steps of one behavior.
 
+## Source acceptance reconciliation — 2026-10-17
+
+Clean source `9046ae2`, CI `39052054695`, passes all owning functional lanes and the
+mandatory 241/241 per-file coverage gate. The original acceptance mapping and
+source-versus-published boundaries are in `preflight.md`. Source bootstrap UI
+and A2–5/A7/A10/A12–13/A15–20 are verified there. A1 remains a published operator
+installation gate; A14 retains deployment-specific network reachability checks.
+The additional public HTTP A6/A8/A9/A11 case passes locally but awaits its final
+complete clean deployment owner. Historical Red checkboxes are not inferred from
+passing retrospective tests.
+
+The approved 2026-10-15/16 complete-module editor contract in
+`contracts/script-lifecycle.md` supersedes historical body-only/editor-path wording
+below. Processing/middleware use validated named async default functions; ingress
+uses named HTTP method exports. Internal body callers remain supported. The
+actual editor is `components/code-editor.tsx`, scoped code is under
+`(dashboard)/code/[scopeType]/[scopeId]`, and ingress editing is under
+`projects/[projectId]/routes/[endpointId]`.
+
 ## Phase 1: Setup — explicit pre-implementation bootstrap
 
 **Goal**: Preserve the working web scaffold and establish missing tooling before invoking `$speckit-implement`. Execute T001–T006 as a separately scoped bootstrap, not through that command. Keep the mandatory `before_implement` TDD hook enabled. Infrastructure scripts/checks still follow the constitution’s test-first and executable-validation rules; this is not a feature-code or TDD exemption.
@@ -86,14 +105,14 @@
 ### Bootstrap/access dashboard and administration
 
 - [x] T031 [US1] Red: Add setup/login/workspace navigation/member customization and configuration-error scenarios in tests/acceptance/dashboard.spec.ts; trace US1/FR003/023/026. Behavior markers: [U60] [U61] [U62] [U63] [U64].
-- [ ] T032 [US1] Green: Implement HeroUI Pro pages in apps/web/src/app/(auth)/login/page.tsx, apps/web/src/app/setup/page.tsx and apps/web/src/app/(dashboard)/layout.tsx; scoped resource/member/ownership/settings routes under apps/web/src/app/api/v1/ backed by packages/domain/src/ services. (after T031). Behavior markers: [U60] [U61] [U62] [U63] [U64].
-- [ ] T033 [US1] Refactor/verify: Verify keyboard/focus/error/loading states and canonical local theme in tests/acceptance/dashboard.spec.ts; confirm metadata/payload/code/secret permissions remain distinct. (after T032). Behavior markers: [U60] [U61] [U62] [U63] [U64].
+- [x] T032 [US1] Green: Implement HeroUI Pro pages in apps/web/src/app/(auth)/login/page.tsx, apps/web/src/app/setup/page.tsx and apps/web/src/app/(dashboard)/layout.tsx; scoped resource/member/ownership/settings routes under apps/web/src/app/api/v1/ backed by packages/domain/src/ services. (after T031). Behavior markers: [U60] [U61] [U62] [U63] [U64].
+- [x] T033 [US1] Refactor/verify: Verify keyboard/focus/error/loading states and canonical local theme in tests/acceptance/dashboard.spec.ts; confirm metadata/payload/code/secret permissions remain distinct. (after T032). Behavior markers: [U60] [U61] [U62] [U63] [U64].
 
 ### Story acceptance completion gates
 
 - [ ] T086 [US1] [A1] Verify acceptance US1.1 through its real entrypoint in tests/deployment/installation.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: An empty supported installation completes exactly one owner bootstrap.
-- [ ] T087 [US1] [A2] Verify acceptance US1.2 through its real entrypoint in tests/integration/auth.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: Anonymous or inactive access returns no private instance data.
-- [ ] T088 [US1] [A3] Verify acceptance US1.3 through its real entrypoint in tests/integration/auth.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: An admitted operator signs in with SMTP email code while public signup stays unavailable.
+- [x] T087 [US1] [A2] Verify acceptance US1.2 through its real entrypoint in tests/integration/auth.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: Anonymous or inactive access returns no private instance data.
+- [x] T088 [US1] [A3] Verify acceptance US1.3 through its real entrypoint in tests/integration/auth.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: An admitted operator signs in with SMTP email code while public signup stays unavailable.
 
 ## Phase 4: US2 — own and publish endpoint code (P1)
 
@@ -127,8 +146,8 @@
 
 ### Story acceptance completion gates
 
-- [ ] T089 [US2] [A4] Verify acceptance US2.1 through its real entrypoint in tests/acceptance/dashboard.spec.ts; observed passing output and the complete affected story checks are required before closing this criterion: Selecting a template copies its editable source and helpers.
-- [ ] T090 [US2] [A5] Verify acceptance US2.2 through its real entrypoint in tests/integration/publication.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: Editing draft or parent helper source leaves the active published behavior unchanged.
+- [x] T089 [US2] [A4] Verify acceptance US2.1 through its real entrypoint in tests/acceptance/dashboard.spec.ts; observed passing output and the complete affected story checks are required before closing this criterion: Selecting a template copies its editable source and helpers.
+- [x] T090 [US2] [A5] Verify acceptance US2.2 through its real entrypoint in tests/integration/publication.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: Editing draft or parent helper source leaves the active published behavior unchanged.
 - [ ] T091 [US2] [A6] Verify acceptance US2.3 through its real entrypoint in tests/integration/ingress.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: Invoking published custom verification code returns its exact protocol response.
 
 ## Phase 5: US3 — durable ingress and actual delivery (P1)
@@ -153,7 +172,7 @@
 
 - [ ] T052 [US3] Red: Add pinned processing outcome/exception/timeout and critical event under email/replay backlog cases in tests/integration/delivery.test.ts and tests/performance/delivery.test.ts; trace FR008/025. Behavior markers: [U105] [U106] [U107] [U108] [U109] [U110] [U111] [U112] [U113] [U114].
 - [ ] T053 [US3] Green: Implement apps/worker/src/main.ts, apps/worker/src/tasks/process-event.ts and packages/domain/src/dispatch.ts for generation claim/heartbeats, reserved critical/mail capacity, independently reserved ingress, destination concurrency and complete/retry/fail; initial processing30s, targetRSS256MiB, defaultmax5 bounded exponential/jitter attempts. (after T052). Behavior markers: [U105] [U106] [U107] [U108] [U109] [U110] [U111] [U112] [U113] [U114].
-- [ ] T054 [US3] Refactor/verify: Measure documented10events/sec×60s fixture: p95ack≤1s, acceptance-to-first-attempt≤2s, no critical wait>10s in tests/performance/delivery.test.ts; report hardware/cold starts/counts and never silently relax failed targets. (after T053). Behavior markers: [U105] [U106] [U107] [U108] [U109] [U110] [U111] [U112] [U113] [U114].
+- [x] T054 [US3] Refactor/verify: Measure documented10events/sec×60s fixture: p95ack≤1s, acceptance-to-first-attempt≤2s, no critical wait>10s in tests/performance/delivery.test.ts; report hardware/cold starts/counts and never silently relax failed targets. (after T053). Behavior markers: [U105] [U106] [U107] [U108] [U109] [U110] [U111] [U112] [U113] [U114].
 
 ### Destination and basic event dashboard
 
@@ -163,10 +182,10 @@
 
 ### Story acceptance completion gates
 
-- [ ] T092 [US3] [A7] Verify acceptance US3.1 through its real entrypoint in tests/integration/ingress.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: Provider success is observable only after event and recoverable work commit.
+- [x] T092 [US3] [A7] Verify acceptance US3.1 through its real entrypoint in tests/integration/ingress.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: Provider success is observable only after event and recoverable work commit.
 - [ ] T093 [US3] [A8] Verify acceptance US3.2 through its real entrypoint in tests/integration/ingress.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: A protocol-only challenge returns exact bytes without creating processing work.
 - [ ] T094 [US3] [A9] Verify acceptance US3.3 through its real entrypoint in tests/integration/ingress.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: Verification failure or invalid ingress result creates no accepted work.
-- [ ] T095 [US3] [A10] Verify acceptance US3.4 through its real entrypoint in tests/integration/delivery.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: A failing optional destination remains visible without overriding successful app-required policy.
+- [x] T095 [US3] [A10] Verify acceptance US3.4 through its real entrypoint in tests/integration/delivery.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: A failing optional destination remains visible without overriding successful app-required policy.
 - [ ] T096 [US3] [A11] Verify acceptance US3.5 through its real entrypoint in tests/integration/ingress.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: A failed acceptance transaction never sends provider success.
 
 ## Phase 6: US4 — shared middleware and custom routing (P1)
@@ -195,8 +214,8 @@
 
 ### Story acceptance completion gates
 
-- [ ] T097 [US4] [A12] Verify acceptance US4.1 through its real entrypoint in tests/integration/middleware.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: Scoped middleware applies the published order and declared optional-failure policy.
-- [ ] T098 [US4] [A13] Verify acceptance US4.2 through its real entrypoint in tests/integration/middleware.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: User-authored routing selects destinations without hidden provider restrictions.
+- [x] T097 [US4] [A12] Verify acceptance US4.1 through its real entrypoint in tests/integration/middleware.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: Scoped middleware applies the published order and declared optional-failure policy.
+- [x] T098 [US4] [A13] Verify acceptance US4.2 through its real entrypoint in tests/integration/middleware.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: User-authored routing selects destinations without hidden provider restrictions.
 - [ ] T099 [US4] [A14] Verify acceptance US4.3 through its real entrypoint in tests/integration/delivery.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: Reachable administrator-configured localhost LAN 100.x public domain and tunnel destinations deliver.
 
 ## Phase 7: US5 — recover, inspect and replay (P1)
@@ -234,21 +253,21 @@
 - [ ] T104 [US5] Red: Add typed producer incident/deduplication/resolution, scoped API/SSE recipients and restart-persistent dismissal cases in tests/integration/notifications.test.ts; no React-only environment branch. Behavior markers: [U169] [U170] [U171] [U172] [U173] [U181].
 - [ ] T105 [US5] Green: Implement packages/contracts/src/notifications.ts and packages/domain/src/notifications.ts on T011 NotificationRule/Incident/RecipientState/Dispatch tables, plus apps/web/src/app/api/v1/notifications/; active conditions reconcile durable scoped incidents and authorized ChangeRecords. Preserve per-user dismissal, validated redacted data and configured-versus-verified isolation distinction. After T104. Behavior markers: [U169] [U170] [U171] [U172] [U173] [U181].
 - [ ] T106 [US5] Refactor/verify: Run owning notifications integration cases in tests/integration/notifications.test.ts; runc producer and runsc resolution use the shared backbone, no global banner or duplicate warning pipeline. After T105. Behavior markers: [U169] [U170] [U171] [U172] [U173] [U181].
-- [ ] T107 [US5] Red: Add no-rule/no-email, count1, N-1/N boundary, route/destination filter, retry-count dedupe and revoked recipient cases in tests/unit/notifications.test.ts and tests/integration/notifications.test.ts. After T106. Behavior markers: [U168] [U174] [U175] [U176] [U177] [U178] [U179].
+- [ ] T107 [US5] Red: Add no-rule/no-email, count1, N-1/N boundary, route/destination filter, retry-count dedupe and revoked recipient cases in tests/integration/notifications.test.ts using real PostgreSQL threshold/recipient state. The planned unit placeholder is superseded by this existing owning suite; do not duplicate SQL behavior with mocked unit assertions. After T106. Behavior markers: [U168] [U174] [U175] [U176] [U177] [U178] [U179].
 - [ ] T108 [US5] Green: Implement explicit project/ingress-route/destination rule management in packages/domain/src/notification-rules.ts and low-priority evaluation/optional SMTP in apps/worker/src/tasks/notifications.ts; no automatically active rule/threshold/subscription; >= positive count in operator-selected window; recheck current rights before channel dispatch. After T107. Behavior markers: [U168] [U174] [U175] [U176] [U177] [U178] [U179].
 - [ ] T109 [US5] Refactor/verify: Verify repeat/cooldown/recovery/recipient-channel dedupe in tests/integration/notifications.test.ts; notifications cannot starve critical delivery. Version checks and active endpoint probes stay deferred. After T108. Behavior markers: [U168] [U174] [U175] [U176] [U177] [U178] [U179].
 - [ ] T110 [US5] Red: Add empty/info/warning/critical control, count/accessibility, scoped read/dismiss and authorized rule-edit flows in tests/acceptance/dashboard.spec.ts. After T109. Behavior markers: [U180] [A19] [A20].
 - [ ] T111 [US5] Green: Implement apps/web/src/app/components/notification-inbox.tsx beside profile/context controls and notification/rule settings under apps/web/src/app/(dashboard)/; controls read shared authorized incident services, not process.env flags. Use existing theme tokens and chosen locally bundled icon package. After T110. Behavior markers: [U180] [A19] [A20].
 - [ ] T112 [US5] Refactor/verify: Run real inbox/control flows in tests/acceptance/dashboard.spec.ts and owning notifications tests; per-user dismissal survives restart and project-only users never see installation notices. After T111. Behavior markers: [U180] [A19] [A20].
-- [ ] T113 [US5] [A19] Verify US5.5 through real notification API/UI in tests/integration/notifications.test.ts and tests/acceptance/dashboard.spec.ts: no implicit failure alerts, runtime notice uses the backbone.
-- [ ] T114 [US5] [A20] Verify US5.6 through configured rule and optional SMTP fixture in tests/integration/notifications.test.ts: count1 triggers only its authorized scope and eligible subscribed recipients.
+- [x] T113 [US5] [A19] Verify US5.5 through real notification API/UI in tests/integration/notifications.test.ts and tests/acceptance/dashboard.spec.ts: no implicit failure alerts, runtime notice uses the backbone.
+- [x] T114 [US5] [A20] Verify US5.6 through configured rule and optional SMTP fixture in tests/integration/notifications.test.ts: count1 triggers only its authorized scope and eligible subscribed recipients.
 
 ### Story acceptance completion gates
 
-- [ ] T100 [US5] [A15] Verify acceptance US5.1 through its real entrypoint in tests/integration/recovery.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: Acknowledged work recovers after a crash without claiming JS instruction continuation.
-- [ ] T101 [US5] [A16] Verify acceptance US5.2 through its real entrypoint in tests/integration/recovery.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: Recovery reuses recorded successful managed sends while uncertain sends retain duplicate risk.
-- [ ] T102 [US5] [A17] Verify acceptance US5.3 through its real entrypoint in tests/integration/delivery.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: Replaying a terminal event creates new execution identity without changing prior history.
-- [ ] T103 [US5] [A18] Verify acceptance US5.4 through its real entrypoint in tests/integration/recovery.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: Lost scheduling recovers under a new generation that rejects stale writes.
+- [x] T100 [US5] [A15] Verify acceptance US5.1 through its real entrypoint in tests/integration/recovery.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: Acknowledged work recovers after a crash without claiming JS instruction continuation.
+- [x] T101 [US5] [A16] Verify acceptance US5.2 through its real entrypoint in tests/integration/recovery.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: Recovery reuses recorded successful managed sends while uncertain sends retain duplicate risk.
+- [x] T102 [US5] [A17] Verify acceptance US5.3 through its real entrypoint in tests/integration/delivery.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: Replaying a terminal event creates new execution identity without changing prior history.
+- [x] T103 [US5] [A18] Verify acceptance US5.4 through its real entrypoint in tests/integration/recovery.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: Lost scheduling recovers under a new generation that rejects stale writes.
 
 ## Phase 8: Final validation, upgrade and alpha release readiness
 
@@ -258,7 +277,7 @@
 
 - [ ] T079 Red then Green then refactor: implement tests/deployment/installation.test.ts and deploy/compose.yml for prebuilt pinned web/worker/executor/Postgres images, readiness/migration locking, SMTP config, supported host sandbox verification and complete first delivery; no operator Node/Bun install and no raw licensed artifacts or build secrets in images. Behavior markers: [U161] [U162] [U163].
 - [ ] T080 Red then Green then refactor: add pending-job/code-revision image upgrade, expansion-compatible schema, backup/restore and rollback-limit scenarios in tests/deployment/installation.test.ts, tests/deployment/migrator.test.ts and docs/deployment/backup.md (standard PostgreSQL container tooling, without a host script runtime); record coordinated schema/SDK/engine/compatibility/sandbox versions in deploy/release-manifest.json. Behavior markers: [U164] [U165] [U166].
-- [ ] T081 Configure owning final CI lanes in .github/workflows/alpha-ci.yml using scripts/tests/inventory.ts, unique databases/ports/artifacts and explicit CPU/memory concurrency budgets; unit/component, Node/PG, executor, browser, performance and installation gates each run once; merge/reuse coverage/JUnit outputs and enforce complete inventory and applicable thresholds.
+- [x] T081 Configure owning final CI lanes in .github/workflows/alpha-ci.yml using scripts/tests/inventory.ts, unique databases/ports/artifacts and explicit CPU/memory concurrency budgets; unit/component, Node/PG, executor, browser, performance and installation gates each run once; merge/reuse coverage/JUnit outputs and enforce complete inventory and applicable thresholds.
 - [ ] T082 [P] Document clean install, SMTP, bootstrap, optional gVisor host setup, networking/localhost, supported dependencies, recovery/deduplication and upgrade limits in docs/deployment/README.md and specs/001-releasable-alpha/quickstart.md; resolve CI HEROUI_AUTH_TOKEN through secret configuration, never a committed value or insecure package downgrade.
 - [x] T083 [P] Refresh source-verified architecture navigation using Graphify only after implemented paths exist; update README.md, AGENTS.local.md and graphify-out/ provenance without modifying centrally managed baseline files.
 - [ ] T084 Execute the owning final lanes and quickstart scenarios, collect nonempty inventory/coverage/source-map/license/image/security/resource/latency/recovery evidence in specs/001-releasable-alpha/preflight.md and extension tdd/verification.md; do not rerun passing unrelated lanes unless changes/failures require it. Every SC001–006 and FR001–028 needs its owner evidence.

@@ -5,10 +5,10 @@ bootstrap-only snapshot is historical; it does not describe the current app.
 
 ## Latest complete clean verification
 
-Source `a7d4e76`, GitHub CI `39050305378`: static, unit51/51, backend296/296,
-executor33/33, deployment31/31, browser67/67 and performance1/1 pass. All five
+Source `9046ae2`, GitHub CI `39052054695`: static, unit51/51, backend297/297,
+executor33/33, deployment31/31, browser70/70 and performance1/1 pass. All five
 coverage owners are clean, complete and exact-SHA. Mandatory merged coverage
-remains RED:233/241 files meet the unchanged80% per-file line/function minima.
+passes:241/241 files meet the unchanged80% per-file line/function minima.
 These functional results do not certify the release. Subsequent local checks
 and failures are recorded in `tdd/cycle-log.md`; dirty local coverage is diagnostic.
 
@@ -16,6 +16,42 @@ The coordinated candidate publication workflow is prepared and policy-tested,
 but has not published images. Master CI must generate ordinary release SQL only
 after an approved merge; exact-image operator installation/bootstrap/first
 delivery, pending-job upgrade and release restore remain open. PR13 stays draft.
+
+## Original acceptance reconciliation
+
+The completed clean checkpoint above owns the existing source tests. The UI checks belong to that complete clean run. The additional combined public
+HTTP protocol case has local passing evidence in `tdd/cycle-log.md`; its final
+complete clean deployment owner remains pending. This table
+maps original criteria to implemented entrypoints, without treating source-built
+fixtures as published-image installation or a physical network certification.
+
+| Criterion | Actual evidence | Boundary |
+| --- | --- | --- |
+| A1: one owner on empty install | `tests/deployment/installation.test.ts`, A1; concurrent bootstrap U40 | Source installation verified; exact published-image installation remains open. |
+| A2: anonymous/inactive denial | Installation A2; auth U235 and authorization owner | Real HTTP denial and domain isolation verified. |
+| A3: admitted SMTP login | `tests/integration/auth.test.ts`, A3/U50; browser U61 | Real SMTP OTP and disabled public registration verified. |
+| A4: editable templates/helpers | Dashboard U75/U83 | Template copies, selected named imports and pinned helper revisions verified. |
+| A5: immutable active behavior | Installation A5; publication and shared-code owners | Draft/helper edits do not rewrite existing publications. |
+| A6: exact custom verification reply | Combined installation A6/A8/A9/A11 | Local real HTTP + workerd HMAC/challenge case passed; final complete owner pending. |
+| A7: durable success | Installation A7; ingress U85/U94 | HTTP success follows committed event, execution, dispatch and queue work. |
+| A8: challenge-only protocol reply | Combined installation case; response-only ingress inspection | Exact plain-text bytes; request retained, no processing work. Final combined owner pending. |
+| A9: invalid verification/outcome | Ingress U78/U93/U308; combined installation case | Failed verification creates no accepted work; rejected inbound request remains inspectable. |
+| A10: authored optional-send policy | `tests/integration/delivery.test.ts`, A10/U117 | Real required success and optional503 remain separately recorded without overriding authored completion. |
+| A11: failed transaction is not success | Ingress U94; combined installation case | Real HTTP500 and unchanged acceptance records under queue failure; final combined owner pending. |
+| A12: middleware hierarchy/policy | Middleware U285/U121/U122/U123/U124/U288 | Actual pinned hierarchy/order, optional patch isolation and required outcomes verified. |
+| A13: authored destination routing | Delivery A10/U96; middleware U288 | Configured and authored targets use generic HTTP, including additional custom sends. |
+| A14: deployment network reachability | Delivery U254; image U253 and loopback HTTP fixtures | LAN/100.x configuration accepted; actual loopback/private Docker DNS delivery verified. Operator-specific LAN/Tailscale/public-domain/tunnel reachability remains an installation check. |
+| A15: durable recovery | Recovery U28/U31/U199/U264; image worker U253 | Expired offers/leases recover with bounded generations; no instruction continuation claim. |
+| A16: recorded versus uncertain sends | Delivery U100 and uncertain-response recovery case | Recorded success reused; uncertain HTTP can repeat, as required by at-least-once semantics. |
+| A17: replay history | Delivery U143/U145/U146; dashboard U116 | New execution identity preserves prior attempts and supports original/active version policy. |
+| A18: lost scheduling/stale fencing | Recovery U30/U31/U32/U200/U201 | Fresh generation/key and stale-owner write denial verified. |
+| A19: scoped notification backbone | Notifications U168/U169/U171/U172; browser U276 and inbox owner | Explicit failure rules, scoped runtime advice and persistent personal dismissal verified. |
+| A20: configured threshold and SMTP | Notifications U174/U175/U176/U177/U179/U315/U316 | Matching scoped subscribed recipients, deduplication and revoked-access denial verified. |
+
+Remaining operator evidence is independent: coordinated published digests,
+CI-generated release SQL, clean bootstrap/first delivery, pending-job upgrade,
+and release backup/restore/rollback. Optional host runsc and physical Android
+keyboard/browser-toolbar behavior are not certified by these source tests.
 
 ## Implemented and verified foundation
 

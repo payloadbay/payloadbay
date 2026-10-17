@@ -3332,3 +3332,36 @@ from its passing case because its containing invocation failed another case.
 Those partial results are deliberately not promoted to complete-owner evidence.
 The unchanged mandatory clean-CI gate remains authoritative; new clean full browser
 and all owning lanes are pending. No80% threshold or executable inventory changed.
+
+Original protocol acceptance now has one actual public HTTP case covering
+A6/A8/A9/A11. Both local invocations pass1/1 with real Next, workerd, pinned encrypted
+signing secret and PostgreSQL: exact plain-text challenge, no challenge processing,
+bad-HMAC401 with retained rejected request, valid binary202 with durable work,
+and scheduling-outage500 with no partial acceptance records or leaked SQL/secret.
+The final invocation copies Node Buffers into owned Uint8Arrays for fetch's strict
+BodyInit types; TypeScript and ESLint pass. This tests existing product behavior,
+not a newly invented Red cycle. Final complete deployment owner remains pending.
+
+The preflight now maps all20 original acceptance criteria to actual entrypoints.
+It keeps source fixtures distinct from published-image certification, and exposes
+operator-specific LAN/Tailscale/domain/tunnel reachability as installation evidence
+rather than treating URL acceptance alone as a full physical-network test.
+
+## Exact clean9046ae2 checkpoint
+
+CI39052054695 is fully GREEN at9046ae25c96484e70f5aab438840b77489c63c8d:
+static, unit51/51, backend297/297, executor33/33, deployment31/31, browser70/70,
+performance1/1 and mandatory merged source coverage241/241 under unchanged80%
+per-file minima. Downloaded provenance for all five owners is clean, complete
+and exact-SHA. This closes the source coverage gap, not unpublished operator gates.
+Exact performance is600/600, zero failures, ACKp9556.522463ms, first-attemptp95
+60.212ms/max132.363ms with1,000 seeded bulk jobs and the unchanged4CPU host/oneCPU
+container fixture. No new production optimization or SLA is inferred.
+
+Only source acceptance checkboxes supported by the completed whole owners are
+closed in tasks.md. Published operator A1, deployment-specific A14, the added
+HTTP protocol case's complete deployment invocation and release/upgrade gates
+stay open. The planned notification-unit placeholder is reconciled to existing
+real-PG U168/U175/U176/U177 coverage; no actual test or owner is removed. Inventory
+and its19 tooling tests pass. Historical Red cycles are not fabricated from a
+retrospective passing test.
