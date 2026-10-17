@@ -5,9 +5,10 @@ Core product guidance.
 
 ## Current repository state
 
-Payload Bay is in early implementation. The README describes intended product
-capabilities and target repository boundaries; it does not prove that a feature,
-directory, API, table, or command already exists.
+Payload Bay has an implemented but unreleased alpha. The README distinguishes
+product direction from current behavior; use the preflight and test ledger for
+verified evidence. Published operator installation, upgrade/restore and complete
+coverage remain independent release gates.
 
 Use the current code, the scoped GitHub issue when one exists, and relevant
 repository documentation as the source of truth for the task at hand. Do not
@@ -43,12 +44,13 @@ or make a receiver's deduplication responsibility disappear.
 The root package uses Bun workspaces. Use Bun for dependency and script work;
 do not add npm, pnpm, or Yarn lockfiles.
 
-These paths are created when their work begins:
+Current source boundaries:
 
 - `apps/web/` for the integrated Next.js dashboard and API.
 - `apps/worker/` for the trusted Graphile Worker entrypoint.
-- `packages/` for product packages such as API contract, SDK, and
-  integration packages.
+- `apps/executor/` for compilation and separate workerd execution.
+- `packages/contracts/`, `packages/domain/` and `packages/script-sdk/` for
+  schemas, server services and configured-code lifecycle types.
 - `deploy/` for self-hosting and deployment material.
 - `scripts/` for product build and release tooling.
 

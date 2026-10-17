@@ -40,7 +40,7 @@ stores it durably, routes it to the right destination, and makes delivery
 outcomes visible. Applications can then receive events through HTTP targets or
 outbound runners without exposing every destination directly to providers.
 
-## What Payload Bay does
+## Product direction
 
 - **Receive** webhooks through stable canonical URLs and custom aliases.
 - **Verify** provider signatures against the unchanged request body.
@@ -79,43 +79,43 @@ Donations and sponsorship are optional ways to support the project.
 
 ## Project status
 
-Payload Bay is in early development. This repository currently establishes the
-product workspace and does not yet contain an installable implementation.
+Payload Bay has an implemented, unreleased alpha in [draft PR #13](https://github.com/payloadbay/payloadbay/pull/13).
+The dashboard and API support organization/workspace/project setup, passwordless
+sign-in, editable ingress/processing, helpers, middleware, secrets, publication,
+queued HTTP delivery, retries/replay, live inspection and opt-in notifications.
+Self-hosted usage is locally measured without default commercial quotas. Pull
+runners, payments and enterprise activation remain later work.
 
-The first work proves the self-hosted ingress, durable persistence, delivery,
-retry, and recovery path before public interfaces are stabilized.
+This is not a published operator release. Coverage, coordinated release images,
+clean operator installation, upgrade and backup/restore gates remain open. See
+[preflight](specs/001-releasable-alpha/preflight.md) for exact evidence rather than
+treating the product direction above as a list of shipped guarantees.
 
 ## Development workflow
 
-Core uses the shared [Payload Bay SpecKit setup](.github/speckit/README.md) with
-Python helpers, Codex skills and the TDD extension. The
-[project constitution](.specify/memory/constitution.md) records the current
-architecture and test-first delivery rules. Feature specifications, plans and
-tasks stay in this repository.
+Core uses the centrally distributed [Payload Bay SpecKit setup](.github/speckit/README.md)
+with Python helpers, Codex skills and the TDD extension. The
+[constitution](.specify/memory/constitution.md), feature specification, tasks and
+verification ledger remain project-owned. Shared presets arrive through Repository
+Baseline CI; local SpecKit initialization/refresh is a separate step.
 
-The shared preset arrives through Repository Baseline CI. Installing or refreshing
-it is a separate local SpecKit step. The product test runner and verified TDD
-profile are not established yet; those must be scoped and verified before the
-first behavioral implementation. This setup does not implement webhook delivery.
+The stack is Next.js/React on Node.js, HeroUI Pro, Better Auth, PostgreSQL/Drizzle,
+Graphile Worker and a separate workerd executor. Bun manages packages and unit
+feedback. Restricted Docker/runc is the default executor mode; optional runsc
+requires host setup and has not been attested on this installation.
 
-## Architecture and development status
+Use [development bootstrap](docs/deployment/bootstrap.md) for prerequisites and
+isolated test owners. `bun run web:dev` starts the web development server;
+`bun run test:file <registered-file>` and `bun run test:affected <changed-path>`
+provide scoped feedback. Static checks are `bun run typecheck`, `bun run lint`
+and `bun run format:check`. `bun run test:coverage` still fails its per-file gate;
+passing tests alone are not coverage certification. No Supabase tooling is needed.
 
-The approved foundation is an integrated Next.js/Node.js application,
-PostgreSQL, Graphile Worker and Better Auth, using HeroUI for the dashboard and
-Bun for dependency management. Operators will deploy prebuilt published Docker
-images; web and trusted worker roles share one coordinated release. Configured
-script execution requires a separately validated executor boundary.
-
-A plain Next.js/HeroUI Pro web scaffold now lives in `apps/web/src/app`; use
-`bun run web:dev`, `bun run web:typecheck`, `bun run web:lint` and
-`bun run web:build`. Published images, database/worker/executor flows and the
-product test suite are not implemented. Verified bootstrap checks are available
-through `bun run test`, `test:file`, `test:affected` and `test:coverage`; see
-[tooling bootstrap](docs/deployment/bootstrap.md). Optional gVisor execution is unverified; clean CI Pro
-build prerequisites remain unresolved. Existing Supabase package scripts
-are legacy experiment tooling, not the supported product startup path. See the
-[current planning draft](specs/001-releasable-alpha/plan.md) for open decisions,
-validation gates and migration scope.
+Published Docker images are the intended operator interface. Source-built
+[Coolify previews](docs/coolify-previews.md) already exercise the app, worker,
+executor and disposable database, but are not a production installation guide.
+Master CI generates release migrations; feature branches never generate them
+locally or substitute development schema push for a production upgrade.
 
 ## Contributing
 
@@ -136,24 +136,21 @@ search existing Issues and Discussions, and coordinate the intended outcome.
 
 ## Repository boundaries
 
-This is the canonical product repository. It is intended to contain the
-integrated web application, worker, shared API contract, public SDK, and official
-integrations that ship as the Payload Bay product.
+This is the canonical product repository. Its implemented source boundaries are:
 
 ```text
 apps/web/                  Integrated dashboard and HTTP API
 apps/worker/               Trusted background job processing
-packages/api-contract/     Versioned API and generated types
-packages/sdk-node/         Public Node.js SDK
-packages/integration-sdk/  Integration authoring contract
-packages/integrations/     Official provider integrations
+apps/executor/             Bounded TypeScript compilation and workerd execution
+packages/contracts/        Public Zod/OpenAPI and internal typed contracts
+packages/domain/           Authorization, persistence, queue and delivery services
+packages/script-sdk/       Configured script lifecycle types
 deploy/                    Self-hosting and deployment material
 scripts/                   Product build and release tooling
 ```
 
-The Payload Bay Runner is intentionally a separate repository. It is a CLI and
-native-binary product with independent releases and a tested compatibility
-relationship to Payload Bay server releases.
+The future pulling Runner remains a separate repository and release boundary;
+this alpha does not ship that product or claim tested server compatibility.
 
 ## Related resources
 

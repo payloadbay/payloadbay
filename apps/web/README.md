@@ -1,12 +1,22 @@
 # Payload Bay web application
 
-Plain Next.js App Router/TypeScript app, Node production runtime and Bun workspace tooling. HeroUI Pro and its required base styles are installed; Pro Sheet is wired in the shell.
+Integrated Next.js App Router/TypeScript dashboard and HTTP API, running on Node.js
+with Bun workspace tooling. HeroUI Pro owns native controls, navigation overlays
+and charts. The app is implemented on the unreleased alpha branch.
 
-From repository root: `bun run web:dev`, `bun run web:typecheck`, `bun run web:lint`, `bun run web:build`. All aliases root at src/app: `@/components/example` resolves to src/app/components/example; `@types` resolves to src/app/types.ts. Additional application type modules use `@/types/...`; published DefinitelyTyped packages keep their normal names.
+From the repository root, use `bun run web:dev`, `bun run web:typecheck`,
+`bun run web:lint` and `bun run web:build`. Page-specific state lives in the route's
+`page.tsx`; reusable controls live in `components/`. Entry-point aliases include
+`@components`, `@api`, `@lib`, `@styles`, `@types`, `@contracts`, `@domain` and
+`@sdk`; see `tsconfig.json` for their actual targets.
 
 CSS order is Tailwind → HeroUI base → HeroUI Pro → exported custom theme. Saved theme exported into the canonical brand repository and copied to `src/app/styles/brand-theme.css`, with SHA-256/source metadata. Do not invent a replacement theme; canonical brand reference is https://github.com/payloadbay/brand/blob/master/DESIGN.md . Runtime activates the exported dark mode and bundles Inter locally.
 
-This is a development shell, not an authenticated or deployed alpha. Full Docker/database/worker/executor setup belongs to the SpecKit plan. No remote fonts/CDN assets or licensed library source are vendored.
+Better Auth provides OTP/passkey sign-in; authenticated Route Handlers call shared
+domain services. One SSE stream updates authorized dashboard views. The local
+Scalar API console is at `/docs/api`. See root preflight and bootstrap docs for
+current CI evidence and remaining published-release gates. Fonts and API console
+assets are bundled locally; licensed library source is not vendored.
 
 Scripts explicitly run the app on Node; Bun manages dependencies/workspace commands. Webpack is selected because Turbopack’s internal port-binding failed in this workspace. Build prepares static assets beside the standalone entrypoint; start runs that entrypoint. Set PORT/HOSTNAME for deployment.
 

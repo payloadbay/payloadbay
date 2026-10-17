@@ -2959,3 +2959,29 @@ Source-map collector follow-up: built-in Node LCOV's compiler function positions
 Cold CI run39033406697at ef479c4completed all non-coverage owners successfully: static; real executor28; backend272; browser57; deployment21from committed Dockerfiles; performance1with600/600delivered, ACKp95116.789msand first-attemptp95131.701ms/max258.514msunder a1000-item bulk seed. The overall workflow correctly fails only its known unit per-file coverage gate. This closes the prior local-Docker-draft limitation for those candidate tests, not published operator release gates.
 
 First local compiler-owner collection produced9/11passing: U240/U243hit their unchanged5scompiler deadline while a Coolify build was active. Filtered LCOV was still generated and failure status preserved; this is not passing test evidence or proof the reporter alone caused the timing failures. No compiler boundary/timeout was relaxed. Raw V8 caches now use unique OS-temporary paths outside uploads even on abrupt process death; CV01/CV02againGREEN2/2verify the actual reported raw directory is removed. A temporary fixture-string typo was corrected before this Green and is not credited as a product regression. Cold CI collection of the existing Node/executor/deployment owners follows; full-product threshold merging remains open.
+
+
+Mapped cloud owners at `7fa7da0` (run `39034217843`) all non-coverage GREEN:
+backend 274 (including the two source-map canaries), executor 28, deployment 21,
+browser 57, performance 1 and static. Artifacts contain 110 backend, 15 executor
+and 54 deployment source records without raw V8 directories. The unit per-file
+gate remains failing; no invalid aggregate/function-count merge is credited.
+
+T083 navigation refreshed from 317 code files, 43 documents and seven canonical
+copied brand assets: 1,723 nodes, 5,557 edges and 89 curated communities. Initial
+44 scaffold nodes were replaced on source re-extraction. Graphify's declared SQL
+parser was installed in its own tool environment, with no product dependency.
+Actual diagnostics retain 19 dangling raw references, 158 coalesced same-endpoint
+edges, 12 self-loops, six exact duplicates and one valid inline-TypeScript parser
+gap. GRAPH_REPORT.md discloses these limits; no complete call graph is claimed.
+Semantic token usage is unavailable, not zero/free or invented. An intermediate
+shrink guard refused the incremental cleanup. Audited removed IDs, then used a
+full corpus rebuild to avoid partial import-alias drift. Temporary export-script
+string errors were corrected and are not product regression evidence.
+
+Reference search proved only the obsolete status helper/package commands used
+the Supabase CLI. Removed that unused dependency, helper and commands; retained
+historical planning and synthetic schema-history evidence. Corrected scaffold-era
+README/web/agent status, package paths/aliases and contributor sign-in instructions
+(plain optional note, no demo selector). Web/tooling TypeScript, ESLint and formatting
+pass after cleanup. No release migration or operator release is claimed.

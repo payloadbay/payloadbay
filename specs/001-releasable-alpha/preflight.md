@@ -84,7 +84,8 @@ deployment for this newer settings/UI checkpoint remains pending.
   coverage against the agreed thresholds, and reconcile original acceptance
   tasks from their actual owning evidence. An installed test profile or green
   selected suite does not satisfy those gates.
-- Refresh the stale Graphify architecture index from implemented source.
+- Graphify architecture navigation is refreshed from implemented source; its
+  documented unresolved/coalesced edges and parser gaps require source verification.
 - Optional runsc execution is unverified. Standard trusted-publisher mode must
   remain explicit; no silent fallback or hostile-sandbox certification.
 
@@ -167,3 +168,19 @@ cold run's missing-rg prerequisite was corrected explicitly. Licensed installati
 works with the encrypted Actions credential. Central source policy PR#30checks and
 real App-token dry run passed; live external environment policy awaits approval
 and merge. No alpha merge or production migration generation is implied.
+
+
+Source-mapped CI run `39034217843` at `7fa7da0` passed backend **274**,
+executor **28**, deployment **21**, browser **57**, performance **1** and static
+checks. These owners collect filtered Node LCOV without raw V8 caches; the separate
+unit per-file coverage gate still fails. This is not a complete coverage pass.
+Unused Supabase CLI commands and their helper were removed after verifying no
+current owner invokes them. Root/web/contributor docs now describe the implemented
+alpha, actual aliases and optional plain sign-in hint.
+
+T083 source navigation is refreshed: **1,723 nodes / 5,557 edges / 89 communities**
+from 317 code files, 43 documents and seven canonical brand assets. The SQL parser
+is installed in Graphify's tool environment. Nineteen unresolved raw references,
+158 coalesced same-endpoint edges, 12 self-loops and one valid-TypeScript parser gap
+are disclosed in `graphify-out/GRAPH_REPORT.md`. This is navigation assistance,
+not complete runtime, security or coverage proof.

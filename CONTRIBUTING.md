@@ -22,8 +22,10 @@ the ephemeral database and seeds known synthetic accounts across two unrelated
 organizations, their workspaces, projects and ingress routes. Edits within a PR are shared among its reviewers and
 are intentionally lost on the next deployment.
 
-The preview sign-in page provides a **Demo access** selector. All accounts use
-normal email-code login through Mailpit:
+Choose an account from the preview details below and enter its email normally.
+An operator may configure `PAYLOADBAY_LOGIN_HINT` as plain explanatory text on
+the email-entry step; there is no account dropdown or email prefill. All accounts
+use normal email-code login through Mailpit:
 
 | Account                                  | Access                                                                            |
 | ---------------------------------------- | --------------------------------------------------------------------------------- |
