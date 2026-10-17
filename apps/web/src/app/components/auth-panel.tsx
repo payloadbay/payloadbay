@@ -234,9 +234,9 @@ export function AuthPanel({ setup = false, preview = false, loginHint, initialEm
 								</>
 							)}
 							{!setup && !sent && loginHint?.trim() && (
-								<p role='note' aria-label='Sign-in information' className='text-muted text-sm whitespace-pre-line wrap-anywhere'>
-									{loginHint.trim()}
-								</p>
+								<Card variant='transparent' role='note' aria-label='Sign-in information' className='border-warning/30 bg-warning-soft border shadow-none'>
+									<Card.Content className='text-warning-soft-foreground text-sm whitespace-pre-line wrap-anywhere'>{loginHint.trim()}</Card.Content>
+								</Card>
 							)}
 							{!sent && (
 								<TextField name='email' type='email' value={email} onChange={setEmail} isRequired maxLength={254}>
