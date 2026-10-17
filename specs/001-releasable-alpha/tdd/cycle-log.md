@@ -2948,3 +2948,6 @@ CI policy CI02 RED: a failed GitHub API command with partial `true` output autho
 Central policy source PR https://github.com/payloadbay/.github/pull/30 declares only Core's external environment; scoped live dry run reports only that missing reviewer policy, with managed files current. Existing App-token workflow dry run pending. No live environment policy is manually applied.
 
 Remote e9724c7 checkpoint: Coolify deployment lmzbcfk6wfxfu4nti9kef3gl finished2026-10-17 12:11:14UTC. Normal owner/viewer OTP, safe installation configuration, actual DB/executor health, explicitly unmeasured worker/SMTP health, single EventSource across navigation, mobile containment and viewer denial smoke passed against this finished version.
+
+
+First cold GitHub Alpha Validation run39033237063: static and executor passed; unit tests51passed but the known per-file compiler coverage gate correctly failed. Backend/browser/performance/deployment stopped before test execution because the shared source build helper invokes rg and GitHub Ubuntu runners do not provide it. Added an explicit ripgrep prerequisite only to those owners; no product behavior or thresholds changed. HeroUI installer succeeded in all applicable clean CI jobs using the encrypted secret. The original failure remains cloud evidence, not a product test failure.

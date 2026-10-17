@@ -137,6 +137,10 @@ jobs:
           fi
           bun x heroui-pro@1.0.0-beta.14 install react --yes --skip-peers --no-trust-patch
 
+      - name: Install source inventory prerequisite
+        if: matrix.lane == 'node' || matrix.lane == 'browser' || matrix.lane == 'performance' || matrix.lane == 'deployment'
+        run: sudo apt-get update && sudo apt-get install --yes ripgrep
+
       - name: Install the browser test runtime
         if: matrix.lane == 'browser'
         run: bun x --no-install playwright install --with-deps chromium
