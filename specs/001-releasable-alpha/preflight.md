@@ -17,11 +17,23 @@ but has not published images. Master CI must generate ordinary release SQL only
 after an approved merge; exact-image operator installation/bootstrap/first
 delivery, pending-job upgrade and release restore remain open. PR13 stays draft.
 
+The subsequent db2fb3e run (CI39053349674) passes static checks, unit51/51,
+backend297/297, executor33/33, deployment32/32 and browser70/70, but fails
+performance availability: one request lacked a successful acknowledgment, with
+599 measured deliveries. Coverage merging was skipped by that failed prerequisite.
+The original report cannot distinguish an HTTP rejection from a transport failure;
+it does not establish whether the unacknowledged request committed. Two unchanged
+local reproductions pass600/600, which does not explain or resolve the CI failure.
+A third local run accepts/delivers600/600 but fails first-attemptp95 at3713.417ms
+(queuep953607.356ms); this separate latency failure is retained in the ledger.
+T054 remains open; the earlier fully green checkpoint does not close this gate.
+
 ## Original acceptance reconciliation
 
-The completed clean checkpoint above owns the existing source tests. The UI checks belong to that complete clean run. The additional combined public
-HTTP protocol case has local passing evidence in `tdd/cycle-log.md`; its final
-complete clean deployment owner remains pending. This table
+The completed clean checkpoint above owns the existing source tests and UI
+checks. The additional combined public HTTP protocol case now passes its complete
+clean deployment owner32/32 in db2fb3e CI39053349674. Its separate performance
+failure remains open. This table
 maps original criteria to implemented entrypoints, without treating source-built
 fixtures as published-image installation or a physical network certification.
 
@@ -32,12 +44,12 @@ fixtures as published-image installation or a physical network certification.
 | A3: admitted SMTP login | `tests/integration/auth.test.ts`, A3/U50; browser U61 | Real SMTP OTP and disabled public registration verified. |
 | A4: editable templates/helpers | Dashboard U75/U83 | Template copies, selected named imports and pinned helper revisions verified. |
 | A5: immutable active behavior | Installation A5; publication and shared-code owners | Draft/helper edits do not rewrite existing publications. |
-| A6: exact custom verification reply | Combined installation A6/A8/A9/A11 | Local real HTTP + workerd HMAC/challenge case passed; final complete owner pending. |
+| A6: exact custom verification reply | Combined installation A6/A8/A9/A11 | Real HTTP + workerd HMAC/challenge case passes in complete deployment32/32. |
 | A7: durable success | Installation A7; ingress U85/U94 | HTTP success follows committed event, execution, dispatch and queue work. |
-| A8: challenge-only protocol reply | Combined installation case; response-only ingress inspection | Exact plain-text bytes; request retained, no processing work. Final combined owner pending. |
+| A8: challenge-only protocol reply | Combined installation case; response-only ingress inspection | Exact plain-text bytes; request retained, no processing work. Complete deployment32/32 passes. |
 | A9: invalid verification/outcome | Ingress U78/U93/U308; combined installation case | Failed verification creates no accepted work; rejected inbound request remains inspectable. |
 | A10: authored optional-send policy | `tests/integration/delivery.test.ts`, A10/U117 | Real required success and optional503 remain separately recorded without overriding authored completion. |
-| A11: failed transaction is not success | Ingress U94; combined installation case | Real HTTP500 and unchanged acceptance records under queue failure; final combined owner pending. |
+| A11: failed transaction is not success | Ingress U94; combined installation case | Real HTTP500 and unchanged acceptance records under queue failure; complete deployment32/32 passes. |
 | A12: middleware hierarchy/policy | Middleware U285/U121/U122/U123/U124/U288 | Actual pinned hierarchy/order, optional patch isolation and required outcomes verified. |
 | A13: authored destination routing | Delivery A10/U96; middleware U288 | Configured and authored targets use generic HTTP, including additional custom sends. |
 | A14: deployment network reachability | Delivery U254; image U253 and loopback HTTP fixtures | LAN/100.x configuration accepted; actual loopback/private Docker DNS delivery verified. Operator-specific LAN/Tailscale/public-domain/tunnel reachability remains an installation check. |

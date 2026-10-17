@@ -129,7 +129,14 @@ test("PF01 real HTTP ingress and critical delivery meet fixture latency targets 
 
 				const bulkSamples = [await remainingBulk()];
 				const acknowledgments: number[] = [];
-				const failures: number[] = [];
+				const failures: {
+					sequence: number;
+					status: number;
+					code?: string;
+					correlationId?: string;
+					elapsedMs: number;
+					errorType?: string;
+				}[] = [];
 				const pending: Promise<void>[] = [];
 				const hostLoadBefore = loadavg();
 				const began = performance.now();
@@ -145,10 +152,33 @@ test("PF01 real HTTP ingress and critical delivery meet fixture latency targets 
 									body: JSON.stringify({ fixture: "latency", sequence: i }),
 									signal: AbortSignal.any([t.signal, AbortSignal.timeout(5000)]),
 								});
-								await response.arrayBuffer();
-								if (response.status !== 202) failures.push(response.status);
-							} catch {
-								failures.push(0);
+								const bytes = await response.arrayBuffer();
+								if (response.status !== 202) {
+									let code: string | undefined;
+									try {
+										const value = JSON.parse(new TextDecoder().decode(bytes));
+										if (typeof value?.error?.code === "string" && /^[a-z_]{1,80}$/.test(value.error.code)) code = value.error.code;
+									} catch {}
+
+									const correlation = response.headers.get("x-correlation-id");
+									failures.push({
+										sequence: i,
+										status: response.status,
+										code,
+										correlationId: correlation && /^[0-9a-f-]{36}$/.test(correlation) ? correlation : undefined,
+										elapsedMs: performance.now() - start,
+									});
+								}
+							} catch (cause) {
+								const candidate = cause as { cause?: { code?: unknown } };
+								const code = typeof candidate.cause?.code === "string" && /^[A-Z_]{1,80}$/.test(candidate.cause.code) ? candidate.cause.code : undefined;
+								failures.push({
+									sequence: i,
+									status: 0,
+									code,
+									elapsedMs: performance.now() - start,
+									errorType: cause instanceof Error && ["Error", "AbortError", "TimeoutError", "TypeError"].includes(cause.name) ? cause.name : undefined,
+								});
 							}
 
 							acknowledgments.push(performance.now() - start);
@@ -225,6 +255,9 @@ test("PF01 real HTTP ingress and critical delivery meet fixture latency targets 
 					launchAndAckMs,
 					ackSamples: acknowledgments.length,
 					failedRequests: failures.length,
+					requestFailures: failures,
+					databaseHealth: (await db.query("SELECT numbackends::int AS backends, deadlocks::int, xact_rollback::text AS rollbacks FROM pg_stat_database WHERE datname=current_database()")).rows[0],
+					ingressOutcomes: (await db.query("SELECT ingress_outcome, response_status, count(*)::int AS count FROM payloadbay.event WHERE endpoint_id=$1 GROUP BY ingress_outcome,response_status ORDER BY ingress_outcome,response_status", [scope.endpoint])).rows,
 					completed,
 					firstAttempts: delivery.length,
 					bulkSamples,

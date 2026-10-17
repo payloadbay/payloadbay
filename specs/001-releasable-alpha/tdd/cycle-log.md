@@ -3365,3 +3365,40 @@ stay open. The planned notification-unit placeholder is reconciled to existing
 real-PG U168/U175/U176/U177 coverage; no actual test or owner is removed. Inventory
 and its19 tooling tests pass. Historical Red cycles are not fabricated from a
 retrospective passing test.
+
+
+## Subsequent db2fb3e availability failure — investigation open
+
+CI39053349674 passes static checks and complete owners unit51/51, backend297/297,
+executor33/33, deployment32/32 and browser70/70. This includes the added public
+A6/A8/A9/A11 protocol case. Performance fails its unchanged zero-failure assertion:
+one of600 requests did not receive the expected acknowledgment, with599 measured
+deliveries. ACKp9584.736426ms, first-attemptp9583.725ms/max247.664ms remain within
+the latency limits, but do not excuse the availability failure. Coverage merging
+was skipped; this run is not described as a passing coverage checkpoint.
+
+The original benchmark retained a failure count without HTTP/transport details.
+It cannot establish the failure cause or whether an unacknowledged request
+committed. Two local repetitions pass600/600 with unchanged deadlines and no
+request retries; these are reproduction attempts, not proof of remediation.
+T054 is reopened. The existing latency.json test artifact now retains sanitized
+request sequence/status/public error code/correlation ID/timing and bounded
+transport error classifications, plus aggregate database and ingress outcomes.
+No raw response bodies, private payloads, credentials or production logger are
+added. No production runtime change is justified by the evidence so far.
+
+The current master merge brings only the synchronized agent baseline and source
+metadata into this existing alpha branch. It neither merges the alpha into master
+nor changes the six unrelated local Docker/migration drafts.
+
+A third local repetition fails a different unchanged target: all600 requests
+receive202 and all600 deliver, but first-attemptp953713.417ms exceeds2000ms
+(max3919.350ms; ACKp95289.606ms). The retained artifact is
+`test-results/85093bd3-38c7-4167-97ae-5a8bdb89ca62/performance/latency.json`.
+Queuep953607.356ms dominates claim-to-attemptp95220.158ms and receiver
+HTTPp9539.517ms. PostgreSQL reports zero deadlocks and one rollback; host load
+is21.39/15.82/14.92 before and19.78/16.33/15.15 after on16 logical CPUs. These
+observations narrow that latency symptom to queue wait, but do not establish
+its cause or explain the original CI acknowledgment failure. No thresholds,
+request retries or production concurrency were changed. TypeScript, ESLint,
+Prettier and diff whitespace checks pass for the benchmark reporting changes.

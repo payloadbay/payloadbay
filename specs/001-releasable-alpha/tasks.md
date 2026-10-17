@@ -17,9 +17,10 @@ mandatory 241/241 per-file coverage gate. The original acceptance mapping and
 source-versus-published boundaries are in `preflight.md`. Source bootstrap UI
 and A2–5/A7/A10/A12–13/A15–20 are verified there. A1 remains a published operator
 installation gate; A14 retains deployment-specific network reachability checks.
-The additional public HTTP A6/A8/A9/A11 case passes locally but awaits its final
-complete clean deployment owner. Historical Red checkboxes are not inferred from
-passing retrospective tests.
+The additional public HTTP A6/A8/A9/A11 case now passes its complete clean
+deployment owner32/32 in db2fb3e CI39053349674. That run has a separate open
+performance failure (T054); it is not an overall passing checkpoint. Historical
+Red checkboxes are not inferred from passing retrospective tests.
 
 The approved 2026-10-15/16 complete-module editor contract in
 `contracts/script-lifecycle.md` supersedes historical body-only/editor-path wording
@@ -148,7 +149,7 @@ actual editor is `components/code-editor.tsx`, scoped code is under
 
 - [x] T089 [US2] [A4] Verify acceptance US2.1 through its real entrypoint in tests/acceptance/dashboard.spec.ts; observed passing output and the complete affected story checks are required before closing this criterion: Selecting a template copies its editable source and helpers.
 - [x] T090 [US2] [A5] Verify acceptance US2.2 through its real entrypoint in tests/integration/publication.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: Editing draft or parent helper source leaves the active published behavior unchanged.
-- [ ] T091 [US2] [A6] Verify acceptance US2.3 through its real entrypoint in tests/integration/ingress.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: Invoking published custom verification code returns its exact protocol response.
+- [x] T091 [US2] [A6] Verify acceptance US2.3 through its real entrypoint in tests/integration/ingress.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: Invoking published custom verification code returns its exact protocol response.
 
 ## Phase 5: US3 — durable ingress and actual delivery (P1)
 
@@ -172,7 +173,7 @@ actual editor is `components/code-editor.tsx`, scoped code is under
 
 - [ ] T052 [US3] Red: Add pinned processing outcome/exception/timeout and critical event under email/replay backlog cases in tests/integration/delivery.test.ts and tests/performance/delivery.test.ts; trace FR008/025. Behavior markers: [U105] [U106] [U107] [U108] [U109] [U110] [U111] [U112] [U113] [U114].
 - [ ] T053 [US3] Green: Implement apps/worker/src/main.ts, apps/worker/src/tasks/process-event.ts and packages/domain/src/dispatch.ts for generation claim/heartbeats, reserved critical/mail capacity, independently reserved ingress, destination concurrency and complete/retry/fail; initial processing30s, targetRSS256MiB, defaultmax5 bounded exponential/jitter attempts. (after T052). Behavior markers: [U105] [U106] [U107] [U108] [U109] [U110] [U111] [U112] [U113] [U114].
-- [x] T054 [US3] Refactor/verify: Measure documented10events/sec×60s fixture: p95ack≤1s, acceptance-to-first-attempt≤2s, no critical wait>10s in tests/performance/delivery.test.ts; report hardware/cold starts/counts and never silently relax failed targets. (after T053). Behavior markers: [U105] [U106] [U107] [U108] [U109] [U110] [U111] [U112] [U113] [U114].
+- [ ] T054 [US3] Refactor/verify: Measure documented10events/sec×60s fixture: p95ack≤1s, acceptance-to-first-attempt≤2s, no critical wait>10s in tests/performance/delivery.test.ts; report hardware/cold starts/counts and never silently relax failed targets. (after T053). Behavior markers: [U105] [U106] [U107] [U108] [U109] [U110] [U111] [U112] [U113] [U114].
 
 ### Destination and basic event dashboard
 
@@ -183,10 +184,10 @@ actual editor is `components/code-editor.tsx`, scoped code is under
 ### Story acceptance completion gates
 
 - [x] T092 [US3] [A7] Verify acceptance US3.1 through its real entrypoint in tests/integration/ingress.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: Provider success is observable only after event and recoverable work commit.
-- [ ] T093 [US3] [A8] Verify acceptance US3.2 through its real entrypoint in tests/integration/ingress.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: A protocol-only challenge returns exact bytes without creating processing work.
-- [ ] T094 [US3] [A9] Verify acceptance US3.3 through its real entrypoint in tests/integration/ingress.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: Verification failure or invalid ingress result creates no accepted work.
+- [x] T093 [US3] [A8] Verify acceptance US3.2 through its real entrypoint in tests/integration/ingress.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: A protocol-only challenge returns exact bytes without creating processing work.
+- [x] T094 [US3] [A9] Verify acceptance US3.3 through its real entrypoint in tests/integration/ingress.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: Verification failure or invalid ingress result creates no accepted work.
 - [x] T095 [US3] [A10] Verify acceptance US3.4 through its real entrypoint in tests/integration/delivery.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: A failing optional destination remains visible without overriding successful app-required policy.
-- [ ] T096 [US3] [A11] Verify acceptance US3.5 through its real entrypoint in tests/integration/ingress.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: A failed acceptance transaction never sends provider success.
+- [x] T096 [US3] [A11] Verify acceptance US3.5 through its real entrypoint in tests/integration/ingress.test.ts; observed passing output and the complete affected story checks are required before closing this criterion: A failed acceptance transaction never sends provider success.
 
 ## Phase 6: US4 — shared middleware and custom routing (P1)
 
