@@ -41,3 +41,29 @@ Organization administrators with `members.admit` can invite a new identity to
 their authorized scope. Existing inactive instance admission cannot be restored
 by invitation. Invitations grant no resource access until verified acceptance;
 project-only invitees are not forced to create another organization.
+
+
+## Optional sign-in information
+
+Operators may set `PAYLOADBAY_LOGIN_HINT` at container runtime to show a short,
+public plain-text note on the email-entry step of `/login`. Newlines are preserved;
+HTML and Markdown are not interpreted. An unset, empty or whitespace-only value
+renders nothing. This setting works independently of preview mode and does not
+create identities, choose an account, enable registration, change roles or bypass
+OTP. Do not put secrets in public sign-in information.
+
+For a demo, the note can list existing example accounts and what they can access.
+Use only the roles/scopes actually configured on those identities. For example:
+
+```yaml
+environment:
+  PAYLOADBAY_LOGIN_HINT: |-
+    Try this demo using a sign-in code from its public test mailbox.
+    Instance owner: owner@example.test
+    Project viewer: viewer@example.test
+```
+
+Normal installations leave this unset. A future hosted product can use the same
+login flow and optionally supply its own text; this setting is not a separate
+deployment mode or billing feature. Changing the runtime setting requires
+recreating the app container, but not rebuilding its image.

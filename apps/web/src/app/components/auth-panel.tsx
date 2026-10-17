@@ -7,23 +7,22 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { Button, Card, Form, TextField, Label, Input, InputOTP, REGEXP_ONLY_DIGITS, Spinner, FieldError } from "@heroui/react";
-import { Stepper, NativeSelect } from "@heroui-pro/react";
+import { Stepper } from "@heroui-pro/react";
 import { IconMail, IconRefresh, IconFingerprint } from "@tabler/icons-react";
 import { api, ApiFailure } from "@lib/api-client";
-
-import { previewReviewerEmail, previewProjectAccounts, previewOrganizationAccount } from "@domain/preview";
 
 type AuthPanelProps = {
 	setup?: boolean;
 	preview?: boolean;
+	loginHint?: string;
 	initialEmail?: string;
 	returnTo?: string;
 };
 
-export function AuthPanel({ setup = false, preview = false, initialEmail, returnTo = "/" }: AuthPanelProps) {
+export function AuthPanel({ setup = false, preview = false, loginHint, initialEmail, returnTo = "/" }: AuthPanelProps) {
 	const router = useRouter();
 
-	const [email, setEmail] = useState(initialEmail ?? (preview && !setup ? previewReviewerEmail : ""));
+	const [email, setEmail] = useState(initialEmail ?? "");
 	const [name, setName] = useState("");
 	const [secret, setSecret] = useState("");
 	const [otp, setOtp] = useState("");
@@ -234,24 +233,10 @@ export function AuthPanel({ setup = false, preview = false, initialEmail, return
 									</TextField>
 								</>
 							)}
-							{preview && !setup && !sent && (
-								<div className='flex flex-col gap-2'>
-									<NativeSelect variant='secondary'>
-										<Label>Demo access</Label>
-										<NativeSelect.Trigger aria-label='Demo access' value={[previewReviewerEmail, previewOrganizationAccount.email, ...previewProjectAccounts.map((account) => account.email)].includes(email) ? email : ""} onChange={(event) => setEmail(event.target.value)} disabled={busy}>
-											<NativeSelect.Option value={previewReviewerEmail}>Instance owner · all projects</NativeSelect.Option>
-											<NativeSelect.Option value={previewOrganizationAccount.email}>Organization owner · separate customer</NativeSelect.Option>
-											{previewProjectAccounts.map((account) => (
-												<NativeSelect.Option key={account.email} value={account.email}>
-													{account.role === "admin" ? "Project admin · one project" : "Project viewer · read-only"}
-												</NativeSelect.Option>
-											))}
-											<NativeSelect.Option value=''>Another email address</NativeSelect.Option>
-											<NativeSelect.Indicator />
-										</NativeSelect.Trigger>
-									</NativeSelect>
-									<p className='text-muted text-sm'>Test different permissions using normal sign-in codes from preview Mailpit.</p>
-								</div>
+							{!setup && !sent && loginHint?.trim() && (
+								<p role='note' aria-label='Sign-in information' className='text-muted text-sm whitespace-pre-line wrap-anywhere'>
+									{loginHint.trim()}
+								</p>
 							)}
 							{!sent && (
 								<TextField name='email' type='email' value={email} onChange={setEmail} isRequired maxLength={254}>

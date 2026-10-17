@@ -870,3 +870,5 @@ original alpha release gates remain open. No release SQL was generated locally.
 | K03b | Foreign scopes, escalation and invalid workspace restrictions are refused | K03 | example | DONE | `tests/integration/authorization.test.ts::K03 organization keys enforce a persisted selected-workspace boundary` |
 
 | R08a | Bounded dialogs center on desktop and stay viewport-bound on mobile | R08 | example | DONE | `tests/acceptance/dashboard.spec.ts::R08 bounded dialogs center on desktop and remain inside the mobile viewport` |
+
+- L01 DONE: optional runtime sign-in information is escaped plain text, absent when blank (including preview), no account selector/prefill and hidden during OTP entry; bootstrap browser owner.

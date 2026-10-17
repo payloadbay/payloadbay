@@ -91,7 +91,14 @@ services:
       dockerfile: deploy/Dockerfile.app
       target: app
       secrets: [heroui_auth_token]
-    environment: *runtime
+    environment:
+      <<: *runtime
+      PAYLOADBAY_LOGIN_HINT: |-
+        Try these demo accounts using sign-in codes from preview Mailpit.
+        Instance owner: reviewer@preview.payloadbay.test
+        Organization owner: organization-owner@preview.payloadbay.test
+        Project admin: project-admin@preview.payloadbay.test
+        Project viewer: project-viewer@preview.payloadbay.test
     expose: ["3000"]
     depends_on:
       schema: {condition: service_completed_successfully}

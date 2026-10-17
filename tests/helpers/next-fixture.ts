@@ -6,7 +6,7 @@ import { once } from "node:events";
 import { authFixture } from "./auth-fixtures.ts";
 import { ensureNextBuild } from "../../scripts/tests/next-build.ts";
 
-export async function nextFixture(run: (f: Parameters<Parameters<typeof authFixture>[0]>[0] & { url: string; executorUrl: string }) => Promise<void>, options: { preview?: boolean; registrationPolicy?: "invite_only" | "organization" } = {}) {
+export async function nextFixture(run: (f: Parameters<Parameters<typeof authFixture>[0]>[0] & { url: string; executorUrl: string }) => Promise<void>, options: { preview?: boolean; loginHint?: string; registrationPolicy?: "invite_only" | "organization" } = {}) {
 	await authFixture(async (f) => {
 		ensureNextBuild();
 		const listener = createServer();
@@ -20,6 +20,7 @@ export async function nextFixture(run: (f: Parameters<Parameters<typeof authFixt
 			env: {
 				...fixtureEnvironment(f, url),
 				IS_PREVIEW: options.preview ? "true" : "false",
+				PAYLOADBAY_LOGIN_HINT: options.loginHint ?? "",
 				PAYLOADBAY_REGISTRATION_POLICY: options.registrationPolicy ?? "invite_only",
 				PORT: String(port),
 				HOSTNAME: "127.0.0.1",

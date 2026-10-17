@@ -95,7 +95,15 @@ and the guarded seed command before app/worker startup. This reset policy applie
 only to this dedicated preview application. Remote reset behavior still needs
 verification once its build succeeds.
 
-The fixed synthetic accounts use normal OTP login with preview Mailpit:
+The fixed synthetic accounts use normal OTP login with preview Mailpit. Preview
+Compose supplies `PAYLOADBAY_LOGIN_HINT` as a short plain-text list on sign-in;
+there is no account-selector dropdown or automatic email prefill. Other
+installations show no hint unless their operator configures it. The hint does
+not seed users or change permissions; see `docs/permissions.md`. Coolify loads
+Compose from master, so a changed Compose hint is not remotely effective until
+that definition is available to its loader.
+
+Available synthetic accounts:
 
 | Identity | Access |
 | --- | --- |
