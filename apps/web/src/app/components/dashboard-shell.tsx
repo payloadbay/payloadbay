@@ -10,6 +10,7 @@ import { Avatar, Button, Dropdown, Header, Label, Breadcrumbs } from "@heroui/re
 import { AppLayout, Sidebar, Command } from "@heroui-pro/react";
 import { IconHome, IconFolder, IconUsers, IconLogout, IconCode, IconSettings, IconInbox, IconBell, IconKey, IconFlask, IconHistory, IconRoute, IconBuilding, IconArrowLeft, IconSearch, IconBuildingCommunity, IconChartBar, IconBook, IconActivity } from "@tabler/icons-react";
 import { PreviewNotice } from "@components/preview-notice";
+import { LiveSubscription } from "@components/live-subscription";
 import { NotificationInbox } from "@components/notification-inbox";
 import { api, ApiFailure } from "@lib/api-client";
 import type { MeProfile, OrganizationSummary, WorkspaceSummary, ProjectSummary } from "@types";
@@ -611,191 +612,193 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 
 	return (
 		<Context.Provider value={{ ...data, reload: load }}>
-			<AppLayout
-				scrollMode='page'
-				sidebar={
-					<>
-						<Sidebar>{navigationContent}</Sidebar>
-						<Sidebar.Mobile aria-label='Dashboard navigation'>{navigationContent}</Sidebar.Mobile>
-					</>
-				}
-				navigate={navigate}
-				navbar={
-					<div>
-						{preview && <PreviewNotice />}
-						<div className='bg-background border-border flex min-h-16 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b px-4 py-3 sm:px-6'>
-							<div className='flex min-w-0 items-center gap-2'>
-								<AppLayout.MenuToggle aria-label='Toggle navigation' />
-								<Link href='/' aria-label='Payload Bay home' className='shrink-0'>
-									<Image src='/brand/payloadbay-logo-dark-transparent.svg' alt='Payload Bay' width={160} height={35} priority className='hidden min-[360px]:block' />
-									<Image src='/brand/payloadbay-icon-dark-transparent.svg' alt='Payload Bay' width={32} height={32} priority className='min-[360px]:hidden' />
-								</Link>
+			<LiveSubscription instanceId={data.me.instanceId} onReconnect={load}>
+				<AppLayout
+					scrollMode='page'
+					sidebar={
+						<>
+							<Sidebar>{navigationContent}</Sidebar>
+							<Sidebar.Mobile aria-label='Dashboard navigation'>{navigationContent}</Sidebar.Mobile>
+						</>
+					}
+					navigate={navigate}
+					navbar={
+						<div>
+							{preview && <PreviewNotice />}
+							<div className='bg-background border-border flex min-h-16 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b px-4 py-3 sm:px-6'>
+								<div className='flex min-w-0 items-center gap-2'>
+									<AppLayout.MenuToggle aria-label='Toggle navigation' />
+									<Link href='/' aria-label='Payload Bay home' className='shrink-0'>
+										<Image src='/brand/payloadbay-logo-dark-transparent.svg' alt='Payload Bay' width={160} height={35} priority className='hidden min-[360px]:block' />
+										<Image src='/brand/payloadbay-icon-dark-transparent.svg' alt='Payload Bay' width={32} height={32} priority className='min-[360px]:hidden' />
+									</Link>
+								</div>
+								<Button variant='secondary' aria-label='Search pages and resources' aria-haspopup='dialog' onPress={() => setSearchOpen(true)} className='text-muted order-3 w-full justify-start font-normal sm:order-none sm:min-w-0 sm:max-w-lg sm:flex-1'>
+									<IconSearch size={18} aria-hidden='true' />
+									<span className='truncate'>Search pages and resources…</span>
+								</Button>
+								<div className='flex shrink-0 items-center gap-2'>
+									{(currentProject?.permissions ?? currentWorkspace?.permissions ?? data.me.permissions).includes("notifications.read") && <NotificationInbox scope={{ type: currentProject ? "project" : currentWorkspace ? "workspace" : "instance", id: currentProject?.id ?? currentWorkspace?.id ?? data.me.instanceId }} />}
+									<Dropdown>
+										<Dropdown.Trigger aria-label='Account menu' className='rounded-full outline-offset-4'>
+											<Avatar size='sm'>
+												<Avatar.Fallback>{initials}</Avatar.Fallback>
+											</Avatar>
+										</Dropdown.Trigger>
+										<Dropdown.Popover placement='bottom end' className='w-64 max-w-[calc(100vw-2rem)]'>
+											<Dropdown.Menu aria-label='Account actions'>
+												<Dropdown.Section>
+													<Header className='flex flex-col gap-1 px-2 py-2'>
+														<span className='truncate font-medium'>{data.me.user.name}</span>
+														<span className='text-muted truncate text-xs'>{data.me.user.email}</span>
+													</Header>
+													<Dropdown.Item id='notification-preferences' textValue='Notification settings' href='/account/notifications'>
+														<IconBell size={18} aria-hidden='true' />
+														<Label>Notification settings</Label>
+													</Dropdown.Item>
+													<Dropdown.Item id='account' textValue='Account settings' href='/account'>
+														<IconSettings size={18} aria-hidden='true' />
+														<Label>Account settings</Label>
+													</Dropdown.Item>
+
+													<Dropdown.Item id='api-keys' textValue='Personal API keys' href='/account/api-keys'>
+														<IconKey size={18} aria-hidden='true' />
+														<Label>Personal API keys</Label>
+													</Dropdown.Item>
+													<Dropdown.Item id='api-docs' textValue='API documentation' href='/docs/api'>
+														<IconBook size={18} aria-hidden='true' />
+														<Label>API documentation</Label>
+													</Dropdown.Item>
+
+													<Dropdown.Item className='text-danger' id='sign-out' textValue='Sign out' onAction={() => void signOut()}>
+														<IconLogout size={18} aria-hidden='true' />
+														<Label>Sign out</Label>
+													</Dropdown.Item>
+												</Dropdown.Section>
+											</Dropdown.Menu>
+										</Dropdown.Popover>
+									</Dropdown>
+								</div>
 							</div>
-							<Button variant='secondary' aria-label='Search pages and resources' aria-haspopup='dialog' onPress={() => setSearchOpen(true)} className='text-muted order-3 w-full justify-start font-normal sm:order-none sm:min-w-0 sm:max-w-lg sm:flex-1'>
-								<IconSearch size={18} aria-hidden='true' />
-								<span className='truncate'>Search pages and resources…</span>
-							</Button>
-							<div className='flex shrink-0 items-center gap-2'>
-								{(currentProject?.permissions ?? currentWorkspace?.permissions ?? data.me.permissions).includes("notifications.read") && <NotificationInbox scope={{ type: currentProject ? "project" : currentWorkspace ? "workspace" : "instance", id: currentProject?.id ?? currentWorkspace?.id ?? data.me.instanceId }} />}
+						</div>
+					}
+				>
+					<div className='mx-auto w-full min-w-0 max-w-6xl p-4 sm:p-6 lg:p-10'>
+						<nav aria-label='Breadcrumbs' className='mb-6 hidden overflow-x-auto sm:block'>
+							<Breadcrumbs className='min-w-max'>
+								<Breadcrumbs.Item href={pathname === "/" ? undefined : "/"}>Overview</Breadcrumbs.Item>
+								{currentOrganization && <Breadcrumbs.Item href={pathname === "/organizations/" + currentOrganization.id ? undefined : "/organizations/" + currentOrganization.id}>{currentOrganization.name}</Breadcrumbs.Item>}
+								{currentOrganization && pathname === "/organizations/" + currentOrganization.id + "/usage" && <Breadcrumbs.Item>Usage and limits</Breadcrumbs.Item>}
+								{currentOrganization && pathname === "/organizations/" + currentOrganization.id + "/api-keys" && <Breadcrumbs.Item>API keys</Breadcrumbs.Item>}
+								{currentWorkspace && <Breadcrumbs.Item href={pathname === "/workspaces/" + currentWorkspace.id ? undefined : "/workspaces/" + currentWorkspace.id}>{currentWorkspace.name}</Breadcrumbs.Item>}
+								{currentProject && <Breadcrumbs.Item href={pathname === "/projects/" + currentProject.id ? undefined : "/projects/" + currentProject.id}>{currentProject.name}</Breadcrumbs.Item>}
+								{routeId && <Breadcrumbs.Item href={routeAddress}>{routeMetadata && routeMetadata.id === routeId ? routeMetadata.name : "Ingress route"}</Breadcrumbs.Item>}
+								{routeId && <Breadcrumbs.Item>{routeSection === "middleware" ? "Middleware" : (routeLinks.find((item) => item.id === routeSection)?.label ?? "Scripts")}</Breadcrumbs.Item>}
+								{pathname.startsWith("/admin/notification-channels/") && <Breadcrumbs.Item href='/admin/notification-channels'>Notification modules</Breadcrumbs.Item>}
+								{!currentProject && !currentWorkspace && !currentOrganization && pathname !== "/" && (
+									<Breadcrumbs.Item>{pathname === "/organizations" ? "Organizations" : pathname === "/workspaces" ? "Workspaces" : pathname === "/projects" ? "Projects" : pathname === "/events" ? "Events" : pathname === "/account/api-keys" ? "Personal API keys" : pathname === "/account/notifications" ? "Notification settings" : pathname.startsWith("/account") ? "Account settings" : administrationLabel}</Breadcrumbs.Item>
+								)}
+							</Breadcrumbs>
+						</nav>
+						<nav aria-label='Breadcrumbs' className='mb-6 flex min-w-0 items-center gap-2 sm:hidden'>
+							{pathname !== "/" && (
 								<Dropdown>
-									<Dropdown.Trigger aria-label='Account menu' className='rounded-full outline-offset-4'>
-										<Avatar size='sm'>
-											<Avatar.Fallback>{initials}</Avatar.Fallback>
-										</Avatar>
+									<Dropdown.Trigger aria-label='Parent pages' className='button button--ghost size-9 shrink-0'>
+										…
 									</Dropdown.Trigger>
-									<Dropdown.Popover placement='bottom end' className='w-64 max-w-[calc(100vw-2rem)]'>
-										<Dropdown.Menu aria-label='Account actions'>
-											<Dropdown.Section>
-												<Header className='flex flex-col gap-1 px-2 py-2'>
-													<span className='truncate font-medium'>{data.me.user.name}</span>
-													<span className='text-muted truncate text-xs'>{data.me.user.email}</span>
-												</Header>
-												<Dropdown.Item id='notification-preferences' textValue='Notification settings' href='/account/notifications'>
-													<IconBell size={18} aria-hidden='true' />
-													<Label>Notification settings</Label>
+									<Dropdown.Popover className='max-w-[calc(100vw-2rem)]'>
+										<Dropdown.Menu aria-label='Parent pages'>
+											{pathname.startsWith("/admin/notification-channels/") && (
+												<Dropdown.Item id='notification-catalog' href='/admin/notification-channels'>
+													Notification modules
 												</Dropdown.Item>
-												<Dropdown.Item id='account' textValue='Account settings' href='/account'>
-													<IconSettings size={18} aria-hidden='true' />
-													<Label>Account settings</Label>
+											)}
+											<Dropdown.Item id='home' href='/'>
+												Overview
+											</Dropdown.Item>
+											{currentOrganization && (
+												<Dropdown.Item id='organization' href={"/organizations/" + currentOrganization.id}>
+													{currentOrganization.name}
 												</Dropdown.Item>
-
-												<Dropdown.Item id='api-keys' textValue='Personal API keys' href='/account/api-keys'>
-													<IconKey size={18} aria-hidden='true' />
-													<Label>Personal API keys</Label>
+											)}
+											{currentWorkspace && (
+												<Dropdown.Item id='workspace' href={"/workspaces/" + currentWorkspace.id}>
+													{currentWorkspace.name}
 												</Dropdown.Item>
-												<Dropdown.Item id='api-docs' textValue='API documentation' href='/docs/api'>
-													<IconBook size={18} aria-hidden='true' />
-													<Label>API documentation</Label>
+											)}
+											{currentProject && (
+												<Dropdown.Item id='project' href={"/projects/" + currentProject.id}>
+													{currentProject.name}
 												</Dropdown.Item>
-
-												<Dropdown.Item className='text-danger' id='sign-out' textValue='Sign out' onAction={() => void signOut()}>
-													<IconLogout size={18} aria-hidden='true' />
-													<Label>Sign out</Label>
+											)}
+											{routeId && (
+												<Dropdown.Item id='route' href={routeAddress}>
+													{routeMetadata?.name ?? "Ingress route"}
 												</Dropdown.Item>
-											</Dropdown.Section>
+											)}
 										</Dropdown.Menu>
 									</Dropdown.Popover>
 								</Dropdown>
-							</div>
-						</div>
-					</div>
-				}
-			>
-				<div className='mx-auto w-full min-w-0 max-w-6xl p-4 sm:p-6 lg:p-10'>
-					<nav aria-label='Breadcrumbs' className='mb-6 hidden overflow-x-auto sm:block'>
-						<Breadcrumbs className='min-w-max'>
-							<Breadcrumbs.Item href={pathname === "/" ? undefined : "/"}>Overview</Breadcrumbs.Item>
-							{currentOrganization && <Breadcrumbs.Item href={pathname === "/organizations/" + currentOrganization.id ? undefined : "/organizations/" + currentOrganization.id}>{currentOrganization.name}</Breadcrumbs.Item>}
-							{currentOrganization && pathname === "/organizations/" + currentOrganization.id + "/usage" && <Breadcrumbs.Item>Usage and limits</Breadcrumbs.Item>}
-							{currentOrganization && pathname === "/organizations/" + currentOrganization.id + "/api-keys" && <Breadcrumbs.Item>API keys</Breadcrumbs.Item>}
-							{currentWorkspace && <Breadcrumbs.Item href={pathname === "/workspaces/" + currentWorkspace.id ? undefined : "/workspaces/" + currentWorkspace.id}>{currentWorkspace.name}</Breadcrumbs.Item>}
-							{currentProject && <Breadcrumbs.Item href={pathname === "/projects/" + currentProject.id ? undefined : "/projects/" + currentProject.id}>{currentProject.name}</Breadcrumbs.Item>}
-							{routeId && <Breadcrumbs.Item href={routeAddress}>{routeMetadata && routeMetadata.id === routeId ? routeMetadata.name : "Ingress route"}</Breadcrumbs.Item>}
-							{routeId && <Breadcrumbs.Item>{routeSection === "middleware" ? "Middleware" : (routeLinks.find((item) => item.id === routeSection)?.label ?? "Scripts")}</Breadcrumbs.Item>}
-							{pathname.startsWith("/admin/notification-channels/") && <Breadcrumbs.Item href='/admin/notification-channels'>Notification modules</Breadcrumbs.Item>}
-							{!currentProject && !currentWorkspace && !currentOrganization && pathname !== "/" && (
-								<Breadcrumbs.Item>{pathname === "/organizations" ? "Organizations" : pathname === "/workspaces" ? "Workspaces" : pathname === "/projects" ? "Projects" : pathname === "/events" ? "Events" : pathname === "/account/api-keys" ? "Personal API keys" : pathname === "/account/notifications" ? "Notification settings" : pathname.startsWith("/account") ? "Account settings" : administrationLabel}</Breadcrumbs.Item>
 							)}
-						</Breadcrumbs>
-					</nav>
-					<nav aria-label='Breadcrumbs' className='mb-6 flex min-w-0 items-center gap-2 sm:hidden'>
-						{pathname !== "/" && (
-							<Dropdown>
-								<Dropdown.Trigger aria-label='Parent pages' className='button button--ghost size-9 shrink-0'>
-									…
-								</Dropdown.Trigger>
-								<Dropdown.Popover className='max-w-[calc(100vw-2rem)]'>
-									<Dropdown.Menu aria-label='Parent pages'>
-										{pathname.startsWith("/admin/notification-channels/") && (
-											<Dropdown.Item id='notification-catalog' href='/admin/notification-channels'>
-												Notification modules
-											</Dropdown.Item>
-										)}
-										<Dropdown.Item id='home' href='/'>
-											Overview
-										</Dropdown.Item>
-										{currentOrganization && (
-											<Dropdown.Item id='organization' href={"/organizations/" + currentOrganization.id}>
-												{currentOrganization.name}
-											</Dropdown.Item>
-										)}
-										{currentWorkspace && (
-											<Dropdown.Item id='workspace' href={"/workspaces/" + currentWorkspace.id}>
-												{currentWorkspace.name}
-											</Dropdown.Item>
-										)}
-										{currentProject && (
-											<Dropdown.Item id='project' href={"/projects/" + currentProject.id}>
-												{currentProject.name}
-											</Dropdown.Item>
-										)}
-										{routeId && (
-											<Dropdown.Item id='route' href={routeAddress}>
-												{routeMetadata?.name ?? "Ingress route"}
-											</Dropdown.Item>
-										)}
-									</Dropdown.Menu>
-								</Dropdown.Popover>
-							</Dropdown>
-						)}
-						<Breadcrumbs className='min-w-0 [&_.breadcrumbs__link]:max-w-36 [&_.breadcrumbs__link]:truncate'>
-							{routeId ? (
-								<Breadcrumbs.Item href={routeAddress}>{routeMetadata?.name ?? "Ingress route"}</Breadcrumbs.Item>
-							) : currentProject ? (
-								<Breadcrumbs.Item href={pathname === "/projects/" + currentProject.id ? undefined : "/projects/" + currentProject.id}>{currentProject.name}</Breadcrumbs.Item>
-							) : currentWorkspace ? (
-								<Breadcrumbs.Item href={pathname === "/workspaces/" + currentWorkspace.id ? undefined : "/workspaces/" + currentWorkspace.id}>{currentWorkspace.name}</Breadcrumbs.Item>
-							) : currentOrganization ? (
-								<Breadcrumbs.Item href={pathname === "/organizations/" + currentOrganization.id ? undefined : "/organizations/" + currentOrganization.id}>{currentOrganization.name}</Breadcrumbs.Item>
-							) : null}
-							{currentOrganization && pathname === "/organizations/" + currentOrganization.id + "/usage" && <Breadcrumbs.Item>Usage and limits</Breadcrumbs.Item>}
-							{currentOrganization && pathname === "/organizations/" + currentOrganization.id + "/api-keys" && <Breadcrumbs.Item>API keys</Breadcrumbs.Item>}
-							{routeId ? (
-								<Breadcrumbs.Item>{routeSection === "middleware" ? "Middleware" : (routeLinks.find((item) => item.id === routeSection)?.label ?? "Scripts")}</Breadcrumbs.Item>
-							) : !currentProject && !currentWorkspace && !currentOrganization ? (
-								<Breadcrumbs.Item>{pathname === "/" ? "Overview" : pathname === "/organizations" ? "Organizations" : pathname === "/workspaces" ? "Workspaces" : pathname === "/projects" ? "Projects" : pathname === "/events" ? "Events" : pathname === "/account/api-keys" ? "Personal API keys" : pathname === "/account/notifications" ? "Notification settings" : pathname.startsWith("/account") ? "Account settings" : administrationLabel}</Breadcrumbs.Item>
-							) : null}
-						</Breadcrumbs>
-					</nav>
-					{children}
-				</div>
-			</AppLayout>
-			<Command>
-				<Command.Backdrop
-					isOpen={searchOpen}
-					onOpenChange={(open) => {
-						setSearchOpen(open);
-						if (!open) setNavigationQuery("");
-					}}
-				>
-					<Command.Container size='lg'>
-						<Command.Dialog aria-label='Search pages and resources' inputValue={navigationQuery} onInputChange={setNavigationQuery}>
-							<Command.Header>All accessible pages and resources</Command.Header>
-							<Command.InputGroup>
-								<Command.InputGroup.Input placeholder='Search pages and resources…' />
-								<Command.InputGroup.ClearButton aria-label='Clear search' />
-							</Command.InputGroup>
-							<Command.List
-								onAction={(key) => {
-									const item = searchItems.find((item) => item.id === key);
-									if (item) navigate(item.href);
-								}}
-								renderEmptyState={() => <p className='p-4 text-muted'>No matching pages or resources.</p>}
-							>
-								<Command.Group heading='Jump to'>
-									{searchItems.map((item) => (
-										<Command.Item key={item.id} id={item.id} textValue={item.label} aria-label={"Jump to " + item.label}>
-											<item.icon size={18} />
-											<span className='min-w-0 whitespace-normal'>{item.label}</span>
-											<span className='ml-auto text-xs text-muted'>Jump to</span>
-										</Command.Item>
-									))}
-								</Command.Group>
-							</Command.List>
-						</Command.Dialog>
-					</Command.Container>
-				</Command.Backdrop>
-			</Command>
+							<Breadcrumbs className='min-w-0 [&_.breadcrumbs__link]:max-w-36 [&_.breadcrumbs__link]:truncate'>
+								{routeId ? (
+									<Breadcrumbs.Item href={routeAddress}>{routeMetadata?.name ?? "Ingress route"}</Breadcrumbs.Item>
+								) : currentProject ? (
+									<Breadcrumbs.Item href={pathname === "/projects/" + currentProject.id ? undefined : "/projects/" + currentProject.id}>{currentProject.name}</Breadcrumbs.Item>
+								) : currentWorkspace ? (
+									<Breadcrumbs.Item href={pathname === "/workspaces/" + currentWorkspace.id ? undefined : "/workspaces/" + currentWorkspace.id}>{currentWorkspace.name}</Breadcrumbs.Item>
+								) : currentOrganization ? (
+									<Breadcrumbs.Item href={pathname === "/organizations/" + currentOrganization.id ? undefined : "/organizations/" + currentOrganization.id}>{currentOrganization.name}</Breadcrumbs.Item>
+								) : null}
+								{currentOrganization && pathname === "/organizations/" + currentOrganization.id + "/usage" && <Breadcrumbs.Item>Usage and limits</Breadcrumbs.Item>}
+								{currentOrganization && pathname === "/organizations/" + currentOrganization.id + "/api-keys" && <Breadcrumbs.Item>API keys</Breadcrumbs.Item>}
+								{routeId ? (
+									<Breadcrumbs.Item>{routeSection === "middleware" ? "Middleware" : (routeLinks.find((item) => item.id === routeSection)?.label ?? "Scripts")}</Breadcrumbs.Item>
+								) : !currentProject && !currentWorkspace && !currentOrganization ? (
+									<Breadcrumbs.Item>{pathname === "/" ? "Overview" : pathname === "/organizations" ? "Organizations" : pathname === "/workspaces" ? "Workspaces" : pathname === "/projects" ? "Projects" : pathname === "/events" ? "Events" : pathname === "/account/api-keys" ? "Personal API keys" : pathname === "/account/notifications" ? "Notification settings" : pathname.startsWith("/account") ? "Account settings" : administrationLabel}</Breadcrumbs.Item>
+								) : null}
+							</Breadcrumbs>
+						</nav>
+						{children}
+					</div>
+				</AppLayout>
+				<Command>
+					<Command.Backdrop
+						isOpen={searchOpen}
+						onOpenChange={(open) => {
+							setSearchOpen(open);
+							if (!open) setNavigationQuery("");
+						}}
+					>
+						<Command.Container size='lg'>
+							<Command.Dialog aria-label='Search pages and resources' inputValue={navigationQuery} onInputChange={setNavigationQuery}>
+								<Command.Header>All accessible pages and resources</Command.Header>
+								<Command.InputGroup>
+									<Command.InputGroup.Input placeholder='Search pages and resources…' />
+									<Command.InputGroup.ClearButton aria-label='Clear search' />
+								</Command.InputGroup>
+								<Command.List
+									onAction={(key) => {
+										const item = searchItems.find((item) => item.id === key);
+										if (item) navigate(item.href);
+									}}
+									renderEmptyState={() => <p className='p-4 text-muted'>No matching pages or resources.</p>}
+								>
+									<Command.Group heading='Jump to'>
+										{searchItems.map((item) => (
+											<Command.Item key={item.id} id={item.id} textValue={item.label} aria-label={"Jump to " + item.label}>
+												<item.icon size={18} />
+												<span className='min-w-0 whitespace-normal'>{item.label}</span>
+												<span className='ml-auto text-xs text-muted'>Jump to</span>
+											</Command.Item>
+										))}
+									</Command.Group>
+								</Command.List>
+							</Command.Dialog>
+						</Command.Container>
+					</Command.Backdrop>
+				</Command>
+			</LiveSubscription>
 		</Context.Provider>
 	);
 }

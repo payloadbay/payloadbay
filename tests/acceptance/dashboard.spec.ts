@@ -1156,3 +1156,74 @@ test("U160 job screen distinguishes due backlog age and excludes future or pause
 		await pool.end();
 	}
 });
+
+test("U157 dashboard multiplexes live events and notifications on one connection", async ({ page }) => {
+	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
+	const { database } = await import("../../packages/domain/src/db.ts");
+	const { transaction } = await import("../../packages/domain/src/db.ts");
+	const { appendChange } = await import("../../packages/domain/src/changes.ts");
+	const { reconcileCondition } = await import("../../packages/domain/src/notifications.ts");
+	await ensureBrowserOwner(page);
+	const headers = commandHeaders();
+	const workspace = (await (await page.request.get("/api/v1/workspaces")).json())[0];
+	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Live project", slug: "live-project" } })).json();
+	const route = await (await page.request.post(`/api/v1/projects/${project.id}/endpoints`, { headers, data: { name: "Live route", slug: "live-route" } })).json();
+	const published = await page.request.post(`/api/v1/endpoints/${route.id}/publications`, { headers, data: { expectedVersion: 1, draftVersions: { ingress: 1, processing: 1 } } });
+	expect(published.status()).toBe(200);
+	const publication = await published.json();
+	await page.addInitScript(() => {
+		const sources: EventSource[] = [];
+		Object.defineProperty(window, "__payloadbayStreams", { value: sources });
+		const Native = window.EventSource;
+		window.EventSource = class extends Native {
+			constructor(url: string | URL, options?: EventSourceInit) {
+				super(url, options);
+				sources.push(this);
+			}
+		};
+	});
+	await page.goto(`/projects/${project.id}/events`);
+	await expect(page.getByRole("heading", { name: "Events", exact: true })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Notifications", exact: true })).toHaveAccessibleDescription("No active notifications.");
+
+	const openStreams = () => page.evaluate(() => (Reflect.get(window, "__payloadbayStreams") as EventSource[]).filter((source) => source.readyState !== EventSource.CLOSED).length);
+
+	await expect.poll(openStreams).toBe(1);
+	const pool = database(process.env.DATABASE_URL!);
+	try {
+		const eventId = await transaction(pool, async (db) => {
+			const event = (await db.query("INSERT INTO payloadbay.event(endpoint_id,publication_id,original_body,accepted_body,headers,content_type) VALUES($1,$2,''::bytea,''::bytea,'{}','application/json') RETURNING id", [route.id, publication.id])).rows[0];
+			await db.query("INSERT INTO payloadbay.execution(event_id,endpoint_id,publication_id) VALUES($1,$2,$3)", [event.id, route.id, publication.id]);
+			await appendChange(db, { scope: { type: "project", id: project.id }, kind: "event.accepted", resourceId: event.id });
+
+			return event.id;
+		});
+		const row = page
+			.getByRole("grid", { name: "Stored events" })
+			.getByRole("row")
+			.filter({ has: page.getByRole("button", { name: "Inspect event " + eventId.slice(0, 8), exact: true }) });
+		await expect(row).toContainText("Accepted · queued");
+		await transaction(pool, async (db) => {
+			const result = await db.query("UPDATE payloadbay.execution SET state='succeeded',final_result='{\"kind\":\"complete\"}' WHERE event_id=$1 RETURNING id", [eventId]);
+			await appendChange(db, { scope: { type: "project", id: project.id }, kind: "execution.changed", resourceId: result.rows[0].id });
+		});
+		await expect(row).toContainText("Handler completed");
+		await reconcileCondition(pool, {
+			key: "shared-stream-notice",
+			revision: "1",
+			kind: "delivery.failure-threshold",
+			scope: { type: "project", id: project.id },
+			subject: "Live notice",
+			severity: "warning",
+			active: true,
+		});
+		await expect(page.getByRole("button", { name: "Notifications", exact: true })).toHaveAccessibleDescription("1 active notification. Highest severity: warning.");
+		await expect.poll(openStreams).toBe(1);
+		await page.getByRole("navigation", { name: "Breadcrumbs", exact: true }).getByRole("link", { name: "Overview", exact: true }).click();
+		await expect(page.getByRole("heading", { name: "Overview", exact: true })).toBeVisible();
+		expect(await page.evaluate(() => (Reflect.get(window, "__payloadbayStreams") as EventSource[]).length)).toBe(1);
+		await expect.poll(openStreams).toBe(1);
+	} finally {
+		await pool.end();
+	}
+});

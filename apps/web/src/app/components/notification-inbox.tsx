@@ -1,5 +1,6 @@
 "use client";
 
+import { useLiveSubscription } from "@components/live-subscription";
 import { LoadingState } from "@components/loading-state";
 import { useFeedbackToast } from "@lib/feedback";
 import { useEffect, useState, useCallback, useId } from "react";
@@ -19,6 +20,7 @@ type Notice = {
 
 export function NotificationInbox({ scope, label = "Notifications" }: { scope: Scope; label?: string }) {
 	const descriptionId = useId();
+	const { subscribe } = useLiveSubscription();
 
 	const [open, setOpen] = useState(false);
 	const [items, setItems] = useState<Notice[]>([]);
@@ -64,15 +66,15 @@ export function NotificationInbox({ scope, label = "Notifications" }: { scope: S
 			);
 
 		void refresh();
-		const changes = new EventSource("/api/v1/changes?scopeType=" + scope.type + "&scopeId=" + encodeURIComponent(scope.id));
-		changes.addEventListener("notification.changed", refresh);
-		changes.addEventListener("resync-required", refresh);
+		const stopNotification = subscribe("notification.changed", refresh);
+		const stopResync = subscribe("resync-required", refresh);
 
 		return () => {
 			active = false;
-			changes.close();
+			stopNotification();
+			stopResync();
 		};
-	}, [fetchData, receive, failed, scope.type, scope.id]);
+	}, [fetchData, receive, failed, scope.type, scope.id, subscribe]);
 
 	async function dismiss(id: string) {
 		setBusy(id);

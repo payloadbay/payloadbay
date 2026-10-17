@@ -1,5 +1,6 @@
 "use client";
 
+import { useLiveSubscription } from "@components/live-subscription";
 import { LoadingState } from "@components/loading-state";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button, Table, Label, Chip, Select, ListBox, Checkbox, Tabs, Modal } from "@heroui/react";
@@ -86,7 +87,8 @@ function statusColor(state: string | null | undefined): "danger" | "success" | "
 }
 
 export function EventBrowser({ projectId, endpointId, embedded = false }: { projectId?: string; endpointId?: string; embedded?: boolean }) {
-	const { me, projects, workspaces } = useDashboard();
+	const { subscribe, status: liveStatus } = useLiveSubscription();
+	const { projects, workspaces } = useDashboard();
 
 	const [projectFilter, setProjectFilter] = useState("");
 	const [workspaceFilter, setWorkspaceFilter] = useState("");
@@ -187,7 +189,6 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 	}, [activeProject, endpointId]);
 
 	useEffect(() => {
-		const stream = new EventSource("/api/v1/changes?scopeType=" + (activeProject ? "project" : "accessible") + "&scopeId=" + (activeProject || me.instanceId));
 		let timer: ReturnType<typeof setTimeout> | undefined;
 
 		const refresh = () => {
@@ -198,19 +199,13 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 				}, 100);
 		};
 
-		let opened = false;
-		stream.onopen = () => {
-			if (opened) refresh();
-			opened = true;
-		};
-
-		for (const kind of ["event.recorded", "event.accepted", "execution.changed", "attempt.completed", "resync-required"]) stream.addEventListener(kind, refresh);
+		const unsubscribe = (["event.recorded", "event.accepted", "execution.changed", "attempt.completed", "resync-required"] as const).map((kind) => subscribe(kind, refresh));
 
 		return () => {
-			stream.close();
+			for (const stop of unsubscribe) stop();
 			if (timer) clearTimeout(timer);
 		};
-	}, [activeProject, me.instanceId, load]);
+	}, [subscribe, load]);
 
 	useEffect(() => {
 		if (!selected) return;
@@ -351,7 +346,10 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 				<div>
 					<p className='text-muted text-sm'>{projects.find((project) => project.id === activeProject)?.name ?? "All accessible projects"}</p>
 					<h1 className='text-3xl font-semibold'>{embedded ? "Route events" : "Events"}</h1>
-					<p className='text-muted mt-2'>One received event, with its ingress outcome, processing executions and outgoing attempts. Updates arrive live.</p>
+					<p className='text-muted mt-2'>One received event, with its ingress outcome, processing executions and outgoing attempts.</p>
+					<p role='status' className='text-muted mt-2 text-sm'>
+						Live updates: {liveStatus === "connected" ? "Connected" : liveStatus === "connecting" ? "Connecting" : "Reconnecting"}
+					</p>
 				</div>
 				<Button variant='secondary' onPress={() => void load()}>
 					<IconRefresh size={18} />

@@ -100,3 +100,16 @@ Settings reset uses the ordinary version-checked PUT to select `smtp` and defaul
 branding; no destructive reset API is needed. SMTP transport settings stay in
 deployment secrets. This extension uses the existing durable platform-job queue,
 shared script compiler/executor and notification rule/access model.
+
+
+### Dashboard live transport implementation
+
+The dashboard owns one installation-accessible SSE connection per mounted tab.
+The server authorizes each durable reference against current grants before
+sending it. Event views and the notification inbox subscribe to relevant kinds
+locally, then read their existing permission-checked HTTP resources. Neither a
+client-side scope nor a shared connection grants access to payloads or another
+customer's records. Client navigation/filter changes do not create another
+connection. Native EventSource preserves its Last-Event-ID during reconnect;
+a reopened stream or explicit resync-required frame refreshes authorized views.
+The event screen reports connecting, connected or reconnecting status.

@@ -1,5 +1,6 @@
 "use client";
 
+import { useLiveSubscription } from "@components/live-subscription";
 import { LoadingState } from "@components/loading-state";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -46,7 +47,8 @@ const states: Record<string, string> = {
 };
 
 export default function DashboardPage() {
-	const { me, projects, workspaces } = useDashboard();
+	const { projects, workspaces } = useDashboard();
+	const { subscribe } = useLiveSubscription();
 
 	const [overview, setOverview] = useState<Overview | null>(null);
 	const [error, setError] = useState("");
@@ -66,7 +68,6 @@ export default function DashboardPage() {
 		void api<Overview>("/overview")
 			.then(setOverview)
 			.catch((cause) => setError(cause instanceof Error ? cause.message : "Overview unavailable"));
-		const stream = new EventSource("/api/v1/changes?scopeType=accessible&scopeId=" + encodeURIComponent(me.instanceId));
 		let timer: ReturnType<typeof setTimeout> | undefined;
 
 		const refresh = () => {
@@ -77,14 +78,13 @@ export default function DashboardPage() {
 				}, 150);
 		};
 
-		for (const kind of ["event.recorded", "event.accepted", "execution.changed", "attempt.completed", "resync-required"]) stream.addEventListener(kind, refresh);
-		stream.onopen = refresh;
+		const unsubscribe = (["event.recorded", "event.accepted", "execution.changed", "attempt.completed", "resync-required"] as const).map((kind) => subscribe(kind, refresh));
 
 		return () => {
-			stream.close();
+			for (const stop of unsubscribe) stop();
 			if (timer) clearTimeout(timer);
 		};
-	}, [load, me.instanceId]);
+	}, [load, subscribe]);
 
 	return (
 		<section className='flex flex-col gap-6'>

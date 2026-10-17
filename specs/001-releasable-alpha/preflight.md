@@ -91,3 +91,14 @@ production hostile-tenant rollout remain H01. Self-hosting records local usage
 without commercial ceilings or a required billing/license/telemetry service.
 There is no released alpha, production rollout or authorization to merge PR #13
 implied by this preflight.
+
+
+### Exact remote settings/jobs checkpoint — 2026-10-17
+
+Coolify deployed `9d0c3f7` successfully at08:54:25UTC. Real synthetic owner/viewer
+OTP, scoped API-key creation/authentication/revocation, key settings screens,
+centered desktop workspace dialog, bounded mobile jobs screen, safe job metadata
+and viewer denial passed. Both screenshots were inspected. The shared-dashboard
+SSE follow-up is still local and is not part of that remote result. Public
+sign-in hint text is configurable, but preview Compose is still loaded from
+master; its optional text is not claimed visible remotely.

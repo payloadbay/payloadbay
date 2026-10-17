@@ -432,7 +432,7 @@ do not establish it. Retain the independent alpha release gates.
   organization-wide or explicitly selected workspace scope and permission subsets.
 - [x] K03 Prove server-side scope restrictions, current-rights intersection,
   foreign-workspace rejection, revocation and secret-safe metadata in owning tests.
-- [ ] K04 Verify personal/organization mobile flows and exact deployed revision;
+- [x] K04 Verify personal/organization mobile flows and exact deployed revision;
   reconcile chat feedback in docs/ux-review-2026-10-17.md and Linear. Existing
   user-issued keys are not independent organization service accounts.
 
