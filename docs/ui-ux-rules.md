@@ -179,3 +179,8 @@ end-to-end delivery. Describe retention by the deletion policy (keep indefinitel
 or delete completed history after a period). Put implementation and security detail
 in contextual help; keep concise effect labels beside potentially real actions.
 Use ordinary punctuation for explanatory copy instead of decorative separators.
+
+Verify live views through real domain actions, not only a connected indicator or
+manually dispatched test event. Map subscriptions to every relevant outcome,
+including acceptance and retention, and test recovery after a failed read or
+stream gap. A live indicator must correspond to an actually refreshed view.

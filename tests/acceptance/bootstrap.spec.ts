@@ -328,7 +328,7 @@ test("route editor has nested navigation, a scripting guide, typed method handle
 	await expect(page.getByRole("dialog").getByText(/Only exported methods run/)).toBeVisible();
 	await page.getByRole("button", { name: "Got it" }).click();
 	await chooseOption(page.getByRole("button", { name: new RegExp("Ingress template") }), "unverified");
-	await expect(page.getByLabel("Ingress template", { exact: true })).toHaveValue("unverified");
+	await expect(page.getByRole("button", { name: /Ingress template/ })).toContainText("Explicitly unverified");
 	await page.getByRole("button", { name: "Toggle navigation" }).click();
 	await page.getByRole("dialog").getByRole("row", { name: "Secrets", exact: true }).click();
 	await expect(page.getByRole("grid", { name: "Secret inventory", exact: true })).toBeVisible();

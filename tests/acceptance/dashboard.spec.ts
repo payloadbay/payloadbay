@@ -445,7 +445,7 @@ test("U276 administrator opens and personally dismisses runtime advice", async (
 	await expect(page.getByRole("dialog", { name: "Notifications", exact: true }).getByText("No active notifications.", { exact: true })).toBeVisible();
 });
 
-test("U292 shared code copies immutable helpers and edits and reorders middleware", async ({ page }) => {
+test("U292a shared helpers preserve immutable revisions when edited and copied", async ({ page }) => {
 	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
 	const headers = commandHeaders();
@@ -486,6 +486,15 @@ test("U292 shared code copies immutable helpers and edits and reorders middlewar
 	const copiedSource = await (await page.request.get("/api/v1/shared-code/" + copiedHelpers[0].id)).json();
 	expect(copiedSource.source).toBe(newestHelper.source);
 	expect((await (await page.request.get("/api/v1/shared-code/" + newestHelper.id)).json()).source).toBe(newestHelper.source);
+});
+
+test("U292b middleware editing and ordering preserve their saved configuration", async ({ page }) => {
+	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
+	await ensureBrowserOwner(page);
+	const headers = commandHeaders();
+	const workspace = (await (await page.request.get("/api/v1/workspaces")).json())[0];
+	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Middleware controls", slug: "middleware-controls" } })).json();
+	await page.goto("/code/project/" + project.id);
 
 	await page.getByRole("tab", { name: "Middleware", exact: true }).click();
 	await page.getByRole("button", { name: "Create middleware", exact: true }).click();
@@ -1885,4 +1894,35 @@ test("UX67 desktop resource actions, command shortcut and anchored notifications
 	expect(panel!.x + panel!.width).toBeLessThanOrEqual(1440);
 	expect(Math.abs(panel!.x + panel!.width - trigger!.x - trigger!.width)).toBeLessThan(40);
 	await page.screenshot({ path: test.info().outputPath("desktop-notifications-and-resource-actions.png") });
+});
+
+test("UX68 route traffic recovers an outage and live counts stay specific to that route", async ({ page }) => {
+	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
+	const { unverifiedHttpTemplate } = await import("../../packages/script-sdk/src/templates/unverified.ts");
+	await ensureBrowserOwner(page);
+	const headers = commandHeaders();
+	const workspace = (await (await page.request.get("/api/v1/workspaces")).json())[0];
+	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Traffic recovery", slug: "traffic-recovery" } })).json();
+	const target = await page.request.post("/api/v1/projects/" + project.id + "/destinations", { headers, data: { name: "Traffic receiver", url: process.env.PAB_TEST_HTTP_URL + "/delivery" } });
+	expect(target.status()).toBe(200);
+	const endpoint = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Traffic route", slug: "traffic-route" } })).json();
+	const draft = await page.request.patch("/api/v1/endpoints/" + endpoint.id + "/drafts/ingress", { headers: { ...headers, "if-match": JSON.stringify("1") }, data: { body: unverifiedHttpTemplate.source } });
+	expect(draft.status()).toBe(200);
+	const publication = await page.request.post("/api/v1/endpoints/" + endpoint.id + "/publications", { headers, data: { expectedVersion: 1, draftVersions: { ingress: 2, processing: 1 } } });
+	expect(publication.status()).toBe(200);
+	let unavailable = true;
+	await page.route(
+		(url) => url.pathname === "/api/v1/overview" && url.searchParams.get("endpointId") === endpoint.id,
+		(request) => (unavailable ? request.fulfill({ status: 503, json: { error: { code: "unavailable", message: "Temporarily unavailable" } } }) : request.continue()),
+	);
+	await page.goto("/projects/" + project.id + "/routes/" + endpoint.id);
+	const retry = page.getByRole("button", { name: "Retry loading route traffic", exact: true });
+	await expect(retry).toBeVisible();
+	unavailable = false;
+	await retry.click();
+	await expect(page.getByRole("img", { name: /^24-hour traffic: 0 incoming requests/ })).toBeVisible();
+	const received = await page.request.post("/ingress/" + endpoint.ingress_key, { data: { type: "preview.traffic.updated" } });
+	expect(received.status()).toBe(202);
+	await expect(page.getByRole("img", { name: /^24-hour traffic: 1 incoming requests, 1 accepted/ })).toBeVisible();
+	await expect(page.getByRole("grid", { name: "Route recent executions", exact: true }).getByRole("row")).toHaveCount(2);
 });

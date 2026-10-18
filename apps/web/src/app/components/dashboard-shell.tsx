@@ -285,6 +285,13 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 					visible: project.permissions.includes("metadata.read"),
 				},
 				{
+					id: "project-members",
+					label: "Project members",
+					href: "/projects/" + project.id + "/members",
+					icon: IconUsers,
+					visible: project.permissions.includes("members.manage"),
+				},
+				{
 					id: "project-code",
 					label: "Code and middleware",
 					href: "/code/project/" + project.id,
@@ -297,13 +304,6 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 					href: "/projects/" + project.id + "/notifications",
 					icon: IconBell,
 					visible: project.permissions.includes("notifications.rules.manage"),
-				},
-				{
-					id: "project-members",
-					label: "Project members",
-					href: "/projects/" + project.id + "/members",
-					icon: IconUsers,
-					visible: project.permissions.includes("members.manage"),
 				},
 				{
 					id: "project-api-keys",

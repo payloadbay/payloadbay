@@ -113,7 +113,7 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 		};
 
 		loadActivity();
-		const stops = (["event.recorded", "execution.changed", "attempt.completed", "resync-required"] as const).map((kind) => subscribe(kind, refresh));
+		const stops = (["event.recorded", "event.accepted", "events.pruned", "execution.changed", "attempt.completed", "resync-required"] as const).map((kind) => subscribe(kind, refresh));
 
 		return () => {
 			active = false;
