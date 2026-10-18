@@ -59,7 +59,7 @@ test("A1 real Next installation completes one verified owner", async () => {
 			assert.ok(cookie);
 			const results = await Promise.all([post("/api/v1/bootstrap", { action: "complete", secret: setupSecret }, cookie), post("/api/v1/bootstrap", { action: "complete", secret: setupSecret }, cookie)]);
 			assert.deepEqual(results.map((r) => r.status).sort(), [200, 409]);
-			assert.equal((await f.db.query("SELECT count(*)::int AS n FROM payloadbay.grant_record WHERE role_preset='owner'")).rows[0].n, 1);
+			assert.equal((await f.db.query("SELECT count(*)::int AS n FROM payloadbay.grant_record WHERE role_preset='owner' AND scope_type='instance'")).rows[0].n, 1);
 			assert.deepEqual(await (await fetch(f.url + "/api/v1/bootstrap")).json(), { configured: true });
 			assert.equal((await post("/api/v1/bootstrap", input)).status, 409);
 			const signup = await post("/api/auth/sign-up/email", { email: "outsider@example.test", name: "Outsider", password: "not-enabled" });
@@ -225,7 +225,7 @@ test("A7 public HTTP acknowledges only durable accepted work", async () => {
 		const { compileSource } = await import("../../packages/domain/src/executor-client.ts");
 		const scope = await seedScope(f.db);
 		await f.db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
-		await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, permissions]);
+		await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','organization',$1,'owner',$2)", [scope.organization, permissions]);
 		await f.db.query("INSERT INTO payloadbay.draft(endpoint_id,stage,body) VALUES($1,'ingress',$2),($1,'processing',$3)", [scope.endpoint, 'return ctx.accept({event:{body:ctx.request.body,contentType:ctx.request.contentType},response:{status:202,headers:{"content-type":"text/plain"},body:"durably accepted"}});', "return ctx.complete();"]);
 		const config = { executorUrl: f.executorUrl, executorToken: "fixture-executor-token-32-characters" };
 		await publish(
@@ -258,7 +258,7 @@ test("U260 configuration API exposes scoped destinations and secret metadata", a
 		const { createToken } = await import("../../packages/domain/src/tokens.ts");
 		const scope = await seedScope(f.db);
 		await f.db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
-		await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, permissions]);
+		await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','organization',$1,'owner',$2)", [scope.organization, permissions]);
 		const token = await createToken(
 			f.pool,
 			{ userId: "fixture-owner" },
@@ -315,7 +315,7 @@ test("U271 event API separates metadata payload and replay privileges", async ()
 		const { createToken } = await import("../../packages/domain/src/tokens.ts");
 		const scope = await seedScope(f.db);
 		await f.db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
-		await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, permissions]);
+		await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','organization',$1,'owner',$2)", [scope.organization, permissions]);
 		const event = await seedEvent(f.db, scope);
 
 		const mint = async (rights: Parameters<typeof createToken>[2]["permissions"]) =>
@@ -364,7 +364,7 @@ test("U290 real API manages scoped shared code and versioned middleware", async 
 		const scope = await seedScope(f.db);
 		await f.db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
 		await f.db.query('INSERT INTO auth."user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES($1,$1,$2,true,now(),now())', ["fixture-owner", "fixture-owner@example.test"]);
-		await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, permissions]);
+		await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','organization',$1,'owner',$2)", [scope.organization, permissions]);
 		const token = await createToken(
 			f.pool,
 			{ userId: "fixture-owner" },
@@ -414,7 +414,7 @@ test("U298 real API executes synthetic draft and denies missing test permission"
 		const scope = await seedScope(f.db);
 		await f.db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
 		await f.db.query('INSERT INTO auth."user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES($1,$1,$2,true,now(),now())', ["fixture-owner", "fixture-owner@example.test"]);
-		await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, permissions]);
+		await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','organization',$1,'owner',$2)", [scope.organization, permissions]);
 
 		const mint = (rights: string[]) =>
 			createToken(
@@ -449,7 +449,7 @@ test("U304 real API manages opt-in rules with scoped permission and versions", a
 		const scope = await seedScope(f.db);
 		await f.db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
 		await f.db.query('INSERT INTO auth."user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES($1,$1,$2,true,now(),now())', ["fixture-owner", "fixture-owner@example.test"]);
-		await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, permissions]);
+		await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','organization',$1,'owner',$2)", [scope.organization, permissions]);
 
 		const mint = (rights: string[]) =>
 			createToken(
@@ -490,7 +490,7 @@ test("U306 real pause and resume APIs preserve scoped versions", async () => {
 		const scope = await seedScope(f.db);
 		await f.db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
 		await f.db.query('INSERT INTO auth."user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES($1,$1,$2,true,now(),now())', ["fixture-owner", "fixture-owner@example.test"]);
-		await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, permissions]);
+		await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','organization',$1,'owner',$2)", [scope.organization, permissions]);
 		const token = await createToken(
 			f.pool,
 			{ userId: "fixture-owner" },
@@ -528,7 +528,7 @@ test("U317 scoped readers manage only their own SMTP preferences through API", a
 		const scope = await seedScope(fixture.db);
 		await identity(fixture.db, "fixture-owner");
 		await fixture.db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
-		await fixture.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, permissions]);
+		await fixture.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','organization',$1,'owner',$2)", [scope.organization, permissions]);
 		const owner = { userId: "fixture-owner" };
 		const rule = await createNotificationRule(fixture.pool, owner, scope.project, { count: 1, windowSeconds: 60 });
 		const token = await createToken(fixture.pool, owner, {
@@ -566,7 +566,7 @@ test("A6 A8 A9 A11 public HMAC ingress preserves challenge bytes and never ackno
 	await nextFixture(async (f) => {
 		const scope = await seedScope(f.db);
 		await f.db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
-		await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, permissions]);
+		await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','organization',$1,'owner',$2)", [scope.organization, permissions]);
 		const config = { ...fixtureConfig(f), executorUrl: f.executorUrl };
 		const signingValue = randomUUID();
 		const secret = await createSecret(f.pool, { userId: "fixture-owner" }, { scope: { type: "project", id: scope.project }, name: "Synthetic signing fixture", value: signingValue }, config.encryptionKey);

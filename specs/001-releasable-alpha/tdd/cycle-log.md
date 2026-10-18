@@ -3520,3 +3520,26 @@ screenshots were visually inspected. The complete local backend rerun passed
 child error. Its whole owning file immediately passes2/2 on rerun. That remains
 an unclassified local test-infrastructure failure, not a complete green backend
 claim; clean CI is required. No retries, thresholds or assertions were weakened.
+
+Clean ee02221 CI39135048555 passes backend, unit, executor and performance.
+Its static lane catches a missing separator after the expanded test loop; the
+local correction passes lint/type/format. Deployment failures identify prepared
+positive fixtures relying on implicit instance-to-customer authority. Those
+fixtures now give their actor explicit organization ownership, and the setup
+count distinguishes instance ownership from the separate customer membership.
+The complete installation owner passes13/13 locally after that correction;
+negative platform-boundary assertions are unchanged. Browser/coverage and final
+corrected-commit CI remain pending at this checkpoint.
+
+Coolify deploys ee02221 successfully. A normal SMTP-OTP smoke test with distinct
+synthetic platform/customer accounts verifies customer audit200, unrelated
+platform-owner audit403, impersonation404, instance-only platform audit and24
+aggregate operations intervals. No auth bypass, diagnostic production logger or
+real customer data was used. Local six-draft checksum remains unchanged.
+
+The full ee02221 browser CI owner also passes. That run ends red only for the
+recorded test separator and positive installation-fixture assumptions; merged
+coverage is therefore skipped, not claimed green. The corrective commit retains
+all customer-denial assertions and has local installation13/13 plus complete
+lint/tooling TypeScript/format checks before push. Its exact-SHA full CI remains
+the final gate.

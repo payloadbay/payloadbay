@@ -1625,6 +1625,7 @@ test("CF10 scoped audit is usable on mobile and platform roles cannot restore cu
 		await expect(page.getByRole("grid", { name: "Audit log" })).toContainText("scope.created");
 		await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 	}
+
 	await page.goto("/workspaces/" + workspace.id + "/audit");
 	expect((await page.request.post("/api/auth/admin/impersonate-user", { headers: commandHeaders(), data: { userId: "customer" } })).status()).toBe(404);
 	const pool = database(process.env.DATABASE_URL!);
