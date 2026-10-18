@@ -26,6 +26,13 @@ Do not open a referenced document merely because it is listed here.
 `AGENTS.local.md` extends this baseline. It is repository-owned and is not
 synchronized or overwritten.
 
+Repositories eligible for the central TypeScript tooling group import the shared
+ESLint and Prettier presets from `.github/tooling/`. Keep reusable formatting
+rules in this source repository; framework configuration, path aliases and
+product-specific rules remain local. Use deliberate blank lines between code
+sections, descriptive identifiers, separate variable declarations and multiline
+substantial objects/types. Formatting alone does not replace clear code design.
+
 ## Brand and product work
 
 For public copy, product positioning, UI, colors, logos, icons, or favicons,
