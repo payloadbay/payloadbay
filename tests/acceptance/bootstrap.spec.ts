@@ -1,3 +1,4 @@
+import { chooseOption } from "../helpers/select-option.ts";
 import { test, expect } from "../helpers/browser-test.ts";
 import { nextFixture } from "../helpers/next-fixture.ts";
 
@@ -10,10 +11,14 @@ test("signed-out application root opens sign-in instead of a bootstrap landing p
 });
 
 test("email entry advances to accessible OTP entry without a success toast", async ({ page, context }) => {
+	await page.setViewportSize({ width: 1440, height: 1000 });
 	await context.grantPermissions(["clipboard-read", "clipboard-write"]);
 	await page.route("**/api/auth/email-otp/send-verification-otp", (route) => route.fulfill({ status: 200, contentType: "application/json", body: '{"success":true}' }));
 	await page.goto("/login");
 	await page.getByLabel("Email address").fill("reviewer@preview.payloadbay.test");
+	const emailWidth = await page.getByLabel("Email address").boundingBox();
+	const submitWidth = await page.getByRole("button", { name: "Send sign-in code" }).boundingBox();
+	expect(submitWidth!.width).toBeGreaterThan(emailWidth!.width * 0.95);
 	await page.getByRole("button", { name: "Send sign-in code" }).click();
 	await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
 	await expect(page.getByText("reviewer@preview.payloadbay.test", { exact: true })).toBeVisible();
@@ -237,6 +242,16 @@ test("route editor has nested navigation, a scripting guide, typed method handle
 		}
 
 		const responses: Record<string, unknown> = {
+			"/api/v1/overview": {
+				totals: {
+					ingress: 0,
+					accepted: 0,
+					rejected: 0,
+					deliveries: 0,
+				},
+				series: [],
+				recent: [],
+			},
 			"/api/v1/me": {
 				user: { id: "reviewer", name: "Reviewer", email: "reviewer@example.test" },
 				instanceId: "instance",
@@ -303,16 +318,16 @@ test("route editor has nested navigation, a scripting guide, typed method handle
 	await page.keyboard.press("Control+Home");
 	await page.keyboard.press("Control+a");
 	await page.keyboard.insertText('export async function POST(ctx: IngressContext): Promise<IngressDecision> { return ctx.respondOnly({status:201,body:"formatted"}); }');
-	await expect(page.getByText("Unsaved changes", { exact: false })).toBeVisible();
+	await expect(page.getByText("Unsaved changes", { exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "Save draft", exact: true }).click();
 	await expect.poll(() => savedBody).toContain('status: 201, body: "formatted"');
 	expect(savedBody.startsWith("export async function POST")).toBe(true);
-	await expect(page.getByText("Draft saved · Not published", { exact: true })).toBeVisible();
+	await expect(page.getByText("Draft saved / Not published", { exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "Scripting guide", exact: true }).click();
 	await expect(page.getByRole("dialog", { name: "Writing Payload Bay scripts" })).toBeVisible();
 	await expect(page.getByRole("dialog").getByText(/Only exported methods run/)).toBeVisible();
 	await page.getByRole("button", { name: "Got it" }).click();
-	await page.getByLabel("Ingress template", { exact: true }).selectOption("unverified");
+	await chooseOption(page.getByRole("button", { name: new RegExp("Ingress template") }), "unverified");
 	await expect(page.getByLabel("Ingress template", { exact: true })).toHaveValue("unverified");
 	await page.getByRole("button", { name: "Toggle navigation" }).click();
 	await page.getByRole("dialog").getByRole("row", { name: "Secrets", exact: true }).click();

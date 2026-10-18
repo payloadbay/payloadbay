@@ -21,19 +21,19 @@ test("U318 PR preview builds branch services and initializes its own database", 
 			env: environment,
 		}),
 	);
-	for (const name of ["app", "worker", "executor", "schema"]) {
+	for (const name of ["payload-bay", "worker", "executor", "schema"]) {
 		assert.ok(config.services[name].build, name + " must build from the checked-out PR");
 		assert.equal(config.services[name].image, undefined, name + " must not require a published product image");
 	}
 
-	assert.equal(config.services.app.depends_on.schema.condition, "service_completed_successfully");
+	assert.equal(config.services["payload-bay"].depends_on.schema.condition, "service_completed_successfully");
 	assert.equal(config.services.worker.depends_on.schema.condition, "service_completed_successfully");
 	assert.equal(config.services.schema.environment.NODE_ENV, "development");
 	assert.match(config.services.schema.command.at(-1), /scripts\/database\/push\.ts.*scripts\/preview\/seed\.ts/);
 	assert.equal(config.services.schema.environment.IS_PREVIEW, "true");
-	assert.equal(config.services.smtp.environment?.MP_UI_AUTH, undefined);
-	assert.deepEqual(config.services.smtp.expose, ["8025"]);
-	assert.match(config.services.app.environment.DATABASE_URL, /@postgres:5432\/payloadbay$/);
+	assert.equal(config.services["email-catcher"].environment?.MP_UI_AUTH, undefined);
+	assert.deepEqual(config.services["email-catcher"].expose, ["8025"]);
+	assert.match(config.services["payload-bay"].environment.DATABASE_URL, /@postgres:5432\/payloadbay$/);
 
 	const preview = JSON.parse(
 		execFileSync("docker", ["compose", "-f", "deploy/compose.preview.yml", "config", "--format", "json"], {
@@ -42,14 +42,14 @@ test("U318 PR preview builds branch services and initializes its own database", 
 				...environment,
 				SERVICE_NAME_POSTGRES: "postgres-pr-13",
 				SERVICE_NAME_EXECUTOR: "executor-pr-13",
-				SERVICE_NAME_SMTP: "smtp-pr-13",
+				SERVICE_NAME_EMAIL_CATCHER: "email-catcher-pr-13",
 				SERVICE_NAME_WORKER: "worker-pr-13",
 			},
 		}),
 	);
 	assert.match(preview.services.schema.environment.DATABASE_URL, /@postgres-pr-13:5432\/payloadbay$/);
-	assert.equal(preview.services.app.environment.EXECUTOR_URL, "http://executor-pr-13:8080");
-	assert.equal(preview.services.worker.environment.SMTP_HOST, "smtp-pr-13");
+	assert.equal(preview.services["payload-bay"].environment.EXECUTOR_URL, "http://executor-pr-13:8080");
+	assert.equal(preview.services.worker.environment.SMTP_HOST, "email-catcher-pr-13");
 	assert.equal(preview.services.executor.environment.PAYLOADBAY_BROKER_URL, "http://worker-pr-13:8081/broker");
 
 	assert.equal(config.services.executor.runtime, "runc");

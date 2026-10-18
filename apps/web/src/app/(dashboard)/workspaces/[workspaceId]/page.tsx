@@ -78,18 +78,18 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
 						<Table.Content aria-label='Workspace projects'>
 							<Table.Header>
 								<Table.Column isRowHeader>Project</Table.Column>
-								<Table.Column>Actions</Table.Column>
+								<Table.Column className='text-right'>Actions</Table.Column>
+								<Table.Column aria-label='Open resource' className='w-12 text-right' />
 							</Table.Header>
 							<Table.Body>
 								{visible.map((project) => (
-									<Table.Row key={project.id} id={project.id}>
+									<Table.Row key={project.id} id={project.id} href={"/projects/" + project.id}>
 										<Table.Cell>
 											<Link href={"/projects/" + project.id} className='flex items-center justify-between gap-3 font-medium'>
 												{project.name}
-												<IconChevronRight size={16} className='text-muted shrink-0' aria-hidden='true' />
 											</Link>
 										</Table.Cell>
-										<Table.Cell>
+										<Table.Cell className='text-right [&>div]:justify-end'>
 											<div className='flex flex-wrap gap-2'>
 												{project.permissions.includes("notifications.rules.manage") && (
 													<Tooltip delay={0}>
@@ -100,6 +100,9 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
 													</Tooltip>
 												)}
 											</div>
+										</Table.Cell>
+										<Table.Cell className='w-12 text-right'>
+											<IconChevronRight size={18} aria-hidden='true' className='text-muted ml-auto' />
 										</Table.Cell>
 									</Table.Row>
 								))}

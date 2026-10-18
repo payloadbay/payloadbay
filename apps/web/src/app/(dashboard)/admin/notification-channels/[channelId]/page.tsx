@@ -3,8 +3,8 @@
 import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Button, TextField, Label, Input, Chip, Card } from "@heroui/react";
-import { NativeSelect } from "@heroui-pro/react";
+import { Button, TextField, Label, Input, Chip, Card, Select, ListBox } from "@heroui/react";
+
 import { useDashboard } from "@components/dashboard-shell";
 import { CodeEditor } from "@components/code-editor";
 import { HelperImportPicker } from "@components/helper-import-picker";
@@ -162,21 +162,23 @@ export default function NotificationModulePage({ params }: { params: Promise<{ c
 		return (
 			<div>
 				<h1 className='text-xl'>Module unavailable</h1>
-				<Link href='/admin/notification-channels'>Back to modules</Link>
+				<Link className='button button--secondary w-fit' href='/admin/notification-channels'>
+					Back to modules
+				</Link>
 			</div>
 		);
 
 	return (
 		<section className='flex min-w-0 flex-col gap-6'>
 			<header>
-				<Link className='text-accent' href='/admin/notification-channels'>
+				<Link className='button button--secondary w-fit' href='/admin/notification-channels'>
 					Notification modules
 				</Link>
 				<h1 className='mt-2 text-3xl font-semibold'>{channelId === "new" ? "Create notification module" : name}</h1>
 				<p className='text-muted mt-2'>Instance-owned code. Email modules return ctx.email(message); HTTP modules use fetch and return ctx.complete(), ctx.retry(), or ctx.fail(). Recipients and SMTP credentials are controlled by the platform.</p>
 			</header>
 			<div className='flex flex-wrap items-center gap-3'>
-				{channel?.builtin && <Chip>{forking ? "Fork draft" : "Shipped · read-only"}</Chip>}
+				{channel?.builtin && <Chip>{forking ? "Fork draft" : "Built-in template"}</Chip>}
 				{channel && canPublish && !forking && (
 					<Button
 						variant='secondary'
@@ -208,19 +210,25 @@ export default function NotificationModulePage({ params }: { params: Promise<{ c
 				<Input variant='secondary' />
 			</TextField>
 			{channel && !channel.builtin && !forking && (
-				<NativeSelect variant='secondary'>
+				<Select variant='secondary' aria-label='Module version' value={channel.selectedRevisionId ?? ""} isDisabled={busy || dirty} onChange={(key) => void act(async () => receive(await api("/notification-channels/" + channel.id + "?revisionId=" + String(key ?? ""))))}>
 					<Label>Version</Label>
-					<NativeSelect.Trigger aria-label='Module version' value={channel.selectedRevisionId ?? ""} disabled={busy || dirty} onChange={(event) => void act(async () => receive(await api("/notification-channels/" + channel.id + "?revisionId=" + event.target.value)))}>
-						{channel.revisions.map((revision, index) => (
-							<NativeSelect.Option key={revision.id} value={revision.id}>
-								v{revision.version}
-								{revision.id === channel.activeRevisionId ? " · Active" : ""}
-								{index === 0 ? " · Latest" : ""}
-							</NativeSelect.Option>
-						))}
-						<NativeSelect.Indicator />
-					</NativeSelect.Trigger>
-				</NativeSelect>
+					<Select.Trigger>
+						<Select.Value />
+						<Select.Indicator />
+					</Select.Trigger>
+					<Select.Popover>
+						<ListBox>
+							{channel.revisions.map((revision, index) => (
+								<ListBox.Item key={revision.id} id={revision.id}>
+									v{revision.version}
+									{revision.id === channel.activeRevisionId ? " / Active" : ""}
+									{index === 0 ? " / Latest" : ""}
+									<ListBox.ItemIndicator />
+								</ListBox.Item>
+							))}
+						</ListBox>
+					</Select.Popover>
+				</Select>
 			)}
 			{channel && !channel.builtin && channel.selectedRevisionId !== channel.activeRevisionId && !forking && canPublish && (
 				<Button
@@ -286,7 +294,7 @@ export default function NotificationModulePage({ params }: { params: Promise<{ c
 						)
 					}
 				>
-					Test without external effects
+					Preview output
 				</Button>
 				{channel && !forking && (
 					<Button
@@ -303,7 +311,7 @@ export default function NotificationModulePage({ params }: { params: Promise<{ c
 					</Button>
 				)}
 			</div>
-			<p className='text-muted text-sm'>Dry tests use synthetic content and secrets and block fetch. A published test performs real delivery. Scripts run in the configured workerd executor; ordinary Docker is not a hardened host sandbox.</p>
+			<p className='text-muted text-sm'>Preview output does not send a notification. Send published test delivers to your configured recipient.</p>
 			{preview && (
 				<Card>
 					<Card.Header>

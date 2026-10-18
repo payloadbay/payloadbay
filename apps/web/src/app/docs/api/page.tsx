@@ -65,7 +65,7 @@ export default function ApiDocumentationPage() {
 					<PreviewNotice />
 				</div>
 				<div className='flex min-h-12 items-center px-4'>
-					<Link href='/' className='text-accent inline-flex min-h-11 items-center gap-2 text-sm font-medium'>
+					<Link href='/' className='button button--secondary w-fit'>
 						<IconArrowLeft size={18} aria-hidden='true' />
 						Back to Payload Bay
 					</Link>

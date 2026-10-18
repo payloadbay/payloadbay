@@ -6,39 +6,12 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Button, Card, Table } from "@heroui/react";
 import { IconChevronRight } from "@tabler/icons-react";
-import { LineChart } from "@heroui-pro/react/line-chart";
+import { TrafficChart } from "@components/traffic-chart";
+import type { TrafficSnapshot as Overview } from "@types";
 import { useDashboard } from "@components/dashboard-shell";
 import { api } from "@lib/api-client";
 import { useFeedbackToast } from "@lib/feedback";
 
-type Overview = {
-	totals: Record<string, number>;
-	series: {
-		hour: string;
-		ingress: number;
-		accepted: number;
-		rejected: number;
-		deliveries: number;
-		executions: number;
-	}[];
-	recent: {
-		id: string;
-		state: string;
-		attempt_number: number;
-		created_at: string;
-		endpoint_name: string;
-		project_id: string;
-		project_name: string;
-		endpoint_id: string;
-	}[];
-};
-
-const metrics = [
-	{ key: "ingress", label: "Ingress", color: "var(--accent)" },
-	{ key: "accepted", label: "Accepted", color: "var(--success)" },
-	{ key: "rejected", label: "Rejected", color: "var(--danger)" },
-	{ key: "deliveries", label: "Outgoing attempts", color: "var(--warning)" },
-] as const;
 const states: Record<string, string> = {
 	queued: "Queued",
 	running: "Processing",
@@ -92,7 +65,7 @@ export default function DashboardPage() {
 			<header className='flex flex-wrap items-center justify-between gap-3'>
 				<div>
 					<h1 className='text-3xl font-semibold'>Overview</h1>
-					<p className='text-muted mt-2'>Traffic and processing across your accessible projects · last 24 hourly buckets, UTC.</p>
+					<p className='text-muted mt-2'>Traffic and processing across your accessible projects / last 24 hourly buckets, UTC.</p>
 				</div>
 				<Link href='/projects' className='button button--secondary'>
 					Browse projects
@@ -112,9 +85,9 @@ export default function DashboardPage() {
 				<>
 					<div className='grid gap-4 sm:grid-cols-3'>
 						{[
-							{ label: "Incoming requests", value: overview.totals.ingress, detail: `${overview.totals.accepted} accepted · ${overview.totals.rejected} rejected · ${overview.totals.responded} response only · ${overview.totals.errored} ingress errors` },
+							{ label: "Incoming requests", value: overview.totals.ingress, detail: `${overview.totals.accepted} accepted / ${overview.totals.rejected} rejected / ${overview.totals.responded} response only / ${overview.totals.errored} ingress errors` },
 							{ label: "Processing executions", value: overview.totals.executions, detail: "Includes manually replayed executions" },
-							{ label: "Outgoing attempts", value: overview.totals.deliveries, detail: `${overview.totals.delivered} delivered · ${overview.totals.failed} failed` },
+							{ label: "Outgoing attempts", value: overview.totals.deliveries, detail: `${overview.totals.delivered} delivered / ${overview.totals.failed} failed` },
 						].map((metric) => (
 							<Card key={metric.label}>
 								<Card.Header>
@@ -125,31 +98,7 @@ export default function DashboardPage() {
 							</Card>
 						))}
 					</div>
-					<Card>
-						<Card.Header>
-							<Card.Title>Traffic</Card.Title>
-							<Card.Description>Live totals, grouped by hour. Outgoing retries are counted individually.</Card.Description>
-						</Card.Header>
-						<Card.Content>
-							<div className='mb-4 flex flex-wrap gap-4 text-xs'>
-								{metrics.map((metric) => (
-									<span key={metric.key} className='flex items-center gap-2'>
-										<span className='size-2 rounded-full' style={{ background: metric.color }} />
-										{metric.label}
-									</span>
-								))}
-							</div>
-							<LineChart data={overview.series.map((point) => ({ ...point, hour: point.hour.slice(11, 16) }))} height={220} role='img' aria-label={`24-hour traffic: ${overview.totals.ingress} incoming requests, ${overview.totals.accepted} accepted, ${overview.totals.rejected} rejected, ${overview.totals.deliveries} outgoing attempts`} className='min-w-0 [&_.recharts-cartesian-axis-tick-value]:text-xs'>
-								<LineChart.Grid vertical={false} />
-								<LineChart.XAxis dataKey='hour' tickMargin={8} minTickGap={32} interval='preserveStartEnd' />
-								<LineChart.YAxis allowDecimals={false} width={32} tickCount={4} tickFormatter={(value: number) => new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(value)} />
-								{metrics.map((metric) => (
-									<LineChart.Line key={metric.key} dataKey={metric.key} name={metric.label} stroke={metric.color} strokeWidth={2} dot={false} type='linear' isAnimationActive={false} />
-								))}
-								<LineChart.Tooltip content={<LineChart.TooltipContent valueFormatter={(value) => Number(value).toLocaleString()} />} />
-							</LineChart>
-						</Card.Content>
-					</Card>
+					<TrafficChart overview={overview} />
 					<section>
 						<h2 className='mb-3 text-xl font-semibold'>Recent executions</h2>
 						{overview.recent.length ? (
@@ -160,15 +109,13 @@ export default function DashboardPage() {
 											<Table.Column isRowHeader>Route / project</Table.Column>
 											<Table.Column>Status</Table.Column>
 											<Table.Column className='hidden sm:table-cell'>Started</Table.Column>
+											<Table.Column aria-label='Open resource' className='w-12 text-right' />
 										</Table.Header>
 										<Table.Body>
 											{overview.recent.map((item) => (
 												<Table.Row key={item.id} id={item.id} href={`/projects/${item.project_id}/routes/${item.endpoint_id}?section=events`}>
 													<Table.Cell>
-														<span className='flex items-center justify-between gap-3 font-medium'>
-															{item.endpoint_name}
-															<IconChevronRight size={16} aria-hidden='true' className='text-muted shrink-0' />
-														</span>
+														<span className='flex items-center justify-between gap-3 font-medium'>{item.endpoint_name}</span>
 														<span className='text-muted text-xs'>{item.project_name}</span>
 													</Table.Cell>
 													<Table.Cell>
@@ -176,6 +123,9 @@ export default function DashboardPage() {
 														<span className='text-muted block text-xs'>Attempt {item.attempt_number}</span>
 													</Table.Cell>
 													<Table.Cell className='hidden sm:table-cell'>{new Date(item.created_at).toLocaleString()}</Table.Cell>
+													<Table.Cell className='w-12 text-right'>
+														<IconChevronRight size={18} aria-hidden='true' className='text-muted ml-auto' />
+													</Table.Cell>
 												</Table.Row>
 											))}
 										</Table.Body>
@@ -202,17 +152,18 @@ export default function DashboardPage() {
 								<Table.Header>
 									<Table.Column isRowHeader>Project</Table.Column>
 									<Table.Column>Workspace</Table.Column>
+									<Table.Column aria-label='Open resource' className='w-12 text-right' />
 								</Table.Header>
 								<Table.Body>
 									{projects.slice(0, 5).map((project) => (
 										<Table.Row key={project.id} id={project.id} href={"/projects/" + project.id}>
 											<Table.Cell>
-												<span className='flex items-center justify-between gap-3'>
-													{project.name}
-													<IconChevronRight size={16} aria-hidden='true' className='text-muted shrink-0' />
-												</span>
+												<span className='flex items-center justify-between gap-3'>{project.name}</span>
 											</Table.Cell>
 											<Table.Cell>{workspaces.find((item) => item.id === project.workspace_id)?.name ?? "Project access only"}</Table.Cell>
+											<Table.Cell className='w-12 text-right'>
+												<IconChevronRight size={18} aria-hidden='true' className='text-muted ml-auto' />
+											</Table.Cell>
 										</Table.Row>
 									))}
 								</Table.Body>

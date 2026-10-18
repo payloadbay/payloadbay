@@ -16,7 +16,7 @@ export default function ProjectMembersPage({ params }: { params: Promise<{ proje
 
 	return (
 		<>
-			<Link className='text-accent' href={"/projects/" + projectId}>
+			<Link className='button button--secondary w-fit' href={"/projects/" + projectId}>
 				Back to project
 			</Link>
 			<MemberManager scope={{ type: "project", id: projectId }} held={project.permissions} />

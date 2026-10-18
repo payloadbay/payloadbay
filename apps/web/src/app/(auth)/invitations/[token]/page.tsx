@@ -97,7 +97,7 @@ export default function InvitationPage({ params }: { params: Promise<{ token: st
 					<ul className='flex flex-col gap-2'>
 						{invitation.grants.map((grant) => (
 							<li key={grant.scope.id} className='capitalize'>
-								{grant.role} · {grant.scope.type} access
+								{grant.role} / {grant.scope.type} access
 							</li>
 						))}
 					</ul>

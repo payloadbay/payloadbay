@@ -128,7 +128,7 @@ export default function NotificationPreferencesPage() {
 										<Table.Cell>
 											<span className='font-medium'>{rule.workspaceId ? workspaces.find((workspace) => workspace.id === rule.workspaceId)?.name + " workspace" : projects.find((project) => project.id === rule.projectId)?.name}</span>
 											<p className='text-muted mt-1 text-xs'>
-												{rule.count} failed operations in {rule.windowSeconds}s · {rule.enabled ? rule.severity : "Rule disabled"}
+												{rule.count} failed operations in {rule.windowSeconds}s / {rule.enabled ? rule.severity : "Rule disabled"}
 											</p>
 										</Table.Cell>
 										<Table.Cell>
@@ -149,8 +149,8 @@ export default function NotificationPreferencesPage() {
 														</Switch.Content>
 														<span>
 															{channel.name}
-															{channel.id !== "smtp" ? ` · v${rule.channels.includes(channel.id) ? (rule.channelVersions[channel.id] ?? channel.activeVersion) : channel.activeVersion}` : ""}
-															{!channel.enabled ? " · Paused" : ""}
+															{channel.id !== "smtp" ? ` / v${rule.channels.includes(channel.id) ? (rule.channelVersions[channel.id] ?? channel.activeVersion) : channel.activeVersion}` : ""}
+															{!channel.enabled ? " / Paused" : ""}
 														</span>
 													</Switch>
 												))}
@@ -185,7 +185,7 @@ export default function NotificationPreferencesPage() {
 														<span className='font-medium'>{resource.name}</span>
 														<span className='text-muted block text-xs'>{resource.kind}</span>
 													</Table.Cell>
-													<Table.Cell>
+													<Table.Cell className='text-right [&>div]:justify-end'>
 														<Link className='button button--secondary button--sm' href={resource.href} aria-label={"Configure notification rules for " + resource.name}>
 															Configure rules
 														</Link>
@@ -199,7 +199,7 @@ export default function NotificationPreferencesPage() {
 					)}
 				</section>
 			)}
-			<Link href='/account' className='text-accent'>
+			<Link href='/account' className='button button--secondary w-fit'>
 				Back to account settings
 			</Link>
 		</section>

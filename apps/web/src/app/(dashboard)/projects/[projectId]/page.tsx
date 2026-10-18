@@ -5,7 +5,7 @@ import { useFeedbackToast } from "@lib/feedback";
 import { use, useState, useEffect, useCallback, type FormEvent } from "react";
 import { Button, Table, Form, TextField, Label, Input, FieldError, Modal, Tooltip, Chip } from "@heroui/react";
 import { EmptyState } from "@heroui-pro/react";
-import { IconRoute, IconPlus, IconPlugConnected, IconPencil, IconChevronRight } from "@tabler/icons-react";
+import { IconRoute, IconPlus, IconPlugConnected, IconPencil, IconChevronRight, IconTrash } from "@tabler/icons-react";
 import { api } from "@lib/api-client";
 import type { getDestination } from "@domain/destinations";
 import type { ProjectSummary } from "@types";
@@ -16,6 +16,7 @@ type IngressRoute = {
 	slug: string;
 	active_publication_id: string | null;
 	paused: boolean;
+	config_version: number;
 };
 type DestinationDetail = Awaited<ReturnType<typeof getDestination>>;
 
@@ -40,6 +41,27 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 	const [url, setUrl] = useState("");
 	const [busy, setBusy] = useState(false);
 	const [editingDestination, setEditingDestination] = useState<DestinationDetail | null>(null);
+
+	const [deleting, setDeleting] = useState<{
+		type: "endpoint" | "destination";
+		id: string;
+		name: string;
+		version: number;
+	} | null>(null);
+
+	async function removeResource() {
+		if (!deleting) return;
+		setBusy(true);
+		try {
+			await api("/" + (deleting.type === "endpoint" ? "endpoints/" : "destinations/") + deleting.id, { method: "DELETE", version: deleting.version });
+			setDeleting(null);
+			receive(await fetchData());
+		} catch (cause) {
+			setError(cause instanceof Error ? cause.message : "Could not delete resource");
+		} finally {
+			setBusy(false);
+		}
+	}
 
 	useFeedbackToast(error, "", { error: "Project error", success: "Success" });
 
@@ -241,11 +263,11 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 								<Table.Header>
 									<Table.Column isRowHeader>Destination</Table.Column>
 									<Table.Column>Delivery target</Table.Column>
-									<Table.Column>Actions</Table.Column>
+									<Table.Column className='text-right'>Actions</Table.Column>
 								</Table.Header>
 								<Table.Body>
 									{destinations.map((destination) => (
-										<Table.Row key={destination.id} id={destination.id}>
+										<Table.Row key={destination.id} id={destination.id} onAction={project.permissions.includes("destinations.configure") ? () => void editDestination(destination.id) : undefined}>
 											<Table.Cell>
 												{project.permissions.includes("destinations.configure") ? (
 													<Button variant='ghost' className='h-auto justify-start px-0 font-medium' isDisabled={busy} onPress={() => void editDestination(destination.id)}>
@@ -256,16 +278,35 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 												)}
 											</Table.Cell>
 											<Table.Cell>
-												{destination.is_default ? "Default" : "Additional"} · v{destination.version}
+												{destination.is_default ? "Default" : "Additional"} / v{destination.version}
 											</Table.Cell>
-											<Table.Cell>
+											<Table.Cell className='text-right [&>div]:justify-end'>
 												{project.permissions.includes("destinations.configure") && (
-													<Tooltip delay={0}>
-														<Button isIconOnly size='sm' variant='ghost' aria-label={"Edit destination " + destination.name} isDisabled={busy} onPress={() => void editDestination(destination.id)}>
-															<IconPencil size={18} aria-hidden='true' />
+													<div className='flex justify-end gap-2'>
+														<Tooltip delay={0}>
+															<Button isIconOnly size='sm' variant='ghost' aria-label={"Edit destination " + destination.name} isDisabled={busy} onPress={() => void editDestination(destination.id)}>
+																<IconPencil size={18} aria-hidden='true' />
+															</Button>
+															<Tooltip.Content>Edit destination</Tooltip.Content>
+														</Tooltip>
+														<Button
+															isIconOnly
+															variant='danger-soft'
+															size='sm'
+															aria-label={"Delete destination " + destination.name}
+															isDisabled={busy}
+															onPress={() =>
+																setDeleting({
+																	type: "destination",
+																	id: destination.id,
+																	name: destination.name,
+																	version: destination.version,
+																})
+															}
+														>
+															<IconTrash size={18} />
 														</Button>
-														<Tooltip.Content>Edit destination</Tooltip.Content>
-													</Tooltip>
+													</div>
 												)}
 											</Table.Cell>
 										</Table.Row>
@@ -292,7 +333,7 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 						Ingress routes
 					</h2>
 					{project.permissions.includes("endpoints.configure") && (
-						<Button onPress={() => open("route")}>
+						<Button variant='secondary' onPress={() => open("route")}>
 							<IconPlus size={18} />
 							Add ingress route
 						</Button>
@@ -305,15 +346,14 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 								<Table.Header>
 									<Table.Column isRowHeader>Route</Table.Column>
 									<Table.Column>Status</Table.Column>
+									<Table.Column className='text-right'>Actions</Table.Column>
+									<Table.Column aria-label='Open resource' className='w-12 text-right' />
 								</Table.Header>
 								<Table.Body>
 									{routes.map((route) => (
 										<Table.Row key={route.id} id={route.id} href={"/projects/" + projectId + "/routes/" + route.id}>
 											<Table.Cell>
-												<span className='flex items-center justify-between gap-3'>
-													{route.name}
-													<IconChevronRight size={16} aria-hidden='true' className='text-muted shrink-0' />
-												</span>
+												<span className='flex items-center justify-between gap-3'>{route.name}</span>
 											</Table.Cell>
 											<Table.Cell>
 												<div className='flex flex-wrap gap-2'>
@@ -326,6 +366,30 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 														</Chip>
 													)}
 												</div>
+											</Table.Cell>
+											<Table.Cell className='text-right'>
+												{project.permissions.includes("endpoints.configure") && (
+													<Button
+														isIconOnly
+														variant='danger-soft'
+														size='sm'
+														aria-label={"Delete route " + route.name}
+														isDisabled={busy}
+														onPress={() =>
+															setDeleting({
+																type: "endpoint",
+																id: route.id,
+																name: route.name,
+																version: route.config_version,
+															})
+														}
+													>
+														<IconTrash size={18} />
+													</Button>
+												)}
+											</Table.Cell>
+											<Table.Cell className='w-12 text-right'>
+												<IconChevronRight size={18} aria-hidden='true' className='text-muted ml-auto' />
 											</Table.Cell>
 										</Table.Row>
 									))}
@@ -345,6 +409,34 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 					</EmptyState>
 				)}
 			</section>
+			<Modal
+				isOpen={deleting !== null}
+				onOpenChange={(next) => {
+					if (!next && !busy) setDeleting(null);
+				}}
+			>
+				<Modal.Backdrop>
+					<Modal.Container>
+						<Modal.Dialog>
+							<Modal.CloseTrigger />
+							<Modal.Header>
+								<Modal.Heading>Delete {deleting?.name}?</Modal.Heading>
+							</Modal.Header>
+							<Modal.Body>
+								<p>This removes unused configuration. Resources with saved history or related settings cannot be deleted.</p>
+							</Modal.Body>
+							<Modal.Footer>
+								<Button variant='secondary' isDisabled={busy} onPress={() => setDeleting(null)}>
+									Cancel
+								</Button>
+								<Button variant='danger' isDisabled={busy} onPress={() => void removeResource()}>
+									Delete
+								</Button>
+							</Modal.Footer>
+						</Modal.Dialog>
+					</Modal.Container>
+				</Modal.Backdrop>
+			</Modal>
 		</section>
 	);
 }

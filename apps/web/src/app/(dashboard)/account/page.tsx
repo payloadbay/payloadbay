@@ -175,7 +175,7 @@ export default function AccountPage() {
 													{key.name || "Unnamed passkey"}
 													<p className='text-muted text-xs'>{key.createdAt ? new Date(key.createdAt).toLocaleDateString() : ""}</p>
 												</Table.Cell>
-												<Table.Cell>
+												<Table.Cell className='text-right [&>div]:justify-end'>
 													<Button isIconOnly size='sm' variant='ghost' aria-label={"Remove passkey " + (key.name || "Unnamed passkey")} isDisabled={busy} onPress={() => void removePasskey(key.id)}>
 														<IconTrash size={18} />
 													</Button>

@@ -1,4 +1,4 @@
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import { transaction } from "./db.ts";
 import { requirePermission, scopeAncestry } from "./membership.ts";
 import type { Actor } from "./authorization.ts";
@@ -66,7 +66,7 @@ export async function createDestination(pool: Pool, actor: Actor, input: Destina
 		const isDefault = input.isDefault ?? !hasDefault;
 		if (isDefault) await db.query("UPDATE payloadbay.destination SET is_default=false,version=version+1 WHERE project_id=$1 AND is_default", [input.projectId]);
 		const result = (await db.query("INSERT INTO payloadbay.destination(project_id,name,http_config,secret_refs,concurrency,is_default) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,name,version,is_default,concurrency", [input.projectId, input.name.trim(), JSON.stringify({ url: http.url, method: http.method, headers: http.headers }), JSON.stringify(input.secretRefs ?? []), http.concurrency, isDefault])).rows[0];
-		await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation,resource_id) VALUES($1,'project',$2,'destination.created',$3)", [actor.userId, input.projectId, result.id]);
+		await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation,resource_id,redacted_diff) VALUES($1,'project',$2,'destination.created',$3,$4)", [actor.userId, input.projectId, result.id, JSON.stringify({ resourceName: result.name })]);
 
 		return result;
 	}).catch((error) => {
@@ -81,7 +81,7 @@ export async function listDestinations(pool: Pool, actor: Actor, projectId: stri
 	return (await pool.query("SELECT id,name,is_default,concurrency,version FROM payloadbay.destination WHERE project_id=$1 ORDER BY name,id LIMIT 200", [projectId])).rows;
 }
 
-export async function getDestination(pool: Pool, actor: Actor, id: string) {
+export async function getDestination(pool: Pool | PoolClient, actor: Actor, id: string) {
 	const row = (await pool.query("SELECT * FROM payloadbay.destination WHERE id=$1", [id])).rows[0];
 	if (!row) throw new AppError("not_found", 404, "Destination unavailable");
 	await requirePermission(pool, actor, { type: "project", id: row.project_id }, "destinations.configure");
@@ -120,11 +120,27 @@ export async function updateDestination(pool: Pool, actor: Actor, input: Destina
 
 		if (input.isDefault) await db.query("UPDATE payloadbay.destination SET is_default=false,version=version+1 WHERE project_id=$1 AND id<>$2 AND is_default", [input.projectId, input.id]);
 		const result = (await db.query("UPDATE payloadbay.destination SET name=$3,http_config=$4,secret_refs=$5,concurrency=$6,is_default=COALESCE($7,is_default),version=version+1 WHERE id=$1 AND project_id=$2 RETURNING id,name,version,is_default,concurrency", [input.id, input.projectId, input.name.trim(), JSON.stringify({ url: http.url, method: http.method, headers: http.headers }), JSON.stringify(input.secretRefs ?? []), http.concurrency, input.isDefault ?? null])).rows[0];
-		await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation,resource_id) VALUES($1,'project',$2,'destination.updated',$3)", [actor.userId, input.projectId, result.id]);
+		await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation,resource_id,redacted_diff) VALUES($1,'project',$2,'destination.updated',$3,$4)", [actor.userId, input.projectId, result.id, JSON.stringify({ resourceName: result.name })]);
 
 		return result;
 	}).catch((error) => {
 		if (error?.code === "23505") throw new AppError("name_conflict", 409, "Destination name already exists in this project");
 		throw error;
+	});
+}
+
+export async function deleteDestination(pool: Pool, actor: Actor, id: string, expectedVersion: number) {
+	return transaction(pool, async (db) => {
+		const existing = await getDestination(pool, actor, id);
+		await db.query("SELECT id FROM payloadbay.project WHERE id=$1 FOR UPDATE", [existing.projectId]);
+		const row = (await db.query("SELECT * FROM payloadbay.destination WHERE id=$1 FOR UPDATE", [id])).rows[0];
+		if (!row) throw new AppError("not_found", 404, "Destination unavailable");
+		if (row.version !== expectedVersion) throw new AppError("version_conflict", 409, "Destination changed; reload before deleting");
+		const used = await db.query("SELECT 1 FROM payloadbay.publication WHERE destination_snapshot ? $1::text UNION ALL SELECT 1 FROM payloadbay.notification_rule WHERE destination_id=$1::uuid LIMIT 1", [id]);
+		if (used.rowCount) throw new AppError("resource_in_use", 409, "This destination is referenced by a publication or notification rule. Its history must be preserved.");
+		await db.query("DELETE FROM payloadbay.destination WHERE id=$1", [id]);
+		await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation,resource_id,redacted_diff) VALUES($1,'project',$2,'destination.deleted',$3,$4)", [actor.userId, existing.projectId, id, JSON.stringify({ resourceName: row.name })]);
+
+		return { deleted: true };
 	});
 }

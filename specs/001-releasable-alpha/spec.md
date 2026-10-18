@@ -2,8 +2,8 @@
 
 **Feature Branch**: `feat/12-releasable-alpha`
 **Created**: 2026-10-13
-**Status**: Alpha product implemented with scoped verification; organization/metering foundation extension F01–F12 planned on 2026-10-16, not yet implemented. Broader release gates remain open.
-**Architecture decision (2026-10-13)**: Next.js/Node.js, PostgreSQL, Graphile Worker, Better Auth, Bun tooling and prebuilt Docker releases. HeroUI and API-first SSE selected; inherited instance/workspace/project roles and separate ingress/processing stages approved; no Supabase backend mode. Prior single-script requirements are replaced by separate configurable ingress/processing stages.
+**Status**: Alpha product and organization/metering foundation implemented with scoped verification; desktop consistency review in progress. Broader release gates remain open.
+**Architecture decision (2026-10-13)**: Next.js/Node.js, PostgreSQL, Graphile Worker, Better Auth, Bun tooling and prebuilt Docker releases. HeroUI and API-first SSE selected; platform roles separated from inherited organization/workspace/project roles and separate ingress/processing stages approved; no Supabase backend mode. Prior single-script requirements are replaced by separate configurable ingress/processing stages.
 
 **Input**: A self-hostable, designed for a later edge-ingress adapter programmable event-delivery platform. Users own all provider logic, routing and middleware; Payload Bay manages execution, durable acceptance, attempts, retries and replay. Each endpoint has editable ingress logic and worker-executed processing logic, sharing ordinary helpers.
 
@@ -211,3 +211,30 @@ Self-hosted and hosted deployments both separate instance operations from custom
 Instance middleware cannot execute on customer requests. Old compiled helper/secret dependencies outside the customer boundary stop safely until republished. Authentication messages bypass editable notification code even when queued before an update. Custom alert module consent is immutable-version pinned; no mutable platform default silently receives customer notification content.
 
 These are application authorization requirements, not a claim of complete production confidentiality certification. Published deployment/upgrade/restore validation, isolated host execution and deployment-level credential/network controls remain independent release gates.
+
+### Desktop consistency review (2026-10-18)
+
+The application uses HeroUI Select/ListBox menus consistently for roles, filters,
+versions and script configuration; HTTP status checks offer ComboBox suggestions.
+Authentication primary actions fill the form width on desktop and mobile.
+Command search remains in navigation above context/back controls, supports
+Control/Command+K and does not duplicate the desktop product identity.
+Resource menus begin with overview, not credentials. Navigable tables use a
+consistent final-column chevron, right-aligned accessible icon actions and
+independent child actions. Helpers are managed as versioned table rows.
+Middleware ordering starts at its visible handle with cursor/touch/keyboard
+feedback. Account notifications use a header-anchored, viewport-bounded popover.
+
+Route overview displays authorized route-specific traffic and recent executions;
+other working sections retain their dedicated layout. Secrets place actions above
+search and include an explicitly synthetic preview example. Installation text
+reflects actual SMTP verification and describes indefinite history unambiguously.
+Unused routes and destinations can be deleted with permission and expected-version
+checks. Publication, event or related-setting references prevent destructive
+removal; immutable history remains intact.
+
+Follow-up proposals, not implemented claims: database-backed installation/auth
+provider configuration, arbitrary authored regression-test scripts, notification
+snoozing and quota utilization bars need separate behavior/authorization decisions.
+A limit alone does not provide an accurate usage numerator, and visible accessible
+resource counts must not be presented as organization-wide quota consumption.

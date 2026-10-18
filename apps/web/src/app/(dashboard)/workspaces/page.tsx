@@ -2,8 +2,8 @@
 
 import { IconChevronRight } from "@tabler/icons-react";
 import { useState, type FormEvent } from "react";
-import { Button, Form, TextField, Input, Label, FieldError, Table, Modal } from "@heroui/react";
-import { NativeSelect } from "@heroui-pro/react";
+import { Button, Form, TextField, Input, Label, FieldError, Table, Modal, Select, ListBox } from "@heroui/react";
+
 import { useDashboard } from "@components/dashboard-shell";
 import { api } from "@lib/api-client";
 import { useFeedbackToast } from "@lib/feedback";
@@ -68,6 +68,7 @@ export default function WorkspacesPage() {
 						<Table.Header>
 							<Table.Column isRowHeader>Workspace</Table.Column>
 							<Table.Column>Accessible projects</Table.Column>
+							<Table.Column aria-label='Open resource' className='w-12 text-right' />
 						</Table.Header>
 						<Table.Body>
 							{workspaces
@@ -75,12 +76,12 @@ export default function WorkspacesPage() {
 								.map((item) => (
 									<Table.Row id={item.id} key={item.id} href={"/workspaces/" + item.id}>
 										<Table.Cell>
-											<span className='flex items-center justify-between gap-3'>
-												{item.name}
-												<IconChevronRight size={16} aria-hidden='true' className='shrink-0 text-muted' />
-											</span>
+											<span className='flex items-center justify-between gap-3'>{item.name}</span>
 										</Table.Cell>
 										<Table.Cell>{projects.filter((project) => project.workspace_id === item.id).length}</Table.Cell>
+										<Table.Cell className='w-12 text-right'>
+											<IconChevronRight size={18} aria-hidden='true' className='text-muted ml-auto' />
+										</Table.Cell>
 									</Table.Row>
 								))}
 						</Table.Body>
@@ -103,16 +104,23 @@ export default function WorkspacesPage() {
 							</Modal.Header>
 							<Modal.Body>
 								<Form id='new-workspace' onSubmit={create} className='flex flex-col gap-4'>
-									<NativeSelect variant='secondary' fullWidth>
+									<Select variant='secondary' fullWidth id='workspace-organization' isRequired value={organizationId} onChange={(key) => setOrganizationId(String(key ?? ""))}>
 										<Label htmlFor='workspace-organization'>Organization</Label>
-										<NativeSelect.Trigger id='workspace-organization' required value={organizationId} onChange={(event) => setOrganizationId(event.target.value)}>
-											{owned.map((item) => (
-												<NativeSelect.Option key={item.id} value={item.id}>
-													{item.name}
-												</NativeSelect.Option>
-											))}
-										</NativeSelect.Trigger>
-									</NativeSelect>
+										<Select.Trigger>
+											<Select.Value />
+											<Select.Indicator />
+										</Select.Trigger>
+										<Select.Popover>
+											<ListBox>
+												{owned.map((item) => (
+													<ListBox.Item key={item.id} id={item.id}>
+														{item.name}
+														<ListBox.ItemIndicator />
+													</ListBox.Item>
+												))}
+											</ListBox>
+										</Select.Popover>
+									</Select>
 									<TextField
 										isRequired
 										value={name}

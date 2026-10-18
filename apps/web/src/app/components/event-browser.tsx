@@ -4,7 +4,7 @@ import { useLiveSubscription } from "@components/live-subscription";
 import { LoadingState } from "@components/loading-state";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button, Table, Label, Chip, Select, ListBox, Checkbox, Tabs, Modal, Dropdown } from "@heroui/react";
-import { EmptyState, NativeSelect } from "@heroui-pro/react";
+import { EmptyState } from "@heroui-pro/react";
 import { IconInbox, IconEye, IconRefresh, IconPlayerPlay } from "@tabler/icons-react";
 import { useFeedbackToast } from "@lib/feedback";
 import { useDashboard } from "@components/dashboard-shell";
@@ -71,7 +71,7 @@ const labels: Record<string, string> = {
 	reject: "Rejected",
 	respondOnly: "Response only",
 	accept: "Accepted",
-	queued: "Accepted · queued",
+	queued: "Accepted / queued",
 	running: "Processing",
 	retry_wait: "Retry scheduled",
 	succeeded: "Handler completed",
@@ -361,7 +361,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 					<h1 className='text-3xl font-semibold'>{embedded ? "Route events" : "Events"}</h1>
 					<p className='text-muted mt-2'>One received event, with its ingress outcome, processing executions and outgoing attempts.</p>
 					<p role='status' className='text-muted mt-2 text-sm'>
-						Live updates:{" "}
+						Live updates:
 						<Chip size='sm' variant='soft' color={liveStatus === "connected" ? "success" : "warning"}>
 							{liveStatus === "connected" ? "Connected" : liveStatus === "connecting" ? "Connecting" : "Reconnecting"}
 						</Chip>
@@ -375,71 +375,104 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 			<div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
 				{!projectId && (
 					<>
-						<NativeSelect variant='secondary' fullWidth>
-							<Label>Workspace</Label>
-							<NativeSelect.Trigger
-								aria-label='Event workspace'
-								value={workspaceFilter}
-								onChange={(event) => {
-									setWorkspaceFilter(event.target.value);
-									setProjectFilter("");
-									setRouteFilter("");
-									changeFilters();
-								}}
-							>
-								<NativeSelect.Option value=''>All accessible workspaces</NativeSelect.Option>
-								{workspaces.map((workspace) => (
-									<NativeSelect.Option key={workspace.id} value={workspace.id}>
-										{workspace.name}
-									</NativeSelect.Option>
-								))}
-								<NativeSelect.Indicator />
-							</NativeSelect.Trigger>
-						</NativeSelect>
-						<NativeSelect variant='secondary' fullWidth>
-							<Label>Project</Label>
-							<NativeSelect.Trigger
-								aria-label='Event project'
-								value={projectFilter}
-								onChange={(event) => {
-									setProjectFilter(event.target.value);
-									setRouteFilter("");
-									changeFilters();
-								}}
-							>
-								<NativeSelect.Option value=''>All accessible projects</NativeSelect.Option>
-								{projects
-									.filter((project) => !workspaceFilter || project.workspace_id === workspaceFilter)
-									.map((project) => (
-										<NativeSelect.Option key={project.id} value={project.id}>
-											{project.name}
-										</NativeSelect.Option>
-									))}
-								<NativeSelect.Indicator />
-							</NativeSelect.Trigger>
-						</NativeSelect>
-					</>
-				)}
-				{!endpointId && activeProject && (
-					<NativeSelect variant='secondary' fullWidth>
-						<Label>Ingress route</Label>
-						<NativeSelect.Trigger
-							aria-label='Event route'
-							value={routeFilter}
-							onChange={(event) => {
-								setRouteFilter(event.target.value);
+						<Select
+							variant='secondary'
+							fullWidth
+							aria-label='Event workspace'
+							value={workspaceFilter}
+							onChange={(key) => {
+								setWorkspaceFilter(String(key ?? ""));
+								setProjectFilter("");
+								setRouteFilter("");
 								changeFilters();
 							}}
 						>
-							<NativeSelect.Option value=''>All routes</NativeSelect.Option>
-							{routes.map((route) => (
-								<NativeSelect.Option key={route.id} value={route.id}>
-									{route.name}
-								</NativeSelect.Option>
-							))}
-							<NativeSelect.Indicator />
-						</NativeSelect.Trigger>
-					</NativeSelect>
+							<Label>Workspace</Label>
+							<Select.Trigger>
+								<Select.Value />
+								<Select.Indicator />
+							</Select.Trigger>
+							<Select.Popover>
+								<ListBox>
+									<ListBox.Item id=''>
+										All accessible workspaces
+										<ListBox.ItemIndicator />
+									</ListBox.Item>
+									{workspaces.map((workspace) => (
+										<ListBox.Item key={workspace.id} id={workspace.id}>
+											{workspace.name}
+											<ListBox.ItemIndicator />
+										</ListBox.Item>
+									))}
+								</ListBox>
+							</Select.Popover>
+						</Select>
+						<Select
+							variant='secondary'
+							fullWidth
+							aria-label='Event project'
+							value={projectFilter}
+							onChange={(key) => {
+								setProjectFilter(String(key ?? ""));
+								setRouteFilter("");
+								changeFilters();
+							}}
+						>
+							<Label>Project</Label>
+							<Select.Trigger>
+								<Select.Value />
+								<Select.Indicator />
+							</Select.Trigger>
+							<Select.Popover>
+								<ListBox>
+									<ListBox.Item id=''>
+										All accessible projects
+										<ListBox.ItemIndicator />
+									</ListBox.Item>
+									{projects
+										.filter((project) => !workspaceFilter || project.workspace_id === workspaceFilter)
+										.map((project) => (
+											<ListBox.Item key={project.id} id={project.id}>
+												{project.name}
+												<ListBox.ItemIndicator />
+											</ListBox.Item>
+										))}
+								</ListBox>
+							</Select.Popover>
+						</Select>
+					</>
+				)}
+				{!endpointId && activeProject && (
+					<Select
+						variant='secondary'
+						fullWidth
+						aria-label='Event route'
+						value={routeFilter}
+						onChange={(key) => {
+							setRouteFilter(String(key ?? ""));
+							changeFilters();
+						}}
+					>
+						<Label>Ingress route</Label>
+						<Select.Trigger>
+							<Select.Value />
+							<Select.Indicator />
+						</Select.Trigger>
+						<Select.Popover>
+							<ListBox>
+								<ListBox.Item id=''>
+									All routes
+									<ListBox.ItemIndicator />
+								</ListBox.Item>
+								{routes.map((route) => (
+									<ListBox.Item key={route.id} id={route.id}>
+										{route.name}
+										<ListBox.ItemIndicator />
+									</ListBox.Item>
+								))}
+							</ListBox>
+						</Select.Popover>
+					</Select>
 				)}
 				<Select
 					variant='secondary'
@@ -575,10 +608,10 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 											</Chip>
 											{event.deliveryState && <p className='text-muted text-xs'>{labels[event.state ?? ""] ?? "Stored"}</p>}
 											<p className='text-muted text-xs'>
-												{event.deliveryAttempts} HTTP attempts · {event.bodyBytes} bytes
+												{event.deliveryAttempts} HTTP attempts / {event.bodyBytes} bytes
 											</p>
 										</Table.Cell>
-										<Table.Cell>
+										<Table.Cell className='text-right [&>div]:justify-end'>
 											<Button isIconOnly size='sm' variant='secondary' aria-label={"Inspect event " + event.id.slice(0, 8)} onPress={() => inspect(event.id)}>
 												<IconEye size={16} />
 											</Button>
@@ -640,7 +673,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 										<Tabs.Panel id='ingress' className='flex flex-col gap-4 pt-4'>
 											<h3 className='font-semibold'>{detail.endpointName}</h3>
 											<p>
-												{detail.method} · {labels[detail.ingressOutcome]} · HTTP {detail.responseStatus ?? "—"}
+												{detail.method} / {labels[detail.ingressOutcome]} / HTTP {detail.responseStatus ?? "—"}
 											</p>
 											{payload ? (
 												<>
@@ -673,7 +706,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 														{labels[execution.state]}
 													</Chip>
 													<p className='text-muted text-xs'>
-														{execution.attempt_number} processing attempts · {execution.id.slice(0, 8)}
+														{execution.attempt_number} processing attempts / {execution.id.slice(0, 8)}
 													</p>
 												</div>
 											))}
@@ -699,11 +732,11 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 													<Select.Popover>
 														<ListBox>
 															{[...detail.attempts].reverse().map((item, index) => (
-																<ListBox.Item key={item.id} id={item.id} textValue={"Attempt " + (index + 1) + " · " + (item.status_code ? "HTTP " + item.status_code : (item.network_error ?? "Pending")) + " · " + item.operation_id}>
+																<ListBox.Item key={item.id} id={item.id} textValue={"Attempt " + (index + 1) + " / " + (item.status_code ? "HTTP " + item.status_code : (item.network_error ?? "Pending")) + " / " + item.operation_id}>
 																	<div className='flex min-w-0 flex-col gap-1'>
 																		<div className='flex flex-wrap items-center gap-2'>
 																			<span>
-																				Attempt {index + 1} · {item.operation_id}
+																				Attempt {index + 1} / {item.operation_id}
 																			</span>
 																			<Chip size='sm' color={item.status_code ? (item.status_code >= 200 && item.status_code < 300 ? "success" : "danger") : "default"}>
 																				{item.status_code ? "HTTP " + item.status_code : (item.network_error ?? "Pending")}
@@ -728,7 +761,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 													) : (
 														<>
 															<p>
-																{attempt.operationId} · {attempt.status ? "HTTP " + attempt.status : (attempt.networkError ?? "Pending")} · {attempt.durationMs ?? "—"} ms
+																{attempt.operationId} / {attempt.status ? "HTTP " + attempt.status : (attempt.networkError ?? "Pending")} / {attempt.durationMs ?? "—"} ms
 															</p>
 															{attempt.responseBody !== undefined ? (
 																<>
@@ -773,15 +806,29 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 								<Modal.Heading>Select events</Modal.Heading>
 							</Modal.Header>
 							<Modal.Body className='flex flex-col gap-4'>
-								<NativeSelect variant='secondary' fullWidth>
+								<Select variant='secondary' fullWidth aria-label='Selection status' value={selectionState} onChange={(key) => setSelectionState(String(key ?? ""))}>
 									<Label>Status</Label>
-									<NativeSelect.Trigger aria-label='Selection status' value={selectionState} onChange={(event) => setSelectionState(event.target.value)}>
-										<NativeSelect.Option value='delivery_failed'>Failed deliveries</NativeSelect.Option>
-										<NativeSelect.Option value='delivered'>Successful deliveries</NativeSelect.Option>
-										<NativeSelect.Option value='failed_terminal'>Failed processing</NativeSelect.Option>
-										<NativeSelect.Indicator />
-									</NativeSelect.Trigger>
-								</NativeSelect>
+									<Select.Trigger>
+										<Select.Value />
+										<Select.Indicator />
+									</Select.Trigger>
+									<Select.Popover>
+										<ListBox>
+											<ListBox.Item id='delivery_failed'>
+												Failed deliveries
+												<ListBox.ItemIndicator />
+											</ListBox.Item>
+											<ListBox.Item id='delivered'>
+												Successful deliveries
+												<ListBox.ItemIndicator />
+											</ListBox.Item>
+											<ListBox.Item id='failed_terminal'>
+												Failed processing
+												<ListBox.ItemIndicator />
+											</ListBox.Item>
+										</ListBox>
+									</Select.Popover>
+								</Select>
 								{activeRoute && <PublicationPicker endpointId={activeRoute} value={selectionVersion} onChange={setSelectionVersion} allowAll label='Selection script version' />}
 								<p className='text-muted text-sm'>Selects matching replayable events in this scope. Your visible list stays unchanged.</p>
 							</Modal.Body>
@@ -818,22 +865,40 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 							</Modal.Header>
 							<Modal.Body className='flex flex-col gap-4'>
 								<p>{selectedIds.length} selected events will get new processing executions. External effects can repeat. The selection is fixed; newly arriving events are not included.</p>
-								<NativeSelect variant='secondary' fullWidth>
+								<Select
+									variant='secondary'
+									fullWidth
+									aria-label='Bulk replay version policy'
+									value={bulkPolicy}
+									onChange={(key) => {
+										bulkKey.current = crypto.randomUUID();
+										setBulkPolicy(String(key ?? "") as typeof bulkPolicy);
+									}}
+								>
 									<Label>Version policy</Label>
-									<NativeSelect.Trigger
-										aria-label='Bulk replay version policy'
-										value={bulkPolicy}
-										onChange={(event) => {
-											bulkKey.current = crypto.randomUUID();
-											setBulkPolicy(event.target.value as typeof bulkPolicy);
-										}}
-									>
-										<NativeSelect.Option value='original'>Original version for each event</NativeSelect.Option>
-										<NativeSelect.Option value='current'>Active version for each route</NativeSelect.Option>
-										{activeRoute && <NativeSelect.Option value='selected'>Choose a specific version</NativeSelect.Option>}
-										<NativeSelect.Indicator />
-									</NativeSelect.Trigger>
-								</NativeSelect>
+									<Select.Trigger>
+										<Select.Value />
+										<Select.Indicator />
+									</Select.Trigger>
+									<Select.Popover>
+										<ListBox>
+											<ListBox.Item id='original'>
+												Original version for each event
+												<ListBox.ItemIndicator />
+											</ListBox.Item>
+											<ListBox.Item id='current'>
+												Active version for each route
+												<ListBox.ItemIndicator />
+											</ListBox.Item>
+											{activeRoute && (
+												<ListBox.Item id='selected'>
+													Choose a specific version
+													<ListBox.ItemIndicator />
+												</ListBox.Item>
+											)}
+										</ListBox>
+									</Select.Popover>
+								</Select>
 								{activeRoute && bulkPolicy === "selected" && (
 									<PublicationPicker
 										endpointId={activeRoute}

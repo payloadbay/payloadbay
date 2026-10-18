@@ -1,3 +1,4 @@
+import { chooseOption } from "../helpers/select-option.ts";
 import { test, expect } from "../helpers/browser-test.ts";
 import { writeFile } from "node:fs/promises";
 import { resetBrowserData } from "../helpers/browser-data.ts";
@@ -110,8 +111,8 @@ test("K01 personal settings creates a show-once API key and revokes it", async (
 	await expect(page.getByRole("dialog", { name: "Create API key", exact: true })).toHaveCount(0);
 	await page.getByRole("button", { name: "Create API key", exact: true }).click();
 	await page.getByLabel("Key name", { exact: true }).fill("Review automation");
-	await page.getByLabel("Expires after", { exact: true }).selectOption("7");
-	await page.getByLabel("Access preset", { exact: true }).selectOption("read");
+	await chooseOption(page.getByRole("button", { name: new RegExp("Expires after") }), "7");
+	await chooseOption(page.getByRole("button", { name: new RegExp("Access preset") }), "read");
 	await page.getByRole("button", { name: "Create key", exact: true }).click();
 	const secret = await page.getByRole("textbox", { name: "New API key", exact: true }).inputValue();
 	expect(/^pb_[A-Za-z0-9_-]{43}$/.test(secret)).toBe(true);
@@ -168,7 +169,7 @@ test("K02 organization settings automatically scopes a key to that organization"
 	const dialog = page.getByRole("dialog", { name: "Create API key", exact: true });
 	await dialog.getByLabel("Key name", { exact: true }).fill("Workspace integration");
 	await expect(dialog.getByLabel("Key scope", { exact: true })).toHaveCount(0);
-	await dialog.getByLabel("Access preset", { exact: true }).selectOption("read");
+	await chooseOption(dialog.getByRole("button", { name: new RegExp("Access preset") }), "read");
 	await dialog.getByRole("button", { name: "Create key", exact: true }).click();
 	const secret = await page.getByRole("textbox", { name: "New API key", exact: true }).inputValue();
 	const headers = { authorization: "Bearer " + secret };
@@ -196,7 +197,7 @@ for (const level of ["workspace", "project"] as const) {
 		const dialog = page.getByRole("dialog", { name: "Create API key", exact: true });
 		await expect(dialog.getByLabel("Key scope", { exact: true })).toHaveCount(0);
 		await dialog.getByLabel("Key name", { exact: true }).fill("Context automation");
-		await dialog.getByLabel("Access preset", { exact: true }).selectOption("read");
+		await chooseOption(dialog.getByRole("button", { name: new RegExp("Access preset") }), "read");
 		await dialog.getByRole("button", { name: "Create key", exact: true }).click();
 		const secret = await page.getByRole("textbox", { name: "New API key", exact: true }).inputValue();
 		const authorization = { authorization: "Bearer " + secret };
@@ -219,7 +220,7 @@ test("K04 a custom personal key enforces its reduced permissions without changin
 	await page.getByRole("button", { name: "Create API key", exact: true }).click();
 	const dialog = page.getByRole("dialog", { name: "Create API key", exact: true });
 	await dialog.getByLabel("Key name", { exact: true }).fill("Custom review access");
-	await dialog.getByLabel("Access preset", { exact: true }).selectOption("custom");
+	await chooseOption(dialog.getByRole("button", { name: new RegExp("Access preset") }), "custom");
 	const permission = dialog.getByRole("checkbox", { name: "metadata.read", exact: true });
 	await expect(permission).toBeChecked();
 	await dialog.getByText("metadata.read", { exact: true }).click();

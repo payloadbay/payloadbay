@@ -274,3 +274,5 @@ ALTER FUNCTION payloadbay.prune_expired_events(timestamptz,integer) OWNER TO pay
 REVOKE CREATE ON SCHEMA payloadbay FROM payloadbay_retention;
 REVOKE ALL ON FUNCTION payloadbay.prune_expired_events(timestamptz,integer) FROM PUBLIC,payloadbay_app;
 GRANT EXECUTE ON FUNCTION payloadbay.prune_expired_events(timestamptz,integer) TO payloadbay_worker;
+
+GRANT DELETE ON payloadbay.endpoint,payloadbay.draft,payloadbay.destination TO payloadbay_app;

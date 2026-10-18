@@ -35,3 +35,25 @@ export type ProjectSummary = {
 	organization_id: string;
 	permissions: Permission[];
 };
+
+export type TrafficSnapshot = {
+	totals: Record<string, number>;
+	series: {
+		hour: string;
+		ingress: number;
+		accepted: number;
+		rejected: number;
+		deliveries: number;
+		executions: number;
+	}[];
+	recent: {
+		id: string;
+		state: string;
+		attempt_number: number;
+		created_at: string;
+		endpoint_name: string;
+		project_id: string;
+		project_name: string;
+		endpoint_id: string;
+	}[];
+};

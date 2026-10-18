@@ -121,3 +121,19 @@ restore, or omit it to activate. Active and latest versions cannot be archived;
 an archived version must be restored before activation. Archival changes separate
 metadata, never the published code or event references. Permanent deletion is not
 supported: retained versions are part of recovery and explicit replay history.
+
+### Unused configuration deletion and route overview
+
+`DELETE /api/v1/endpoints/{endpointId}` and
+`DELETE /api/v1/destinations/{destinationId}` require the resource's configuration
+permission, current admission and `If-Match` expected version. They remove unused
+configuration only. Publication/event/related-setting references return409
+`resource_in_use`, stale versions return409 `version_conflict`, and history is
+never cascaded away. Destination removal is serialized with publication snapshot
+creation through the project lock. The operator should pause a used route rather
+than delete its retained history.
+
+`GET /api/v1/overview?endpointId=<uuid>` applies the same current metadata and token
+checks as endpoint access before returning exact route-filtered traffic buckets
+and recent executions. Omitting endpointId retains the authorized all-project
+view. The filter never broadens access through an instance role.

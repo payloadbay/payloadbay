@@ -61,6 +61,7 @@ export default function OrganizationPage({ params }: { params: Promise<{ organiz
 						<Table.Header>
 							<Table.Column isRowHeader>Workspace</Table.Column>
 							<Table.Column>Accessible projects</Table.Column>
+							<Table.Column aria-label='Open resource' className='w-12 text-right' />
 						</Table.Header>
 						<Table.Body>
 							{workspaces
@@ -68,12 +69,12 @@ export default function OrganizationPage({ params }: { params: Promise<{ organiz
 								.map((item) => (
 									<Table.Row id={item.id} key={item.id} href={"/workspaces/" + item.id}>
 										<Table.Cell>
-											<span className='flex items-center justify-between gap-3'>
-												{item.name}
-												<IconChevronRight size={16} aria-hidden='true' className='text-muted shrink-0' />
-											</span>
+											<span className='flex items-center justify-between gap-3'>{item.name}</span>
 										</Table.Cell>
 										<Table.Cell>{projects.filter((project) => project.workspace_id === item.id).length}</Table.Cell>
+										<Table.Cell className='w-12 text-right'>
+											<IconChevronRight size={18} aria-hidden='true' className='text-muted ml-auto' />
+										</Table.Cell>
 									</Table.Row>
 								))}
 						</Table.Body>

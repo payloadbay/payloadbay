@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { Button, Checkbox, Chip, FieldError, Form, Input, Label, Table, TextField, Modal } from "@heroui/react";
+import { Button, Checkbox, Chip, FieldError, Form, Input, Label, Table, TextField, Modal, Select, ListBox } from "@heroui/react";
 import { IconKeyOff } from "@tabler/icons-react";
-import { NativeSelect } from "@heroui-pro/react";
+
 import { useDashboard } from "@components/dashboard-shell";
 import { LoadingState } from "@components/loading-state";
 import { api } from "@lib/api-client";
@@ -163,7 +163,15 @@ export function ApiKeyManager({ organizationId, workspaceId, projectId }: { orga
 		<section className='flex min-w-0 flex-col gap-6'>
 			<header>
 				<h1 className='text-3xl font-semibold'>{type === "personal" ? "Personal API keys" : `${type[0].toUpperCase() + type.slice(1)} API keys`}</h1>
-				<p className='text-muted mt-2'>{type === "personal" ? "Keys act as your account, with your current access. Choose a preset to restrict a key." : `Keys created here stay within ${scope?.name ?? "this resource"} and your current permissions.`}</p>
+				<p className='text-muted mt-2'>
+					{type === "personal" ? (
+						"Keys act as your account, with your current access. Choose a preset to restrict a key."
+					) : (
+						<>
+							Keys created here are limited to <strong>{scope?.name ?? "this " + type}</strong> and your current permissions.
+						</>
+					)}
+				</p>
 			</header>
 			{!scope ? (
 				<p>No scopes allow you to manage API keys. Ask an administrator for token-management permission.</p>
@@ -190,7 +198,7 @@ export function ApiKeyManager({ organizationId, workspaceId, projectId }: { orga
 										<Table.Column>Access</Table.Column>
 										<Table.Column>Expires</Table.Column>
 										<Table.Column>Status</Table.Column>
-										<Table.Column>Actions</Table.Column>
+										<Table.Column className='text-right'>Actions</Table.Column>
 									</Table.Header>
 									<Table.Body>
 										{keys.map((key) => (
@@ -210,7 +218,7 @@ export function ApiKeyManager({ organizationId, workspaceId, projectId }: { orga
 														{key.revoked_at ? "Revoked" : key.expired ? "Expired" : "Active"}
 													</Chip>
 												</Table.Cell>
-												<Table.Cell>
+												<Table.Cell className='text-right [&>div]:justify-end'>
 													<Button size='sm' variant='danger-soft' isIconOnly aria-label={"Revoke " + key.name} isDisabled={Boolean(key.revoked_at)} onPress={() => setRevoking(key)}>
 														<IconKeyOff size={18} aria-hidden='true' />
 													</Button>
@@ -220,7 +228,7 @@ export function ApiKeyManager({ organizationId, workspaceId, projectId }: { orga
 									</Table.Body>
 								</Table.Content>
 							</Table.ScrollContainer>
-							{keys.length === 0 && <Table.Footer>No API keys in this scope.</Table.Footer>}
+							{keys.length === 0 && <Table.Footer>No API keys {type === "personal" ? "in your account" : "in this " + type}.</Table.Footer>}
 						</Table>
 					)}
 				</>
@@ -257,33 +265,55 @@ export function ApiKeyManager({ organizationId, workspaceId, projectId }: { orga
 											<Input variant='secondary' />
 											<FieldError />
 										</TextField>
-										<NativeSelect variant='secondary'>
+										<Select variant='secondary' id='api-key-expiry' value={days} onChange={(key) => setDays(String(key ?? ""))}>
 											<Label htmlFor='api-key-expiry'>Expires after</Label>
-											<NativeSelect.Trigger id='api-key-expiry' value={days} onChange={(event) => setDays(event.target.value)}>
-												{[7, 30, 90, 365].map((day) => (
-													<NativeSelect.Option key={day} value={String(day)}>
-														{day} days
-													</NativeSelect.Option>
-												))}
-												<NativeSelect.Indicator />
-											</NativeSelect.Trigger>
-										</NativeSelect>
-										<NativeSelect variant='secondary'>
+											<Select.Trigger>
+												<Select.Value />
+												<Select.Indicator />
+											</Select.Trigger>
+											<Select.Popover>
+												<ListBox>
+													{[7, 30, 90, 365].map((day) => (
+														<ListBox.Item key={day} id={String(day)}>
+															{day} days
+															<ListBox.ItemIndicator />
+														</ListBox.Item>
+													))}
+												</ListBox>
+											</Select.Popover>
+										</Select>
+										<Select
+											variant='secondary'
+											id='key-access-preset'
+											value={preset}
+											onChange={(key) => {
+												const next = String(key ?? "");
+												setPreset(next);
+												setSelected(next === "read" ? (scope?.permissions ?? []).filter((permission) => permission.endsWith(".read")) : [...(scope?.permissions ?? [])]);
+											}}
+										>
 											<Label htmlFor='key-access-preset'>Access preset</Label>
-											<NativeSelect.Trigger
-												id='key-access-preset'
-												value={preset}
-												onChange={(event) => {
-													const next = event.target.value;
-													setPreset(next);
-													setSelected(next === "read" ? (scope?.permissions ?? []).filter((permission) => permission.endsWith(".read")) : [...(scope?.permissions ?? [])]);
-												}}
-											>
-												<NativeSelect.Option value='full'>{type === "personal" ? "All my access" : "All permitted actions"}</NativeSelect.Option>
-												<NativeSelect.Option value='read'>Read only</NativeSelect.Option>
-												<NativeSelect.Option value='custom'>Custom permissions</NativeSelect.Option>
-											</NativeSelect.Trigger>
-										</NativeSelect>
+											<Select.Trigger>
+												<Select.Value />
+												<Select.Indicator />
+											</Select.Trigger>
+											<Select.Popover>
+												<ListBox>
+													<ListBox.Item id='full'>
+														{type === "personal" ? "All my access" : "All permitted actions"}
+														<ListBox.ItemIndicator />
+													</ListBox.Item>
+													<ListBox.Item id='read'>
+														Read only
+														<ListBox.ItemIndicator />
+													</ListBox.Item>
+													<ListBox.Item id='custom'>
+														Custom permissions
+														<ListBox.ItemIndicator />
+													</ListBox.Item>
+												</ListBox>
+											</Select.Popover>
+										</Select>
 										{preset === "custom" && (
 											<fieldset className='flex flex-col gap-2'>
 												<legend className='mb-2 font-medium'>Permissions</legend>

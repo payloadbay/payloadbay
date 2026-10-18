@@ -457,3 +457,37 @@ test("FT10e expired delivery authority releases destination capacity without sta
 		{ concurrency: 1 },
 	);
 });
+
+test("UX66 unused routes and targets delete without erasing history or crossing permissions", async () => {
+	const { createDestination, deleteDestination } = await import("../../packages/domain/src/destinations.ts");
+	const { createEndpoint, deleteEndpoint } = await import("../../packages/domain/src/endpoints.ts");
+	const { permissions } = await import("../../packages/contracts/src/permissions.ts");
+	await deliveryFixture(async ({ pool, db, authority, httpUrl }) => {
+		const projectId = (await db.query("SELECT project_id FROM payloadbay.endpoint WHERE id=$1", [authority.endpointId])).rows[0].project_id;
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','project',$1,'owner',$2)", [projectId, permissions]);
+		const actor = { userId: "fixture-owner" };
+		await db.query("INSERT INTO payloadbay.admission(installation_id,user_id) SELECT a.installation_id,'uninvited' FROM payloadbay.admission a WHERE a.user_id='fixture-owner' LIMIT 1");
+		const target = await createDestination(pool, actor, { projectId, name: "Unused", url: httpUrl });
+		await assert.rejects(deleteDestination(pool, { userId: "uninvited" }, target.id, target.version), { code: "forbidden" });
+		await assert.rejects(deleteDestination(pool, actor, target.id, target.version + 1), { code: "version_conflict" });
+		await deleteDestination(pool, actor, target.id, target.version);
+		assert.equal((await db.query("SELECT 1 FROM payloadbay.destination WHERE id=$1", [target.id])).rowCount, 0);
+		const route = await createEndpoint(pool, actor, { projectId, name: "Unused", slug: "unused-delete" });
+		await assert.rejects(deleteEndpoint(pool, { userId: "uninvited" }, route.id, route.config_version), { code: "forbidden" });
+		await assert.rejects(deleteEndpoint(pool, actor, route.id, route.config_version + 1), { code: "version_conflict" });
+		await deleteEndpoint(pool, actor, route.id, route.config_version);
+		assert.equal((await db.query("SELECT 1 FROM payloadbay.draft WHERE endpoint_id=$1", [route.id])).rowCount, 0);
+		const { listAudit } = await import("../../packages/domain/src/audit.ts");
+		const history = await listAudit(pool, actor, { type: "project", id: projectId }, {});
+		assert.equal(history.items.find((entry) => entry.operation === "endpoint.deleted" && entry.resourceId === route.id)?.resourceName, "Unused");
+		assert.equal(history.items.find((entry) => entry.operation === "destination.deleted" && entry.resourceId === target.id)?.resourceName, "Unused");
+
+		const current = (await db.query("SELECT config_version FROM payloadbay.endpoint WHERE id=$1", [authority.endpointId])).rows[0];
+		await assert.rejects(deleteEndpoint(pool, actor, authority.endpointId, current.config_version), { code: "resource_in_use" });
+		assert.equal((await db.query("SELECT 1 FROM payloadbay.execution WHERE id=$1", [authority.executionId])).rowCount, 1);
+		const pinned = await createDestination(pool, actor, { projectId, name: "Pinned", url: httpUrl });
+		await db.query("INSERT INTO payloadbay.publication(endpoint_id,ingress_revision_id,processing_revision_id,destination_snapshot,dependency_digest,created_by) SELECT endpoint_id,ingress_revision_id,processing_revision_id,$1,'deletion-history','fixture-owner' FROM payloadbay.publication WHERE endpoint_id=$2 LIMIT 1", [JSON.stringify({ [pinned.id]: { id: pinned.id } }), authority.endpointId]);
+		await assert.rejects(deleteDestination(pool, actor, pinned.id, pinned.version), { code: "resource_in_use" });
+		assert.equal((await db.query("SELECT 1 FROM payloadbay.destination WHERE id=$1", [pinned.id])).rowCount, 1);
+	});
+});

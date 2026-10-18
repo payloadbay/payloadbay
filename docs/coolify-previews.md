@@ -176,3 +176,18 @@ a synthetic event to it; open Events through the contextual project navigation
 to inspect the real queued delivery. Only this fixed synthetic preview route is
 auto-published; new routes still require deliberate publication. Re-running the
 seed does not overwrite edited drafts or replace an existing publication.
+
+## Friendly preview service labels
+
+The preview Compose service keys are `payload-bay` and `email-catcher`, so Coolify's
+PR links identify the product and its synthetic-mail viewer. Coolify4.4.6 derives
+those link captions from the domain-map service keys; it has no separate caption
+field in `ApplicationPullRequestUpdateJob::getPreviewLinks`.
+
+When this PR's Compose definition reaches master, remap the existing application
+and Mailpit domains to these two service keys in Coolify and remove their old
+`app`/`smtp` domain-map entries before redeploying. Keep the existing public URLs.
+The mail hostname uses `SERVICE_NAME_EMAIL_CATCHER` for PR isolation. The current
+master-loaded preview continues using its old service keys until that coordinated
+configuration change; changing the PR UI alone cannot rename Coolify's generated
+links. No separate bootstrap PR is required for this cosmetic follow-up.

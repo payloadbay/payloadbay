@@ -1,8 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Label, Tabs } from "@heroui/react";
-import { NativeSelect } from "@heroui-pro/react";
+import { Label, Tabs, Select, ListBox } from "@heroui/react";
+
 import { CodeEditor } from "@components/code-editor";
 
 export type BodyFormat = "json" | "xml" | "plaintext";
@@ -45,17 +45,23 @@ export function HttpRequestEditor({ body, headers, secrets, format, method, meth
 			<div className='flex flex-wrap items-end gap-3'>
 				{controls}
 				{method && onMethodChange && (
-					<NativeSelect variant='secondary' className='w-28 shrink-0'>
+					<Select variant='secondary' className='w-28 shrink-0' aria-label={methodLabel} value={method} onChange={(key) => onMethodChange(String(key ?? ""))}>
 						<Label>Method</Label>
-						<NativeSelect.Trigger aria-label={methodLabel} value={method} onChange={(event) => onMethodChange(event.target.value)}>
-							{["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].map((value) => (
-								<NativeSelect.Option key={value} value={value}>
-									{value}
-								</NativeSelect.Option>
-							))}
-							<NativeSelect.Indicator />
-						</NativeSelect.Trigger>
-					</NativeSelect>
+						<Select.Trigger>
+							<Select.Value />
+							<Select.Indicator />
+						</Select.Trigger>
+						<Select.Popover>
+							<ListBox>
+								{["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].map((value) => (
+									<ListBox.Item key={value} id={value}>
+										{value}
+										<ListBox.ItemIndicator />
+									</ListBox.Item>
+								))}
+							</ListBox>
+						</Select.Popover>
+					</Select>
 				)}
 				<div className='ml-auto flex shrink-0'>{action}</div>
 			</div>
@@ -89,15 +95,29 @@ export function HttpRequestEditor({ body, headers, secrets, format, method, meth
 						<p className='text-muted py-4 text-sm'>This method sends no request body.</p>
 					) : (
 						<div className='flex min-w-0 flex-col gap-3'>
-							<NativeSelect variant='secondary' className='w-36'>
+							<Select variant='secondary' className='w-36' aria-label='Body format' value={format} onChange={(key) => onFormatChange(String(key ?? "") as BodyFormat)}>
 								<Label>Body format</Label>
-								<NativeSelect.Trigger aria-label='Body format' value={format} onChange={(event) => onFormatChange(event.target.value as BodyFormat)}>
-									<NativeSelect.Option value='json'>JSON</NativeSelect.Option>
-									<NativeSelect.Option value='xml'>XML</NativeSelect.Option>
-									<NativeSelect.Option value='plaintext'>Text</NativeSelect.Option>
-									<NativeSelect.Indicator />
-								</NativeSelect.Trigger>
-							</NativeSelect>
+								<Select.Trigger>
+									<Select.Value />
+									<Select.Indicator />
+								</Select.Trigger>
+								<Select.Popover>
+									<ListBox>
+										<ListBox.Item id='json'>
+											JSON
+											<ListBox.ItemIndicator />
+										</ListBox.Item>
+										<ListBox.Item id='xml'>
+											XML
+											<ListBox.ItemIndicator />
+										</ListBox.Item>
+										<ListBox.Item id='plaintext'>
+											Text
+											<ListBox.ItemIndicator />
+										</ListBox.Item>
+									</ListBox>
+								</Select.Popover>
+							</Select>
 							<CodeEditor language={format} label={bodyLabel} value={body} onChange={onBodyChange} />
 						</div>
 					)}

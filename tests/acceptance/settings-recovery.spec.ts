@@ -1,3 +1,4 @@
+import { chooseOption } from "../helpers/select-option.ts";
 import { test, expect } from "../helpers/browser-test.ts";
 import { ensureBrowserOwner } from "../helpers/browser-auth.ts";
 import { resetBrowserData } from "../helpers/browser-data.ts";
@@ -119,7 +120,7 @@ test("UX46 organization usage retries a failed window and switches its actual UT
 	await page.getByRole("button", { name: "Try again", exact: true }).click();
 	await expect(page.getByRole("grid", { name: "Organization usage", exact: true })).toBeVisible();
 	const changed = page.waitForResponse((response) => response.url().includes("/organizations/" + id + "/usage?") && response.ok());
-	await page.getByLabel("Usage window", { exact: true }).selectOption("168");
+	await chooseOption(page.getByRole("button", { name: new RegExp("Usage window") }), "168");
 	const query = new URL((await changed).url()).searchParams;
 	expect(new Date(query.get("to")!).getTime() - new Date(query.get("from")!).getTime()).toBe(168 * 3600000);
 	await page.getByRole("button", { name: "Refresh", exact: true }).click();
@@ -177,7 +178,7 @@ test("UX50 resource collections create scoped projects and preserve their lists 
 	await page.goto("/workspaces");
 	await page.getByRole("button", { name: "Create workspace", exact: true }).click();
 	let dialog = page.getByRole("dialog", { name: "New workspace", exact: true });
-	await dialog.getByLabel("Organization", { exact: true }).selectOption(organizationId);
+	await chooseOption(dialog.getByRole("button", { name: new RegExp("Organization") }), organizationId);
 	await dialog.getByLabel("Name", { exact: true }).fill("Collection workspace");
 	await expect(dialog.getByLabel("Slug", { exact: true })).toHaveValue("collection-workspace");
 	await dialog.getByLabel("Slug", { exact: true }).fill("collection-review");
@@ -193,12 +194,12 @@ test("UX50 resource collections create scoped projects and preserve their lists 
 	await page.goto("/projects");
 	await page.getByRole("button", { name: "Create project", exact: true }).click();
 	dialog = page.getByRole("dialog", { name: "New project", exact: true });
-	await dialog.getByLabel("Project workspace", { exact: true }).selectOption(workspace.id);
+	await chooseOption(dialog.getByRole("button", { name: new RegExp("Project workspace") }), workspace.id);
 	await dialog.getByLabel("Name", { exact: true }).fill("Collection project");
 	await dialog.getByLabel("Slug", { exact: true }).fill("collection-project");
 	await dialog.getByRole("button", { name: "Create project", exact: true }).click();
 	await expect(dialog).toHaveCount(0);
-	await page.getByLabel("Workspace", { exact: true }).selectOption(workspace.id);
+	await chooseOption(page.getByRole("button", { name: new RegExp("Workspace") }), workspace.id);
 	await page.getByRole("textbox", { name: "Search projects", exact: true }).fill("Collection project");
 	await expect(page.getByRole("grid", { name: "Projects", exact: true }).getByRole("row").filter({ hasText: "Collection project" })).toBeVisible();
 	await page.getByRole("button", { name: "Create project", exact: true }).click();
@@ -207,7 +208,7 @@ test("UX50 resource collections create scoped projects and preserve their lists 
 	await expect(dialog).toHaveCount(0);
 	await page.getByRole("button", { name: "Create workspace", exact: true }).click();
 	dialog = page.getByRole("dialog", { name: "New workspace", exact: true });
-	await dialog.getByLabel("Organization", { exact: true }).selectOption(organizationId);
+	await chooseOption(dialog.getByRole("button", { name: new RegExp("Organization") }), organizationId);
 	await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
 	await expect(dialog).toHaveCount(0);
 	const projects = await (await page.request.get("/api/v1/projects")).json();
@@ -244,8 +245,8 @@ test("UX51 notification modules support catalog creation, keyboard publishing, p
 	expect(await (await page.request.get("/api/v1/notification-channels")).json()).toEqual(before);
 	await page.getByRole("button", { name: "Create module", exact: true }).click();
 	await page.getByLabel("Module name", { exact: true }).fill("Lifecycle email");
-	await page.getByLabel("Transport", { exact: true }).selectOption("webhook");
-	await page.getByLabel("Transport", { exact: true }).selectOption("email");
+	await chooseOption(page.getByRole("button", { name: new RegExp("Transport") }), "webhook");
+	await chooseOption(page.getByRole("button", { name: new RegExp("Transport") }), "email");
 	await page.getByRole("button", { name: "Open editor", exact: true }).click();
 	await expect(page).toHaveURL(/\/admin\/notification-channels\/new\?/);
 	const editor = page.getByRole("textbox", { name: "Notification module source", exact: true });
@@ -269,11 +270,11 @@ test("UX51 notification modules support catalog creation, keyboard publishing, p
 	await editor.focus();
 	await page.keyboard.press("ControlOrMeta+s");
 	expect((await secondPublish).status()).toBe(200);
-	await expect(page.getByRole("combobox", { name: "Module version", exact: true })).toContainText("v2 · Active · Latest");
-	await page.getByRole("combobox", { name: "Module version", exact: true }).selectOption(firstRevision);
+	await expect(page.getByRole("button", { name: /Module version/ })).toContainText("v2 / Active / Latest");
+	await chooseOption(page.getByRole("button", { name: /Module version/ }), firstRevision);
 	await expect(page.getByRole("button", { name: "Use selected version", exact: true })).toBeEnabled();
 	await page.getByRole("button", { name: "Use selected version", exact: true }).click();
-	await expect(page.getByRole("combobox", { name: "Module version", exact: true })).toContainText("v1 · Active");
+	await expect(page.getByRole("button", { name: /Module version/ })).toContainText("v1 / Active");
 	saved = await (await page.request.get("/api/v1/notification-channels/" + channelId)).json();
 	expect(saved.activeRevisionId).toBe(firstRevision);
 	expect(saved.revisions).toHaveLength(2);
@@ -420,6 +421,17 @@ test("UX64 mobile middleware handles reorder with touch and retain keyboard alte
 	await page.getByRole("button", { name: "Move First policy up", exact: true }).click();
 	await expect.poll(order).toEqual(["First policy", "Second policy"]);
 	await page.screenshot({ path: test.info().outputPath("middleware-touch-order-mobile.png") });
+	await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+	await page.setViewportSize({ width: 1440, height: 1000 });
+	const mouseSource = await handle.boundingBox();
+	const mouseTarget = await page.getByRole("button", { name: "Drag First policy", exact: true }).boundingBox();
+	await page.mouse.move(mouseSource!.x + mouseSource!.width / 2, mouseSource!.y + mouseSource!.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(mouseTarget!.x + mouseTarget!.width / 2, mouseTarget!.y + 3, { steps: 12 });
+	await page.mouse.up();
+	await expect.poll(order).toEqual(["Second policy", "First policy"]);
+	await page.screenshot({ path: test.info().outputPath("middleware-handle-order-desktop.png") });
+
 	await cdp.detach();
 });
 
@@ -474,7 +486,7 @@ test("UX65 secret rotation pins stages independently and cancelled forms discard
 	await page.getByRole("button", { name: "Bind secret version", exact: true }).click();
 	const bind = page.getByRole("dialog", { name: "Bind a secret", exact: true });
 	await bind.getByLabel("Script key", { exact: true }).fill("LEGACY_KEY");
-	await bind.getByLabel("Secret version", { exact: true }).selectOption(first.id);
+	await chooseOption(bind.getByRole("button", { name: new RegExp("Secret version") }), first.id);
 	const ingress = bind.getByRole("checkbox", { name: "Ingress", exact: true });
 	await expect(ingress).not.toBeChecked();
 	await ingress.press("Space");

@@ -3,8 +3,8 @@
 import { LoadingState } from "@components/loading-state";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { Button, Card, Checkbox, Label, NumberField, FieldError, Modal } from "@heroui/react";
-import { EmptyState, NativeSelect } from "@heroui-pro/react";
+import { Button, Card, Switch, Label, NumberField, FieldError, Modal, Select, ListBox } from "@heroui/react";
+import { EmptyState } from "@heroui-pro/react";
 import { IconBell, IconPlus, IconPencil, IconArrowLeft } from "@tabler/icons-react";
 import { api } from "@lib/api-client";
 import { useFeedbackToast } from "@lib/feedback";
@@ -128,7 +128,7 @@ export function NotificationRules({ projectId, workspaceId }: { projectId?: stri
 		<section className='flex flex-col gap-6'>
 			<header className='flex flex-wrap items-start justify-between gap-4'>
 				<div>
-					<Link className='text-accent flex items-center gap-2' href={address}>
+					<Link className='button button--secondary w-fit' href={address}>
 						<IconArrowLeft size={16} />
 						Back to {projectId ? "project" : "workspace"}
 					</Link>
@@ -157,14 +157,14 @@ export function NotificationRules({ projectId, workspaceId }: { projectId?: stri
 								</Modal.Header>
 								<Modal.Body>
 									<form onSubmit={save} className='flex flex-col gap-4'>
-										<Checkbox variant='secondary' isSelected={enabled} onChange={setEnabled}>
-											<Checkbox.Content>
-												<Checkbox.Control>
-													<Checkbox.Indicator />
-												</Checkbox.Control>
+										<Switch isSelected={enabled} onChange={setEnabled}>
+											<Switch.Content>
+												<Switch.Control>
+													<Switch.Thumb />
+												</Switch.Control>
 												<span>Enable failure notifications</span>
-											</Checkbox.Content>
-										</Checkbox>
+											</Switch.Content>
+										</Switch>
 										<div className='grid gap-4 sm:grid-cols-2'>
 											<NumberField variant='secondary' minValue={1} maxValue={1000000} isRequired value={Number(count)} onChange={(value) => setCount(String(value))}>
 												<Label>Failure threshold</Label>
@@ -186,50 +186,93 @@ export function NotificationRules({ projectId, workspaceId }: { projectId?: stri
 											</NumberField>
 											{projectId && (
 												<>
-													<NativeSelect variant='secondary' fullWidth>
+													<Select variant='secondary' fullWidth aria-label='Rule ingress route' value={endpointId} onChange={(key) => setEndpointId(String(key ?? ""))}>
 														<Label>Ingress route</Label>
-														<NativeSelect.Trigger aria-label='Rule ingress route' value={endpointId} onChange={(event) => setEndpointId(event.target.value)}>
-															<NativeSelect.Option value=''>Every route in this project</NativeSelect.Option>
-															{routes.map((route) => (
-																<NativeSelect.Option key={route.id} value={route.id}>
-																	{route.name}
-																</NativeSelect.Option>
-															))}
-															<NativeSelect.Indicator />
-														</NativeSelect.Trigger>
-													</NativeSelect>
-													<NativeSelect variant='secondary' fullWidth>
+														<Select.Trigger>
+															<Select.Value />
+															<Select.Indicator />
+														</Select.Trigger>
+														<Select.Popover>
+															<ListBox>
+																<ListBox.Item id=''>
+																	Every route in this project
+																	<ListBox.ItemIndicator />
+																</ListBox.Item>
+																{routes.map((route) => (
+																	<ListBox.Item key={route.id} id={route.id}>
+																		{route.name}
+																		<ListBox.ItemIndicator />
+																	</ListBox.Item>
+																))}
+															</ListBox>
+														</Select.Popover>
+													</Select>
+													<Select variant='secondary' fullWidth aria-label='Rule destination' value={destinationId} onChange={(key) => setDestinationId(String(key ?? ""))}>
 														<Label>Destination</Label>
-														<NativeSelect.Trigger aria-label='Rule destination' value={destinationId} onChange={(event) => setDestinationId(event.target.value)}>
-															<NativeSelect.Option value=''>Every managed destination</NativeSelect.Option>
-															{destinations.map((destination) => (
-																<NativeSelect.Option key={destination.id} value={destination.id}>
-																	{destination.name}
-																</NativeSelect.Option>
-															))}
-															<NativeSelect.Indicator />
-														</NativeSelect.Trigger>
-													</NativeSelect>
+														<Select.Trigger>
+															<Select.Value />
+															<Select.Indicator />
+														</Select.Trigger>
+														<Select.Popover>
+															<ListBox>
+																<ListBox.Item id=''>
+																	Every managed destination
+																	<ListBox.ItemIndicator />
+																</ListBox.Item>
+																{destinations.map((destination) => (
+																	<ListBox.Item key={destination.id} id={destination.id}>
+																		{destination.name}
+																		<ListBox.ItemIndicator />
+																	</ListBox.Item>
+																))}
+															</ListBox>
+														</Select.Popover>
+													</Select>
 												</>
 											)}
-											<NativeSelect variant='secondary' fullWidth>
+											<Select variant='secondary' fullWidth aria-label='Rule severity' value={severity} onChange={(key) => setSeverity(String(key ?? "") as Rule["severity"])}>
 												<Label>Severity</Label>
-												<NativeSelect.Trigger aria-label='Rule severity' value={severity} onChange={(event) => setSeverity(event.target.value as Rule["severity"])}>
-													<NativeSelect.Option value='info'>Information</NativeSelect.Option>
-													<NativeSelect.Option value='warning'>Warning</NativeSelect.Option>
-													<NativeSelect.Option value='critical'>Critical</NativeSelect.Option>
-													<NativeSelect.Indicator />
-												</NativeSelect.Trigger>
-											</NativeSelect>
-											<NativeSelect variant='secondary' fullWidth>
+												<Select.Trigger>
+													<Select.Value />
+													<Select.Indicator />
+												</Select.Trigger>
+												<Select.Popover>
+													<ListBox>
+														<ListBox.Item id='info'>
+															Information
+															<ListBox.ItemIndicator />
+														</ListBox.Item>
+														<ListBox.Item id='warning'>
+															Warning
+															<ListBox.ItemIndicator />
+														</ListBox.Item>
+														<ListBox.Item id='critical'>
+															Critical
+															<ListBox.ItemIndicator />
+														</ListBox.Item>
+													</ListBox>
+												</Select.Popover>
+											</Select>
+											<Select variant='secondary' fullWidth aria-label='Rule recovery policy' value={recovery} onChange={(key) => setRecovery(String(key ?? "") as Rule["recoveryPolicy"])}>
 												<Label>Recovery</Label>
-												<NativeSelect.Trigger aria-label='Rule recovery policy' value={recovery} onChange={(event) => setRecovery(event.target.value as Rule["recoveryPolicy"])}>
-													<NativeSelect.Option value='window'>Resolve when the threshold clears</NativeSelect.Option>
-													<NativeSelect.Option value='manual'>Keep active until the rule is disabled</NativeSelect.Option>
-													<NativeSelect.Indicator />
-												</NativeSelect.Trigger>
-											</NativeSelect>
-											<NumberField variant='secondary' minValue={0} maxValue={86400} isRequired value={Number(cooldown)} onChange={(value) => setCooldown(String(value))}>
+												<Select.Trigger>
+													<Select.Value />
+													<Select.Indicator />
+												</Select.Trigger>
+												<Select.Popover>
+													<ListBox>
+														<ListBox.Item id='window'>
+															Resolve when the threshold clears
+															<ListBox.ItemIndicator />
+														</ListBox.Item>
+														<ListBox.Item id='manual'>
+															Keep active until the rule is disabled
+															<ListBox.ItemIndicator />
+														</ListBox.Item>
+													</ListBox>
+												</Select.Popover>
+											</Select>
+											<NumberField className='sm:col-span-2' variant='secondary' minValue={0} maxValue={86400} isRequired value={Number(cooldown)} onChange={(value) => setCooldown(String(value))}>
 												<Label>Cooldown in seconds</Label>
 												<NumberField.Group>
 													<NumberField.DecrementButton />
@@ -266,7 +309,7 @@ export function NotificationRules({ projectId, workspaceId }: { projectId?: stri
 									{rule.count} failed {rule.count === 1 ? "operation" : "operations"} in {rule.windowSeconds} seconds
 								</h2>
 								<Card.Description>
-									{rule.enabled ? "Enabled" : "Disabled"} · {rule.severity} · {rule.endpointId ? (routes.find((route) => route.id === rule.endpointId)?.name ?? "Selected route") : "Every route"} · {rule.destinationId ? (destinations.find((destination) => destination.id === rule.destinationId)?.name ?? "Selected destination") : "Every managed destination"}
+									{rule.enabled ? "Enabled" : "Disabled"} / {rule.severity} / {rule.endpointId ? (routes.find((route) => route.id === rule.endpointId)?.name ?? "Selected route") : "Every route"} / {rule.destinationId ? (destinations.find((destination) => destination.id === rule.destinationId)?.name ?? "Selected destination") : "Every managed destination"}
 								</Card.Description>
 							</Card.Header>
 							<Card.Footer>

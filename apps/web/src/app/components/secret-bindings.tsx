@@ -2,8 +2,8 @@
 
 import { useFeedbackToast } from "@lib/feedback";
 import { useState, useEffect, useCallback, type FormEvent } from "react";
-import { Button, Card, Form, TextField, Label, Input, FieldError, Table, Modal, Checkbox, TextArea, Tooltip } from "@heroui/react";
-import { NativeSelect } from "@heroui-pro/react";
+import { Button, Card, Form, TextField, Label, Input, FieldError, Table, Modal, Checkbox, TextArea, Tooltip, Select, ListBox } from "@heroui/react";
+
 import { IconKey, IconX, IconLink, IconFileImport } from "@tabler/icons-react";
 import { api } from "@lib/api-client";
 
@@ -176,7 +176,7 @@ export function SecretBindings({ availability, projectId, scope, bindings, onCha
 					<IconKey size={18} />
 					{availability ? "Secrets" : "Secrets for this stage"}
 				</h3>
-				<Card.Description>Bind an encrypted value to a script key, then read it with ctx.secrets.YOUR_KEY. Values are injected only during execution.</Card.Description>
+				<Card.Description>Access a secret in your script with ctx.secrets.YOUR_KEY. Choose which stages can use each value.</Card.Description>
 			</Card.Header>
 			<Card.Content className='flex flex-col gap-4'>
 				{!availability &&
@@ -197,10 +197,10 @@ export function SecretBindings({ availability, projectId, scope, bindings, onCha
 												<Table.Row key={key} id={key}>
 													<Table.Cell>
 														<code className='break-all'>{key}</code>
-														<span className='text-muted mt-1 block text-xs sm:hidden'>{secret ? `${secret.name} · v${secret.version}${secret.revoked_at ? " · Revoked" : ""}` : "Unavailable version"}</span>
+														<span className='text-muted mt-1 block text-xs sm:hidden'>{secret ? `${secret.name} / v${secret.version}${secret.revoked_at ? " / Revoked" : ""}` : "Unavailable version"}</span>
 													</Table.Cell>
-													<Table.Cell className='hidden sm:table-cell'>{secret ? `${secret.name} · v${secret.version}${secret.revoked_at ? " · Revoked" : ""}` : "Unavailable version"}</Table.Cell>
-													<Table.Cell>
+													<Table.Cell className='hidden sm:table-cell'>{secret ? `${secret.name} / v${secret.version}${secret.revoked_at ? " / Revoked" : ""}` : "Unavailable version"}</Table.Cell>
+													<Table.Cell className='text-right [&>div]:justify-end'>
 														{canUse && (
 															<Button
 																isIconOnly
@@ -230,9 +230,6 @@ export function SecretBindings({ availability, projectId, scope, bindings, onCha
 					))}
 
 				<div className='flex flex-col gap-3'>
-					<TextField aria-label='Search secrets' value={query} onChange={setQuery} className='w-full min-w-0'>
-						<Input variant='secondary' placeholder='Search secrets…' />
-					</TextField>
 					<div className='flex items-center justify-between gap-3'>
 						{canManage && (
 							<Button
@@ -276,6 +273,9 @@ export function SecretBindings({ availability, projectId, scope, bindings, onCha
 							)}
 						</div>
 					</div>
+					<TextField aria-label='Search secrets' value={query} onChange={setQuery} className='w-full min-w-0'>
+						<Input variant='secondary' placeholder='Search secrets…' />
+					</TextField>
 				</div>
 				<Table>
 					<Table.ScrollContainer>
@@ -297,10 +297,10 @@ export function SecretBindings({ availability, projectId, scope, bindings, onCha
 										<Table.Row key={version.id} id={version.id}>
 											<Table.Cell>
 												{version.name}
-												<span className='text-muted block text-xs'>Encrypted · value hidden</span>
+												<span className='text-muted block text-xs'>Encrypted / value hidden</span>
 											</Table.Cell>
 											<Table.Cell>
-												v{version.version} · {version.revoked_at ? "Revoked" : "Available"}
+												v{version.version} / {version.revoked_at ? "Revoked" : "Available"}
 											</Table.Cell>
 											{availability &&
 												(["ingress", "processing"] as const).map((stage) => (
@@ -335,20 +335,29 @@ export function SecretBindings({ availability, projectId, scope, bindings, onCha
 											<Input variant='secondary' />
 											<FieldError />
 										</TextField>
-										<NativeSelect variant='secondary' className='min-w-0 w-full sm:w-auto'>
+										<Select variant='secondary' className='min-w-0 w-full sm:w-auto' aria-label='Secret version' value={selected} onChange={(key) => setSelected(String(key ?? ""))} isDisabled={disabled || busy} isRequired>
 											<Label>Secret version</Label>
-											<NativeSelect.Trigger aria-label='Secret version' value={selected} onChange={(event) => setSelected(event.target.value)} disabled={disabled || busy} required>
-												<NativeSelect.Option value=''>Choose a version</NativeSelect.Option>
-												{versions
-													.filter((version) => !version.revoked_at)
-													.map((version) => (
-														<NativeSelect.Option key={version.id} value={version.id}>
-															{version.name} · v{version.version}
-														</NativeSelect.Option>
-													))}
-												<NativeSelect.Indicator />
-											</NativeSelect.Trigger>
-										</NativeSelect>
+											<Select.Trigger>
+												<Select.Value />
+												<Select.Indicator />
+											</Select.Trigger>
+											<Select.Popover>
+												<ListBox>
+													<ListBox.Item id=''>
+														Choose a version
+														<ListBox.ItemIndicator />
+													</ListBox.Item>
+													{versions
+														.filter((version) => !version.revoked_at)
+														.map((version) => (
+															<ListBox.Item key={version.id} id={version.id}>
+																{version.name} / v{version.version}
+																<ListBox.ItemIndicator />
+															</ListBox.Item>
+														))}
+												</ListBox>
+											</Select.Popover>
+										</Select>
 										{availability && (
 											<fieldset className='flex flex-wrap gap-4'>
 												<legend className='mb-2 text-sm'>Available in</legend>

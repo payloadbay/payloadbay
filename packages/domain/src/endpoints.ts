@@ -1,13 +1,13 @@
 import { scheduleDispatch } from "./execution-lease.ts";
 import { deliveryTemplate } from "../../script-sdk/src/templates/delivery.ts";
 import { randomBytes } from "node:crypto";
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import { transaction } from "./db.ts";
 import { requirePermission } from "./membership.ts";
 import type { Actor } from "./authorization.ts";
 import { AppError } from "../../contracts/src/errors.ts";
 
-export async function endpointFor(pool: Pool, actor: Actor, id: string, permission: "metadata.read" | "code.read" | "code.edit" | "code.publish" | "endpoints.configure" = "metadata.read") {
+export async function endpointFor(pool: Pool | PoolClient, actor: Actor, id: string, permission: "metadata.read" | "code.read" | "code.edit" | "code.publish" | "endpoints.configure" = "metadata.read") {
 	const endpoint = (await pool.query("SELECT * FROM payloadbay.endpoint WHERE id=$1", [id])).rows[0];
 	if (!endpoint) throw new AppError("not_found", 404, "Ingress route unavailable");
 	const held = await requirePermission(pool, actor, { type: "project", id: endpoint.project_id }, permission);
@@ -37,7 +37,7 @@ export async function createEndpoint(
 		await requirePermission(db, actor, { type: "project", id: input.projectId }, "endpoints.configure");
 		const endpoint = (await db.query("INSERT INTO payloadbay.endpoint(project_id,name,slug,ingress_key,priority) VALUES($1,$2,$3,$4,$5) RETURNING id,name,slug,config_version,ingress_key", [input.projectId, input.name.trim(), input.slug, randomBytes(24).toString("base64url"), input.priority ?? 0])).rows[0];
 		await db.query("INSERT INTO payloadbay.draft(endpoint_id,stage,body) VALUES($1,'ingress',$2),($1,'processing',$3)", [endpoint.id, 'export async function POST(ctx: IngressContext): Promise<IngressDecision> {\n\treturn ctx.reject({ status: 503, body: "Configure and publish your ingress handler first." });\n}\n', deliveryTemplate.body]);
-		await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation,resource_id) VALUES($1,'project',$2,'endpoint.created',$3)", [actor.userId, input.projectId, endpoint.id]);
+		await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation,resource_id,redacted_diff) VALUES($1,'project',$2,'endpoint.created',$3,$4)", [actor.userId, input.projectId, endpoint.id, JSON.stringify({ resourceName: endpoint.name })]);
 
 		return endpoint;
 	}).catch((error) => {
@@ -75,5 +75,23 @@ export async function setEndpointPaused(pool: Pool, actor: Actor, input: { id: s
 		await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation,resource_id,redacted_diff) VALUES($1,'project',$2,'endpoint.delivery_state',$3,$4)", [actor.userId, endpoint.project_id, input.id, JSON.stringify({ paused: input.paused })]);
 
 		return { id: row.id, paused: row.paused, version: row.config_version };
+	});
+}
+
+/** Remove unused configuration only; immutable publication/event history is never erased. */
+export async function deleteEndpoint(pool: Pool, actor: Actor, id: string, expectedVersion: number) {
+	return transaction(pool, async (db) => {
+		const { endpoint } = await endpointFor(pool, actor, id, "endpoints.configure");
+		await db.query("SELECT id FROM payloadbay.project WHERE id=$1 FOR UPDATE", [endpoint.project_id]);
+		const locked = (await db.query("SELECT * FROM payloadbay.endpoint WHERE id=$1 FOR UPDATE", [id])).rows[0];
+		if (!locked) throw new AppError("not_found", 404, "Ingress route unavailable");
+		if (locked.config_version !== expectedVersion) throw new AppError("version_conflict", 409, "Ingress route changed; reload before deleting");
+		const used = await db.query("SELECT 1 FROM payloadbay.publication WHERE endpoint_id=$1 UNION ALL SELECT 1 FROM payloadbay.event WHERE endpoint_id=$1 UNION ALL SELECT 1 FROM payloadbay.notification_rule WHERE endpoint_id=$1 UNION ALL SELECT 1 FROM payloadbay.middleware_binding WHERE scope_type='endpoint' AND scope_id=$1 LIMIT 1", [id]);
+		if (used.rowCount) throw new AppError("resource_in_use", 409, "This route has saved history or related settings. Pause delivery instead; its history must be preserved.");
+		await db.query("DELETE FROM payloadbay.draft WHERE endpoint_id=$1", [id]);
+		await db.query("DELETE FROM payloadbay.endpoint WHERE id=$1", [id]);
+		await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation,resource_id,redacted_diff) VALUES($1,'project',$2,'endpoint.deleted',$3,$4)", [actor.userId, endpoint.project_id, id, JSON.stringify({ resourceName: locked.name })]);
+
+		return { deleted: true };
 	});
 }

@@ -3,13 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button, Table, Chip, Modal, TextField, Label, Input, Form } from "@heroui/react";
-import { NativeSelect } from "@heroui-pro/react";
+import { Button, Table, Chip, Modal, TextField, Label, Input, Form, Select, ListBox } from "@heroui/react";
+
 import { useDashboard } from "@components/dashboard-shell";
 import { LoadingState } from "@components/loading-state";
 import { api } from "@lib/api-client";
 import { useFeedbackToast } from "@lib/feedback";
-import { IconInfoCircle } from "@tabler/icons-react";
+import { IconInfoCircle, IconPencil } from "@tabler/icons-react";
 import type { ChannelSummary } from "@domain/notification-channels";
 
 export default function NotificationChannelsPage() {
@@ -91,14 +91,14 @@ export default function NotificationChannelsPage() {
 								<Table.Column isRowHeader>Module</Table.Column>
 								<Table.Column>Transport</Table.Column>
 								<Table.Column>Status</Table.Column>
-								<Table.Column>Actions</Table.Column>
+								<Table.Column className='text-right'>Actions</Table.Column>
 							</Table.Header>
 							<Table.Body>
 								{channels.map((channel) => (
 									<Table.Row key={channel.id} id={channel.id}>
 										<Table.Cell>
 											<span className='font-medium'>{channel.name}</span>
-											<p className='text-muted text-xs'>{channel.builtin ? "Shipped · read-only" : `v${channel.activeVersion} · ${channel.originKey ? "Fork" : "Custom"}`}</p>
+											<p className='text-muted text-xs'>{channel.builtin ? "Built-in template" : `v${channel.activeVersion} / ${channel.originKey ? "Fork" : "Custom"}`}</p>
 										</Table.Cell>
 										<Table.Cell>{channel.kind === "email" ? "SMTP email" : "Custom HTTP"}</Table.Cell>
 										<Table.Cell>
@@ -106,9 +106,9 @@ export default function NotificationChannelsPage() {
 												{channel.enabled ? "Enabled" : "Paused"}
 											</Chip>
 										</Table.Cell>
-										<Table.Cell>
-											<Link aria-disabled={!me.permissions.includes("code.read")} className='text-accent' href={"/admin/notification-channels/" + channel.id}>
-												{channel.builtin ? "View and fork" : "Edit module"}
+										<Table.Cell className='text-right [&>div]:justify-end'>
+											<Link aria-disabled={!me.permissions.includes("code.read")} className='button button--ghost button--icon-only' aria-label={channel.builtin ? "View and fork" : "Edit module"} href={"/admin/notification-channels/" + channel.id}>
+												<IconPencil size={18} aria-hidden='true' />
 											</Link>
 										</Table.Cell>
 									</Table.Row>
@@ -137,15 +137,25 @@ export default function NotificationChannelsPage() {
 										<Label>Module name</Label>
 										<Input variant='secondary' />
 									</TextField>
-									<NativeSelect variant='secondary'>
+									<Select variant='secondary' aria-label='Transport' value={kind} onChange={(key) => setKind(String(key ?? ""))}>
 										<Label>Transport</Label>
-										<NativeSelect.Trigger aria-label='Transport' value={kind} onChange={(event) => setKind(event.target.value)}>
-											<NativeSelect.Option value='email'>SMTP email content</NativeSelect.Option>
-											<NativeSelect.Option value='webhook'>Custom HTTP delivery</NativeSelect.Option>
-											<NativeSelect.Indicator />
-										</NativeSelect.Trigger>
-									</NativeSelect>
-									<p className='text-muted text-sm'>HTTP modules use fetch and instance-owned secret bindings. SMTP credentials remain in the deployment environment.</p>
+										<Select.Trigger>
+											<Select.Value />
+											<Select.Indicator />
+										</Select.Trigger>
+										<Select.Popover>
+											<ListBox>
+												<ListBox.Item id='email'>
+													SMTP email content
+													<ListBox.ItemIndicator />
+												</ListBox.Item>
+												<ListBox.Item id='webhook'>
+													Custom HTTP delivery
+													<ListBox.ItemIndicator />
+												</ListBox.Item>
+											</ListBox>
+										</Select.Popover>
+									</Select>
 								</Modal.Body>
 								<Modal.Footer>
 									<Button variant='secondary' onPress={() => setCreating(false)}>

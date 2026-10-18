@@ -58,19 +58,22 @@ export default function OrganizationsPage() {
 						<Table.Header>
 							<Table.Column isRowHeader>Organization</Table.Column>
 							<Table.Column>Accessible workspaces</Table.Column>
+							<Table.Column aria-label='Open resource' className='w-12 text-right' />
 						</Table.Header>
 						<Table.Body>
 							{organizations
 								.filter((item) => item.name.toLowerCase().includes(query.toLowerCase()))
 								.map((item) => (
-									<Table.Row id={item.id} key={item.id}>
+									<Table.Row id={item.id} key={item.id} href={"/organizations/" + item.id}>
 										<Table.Cell>
 											<Link href={"/organizations/" + item.id} className='flex items-center justify-between gap-3 font-medium'>
 												{item.name}
-												<IconChevronRight size={16} aria-hidden='true' />
 											</Link>
 										</Table.Cell>
 										<Table.Cell>{workspaces.filter((workspace) => workspace.organization_id === item.id).length}</Table.Cell>
+										<Table.Cell className='w-12 text-right'>
+											<IconChevronRight size={18} aria-hidden='true' className='text-muted ml-auto' />
+										</Table.Cell>
 									</Table.Row>
 								))}
 						</Table.Body>

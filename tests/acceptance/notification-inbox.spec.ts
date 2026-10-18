@@ -17,7 +17,7 @@ test("U180 U181 notification attention describes severity and follows real scope
 	await attention.click();
 	const initial = page.getByRole("dialog", { name: "Notifications", exact: true });
 	await initial.getByRole("button", { name: "Dismiss notification Scripts use ordinary Docker containment", exact: true }).click();
-	await initial.getByRole("button", { name: "Close", exact: true }).click();
+	await initial.getByRole("button", { name: "Close notifications", exact: true }).click();
 	await expect(attention).toHaveAccessibleDescription("No active notifications.");
 	const pool = database(process.env.DATABASE_URL!);
 	try {
@@ -40,7 +40,7 @@ test("U180 U181 notification attention describes severity and follows real scope
 			const dialog = page.getByRole("dialog", { name: "Notifications", exact: true });
 			await dialog.getByRole("button", { name: `Dismiss notification Fixture ${severity} condition`, exact: true }).click();
 			await expect(dialog.getByRole("heading", { name: `Fixture ${severity} condition`, exact: true })).toHaveCount(0);
-			await dialog.getByRole("button", { name: "Close", exact: true }).click();
+			await dialog.getByRole("button", { name: "Close notifications", exact: true }).click();
 			await expect(dialog).toHaveCount(0);
 			const remaining = 2 - index;
 			await expect(attention).toHaveAccessibleDescription(remaining === 0 ? "No active notifications." : `${remaining} active notification${remaining === 1 ? "" : "s"}. Highest severity: ${index === 0 ? "warning" : "info"}.`);

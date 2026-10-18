@@ -6,7 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
-import { Avatar, Button, Dropdown, Header, Label, Breadcrumbs } from "@heroui/react";
+import { Avatar, Button, Dropdown, Header, Label, Breadcrumbs, Accordion } from "@heroui/react";
 import { AppLayout, Sidebar, Command, useSidebar } from "@heroui-pro/react";
 import { IconHome, IconFolder, IconUsers, IconLogout, IconCode, IconSettings, IconInbox, IconBell, IconKey, IconFlask, IconHistory, IconRoute, IconBuilding, IconArrowLeft, IconChevronRight, IconSearch, IconBuildingCommunity, IconChartBar, IconBook, IconActivity, IconClipboardList, IconServer } from "@tabler/icons-react";
 import { PreviewNotice } from "@components/preview-notice";
@@ -36,6 +36,17 @@ export function useDashboard() {
 function NavigationSearch({ onSearch }: { onSearch: () => void }) {
 	const sidebar = useSidebar();
 
+	useEffect(() => {
+		const open = () => {
+			sidebar.setMobileOpen(false);
+			onSearch();
+		};
+
+		document.addEventListener("payloadbay:open-search", open);
+
+		return () => document.removeEventListener("payloadbay:open-search", open);
+	}, [sidebar, onSearch]);
+
 	return (
 		<Button
 			variant='secondary'
@@ -48,7 +59,8 @@ function NavigationSearch({ onSearch }: { onSearch: () => void }) {
 			}}
 		>
 			<IconSearch size={18} aria-hidden='true' className='shrink-0' />
-			<span className='min-w-0 truncate'>Search pages and resources…</span>
+			<span className='min-w-0 flex-1 truncate text-left'>Search…</span>
+			<kbd className='text-muted shrink-0 text-xs'>Ctrl K</kbd>
 		</Button>
 	);
 }
@@ -160,6 +172,19 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 		};
 	}, []);
 
+	useEffect(() => {
+		const openSearch = (event: KeyboardEvent) => {
+			if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+				event.preventDefault();
+				document.dispatchEvent(new CustomEvent("payloadbay:open-search"));
+			}
+		};
+
+		window.addEventListener("keydown", openSearch);
+
+		return () => window.removeEventListener("keydown", openSearch);
+	}, []);
+
 	if (!data)
 		return (
 			<main className='flex min-h-dvh flex-col items-center justify-center gap-4 p-8 text-center'>
@@ -220,13 +245,6 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 					visible: organization.permissions.includes("metadata.read"),
 				},
 				{
-					id: "organization-api-keys",
-					label: "API keys",
-					href: "/organizations/" + organization.id + "/api-keys",
-					icon: IconKey,
-					visible: organization.permissions.includes("tokens.manage"),
-				},
-				{
 					id: "organization-members",
 					label: "Organization members",
 					href: "/organizations/" + organization.id + "/members",
@@ -240,18 +258,18 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 					icon: IconCode,
 					visible: organization.permissions.includes("code.read"),
 				},
+				{
+					id: "organization-api-keys",
+					label: "API keys",
+					href: "/organizations/" + organization.id + "/api-keys",
+					icon: IconKey,
+					visible: organization.permissions.includes("tokens.manage"),
+				},
 			]
 		: [];
 
 	const projectLinks = project
 		? [
-				{
-					id: "project-api-keys",
-					label: "API keys",
-					href: "/projects/" + project.id + "/api-keys",
-					icon: IconKey,
-					visible: project.permissions.includes("tokens.manage"),
-				},
 				{
 					id: "project-overview",
 					label: "Routes and destinations",
@@ -286,6 +304,13 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 					href: "/projects/" + project.id + "/members",
 					icon: IconUsers,
 					visible: project.permissions.includes("members.manage"),
+				},
+				{
+					id: "project-api-keys",
+					label: "API keys",
+					href: "/projects/" + project.id + "/api-keys",
+					icon: IconKey,
+					visible: project.permissions.includes("tokens.manage"),
 				},
 			]
 		: [];
@@ -415,13 +440,6 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 	const workspaceLinks = workspace
 		? [
 				{
-					id: "workspace-api-keys",
-					label: "API keys",
-					href: "/workspaces/" + workspace.id + "/api-keys",
-					icon: IconKey,
-					visible: workspace.permissions.includes("tokens.manage"),
-				},
-				{
 					id: "workspace",
 					label: "Workspace overview",
 					href: "/workspaces/" + workspace.id,
@@ -448,6 +466,13 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 					href: "/workspaces/" + workspace.id + "/notifications",
 					icon: IconBell,
 					visible: workspace.permissions.includes("notifications.rules.manage"),
+				},
+				{
+					id: "workspace-api-keys",
+					label: "API keys",
+					href: "/workspaces/" + workspace.id + "/api-keys",
+					icon: IconKey,
+					visible: workspace.permissions.includes("tokens.manage"),
 				},
 			]
 		: [];
@@ -543,14 +568,14 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 		},
 		...data.organizations.map((item) => ({
 			id: "o-" + item.id,
-			label: item.name + " · Organization",
+			label: item.name + " / Organization",
 			href: "/organizations/" + item.id,
 			icon: IconBuildingCommunity,
 		})),
 		...data.workspaces.flatMap((item) => [
 			{
 				id: "w-" + item.id,
-				label: item.name + " · Workspace",
+				label: item.name + " / Workspace",
 				href: "/workspaces/" + item.id,
 				icon: IconBuilding,
 			},
@@ -558,7 +583,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 				? [
 						{
 							id: "wm-" + item.id,
-							label: item.name + " · Workspace members",
+							label: item.name + " / Workspace members",
 							href: "/workspaces/" + item.id + "/members",
 							icon: IconUsers,
 						},
@@ -568,7 +593,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 		...data.projects.flatMap((item) => [
 			{
 				id: item.id,
-				label: item.name + " · Project",
+				label: item.name + " / Project",
 				href: "/projects/" + item.id,
 				icon: IconFolder,
 			},
@@ -576,7 +601,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 				? [
 						{
 							id: "pm-" + item.id,
-							label: item.name + " · Project members",
+							label: item.name + " / Project members",
 							href: "/projects/" + item.id + "/members",
 							icon: IconUsers,
 						},
@@ -602,15 +627,15 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 	const navigationContent = (
 		<>
 			<Sidebar.Header>
-				<div className='px-3 py-4'>
+				<div className='flex flex-col gap-3 px-3 py-4'>
+					<NavigationSearch onSearch={() => setSearchOpen(true)} />
 					{scoped && (
 						<Button variant='ghost' size='sm' onPress={() => setBrowse(parentScope)}>
 							<IconArrowLeft size={16} />
 							Back to {parentScope.type}
 						</Button>
 					)}
-					<p className='mt-2 break-words text-lg font-semibold'>{scopeTitle}</p>
-					<NavigationSearch onSearch={() => setSearchOpen(true)} />
+					{scoped && <p className='break-words text-lg font-semibold'>{scopeTitle}</p>}
 				</div>
 			</Sidebar.Header>
 			<Sidebar.Content className='min-h-0 overflow-y-auto overscroll-contain pb-6'>
@@ -634,23 +659,32 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 					groups
 						.filter((group) => group.items.some((item) => item.visible))
 						.map((group) => (
-							<details key={scopeTitle + group.label} open className='px-2'>
-								<summary className='text-muted cursor-pointer px-2 py-3 text-xs font-semibold whitespace-normal'>{group.label}</summary>
-								<Sidebar.Group>
-									<Sidebar.Menu aria-label={group.label}>
-										{group.items
-											.filter((item) => item.visible)
-											.map((item) => (
-												<Sidebar.MenuItem key={item.id} id={item.id} href={item.href} textValue={item.label} isCurrent={item.href === pathname || item.href === pathname + "?section=" + routeSection || (item.id === "middleware" && pathname.startsWith("/code/endpoint/"))}>
-													<Sidebar.MenuIcon>
-														<item.icon size={18} />
-													</Sidebar.MenuIcon>
-													<Sidebar.MenuLabel className='whitespace-normal'>{item.label}</Sidebar.MenuLabel>
-												</Sidebar.MenuItem>
-											))}
-									</Sidebar.Menu>
-								</Sidebar.Group>
-							</details>
+							<Accordion key={scopeTitle + group.label + pathname + routeSection} defaultExpandedKeys={[group.label]} hideSeparator className='px-2'>
+								<Accordion.Item id={group.label}>
+									<Accordion.Heading>
+										<Accordion.Trigger className='text-muted px-2 py-3 text-xs font-semibold whitespace-normal'>
+											{group.label}
+											<Accordion.Indicator />
+										</Accordion.Trigger>
+									</Accordion.Heading>
+									<Accordion.Panel>
+										<Sidebar.Group>
+											<Sidebar.Menu aria-label={group.label}>
+												{group.items
+													.filter((item) => item.visible)
+													.map((item) => (
+														<Sidebar.MenuItem key={item.id} id={item.id} href={item.href} textValue={item.label} isCurrent={item.href === pathname || item.href === pathname + "?section=" + routeSection || (item.id === "middleware" && pathname.startsWith("/code/endpoint/"))}>
+															<Sidebar.MenuIcon>
+																<item.icon size={18} />
+															</Sidebar.MenuIcon>
+															<Sidebar.MenuLabel className='whitespace-normal'>{item.label}</Sidebar.MenuLabel>
+														</Sidebar.MenuItem>
+													))}
+											</Sidebar.Menu>
+										</Sidebar.Group>
+									</Accordion.Panel>
+								</Accordion.Item>
+							</Accordion>
 						))}
 			</Sidebar.Content>
 			{(admin || data.me.permissions.includes("settings.manage") || data.me.permissions.includes("jobs.read") || data.me.permissions.includes("audit.read")) && !scoped && (

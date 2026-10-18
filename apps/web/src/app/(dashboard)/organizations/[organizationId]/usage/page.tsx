@@ -1,8 +1,8 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import { Button, Label, Table } from "@heroui/react";
-import { NativeSelect } from "@heroui-pro/react";
+import { Button, Label, Table, Select, ListBox } from "@heroui/react";
+
 import { LoadingState } from "@components/loading-state";
 import { useDashboard } from "@components/dashboard-shell";
 import { api } from "@lib/api-client";
@@ -64,15 +64,29 @@ export default function OrganizationUsagePage({ params }: { params: Promise<{ or
 				<p className='text-muted mt-2'>Operational counts for this organization. Retries count as attempts; a replay creates a new execution. Counts are stored locally.</p>
 			</header>
 			<div className='flex flex-wrap items-end gap-3'>
-				<NativeSelect className='w-full sm:w-56' variant='secondary'>
+				<Select className='w-full sm:w-56' variant='secondary' id='usage-window' aria-label='Usage window' value={hours} onChange={(key) => setHours(String(key ?? ""))}>
 					<Label htmlFor='usage-window'>Usage window</Label>
-					<NativeSelect.Trigger id='usage-window' aria-label='Usage window' value={hours} onChange={(event) => setHours(event.target.value)}>
-						<NativeSelect.Option value='24'>Last 24 hours</NativeSelect.Option>
-						<NativeSelect.Option value='168'>Last 7 days</NativeSelect.Option>
-						<NativeSelect.Option value='720'>Last 30 days</NativeSelect.Option>
-						<NativeSelect.Indicator />
-					</NativeSelect.Trigger>
-				</NativeSelect>
+					<Select.Trigger>
+						<Select.Value />
+						<Select.Indicator />
+					</Select.Trigger>
+					<Select.Popover>
+						<ListBox>
+							<ListBox.Item id='24'>
+								Last 24 hours
+								<ListBox.ItemIndicator />
+							</ListBox.Item>
+							<ListBox.Item id='168'>
+								Last 7 days
+								<ListBox.ItemIndicator />
+							</ListBox.Item>
+							<ListBox.Item id='720'>
+								Last 30 days
+								<ListBox.ItemIndicator />
+							</ListBox.Item>
+						</ListBox>
+					</Select.Popover>
+				</Select>
 				<Button variant='secondary' onPress={() => setAttempt((value) => value + 1)}>
 					Refresh
 				</Button>
@@ -112,7 +126,7 @@ export default function OrganizationUsagePage({ params }: { params: Promise<{ or
 					<section className='flex flex-col gap-3'>
 						<h2 className='text-xl font-semibold'>Current limits</h2>
 						<p className='text-muted text-sm'>
-							{data.policy.deploymentMode === "self_hosted" ? "Self-hosted instance" : "Hosted instance"} · Policy {data.policy.version === 0 ? "defaults" : `revision ${data.policy.version}`}. Instance operators manage these limits. Already accepted work is retained.
+							{data.policy.deploymentMode === "self_hosted" ? "Self-hosted instance" : "Hosted instance"} / Policy {data.policy.version === 0 ? "defaults" : `revision ${data.policy.version}`}. Instance operators manage these limits. Already accepted work is retained.
 						</p>
 						<Table>
 							<Table.ScrollContainer>

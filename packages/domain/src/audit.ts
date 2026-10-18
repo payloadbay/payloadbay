@@ -26,7 +26,7 @@ export async function listAudit(pool: Pool, actor: Actor, target: string | Scope
 
 		const rows = (
 			await db.query(
-				`SELECT a.id,a.actor,a.operation,a.scope_type,a.scope_id,a.resource_id,
+				`SELECT a.id,a.actor,a.operation,a.scope_type,a.scope_id,a.resource_id,a.redacted_diff->>'resourceName' AS recorded_resource_name,
  to_char(a.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at
  FROM payloadbay.audit a WHERE (
  (a.scope_type=$5 AND a.scope_id=$1)
@@ -83,7 +83,7 @@ export async function listAudit(pool: Pool, actor: Actor, target: string | Scope
 			operation: row.operation,
 			scope: { type: row.scope_type, id: row.scope_id },
 			resourceId: row.resource_id,
-			resourceName: names.get(row.scope_type + ":" + row.scope_id + ":" + (row.resource_id ?? ""))?.resource_name ?? null,
+			resourceName: row.recorded_resource_name ?? names.get(row.scope_type + ":" + row.scope_id + ":" + (row.resource_id ?? ""))?.resource_name ?? null,
 			scopeName: names.get(row.scope_type + ":" + row.scope_id + ":" + (row.resource_id ?? ""))?.scope_name ?? null,
 			createdAt: row.created_at,
 		}));

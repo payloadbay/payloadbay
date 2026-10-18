@@ -51,4 +51,4 @@ export const apiRequestSchemas: Record<string, z.ZodType> = {
 	"post /api/v1/workspaces/{workspaceId}/notification-rules": notificationRuleInput,
 };
 
-export const versionedOperations = new Set(["put /api/v1/destinations/{destinationId}", "patch /api/v1/endpoints/{endpointId}/drafts/{stage}", "post /api/v1/endpoints/{endpointId}/pause", "post /api/v1/endpoints/{endpointId}/resume", "patch /api/v1/middleware/{bindingId}", "patch /api/v1/notification-rules/{ruleId}"]);
+export const versionedOperations = new Set(["delete /api/v1/endpoints/{endpointId}", "delete /api/v1/destinations/{destinationId}", "put /api/v1/destinations/{destinationId}", "patch /api/v1/endpoints/{endpointId}/drafts/{stage}", "post /api/v1/endpoints/{endpointId}/pause", "post /api/v1/endpoints/{endpointId}/resume", "patch /api/v1/middleware/{bindingId}", "patch /api/v1/notification-rules/{ruleId}"]);

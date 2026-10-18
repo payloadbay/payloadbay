@@ -1,5 +1,8 @@
 "use client";
 
+import { TrafficChart } from "@components/traffic-chart";
+import type { TrafficSnapshot } from "@types";
+import { useLiveSubscription } from "@components/live-subscription";
 import { LoadingState } from "@components/loading-state";
 import { useFeedbackToast } from "@lib/feedback";
 import Link from "next/link";
@@ -8,9 +11,9 @@ import { EventBrowser } from "@components/event-browser";
 import { useUnsavedChanges } from "@components/unsaved-changes";
 import { ScriptingGuide } from "@components/scripting-guide";
 import { use, useState, useEffect, useCallback } from "react";
-import { Button, Card, Tabs, Checkbox, Label, Input, Chip, Table, Modal, NumberField, TextField } from "@heroui/react";
+import { Button, Card, Tabs, Checkbox, Label, Input, Chip, Table, Modal, ComboBox, TextField, Select, ListBox } from "@heroui/react";
 import { IconArrowLeft, IconCheck, IconUpload, IconPlayerPause, IconPlayerPlay, IconCopy, IconInfoCircle, IconPlayerTrackNext, IconArchive, IconArchiveOff, IconTrash } from "@tabler/icons-react";
-import { NativeSelect } from "@heroui-pro/react";
+
 import { formatScript, formatScriptForDisplay, scriptDocument } from "@lib/script-document";
 import { HelperImportPicker } from "@components/helper-import-picker";
 import { HttpRequestEditor, validateHttpBody, bodyContentTypes, type BodyFormat } from "@components/http-request-editor";
@@ -65,7 +68,59 @@ type ScriptTestResult = {
 
 export default function RoutePage({ params }: { params: Promise<{ projectId: string; endpointId: string }> }) {
 	const { projectId, endpointId } = use(params);
+
 	const section = useSearchParams().get("section") ?? "overview";
+
+	const { subscribe } = useLiveSubscription();
+
+	const [activityResult, setActivity] = useState<{ id: string; data: TrafficSnapshot } | null>(null);
+
+	const [activityError, setActivityError] = useState("");
+	const [activityRetry, setActivityRetry] = useState(0);
+
+	useFeedbackToast(activityError, "", { error: "Traffic unavailable" });
+
+	const activity = activityResult?.id === endpointId ? activityResult.data : null;
+
+	useEffect(() => {
+		if (section !== "overview") return;
+		let active = true;
+
+		const loadActivity = () => {
+			void api<TrafficSnapshot>("/overview?endpointId=" + endpointId)
+				.then((next) => {
+					if (active) {
+						setActivity({ id: endpointId, data: next });
+						setActivityError("");
+					}
+				})
+				.catch(() => {
+					if (active) {
+						setActivity(null);
+						setActivityError("Could not load route traffic.");
+					}
+				});
+		};
+
+		let timer: ReturnType<typeof setTimeout> | undefined;
+
+		const refresh = () => {
+			if (!timer)
+				timer = setTimeout(() => {
+					timer = undefined;
+					loadActivity();
+				}, 150);
+		};
+
+		loadActivity();
+		const stops = (["event.recorded", "execution.changed", "attempt.completed", "resync-required"] as const).map((kind) => subscribe(kind, refresh));
+
+		return () => {
+			active = false;
+			if (timer) clearTimeout(timer);
+			for (const stop of stops) stop();
+		};
+	}, [endpointId, section, subscribe, activityRetry]);
 
 	const [route, setRoute] = useState<Route | null>(null);
 	const [drafts, setDrafts] = useState<Record<Stage, Draft> | null>(null);
@@ -95,7 +150,10 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 		headers: Record<string, string>;
 	} | null>(null);
 	const [expectedDecision, setExpectedDecision] = useState("");
-	const [expectedStatus, setExpectedStatus] = useState<number>(NaN);
+	const [statusInput, setStatusInput] = useState("");
+
+	const expectedStatus = /^[1-5]\d{2}$/.test(statusInput) ? Number(statusInput) : NaN;
+
 	const [expectedBody, setExpectedBody] = useState("");
 	const [includeMiddleware, setIncludeMiddleware] = useState(true);
 	const [testHeaders, setTestHeaders] = useState("{}");
@@ -146,6 +204,7 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 		setDiagnostics([]);
 		setTestResult(null);
 		try {
+			if (stage === "ingress" && statusInput && !Number.isFinite(expectedStatus)) throw Error("Choose an HTTP status from 100 to 599.");
 			if (stage === "processing" || !["GET", "HEAD"].includes(requestMethod)) validateHttpBody(bodyLanguage, testBody);
 			const result = await api<unknown>("/endpoints/" + endpointId + "/test", {
 				method: "POST",
@@ -354,13 +413,18 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 	return (
 		<section className='flex min-w-0 flex-col gap-6'>
 			{unsavedDialog}
-			<Link href={"/projects/" + projectId} className='text-accent flex items-center gap-2 text-sm'>
+			<Link href={"/projects/" + projectId} className='button button--secondary w-fit'>
 				<IconArrowLeft size={16} />
 				Back to project
 			</Link>
 			<header className='flex flex-wrap items-start justify-between gap-4'>
 				<div>
 					{section === "overview" && <p className='text-muted text-sm'>Ingress route</p>}
+					{drafts && savedDrafts && JSON.stringify(drafts) !== JSON.stringify(savedDrafts) && (
+						<Chip size='sm' color='warning'>
+							Unsaved changes
+						</Chip>
+					)}
 					<h1 className='text-3xl font-semibold'>
 						{section === "overview"
 							? route.name
@@ -435,6 +499,49 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 					</Link>
 				</div>
 			)}
+			{section === "overview" &&
+				!activity &&
+				(activityError ? (
+					<Button variant='secondary' onPress={() => setActivityRetry((value) => value + 1)}>
+						Retry loading route traffic
+					</Button>
+				) : (
+					<LoadingState label='Loading route traffic…' />
+				))}
+			{section === "overview" && activity && (
+				<>
+					<TrafficChart overview={activity} />
+					<section className='flex flex-col gap-3'>
+						<h2 className='text-xl font-semibold'>Recent executions</h2>
+						<Table>
+							<Table.ScrollContainer>
+								<Table.Content aria-label='Route recent executions' className='w-full'>
+									<Table.Header>
+										<Table.Column isRowHeader>Started</Table.Column>
+										<Table.Column>Status</Table.Column>
+										<Table.Column>Attempts</Table.Column>
+									</Table.Header>
+									<Table.Body>
+										{activity.recent.map((item) => (
+											<Table.Row key={item.id} id={item.id} href='?section=events'>
+												<Table.Cell>{new Date(item.created_at).toLocaleString()}</Table.Cell>
+												<Table.Cell>
+													<Chip size='sm' color={item.state === "succeeded" ? "success" : item.state === "failed_terminal" ? "danger" : "default"}>
+														{item.state}
+													</Chip>
+												</Table.Cell>
+												<Table.Cell>{item.attempt_number}</Table.Cell>
+											</Table.Row>
+										))}
+									</Table.Body>
+								</Table.Content>
+							</Table.ScrollContainer>
+							{!activity.recent.length && <Table.Footer>No executions yet.</Table.Footer>}
+						</Table>
+					</section>
+				</>
+			)}
+
 			{error && (
 				<div>
 					<Button variant='ghost' onPress={() => void load()} isDisabled={busy}>
@@ -478,31 +585,50 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 							<div className='flex flex-wrap items-center justify-between gap-3'>
 								<p className='text-muted text-sm'>{slot === "ingress" ? "Verify the raw request and return accept, reject, or a protocol-only response." : "Send to destinations or use bounded fetch, then choose complete, retry, or fail."}</p>
 								{editable && section === "code" && (
-									<NativeSelect className='w-full sm:w-auto' variant='secondary'>
+									<Select
+										className='w-full sm:w-auto'
+										variant='secondary'
+										aria-label={slot === "ingress" ? "Ingress template" : "Processing template"}
+										value={templates[slot] ?? ""}
+										onChange={(key) => {
+											const selected = String(key ?? "");
+											setTemplates((previous) => ({ ...previous, [slot]: selected }));
+											if (selected === "hmac") void change(hmacHttpTemplate.source);
+											else if (selected === "unverified") void change(unverifiedHttpTemplate.source);
+											else if (selected === "delivery") void change(scriptDocument(deliveryTemplate.body, "processing"));
+										}}
+									>
 										<Label>Start from a template</Label>
-										<NativeSelect.Trigger
-											aria-label={slot === "ingress" ? "Ingress template" : "Processing template"}
-											value={templates[slot] ?? ""}
-											onChange={(event) => {
-												const selected = event.target.value;
-												setTemplates((previous) => ({ ...previous, [slot]: selected }));
-												if (selected === "hmac") void change(hmacHttpTemplate.source);
-												else if (selected === "unverified") void change(unverifiedHttpTemplate.source);
-												else if (selected === "delivery") void change(scriptDocument(deliveryTemplate.body, "processing"));
-											}}
-										>
-											<NativeSelect.Option value=''>Choose editable template</NativeSelect.Option>
-											{slot === "ingress" ? (
-												<>
-													<NativeSelect.Option value='hmac'>Generic HMAC SHA-256</NativeSelect.Option>
-													<NativeSelect.Option value='unverified'>Explicitly unverified</NativeSelect.Option>
-												</>
-											) : (
-												<NativeSelect.Option value='delivery'>Deliver to default destination</NativeSelect.Option>
-											)}
-											<NativeSelect.Indicator />
-										</NativeSelect.Trigger>
-									</NativeSelect>
+										<Select.Trigger>
+											<Select.Value />
+											<Select.Indicator />
+										</Select.Trigger>
+										<Select.Popover>
+											<ListBox>
+												<ListBox.Item id=''>
+													Choose editable template
+													<ListBox.ItemIndicator />
+												</ListBox.Item>
+												{slot === "ingress" ? (
+													<>
+														<ListBox.Item id='hmac'>
+															Generic HMAC SHA-256
+															<ListBox.ItemIndicator />
+														</ListBox.Item>
+														<ListBox.Item id='unverified'>
+															Explicitly unverified
+															<ListBox.ItemIndicator />
+														</ListBox.Item>
+													</>
+												) : (
+													<ListBox.Item id='delivery'>
+														Deliver to default destination
+														<ListBox.ItemIndicator />
+													</ListBox.Item>
+												)}
+											</ListBox>
+										</Select.Popover>
+									</Select>
 								)}
 							</div>
 							{section === "code" && (
@@ -543,7 +669,7 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 										</Button>
 									)}
 									<span className='text-muted text-xs'>
-										{JSON.stringify(drafts[slot]) !== JSON.stringify(savedDrafts?.[slot]) ? "Unsaved changes" : "Draft saved"} · {route.activePublicationId ? "Publish to activate edits" : "Not published"}
+										{JSON.stringify(drafts[slot]) !== JSON.stringify(savedDrafts?.[slot]) ? "Unsaved changes" : "Draft saved"} / {route.activePublicationId ? "Publish to activate edits" : "Not published"}
 									</span>
 								</div>
 							)}
@@ -582,7 +708,7 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 
 			{section === "events" && <EventBrowser projectId={projectId} endpointId={endpointId} embedded />}
 			{section === "playground" && (
-				<section aria-label='Webhook request client' className='border-border flex min-w-0 flex-col overflow-hidden rounded-xl border'>
+				<section aria-label='Webhook request client' className='bg-surface border-border flex min-w-0 flex-col overflow-hidden rounded-xl border'>
 					<header className='bg-surface border-border flex flex-col gap-3 border-b p-4'>
 						<h2 className='text-xl font-semibold'>Webhook playground</h2>
 						<p className='text-muted text-sm'>Send a real request to the published route. Accepted events enter the queue; all received requests remain inspectable. Use synthetic data.</p>
@@ -695,26 +821,46 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 							onMethodChange={setRequestMethod}
 							checks={
 								<div className='flex flex-col gap-4'>
-									<NativeSelect variant='secondary'>
+									<Select variant='secondary' aria-label='Expected decision' value={expectedDecision} onChange={(key) => setExpectedDecision(String(key ?? ""))}>
 										<Label>Expected decision</Label>
-										<NativeSelect.Trigger aria-label='Expected decision' value={expectedDecision} onChange={(event) => setExpectedDecision(event.target.value)}>
-											<NativeSelect.Option value=''>No decision check</NativeSelect.Option>
-											{(stage === "ingress" ? ["accept", "reject", "respondOnly"] : ["complete", "retry", "fail"]).map((decision) => (
-												<NativeSelect.Option key={decision} value={decision}>
-													{decision}
-												</NativeSelect.Option>
-											))}
-											<NativeSelect.Indicator />
-										</NativeSelect.Trigger>
-									</NativeSelect>
+										<Select.Trigger>
+											<Select.Value />
+											<Select.Indicator />
+										</Select.Trigger>
+										<Select.Popover>
+											<ListBox>
+												<ListBox.Item id=''>
+													No decision check
+													<ListBox.ItemIndicator />
+												</ListBox.Item>
+												{(stage === "ingress" ? ["accept", "reject", "respondOnly"] : ["complete", "retry", "fail"]).map((decision) => (
+													<ListBox.Item key={decision} id={decision}>
+														{decision}
+														<ListBox.ItemIndicator />
+													</ListBox.Item>
+												))}
+											</ListBox>
+										</Select.Popover>
+									</Select>
 									{stage === "ingress" && (
 										<>
-											<NumberField variant='secondary' minValue={100} maxValue={599} value={expectedStatus} onChange={setExpectedStatus}>
+											<ComboBox allowsCustomValue variant='secondary' inputValue={statusInput} onInputChange={setStatusInput}>
 												<Label>Expected HTTP status</Label>
-												<NumberField.Group>
-													<NumberField.Input aria-label='Expected HTTP status' placeholder='Optional' />
-												</NumberField.Group>
-											</NumberField>
+												<ComboBox.InputGroup>
+													<Input aria-label='Expected HTTP status' placeholder='e.g. 200' inputMode='numeric' />
+													<ComboBox.Trigger />
+												</ComboBox.InputGroup>
+												<ComboBox.Popover>
+													<ListBox>
+														{[200, 201, 202, 204, 301, 302, 400, 401, 403, 404, 409, 422, 429, 500, 502, 503].map((status) => (
+															<ListBox.Item id={String(status)} key={status} textValue={String(status)}>
+																{status}
+																<ListBox.ItemIndicator />
+															</ListBox.Item>
+														))}
+													</ListBox>
+												</ComboBox.Popover>
+											</ComboBox>
 											<TextField value={expectedBody} onChange={setExpectedBody}>
 												<Label>Response body contains</Label>
 												<Input variant='secondary' placeholder='Optional expected text' />
@@ -725,21 +871,34 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 							}
 
 							controls={
-								<NativeSelect variant='secondary' className='w-40'>
+								<Select
+									variant='secondary'
+									className='w-40'
+									aria-label='Script stage'
+									value={stage}
+									onChange={(key) => {
+										setStage(String(key ?? "") as Stage);
+										setExpectedDecision("");
+									}}
+								>
 									<Label>Script stage</Label>
-									<NativeSelect.Trigger
-										aria-label='Script stage'
-										value={stage}
-										onChange={(event) => {
-											setStage(event.target.value as Stage);
-											setExpectedDecision("");
-										}}
-									>
-										<NativeSelect.Option value='ingress'>Ingress</NativeSelect.Option>
-										<NativeSelect.Option value='processing'>Processing</NativeSelect.Option>
-										<NativeSelect.Indicator />
-									</NativeSelect.Trigger>
-								</NativeSelect>
+									<Select.Trigger>
+										<Select.Value />
+										<Select.Indicator />
+									</Select.Trigger>
+									<Select.Popover>
+										<ListBox>
+											<ListBox.Item id='ingress'>
+												Ingress
+												<ListBox.ItemIndicator />
+											</ListBox.Item>
+											<ListBox.Item id='processing'>
+												Processing
+												<ListBox.ItemIndicator />
+											</ListBox.Item>
+										</ListBox>
+									</Select.Popover>
+								</Select>
 							}
 							action={
 								<Button isPending={busy} isDisabled={busy} onPress={() => void testSynthetic()}>
@@ -765,7 +924,7 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 										</Chip>
 									)}
 									<span className='text-muted text-sm'>
-										{testResult.durationMs} ms · {testResult.middlewareCount} middleware · simulated effects
+										{testResult.durationMs} ms / {testResult.middlewareCount} middleware / simulated effects
 									</span>
 								</div>
 								{testResult.checks.length > 0 && (
@@ -788,17 +947,23 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 								<pre className='bg-field max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-lg p-4 font-mono text-sm'>{JSON.stringify(testResult.decision, null, 2)}</pre>
 								<h3 className='font-semibold'>Execution logs</h3>
 								<div className='flex flex-wrap items-end gap-3'>
-									<NativeSelect variant='secondary'>
+									<Select variant='secondary' aria-label='Log level' value={logLevel} onChange={(key) => setLogLevel(String(key ?? ""))}>
 										<Label>Log level</Label>
-										<NativeSelect.Trigger aria-label='Log level' value={logLevel} onChange={(event) => setLogLevel(event.target.value)}>
-											{["all", "debug", "info", "warn", "error"].map((level) => (
-												<NativeSelect.Option key={level} value={level}>
-													{level === "all" ? "All levels" : level}
-												</NativeSelect.Option>
-											))}
-											<NativeSelect.Indicator />
-										</NativeSelect.Trigger>
-									</NativeSelect>
+										<Select.Trigger>
+											<Select.Value />
+											<Select.Indicator />
+										</Select.Trigger>
+										<Select.Popover>
+											<ListBox>
+												{["all", "debug", "info", "warn", "error"].map((level) => (
+													<ListBox.Item key={level} id={level}>
+														{level === "all" ? "All levels" : level}
+														<ListBox.ItemIndicator />
+													</ListBox.Item>
+												))}
+											</ListBox>
+										</Select.Popover>
+									</Select>
 									<Input aria-label='Search execution logs' placeholder='Search logs…' variant='secondary' value={logSearch} onChange={(event) => setLogSearch(event.target.value)} className='min-w-0 flex-1' />
 								</div>
 								{visibleLogs.length ? (
@@ -834,7 +999,7 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 										<Table.Column isRowHeader>Version</Table.Column>
 										<Table.Column>Status</Table.Column>
 										<Table.Column>Published</Table.Column>
-										<Table.Column>Actions</Table.Column>
+										<Table.Column className='text-right'>Actions</Table.Column>
 									</Table.Header>
 									<Table.Body>
 										{history.map((publication, index) => (
@@ -856,7 +1021,7 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 													</div>
 												</Table.Cell>
 												<Table.Cell>{new Date(publication.created_at).toLocaleString()}</Table.Cell>
-												<Table.Cell>
+												<Table.Cell className='text-right [&>div]:justify-end'>
 													<div className='flex gap-2'>
 														<Button
 															variant='secondary'

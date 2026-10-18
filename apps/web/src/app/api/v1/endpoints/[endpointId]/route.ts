@@ -1,6 +1,6 @@
 import { protectedRoute } from "@api/protected";
-import { uuid } from "@api/parameters";
-import { endpointFor } from "@domain/endpoints";
+import { uuid, version } from "@api/parameters";
+import { endpointFor, deleteEndpoint } from "@domain/endpoints";
 
 export const runtime = "nodejs";
 
@@ -23,4 +23,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ endp
 			...(permissions.includes("endpoints.configure") ? { ingressUrl: new URL("/ingress/" + e.ingress_key, config.publicUrl).href } : {}),
 		};
 	});
+}
+
+export async function DELETE(request: Request, { params }: { params: Promise<{ endpointId: string }> }) {
+	return protectedRoute(request, async ({ pool }, actor) => deleteEndpoint(pool, actor, uuid((await params).endpointId), version(request)));
 }

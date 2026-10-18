@@ -13,7 +13,7 @@ x-runtime: &runtime
   PAYLOADBAY_BROKER_SECRET: ${PAYLOADBAY_BROKER_SECRET:?}
   EXECUTOR_URL: http://${SERVICE_NAME_EXECUTOR:-executor}:8080
   PAYLOADBAY_EXECUTOR_RUNTIME: ${PAYLOADBAY_EXECUTOR_RUNTIME:-runc}
-  SMTP_HOST: ${SERVICE_NAME_SMTP:-smtp}
+  SMTP_HOST: ${SERVICE_NAME_EMAIL_CATCHER:-email-catcher}
   SMTP_PORT: 1025
   SMTP_SECURE: "false"
   SMTP_FROM: Payload Bay Preview <preview@example.invalid>
@@ -41,7 +41,7 @@ services:
       timeout: 5s
       retries: 30
     restart: unless-stopped
-  smtp:
+  email-catcher:
     expose: ["8025"]
     image: axllent/mailpit:v1.30.2@sha256:37a38e48e9338cd7e89dfeb487f37b02ebfcd9cb23111bed2d345e79d37d6dd6
     restart: unless-stopped
@@ -83,8 +83,8 @@ services:
     depends_on:
       schema: {condition: service_completed_successfully}
       executor: {condition: service_healthy}
-      smtp: {condition: service_started}
-  app:
+      email-catcher: {condition: service_started}
+  payload-bay:
     <<: *restricted
     build:
       context: ..

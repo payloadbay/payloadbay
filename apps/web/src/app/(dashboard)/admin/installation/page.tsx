@@ -136,7 +136,7 @@ export default function InstallationPage() {
 							<div>
 								<dt className='text-muted'>Executor reports</dt>
 								<dd>
-									{data.health.executor.runtime ?? "Unavailable"} · {data.health.executor.configuredMode ?? "Unknown mode"}
+									{data.health.executor.runtime ?? "Unavailable"} / {data.health.executor.configuredMode ?? "Unknown mode"}
 								</dd>
 							</div>
 						</dl>
@@ -144,15 +144,15 @@ export default function InstallationPage() {
 					</section>
 					<section className='flex flex-col gap-3'>
 						<h2 className='text-xl font-semibold'>Configuration</h2>
-						<p className='text-muted text-sm'>Infrastructure configuration is supplied by the operator at deployment.</p>
+						<p className='text-muted text-sm'>Deployment settings apply to this installation.</p>
 						<dl className='grid gap-4 sm:grid-cols-2'>
 							<div>
 								<dt className='text-muted'>SMTP</dt>
-								<dd>{data.settings.smtpConfigured ? "Configured · delivery not tested" : "Not configured"}</dd>
+								<dd>{data.settings.smtpConfigured ? "Configured" : "Not configured"}</dd>
 							</div>
 							<div>
 								<dt className='text-muted'>Event retention</dt>
-								<dd>{data.settings.eventRetentionDays === 0 ? "Disabled · event history is retained" : `${data.settings.eventRetentionDays} days · completed events only`}</dd>
+								<dd>{data.settings.eventRetentionDays === 0 ? "Keep indefinitely (automatic deletion off)" : `${data.settings.eventRetentionDays} days (completed events only)`}</dd>
 							</div>
 							<div>
 								<dt className='text-muted'>Registration</dt>

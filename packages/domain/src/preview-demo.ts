@@ -10,6 +10,7 @@ import { publish } from "./publication.ts";
 import { receiveIngress } from "./ingress.ts";
 import { execute } from "../../../apps/executor/src/supervisor.ts";
 import { compile } from "../../../apps/executor/src/compiler.ts";
+import { createSecret } from "./secrets.ts";
 import { createEndpoint } from "./endpoints.ts";
 import { previewReviewerEmail, previewProjectAccounts, previewOrganizationAccount } from "./preview.ts";
 
@@ -141,6 +142,9 @@ async function seedPreviewEndpoint(pool: Pool, config: ServerConfig, actor: Acto
 	if (!(await pool.query("SELECT 1 FROM payloadbay.endpoint WHERE project_id=$1 AND slug=$2", [projectId, options.slug])).rowCount) {
 		createdSample = true;
 		const endpoint = await createEndpoint(pool, actor, { projectId, name: options.name, slug: options.slug });
+		const secret = (await pool.query("SELECT id FROM payloadbay.secret_version WHERE scope_type='project' AND scope_id=$1 AND name='DEMO_API_KEY' ORDER BY version DESC LIMIT 1", [projectId])).rows[0] ?? (await createSecret(pool, actor, { scope: { type: "project", id: projectId }, name: "DEMO_API_KEY", value: "synthetic-preview-value" }, config.encryptionKey));
+		await pool.query("UPDATE payloadbay.draft SET secret_bindings=$2 WHERE endpoint_id=$1 AND stage='processing'", [endpoint.id, JSON.stringify({ DEMO_API_KEY: secret.id })]);
+
 		await pool.query("UPDATE payloadbay.draft SET body=$2 WHERE endpoint_id=$1 AND stage='ingress'", [endpoint.id, unverifiedHttpTemplate.source]);
 	}
 

@@ -146,3 +146,36 @@ panel loading stays local and preserves useful surrounding controls. Keep loadin
 empty and failed states distinct. Stop the spinner on failure and offer recovery.
 Respect reduced-motion preferences and avoid moving the working surface when an
 editor or other embedded tool becomes ready.
+
+## Control behavior and consistent chrome
+
+Use the same interaction primitive across equivalent forms. HeroUI NativeSelect
+still opens a browser-native menu; use HeroUI Select/ListBox for the application's
+selection controls, and ComboBox when users need suggestions or custom values.
+A themed appearance alone does not prove library behavior. Audit rendered menus,
+focus, keyboard selection and accessible names, not imports alone.
+
+Place resource search consistently above the context/back controls with deliberate
+spacing. Provide a discoverable keyboard shortcut for command search. Avoid
+repeating the product identity in adjacent desktop chrome. Preserve a clear
+full-width primary action in compact authentication forms on wide screens too;
+secondary actions share a separate balanced row.
+
+Use one trailing chevron in the final column to indicate row navigation. Repeated
+row actions sit at the right edge, use consistent icon-only controls with
+accessible names/tooltips, and keep destructive actions visually distinct.
+Clickable rows must preserve independent child actions. A drag handle must be the
+actual gesture start, show grab/grabbing cursors and retain keyboard alternatives.
+
+Anchor account popovers to their header control, constrain them to the viewport,
+and preserve focus when their contents change. Status labels use semantic chips.
+Keep comparable working areas on consistent surfaces and verify stacked mobile
+layouts rather than assuming desktop column layouts shrink correctly.
+
+Explain user outcomes in plain language. Avoid raw scope terminology where the
+resource name is available; emphasize that name when it helps orientation.
+Distinguish configured credentials, a verified service connection and proven
+end-to-end delivery. Describe retention by the deletion policy (keep indefinitely
+or delete completed history after a period). Put implementation and security detail
+in contextual help; keep concise effect labels beside potentially real actions.
+Use ordinary punctuation for explanatory copy instead of decorative separators.

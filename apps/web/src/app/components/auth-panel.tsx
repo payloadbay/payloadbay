@@ -264,7 +264,7 @@ export function AuthPanel({ setup = false, preview = false, loginHint, initialEm
 								</div>
 							)}
 
-							<Button type='submit' fullWidth className='mx-auto w-fit justify-center' isDisabled={busy || (sent && otp.length !== 6)} isPending={busy}>
+							<Button type='submit' fullWidth className='w-full justify-center' isDisabled={busy || (sent && otp.length !== 6)} isPending={busy}>
 								{busy ? "Please wait…" : sent ? (setup ? "Create owner and continue" : "Sign in") : "Send sign-in code"}
 								{busy ? <Spinner size='sm' color='current' /> : !sent && <IconMail aria-hidden='true' size={18} />}
 							</Button>
@@ -275,7 +275,7 @@ export function AuthPanel({ setup = false, preview = false, loginHint, initialEm
 								</Button>
 							)}
 							{sent && (
-								<div className='flex justify-between gap-2'>
+								<div className='grid w-full grid-cols-2 gap-3'>
 									<Button
 										size='sm'
 										variant='ghost'

@@ -1,3 +1,4 @@
+import { chooseOption } from "../helpers/select-option.ts";
 import { test, expect } from "../helpers/browser-test.ts";
 import { browserOrganization } from "../helpers/browser-auth.ts";
 import { resetBrowserData } from "../helpers/browser-data.ts";
@@ -127,7 +128,7 @@ test("U63 member editing preserves presets and customized rights", async ({ page
 	await expect(page.getByRole("heading", { name: "Instance members" })).toBeVisible();
 	await page.getByRole("button", { name: "Edit permissions for Editable member" }).click();
 	await expect(page.getByRole("dialog")).toBeVisible();
-	await page.getByLabel("Role preset").selectOption("admin");
+	await chooseOption(page.getByRole("button", { name: new RegExp("Role preset") }), "admin");
 	await page.getByRole("dialog").getByRole("button", { name: "Cancel", exact: true }).click();
 	await expect(page.getByRole("dialog")).toHaveCount(0);
 	const unchanged = await (await page.request.get("/api/v1/members?scopeType=instance&scopeId=" + me.instanceId)).json();
@@ -136,13 +137,13 @@ test("U63 member editing preserves presets and customized rights", async ({ page
 	await page.keyboard.press("Escape");
 	await expect(page.getByRole("dialog")).toHaveCount(0);
 	await page.getByRole("button", { name: "Edit permissions for Editable member" }).click();
-	await page.getByLabel("Role preset").selectOption("operator");
+	await chooseOption(page.getByRole("button", { name: new RegExp("Role preset") }), "operator");
 	await expect(page.getByRole("checkbox", { name: "Read event payloads", exact: true })).toBeChecked();
 	await page.getByText("Read event payloads", { exact: true }).click();
 	await expect(page.getByRole("checkbox", { name: "Read event payloads", exact: true })).not.toBeChecked();
 	await page.getByText("Read audit history", { exact: true }).click();
 	await expect(page.getByRole("checkbox", { name: "Read audit history", exact: true })).toBeChecked();
-	await expect(page.getByLabel("Role preset")).toHaveValue("custom");
+	await expect(page.getByLabel("Role preset")).toContainText("Custom");
 	await page.getByRole("button", { name: "Save permissions" }).click();
 	await expect(page.getByRole("dialog")).toHaveCount(0);
 	const members = await (await page.request.get("/api/v1/members?scopeType=instance&scopeId=" + me.instanceId)).json();
@@ -238,21 +239,21 @@ test("U75 copied template remains editable and leaves future copies unchanged", 
 	const first = await create("first");
 	const second = await create("second");
 	await page.goto("/projects/" + project.id + "/routes/" + first.id + "?section=code");
-	await page.getByLabel("Ingress template").selectOption("unverified");
+	await chooseOption(page.getByRole("button", { name: new RegExp("Ingress template") }), "unverified");
 	const code = page.getByRole("textbox", { name: "Ingress code", exact: true });
 	await code.focus();
 	await page.keyboard.press("ControlOrMeta+A");
 	await page.keyboard.insertText('export async function POST(ctx: IngressContext): Promise<IngressDecision> { return ctx.respondOnly({status:200,body:"my custom copy"}); }');
 	await page.getByRole("button", { name: "Save draft", exact: true }).click();
-	await expect(page.getByText("Draft saved · Not published", { exact: true })).toBeVisible();
+	await expect(page.getByText("Draft saved / Not published", { exact: true })).toBeVisible();
 	const saved = await (await page.request.get("/api/v1/endpoints/" + first.id + "/drafts/ingress")).json();
 	expect(saved.body).toContain("my custom copy");
 	expect(saved.body).not.toBe(unverifiedHttpTemplate.source);
 	await page.goto("/projects/" + project.id + "/routes/" + second.id + "?section=code");
-	await page.getByLabel("Ingress template").selectOption("unverified");
+	await chooseOption(page.getByRole("button", { name: new RegExp("Ingress template") }), "unverified");
 	await expect(page.getByRole("textbox", { name: "Ingress code", exact: true })).toBeAttached();
 	await page.getByRole("button", { name: "Save draft", exact: true }).click();
-	await expect(page.getByText("Draft saved · Not published", { exact: true })).toBeVisible();
+	await expect(page.getByText("Draft saved / Not published", { exact: true })).toBeVisible();
 	const another = await (await page.request.get("/api/v1/endpoints/" + second.id + "/drafts/ingress")).json();
 	expect(another.body.replace(/\s/g, ""), "New template copies must preserve source while applying project formatting").toBe(unverifiedHttpTemplate.source.replace(/\s/g, ""));
 });
@@ -265,7 +266,7 @@ test("U265 route editor binds an encrypted signing secret version", async ({ pag
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Secret project", slug: "secret-project" } })).json();
 	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Signed route", slug: "signed" } })).json();
 	await page.goto("/projects/" + project.id + "/routes/" + route.id + "?section=code");
-	await page.getByLabel("Ingress template").selectOption("hmac");
+	await chooseOption(page.getByRole("button", { name: new RegExp("Ingress template") }), "hmac");
 	await page.getByRole("row", { name: "Secrets", exact: true }).click();
 	await expect(page.getByRole("button", { name: "Create secret version", exact: true }), "Secret version controls must be available").toBeVisible();
 	await page.getByRole("button", { name: "Create secret version", exact: true }).click();
@@ -309,9 +310,9 @@ test("U116 event inspector displays HTML payload as escaped text", async ({ page
 	}
 
 	await page.goto("/events");
-	await page.getByLabel("Event workspace", { exact: true }).selectOption(workspace.id);
-	await page.getByLabel("Event project", { exact: true }).selectOption(project.id);
-	await page.getByLabel("Event route", { exact: true }).selectOption(route.id);
+	await chooseOption(page.getByRole("button", { name: new RegExp("Event workspace") }), workspace.id);
+	await chooseOption(page.getByRole("button", { name: new RegExp("Event project") }), project.id);
+	await chooseOption(page.getByRole("button", { name: new RegExp("Event route") }), route.id);
 	await page.getByRole("button", { name: /Processing version filter/ }).click();
 	await page.getByRole("option", { name: /^v1\b/ }).click();
 	await page.getByRole("button", { name: "Refresh events", exact: true }).click();
@@ -355,7 +356,7 @@ test("U116 event inspector displays HTML payload as escaped text", async ({ page
 	await page.getByRole("button", { name: "Replay selected events", exact: true }).click();
 	const replayDialog = page.getByRole("dialog", { name: "Replay selected events", exact: true });
 	await expect(replayDialog).toContainText("1 selected events");
-	await replayDialog.getByLabel("Bulk replay version policy", { exact: true }).selectOption("current");
+	await chooseOption(replayDialog.getByRole("button", { name: new RegExp("Bulk replay version policy") }), "current");
 	await replayDialog.getByRole("button", { name: "Cancel", exact: true }).click();
 	await expect(replayDialog).not.toBeVisible();
 	expect((await (await page.request.get("/api/v1/events/" + entry.id)).json()).executions).toHaveLength(before);
@@ -376,7 +377,7 @@ test("U116 event inspector displays HTML payload as escaped text", async ({ page
 	const replayInspector = page.getByRole("dialog", { name: "Event inspection", exact: true });
 	await replayInspector.getByRole("tab", { name: "Processing", exact: true }).click();
 	await expect(replayInspector.getByText("Handler completed", { exact: true })).toBeVisible();
-	await expect(replayInspector.getByText("Accepted · queued", { exact: true })).toBeVisible();
+	await expect(replayInspector.getByText("Accepted / queued", { exact: true })).toBeVisible();
 	await replayInspector.getByRole("button", { name: "Replay event", exact: true }).click();
 	await expect.poll(async () => (await (await page.request.get("/api/v1/events/" + entry.id)).json()).executions.length).toBe(before + 2);
 	await replayInspector.getByRole("button", { name: "Close", exact: true }).click();
@@ -389,7 +390,7 @@ test("U116 event inspector displays HTML payload as escaped text", async ({ page
 	await page.getByRole("button", { name: "Select events", exact: true }).click();
 	await page.getByRole("menuitem", { name: "Choose status and version…", exact: true }).click();
 	const selection = page.getByRole("dialog", { name: "Select events by status and version", exact: true });
-	await selection.getByLabel("Selection status", { exact: true }).selectOption("delivered");
+	await chooseOption(selection.getByRole("button", { name: new RegExp("Selection status") }), "delivered");
 	await selection.getByRole("button", { name: "Select matching events", exact: true }).click();
 	await expect(selection).toHaveCount(0);
 	await expect(page.getByRole("button", { name: /Inspect event/ })).toHaveCount(1);
@@ -463,7 +464,7 @@ test("U292 shared code copies immutable helpers and edits and reorders middlewar
 	await expect(page.locator(".monaco-editor .view-lines")).toContainText("shared");
 	await page.getByRole("button", { name: "Save helper version", exact: true }).click();
 	await expect(page.getByRole("alertdialog", { name: "Code status", exact: true })).toContainText("Saved a new immutable helper version");
-	await expect(page.getByRole("heading", { name: "Messages", exact: true })).toBeVisible();
+	await expect(page.getByRole("row").filter({ hasText: "Messages" }).first()).toBeVisible();
 	await page.getByRole("button", { name: "Edit as new version", exact: true }).click();
 	await expect(page.getByRole("dialog")).toBeVisible();
 	await page.keyboard.press("Escape");
@@ -479,11 +480,7 @@ test("U292 shared code copies immutable helpers and edits and reorders middlewar
 	const helperVersions = await (await page.request.get("/api/v1/shared-code?scopeType=project&scopeId=" + project.id)).json();
 	const newestHelper = await (await page.request.get("/api/v1/shared-code/" + helperVersions[0].id)).json();
 	expect(newestHelper.source).toContain("shared v2");
-	await page
-		.locator('[data-slot="card"]')
-		.filter({ hasText: newestHelper.id.slice(0, 8) })
-		.getByRole("button", { name: "Copy locally", exact: true })
-		.click();
+	await page.getByRole("row").filter({ hasText: "Messages" }).first().getByRole("button", { name: "Copy helper Messages", exact: true }).click();
 	await expect.poll(async () => (await (await page.request.get("/api/v1/shared-code?scopeType=project&scopeId=" + project.id)).json())[0].originRevisionId).toBe(newestHelper.id);
 	const copiedHelpers = await (await page.request.get("/api/v1/shared-code?scopeType=project&scopeId=" + project.id)).json();
 	const copiedSource = await (await page.request.get("/api/v1/shared-code/" + copiedHelpers[0].id)).json();
@@ -493,16 +490,16 @@ test("U292 shared code copies immutable helpers and edits and reorders middlewar
 	await page.getByRole("tab", { name: "Middleware", exact: true }).click();
 	await page.getByRole("button", { name: "Create middleware", exact: true }).click();
 	await page.getByLabel("Middleware name", { exact: true }).fill("Project policy");
-	await page.getByLabel("Middleware stage", { exact: true }).selectOption("ingress");
-	await page.getByLabel("Middleware stage", { exact: true }).selectOption("processing");
+	await chooseOption(page.getByRole("button", { name: new RegExp("Middleware stage") }), "ingress");
+	await chooseOption(page.getByRole("button", { name: new RegExp("Middleware stage") }), "processing");
 	await page.getByRole("textbox", { name: /^Position/ }).fill("5");
 	await page.getByRole("textbox", { name: /^Position/ }).press("Tab");
 	await page.getByRole("textbox", { name: /^Position/ }).fill("0");
 	await page.getByRole("textbox", { name: /^Position/ }).press("Tab");
-	await page.getByLabel("Middleware failure behavior", { exact: true }).selectOption("optional");
-	await page.getByLabel("Middleware failure behavior", { exact: true }).selectOption("required");
-	await page.getByLabel("Middleware child overrides", { exact: true }).selectOption("forbidden");
-	await page.getByLabel("Middleware required failure outcome", { exact: true }).selectOption("fail");
+	await chooseOption(page.getByRole("button", { name: new RegExp("Middleware failure behavior") }), "optional");
+	await chooseOption(page.getByRole("button", { name: new RegExp("Middleware failure behavior") }), "required");
+	await chooseOption(page.getByRole("button", { name: new RegExp("Middleware child overrides") }), "forbidden");
+	await chooseOption(page.getByRole("button", { name: new RegExp("Middleware required failure outcome") }), "fail");
 	await expect(page.locator(".monaco-editor .view-lines").first()).toContainText("ProcessingMiddlewareContext");
 	await page.getByRole("button", { name: "Save middleware", exact: true }).click();
 	await expect(page.getByRole("alertdialog", { name: "Code status", exact: true })).toContainText("Middleware saved");
@@ -592,7 +589,7 @@ test("U83 route editor binds helper version and supports editable file imports",
 	expect(await response.text()).toBe("from shared helper");
 	await expect.poll(async () => (await (await page.request.get("/api/v1/endpoints/" + route.id + "/drafts/ingress")).json()).shared_bindings.Messages).toBe(helper.id);
 	await page.getByRole("row", { name: "Playground", exact: true }).click();
-	await page.getByLabel("HTTP method", { exact: true }).selectOption("GET");
+	await chooseOption(page.getByRole("button", { name: new RegExp("HTTP method") }), "GET");
 	await page.getByRole("button", { name: "Send request", exact: true }).click();
 	await expect(page.getByText("HTTP 200", { exact: true })).toBeVisible();
 	await expect(page.getByText("ready", { exact: true })).toBeVisible();
@@ -654,8 +651,8 @@ test("U300 route editor tests unsaved ingress with synthetic fixture", async ({ 
 	await page.keyboard.press("ControlOrMeta+A");
 	await page.keyboard.insertText('export async function PATCH(ctx: IngressContext): Promise<IngressDecision> { ctx.log.info("Fixture processed"); ctx.log.warn("Review warning"); return ctx.respondOnly({status:200,body:"synthetic:"+new TextDecoder().decode(ctx.request.body)+":"+ctx.request.headers["x-review"]+":"+(ctx.secrets.MODE === "synthetic" ? "configured" : "missing")}); }');
 	await page.getByRole("row", { name: "Script test", exact: true }).click();
-	await page.getByLabel("Synthetic HTTP method", { exact: true }).selectOption("PATCH");
-	await page.getByLabel("Body format", { exact: true }).selectOption("plaintext");
+	await chooseOption(page.getByRole("button", { name: new RegExp("Synthetic HTTP method") }), "PATCH");
+	await chooseOption(page.getByRole("button", { name: new RegExp("Body format") }), "plaintext");
 	for (const [tab, label, value] of [
 		["Body", "Synthetic request body", "hello"],
 		["Headers", "Synthetic headers", '{"x-review":"review"}'],
@@ -670,20 +667,20 @@ test("U300 route editor tests unsaved ingress with synthetic fixture", async ({ 
 	}
 
 	await page.getByRole("tab", { name: "Checks", exact: true }).click();
-	await page.getByLabel("Expected decision", { exact: true }).selectOption("respondOnly");
-	await page.getByLabel("Expected HTTP status", { exact: true }).fill("200");
+	await chooseOption(page.getByRole("button", { name: new RegExp("Expected decision") }), "respondOnly");
+	await page.getByRole("combobox", { name: "Expected HTTP status", exact: true }).fill("200");
 	await page.getByLabel("Response body contains", { exact: true }).fill("synthetic:hello");
 	await page.getByRole("button", { name: "Test ingress (dry)", exact: true }).click();
 	await expect(page.getByLabel("Synthetic test result", { exact: true })).toContainText("synthetic:hello:review:configured", { timeout: 20000 });
 	await expect(page.getByLabel("Synthetic test result", { exact: true })).toContainText("3/3 checks passed");
 	await expect(page.locator('[data-slot="toast"]').filter({ hasText: "Synthetic test completed" })).toHaveCount(0);
-	await page.getByLabel("Log level", { exact: true }).selectOption("warn");
+	await chooseOption(page.getByRole("button", { name: new RegExp("Log level") }), "warn");
 	await expect(page.getByLabel("Synthetic test result", { exact: true })).toContainText("Review warning");
 	await expect(page.getByLabel("Synthetic test result", { exact: true })).not.toContainText("Fixture processed");
 	await page.getByRole("textbox", { name: "Search execution logs", exact: true }).fill("not-a-matching-message");
 	await expect(page.getByText("No logs match these filters.", { exact: true })).toBeVisible();
 	await page.getByRole("textbox", { name: "Search execution logs", exact: true }).clear();
-	await page.getByLabel("Script stage", { exact: true }).selectOption("processing");
+	await chooseOption(page.getByRole("button", { name: new RegExp("Script stage") }), "processing");
 	await page.getByRole("button", { name: "Test processing (dry)", exact: true }).click();
 	await expect(page.getByLabel("Synthetic test result", { exact: true })).toContainText("complete", { timeout: 20000 });
 	const saved = await (await page.request.get("/api/v1/endpoints/" + route.id + "/drafts/ingress")).json();
@@ -741,9 +738,9 @@ test("U302 repeated saves retain a clear saved state without redundant toasts", 
 	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Repeat route", slug: "repeat-route" } })).json();
 	await page.goto("/projects/" + project.id + "/routes/" + route.id + "?section=code");
 	await page.getByRole("button", { name: "Save draft", exact: true }).click();
-	await expect(page.getByText("Draft saved · Not published", { exact: true })).toBeVisible();
+	await expect(page.getByText("Draft saved / Not published", { exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "Save draft", exact: true }).click();
-	await expect(page.getByText("Draft saved · Not published", { exact: true })).toBeVisible();
+	await expect(page.getByText("Draft saved / Not published", { exact: true })).toBeVisible();
 	await expect(page.getByRole("alertdialog", { name: "Script status", exact: true })).toHaveCount(0);
 });
 
@@ -783,7 +780,7 @@ test("U131 inherited middleware shows provenance and copies a local override", a
 	await page.goto("/code/project/" + project.id);
 	await page.getByRole("tab", { name: "Middleware", exact: true }).click();
 	const inherited = page.getByRole("row").filter({ has: page.getByRole("heading", { name: "Parent policy", exact: true }) });
-	await expect(inherited, "Inherited scope must be visible").toContainText("workspace · Policy workspace");
+	await expect(inherited, "Inherited scope must be visible").toContainText("workspace / Policy workspace");
 	await expect(inherited).toContainText("Inherited");
 	await expect(inherited.getByRole("button", { name: "Edit middleware", exact: true })).toHaveCount(0);
 	await expect(
@@ -825,17 +822,17 @@ test("U305 project dashboard configures explicit route failure notifications", a
 	await page.getByRole("row", { name: "Notification rules", exact: true }).click();
 	await expect(page.getByRole("heading", { name: "No failure notification rules", exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "Create notification rule", exact: true }).click();
-	const enabled = page.getByRole("checkbox", { name: "Enable failure notifications", exact: true });
+	const enabled = page.getByRole("switch", { name: "Enable failure notifications", exact: true });
 	await expect(enabled).not.toBeChecked();
 	await page.getByText("Enable failure notifications", { exact: true }).click();
 	await expect(enabled).toBeChecked();
-	await page.getByLabel("Rule ingress route", { exact: true }).selectOption(route.id);
-	await page.getByLabel("Rule destination", { exact: true }).selectOption(destination.id);
+	await chooseOption(page.getByRole("button", { name: new RegExp("Rule ingress route") }), route.id);
+	await chooseOption(page.getByRole("button", { name: new RegExp("Rule destination") }), destination.id);
 	await page.getByRole("textbox", { name: /^Failure threshold/ }).fill("3");
 	await page.getByRole("textbox", { name: /^Window in seconds/ }).fill("120");
 	await page.getByRole("textbox", { name: /^Cooldown in seconds/ }).fill("30");
-	await page.getByLabel("Rule severity", { exact: true }).selectOption("critical");
-	await page.getByLabel("Rule recovery policy", { exact: true }).selectOption("manual");
+	await chooseOption(page.getByRole("button", { name: new RegExp("Rule severity") }), "critical");
+	await chooseOption(page.getByRole("button", { name: new RegExp("Rule recovery policy") }), "manual");
 	await page.getByRole("button", { name: "Save notification rule", exact: true }).click();
 	await expect(page.getByRole("alertdialog", { name: "Notification rule status", exact: true })).toContainText("Notification rule saved");
 	let rules = await (await page.request.get("/api/v1/projects/" + project.id + "/notification-rules")).json();
@@ -850,7 +847,7 @@ test("U305 project dashboard configures explicit route failure notifications", a
 	expect(rules[0].destinationId).toBe(destination.id);
 	await page.getByRole("button", { name: "Edit rule", exact: true }).click();
 	await expect(page.getByRole("textbox", { name: /^Failure threshold/ })).toHaveValue("3");
-	await expect(page.getByLabel("Rule severity", { exact: true })).toHaveValue("critical");
+	await expect(page.getByRole("button", { name: /Rule severity/ })).toContainText("Critical");
 	await page.getByRole("button", { name: "Cancel", exact: true }).click();
 	await expect(page.getByRole("dialog")).toHaveCount(0);
 	await page.getByRole("button", { name: "Edit rule", exact: true }).click();
@@ -1038,7 +1035,7 @@ test("overview and mobile hierarchy preserve context while search opens resource
 	await command.getByRole("button", { name: "Clear search", exact: true }).click();
 	await expect(command.getByPlaceholder("Search pages and resources…")).toHaveValue("");
 	await command.getByPlaceholder("Search pages and resources…").fill("Design project");
-	await command.getByRole("menuitem", { name: "Jump to Design project · Project", exact: true }).click();
+	await command.getByRole("menuitem", { name: "Jump to Design project / Project", exact: true }).click();
 	await expect(page).toHaveURL(new RegExp("/projects/" + project.id + "$"));
 	const breadcrumbs = page.getByRole("navigation", { name: "Breadcrumbs", exact: true });
 	await expect(breadcrumbs.getByRole("link", { name: "Overview", exact: true })).toBeVisible();
@@ -1102,18 +1099,18 @@ test("instance notification modules remain forkable while enterprise customizati
 	await page.goto("/admin/notification-channels");
 	await expect(page.getByRole("heading", { name: "Notification modules", exact: true })).toBeVisible();
 	await page.getByRole("link", { name: "View and fork" }).click();
-	await expect(page.getByText("Shipped · read-only", { exact: true })).toBeVisible();
+	await expect(page.getByText("Built-in template", { exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "Fork module", exact: true }).click();
 	await page.getByLabel("Module name", { exact: true }).fill("Review email module");
 	const previewResponse = page.waitForResponse((response) => response.url().endsWith("/notification-channels/preview") && response.request().method() === "POST");
-	await page.getByRole("button", { name: "Test without external effects" }).click();
+	await page.getByRole("button", { name: "Preview output" }).click();
 	const previewReply = await previewResponse;
 	expect(await previewReply.json()).toMatchObject({ decision: { kind: "email" } });
 	await expect(page.getByText("Test result: email", { exact: true })).toBeVisible();
 	await expect(page.frameLocator('iframe[title="Notification email preview"]').getByRole("heading", { name: "Delivery failure threshold reached" })).toBeVisible();
 	await page.getByRole("button", { name: "Publish version", exact: true }).click();
 	await expect(page).toHaveURL(/\/admin\/notification-channels\/[0-9a-f-]{36}$/);
-	await expect(page.getByRole("combobox", { name: "Module version" })).toContainText("v1 · Active · Latest");
+	await expect(page.getByRole("button", { name: /Module version/ })).toContainText("v1 / Active / Latest");
 	await page.goto("/admin/installation");
 	await expect(page.getByRole("link", { name: "Email settings", exact: true })).toHaveCount(0);
 	await expect(page.getByRole("link", { name: "Instance customization", exact: true })).toHaveCount(0);
@@ -1215,7 +1212,7 @@ test("FT11b organization usage shows local counts and unlimited self-host defaul
 			.nth(1),
 	).toHaveText(BigInt(usage.metrics["ingress.recorded"].lifetime).toLocaleString("en-US"));
 	await expect(page.getByText("Unlimited", { exact: true })).toHaveCount(3);
-	await page.getByLabel("Usage window").selectOption("168");
+	await chooseOption(page.getByRole("button", { name: new RegExp("Usage window") }), "168");
 	await expect(page.getByRole("grid", { name: "Organization usage" })).toBeVisible();
 	const invalid = await page.request.get("/api/v1/organizations/" + organizationId + "/usage?from=invalid&to=invalid");
 	expect(invalid.status()).toBe(400);
@@ -1374,7 +1371,7 @@ test("U157 dashboard multiplexes live events and notifications on one connection
 	await expect(page.getByRole("heading", { name: "Events", exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "Notifications", exact: true }).click();
 	await page.getByRole("button", { name: "Dismiss notification Scripts use ordinary Docker containment", exact: true }).click();
-	await page.getByRole("dialog", { name: "Notifications", exact: true }).getByRole("button", { name: "Close", exact: true }).click();
+	await page.getByRole("dialog", { name: "Notifications", exact: true }).getByRole("button", { name: "Close notifications", exact: true }).click();
 	await expect(page.getByRole("button", { name: "Notifications", exact: true })).toHaveAccessibleDescription("No active notifications.");
 
 	const openStreams = () => page.evaluate(() => (Reflect.get(window, "__payloadbayStreams") as EventSource[]).filter((source) => source.readyState !== EventSource.CLOSED).length);
@@ -1393,7 +1390,7 @@ test("U157 dashboard multiplexes live events and notifications on one connection
 			.getByRole("grid", { name: "Stored events" })
 			.getByRole("row")
 			.filter({ has: page.getByRole("button", { name: "Inspect event " + eventId.slice(0, 8), exact: true }) });
-		await expect(row).toContainText("Accepted · queued");
+		await expect(row).toContainText("Accepted / queued");
 		await transaction(pool, async (db) => {
 			const result = await db.query("UPDATE payloadbay.execution SET state='succeeded',final_result='{\"kind\":\"complete\"}' WHERE event_id=$1 RETURNING id", [eventId]);
 			await appendChange(db, { scope: { type: "project", id: project.id }, kind: "execution.changed", resourceId: result.rows[0].id });
@@ -1559,13 +1556,13 @@ test("IH01 installation settings and health are factual and instance restricted"
 	await page.goto("/admin/installation");
 	await expect(page.getByRole("heading", { name: "Installation", exact: true })).toBeVisible();
 	await expect(page.getByRole("grid", { name: "Service health" })).toContainText("SMTP connection verified");
-	await expect(page.getByText("Disabled · event history is retained", { exact: true })).toBeVisible();
+	await expect(page.getByText("Keep indefinitely (automatic deletion off)", { exact: true })).toBeVisible();
 	await page.screenshot({ path: test.info().outputPath("installation-desktop.png") });
 	await page.setViewportSize({ width: 390, height: 844 });
 	await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 	await page.screenshot({ path: test.info().outputPath("installation-mobile.png") });
-	await page.getByText("Disabled · event history is retained", { exact: true }).scrollIntoViewIfNeeded();
-	await expect(page.getByText("Disabled · event history is retained", { exact: true })).toBeInViewport();
+	await page.getByText("Keep indefinitely (automatic deletion off)", { exact: true }).scrollIntoViewIfNeeded();
+	await expect(page.getByText("Keep indefinitely (automatic deletion off)", { exact: true })).toBeInViewport();
 	await expect(page.getByText("Event retention", { exact: true })).toBeInViewport();
 	await page.screenshot({ path: test.info().outputPath("installation-retention-mobile.png") });
 	const pool = database(process.env.DATABASE_URL!);
@@ -1838,7 +1835,7 @@ test("UX63 request format validation prevents malformed sends and supports XML",
 	await page.getByRole("button", { name: "Send request", exact: true }).click();
 	await expect(page.getByRole("alertdialog", { name: "Script configuration error" })).toContainText("Correct the JSON body");
 	expect(sent).toBe(0);
-	await page.getByLabel("Body format", { exact: true }).selectOption("xml");
+	await chooseOption(page.getByRole("button", { name: new RegExp("Body format") }), "xml");
 	await body.focus();
 	await page.keyboard.press("ControlOrMeta+A");
 	await page.evaluate((text) => navigator.clipboard.writeText(text), "<purchase>");
@@ -1853,4 +1850,39 @@ test("UX63 request format validation prevents malformed sends and supports XML",
 	await page.getByRole("button", { name: "Send request", exact: true }).click();
 	await expect(page.getByLabel("Response body", { exact: true })).toHaveText("application/xml|<purchase />");
 	expect(sent).toBe(1);
+});
+
+test("UX67 desktop resource actions, command shortcut and anchored notifications remain coherent", async ({ page }) => {
+	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
+	await ensureBrowserOwner(page);
+	await page.setViewportSize({ width: 1440, height: 1000 });
+	const headers = commandHeaders();
+	const workspace = (await (await page.request.get("/api/v1/workspaces")).json())[0];
+	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Desktop review", slug: "desktop-review" } })).json();
+	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Unused route", slug: "unused-route" } })).json();
+	const destination = await (await page.request.post("/api/v1/projects/" + project.id + "/destinations", { headers, data: { name: "Unused target", url: "https://example.test/receiver" } })).json();
+	await page.goto("/projects/" + project.id);
+	await expect(page.getByRole("heading", { name: "Desktop review", exact: true })).toBeVisible();
+	await page.keyboard.press("ControlOrMeta+k");
+	await expect(page.getByRole("dialog").getByPlaceholder("Search pages and resources…")).toBeVisible();
+	await page.keyboard.press("Escape");
+	await page.getByRole("grid", { name: "Destinations", exact: true }).getByRole("row").filter({ hasText: "Unused target" }).click();
+	await expect(page.getByRole("dialog", { name: "Edit destination", exact: true })).toBeVisible();
+	await page.keyboard.press("Escape");
+	await page.getByRole("button", { name: "Delete destination Unused target", exact: true }).click();
+	await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click();
+	await expect.poll(async () => (await page.request.get("/api/v1/destinations/" + destination.id)).status()).toBe(404);
+	await page.getByRole("button", { name: "Delete route Unused route", exact: true }).click();
+	await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click();
+	await expect.poll(async () => (await page.request.get("/api/v1/endpoints/" + route.id)).status()).toBe(404);
+	await page.getByRole("button", { name: "Notifications", exact: true }).click();
+	const notices = page.getByRole("dialog", { name: "Notifications", exact: true });
+	await expect(notices).toBeVisible();
+	const trigger = await page.getByRole("button", { name: "Notifications", exact: true }).boundingBox();
+	const panel = await notices.boundingBox();
+	expect(trigger).not.toBeNull();
+	expect(panel).not.toBeNull();
+	expect(panel!.x + panel!.width).toBeLessThanOrEqual(1440);
+	expect(Math.abs(panel!.x + panel!.width - trigger!.x - trigger!.width)).toBeLessThan(40);
+	await page.screenshot({ path: test.info().outputPath("desktop-notifications-and-resource-actions.png") });
 });

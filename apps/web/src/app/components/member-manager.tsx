@@ -3,8 +3,8 @@
 import { LoadingState } from "@components/loading-state";
 import { useFeedbackToast } from "@lib/feedback";
 import { useEffect, useState, useCallback, type FormEvent } from "react";
-import { Button, Form, Checkbox, Table, TextField, Label, Input, FieldError, Modal } from "@heroui/react";
-import { EmptyState, NativeSelect } from "@heroui-pro/react";
+import { Button, Form, Checkbox, Table, TextField, Label, Input, FieldError, Modal, Select, ListBox } from "@heroui/react";
+import { EmptyState } from "@heroui-pro/react";
 import { IconUsers, IconPencil, IconUserPlus, IconX } from "@tabler/icons-react";
 import { useDashboard } from "@components/dashboard-shell";
 import { api } from "@lib/api-client";
@@ -225,7 +225,7 @@ export function MemberManager({ scope: chosen, held: chosenHeld }: { scope?: Sco
 							<Table.Header>
 								<Table.Column isRowHeader>Person</Table.Column>
 								<Table.Column>Access</Table.Column>
-								<Table.Column>Actions</Table.Column>
+								<Table.Column className='text-right'>Actions</Table.Column>
 							</Table.Header>
 							<Table.Body>
 								{members.map((member) => (
@@ -235,10 +235,10 @@ export function MemberManager({ scope: chosen, held: chosenHeld }: { scope?: Sco
 											<span className='text-muted mt-1 block break-all text-xs'>{member.email}</span>
 										</Table.Cell>
 										<Table.Cell>
-											<span className='capitalize'>{member.role_preset === "member" ? "Admitted · no instance role" : member.role_preset}</span>
+											<span className='capitalize'>{member.role_preset === "member" ? "Admitted / no instance role" : member.role_preset}</span>
 											{member.inherited_permissions.length > 0 && <span className='text-muted mt-1 block text-xs'>Includes inherited permissions</span>}
 										</Table.Cell>
-										<Table.Cell>
+										<Table.Cell className='text-right [&>div]:justify-end'>
 											<Button size='sm' variant='secondary' aria-label={"Edit permissions for " + member.name} onPress={() => edit(member)}>
 												<IconPencil size={16} aria-hidden='true' />
 												Edit
@@ -270,23 +270,23 @@ export function MemberManager({ scope: chosen, held: chosenHeld }: { scope?: Sco
 								<Table.Header>
 									<Table.Column isRowHeader>Email</Table.Column>
 									<Table.Column>Access</Table.Column>
-									<Table.Column>Actions</Table.Column>
+									<Table.Column className='text-right'>Actions</Table.Column>
 								</Table.Header>
 								<Table.Body>
 									{invitations.map((invitation) => (
 										<Table.Row key={invitation.id} id={invitation.id}>
 											<Table.Cell>
 												<span className='break-all'>{invitation.email}</span>
-												<span className='text-muted mt-1 block text-xs'>Pending · expires {new Date(invitation.expires_at).toLocaleDateString()}</span>
+												<span className='text-muted mt-1 block text-xs'>Pending / expires {new Date(invitation.expires_at).toLocaleDateString()}</span>
 											</Table.Cell>
 											<Table.Cell>
 												{invitation.grants.map((grant) => (
 													<p key={grant.scope.id} className='text-sm capitalize'>
-														{grant.role} · {grant.scope.type === "project" ? (projects.find((project) => project.id === grant.scope.id)?.name ?? "Project") : grant.scope.type}
+														{grant.role} / {grant.scope.type === "project" ? (projects.find((project) => project.id === grant.scope.id)?.name ?? "Project") : grant.scope.type}
 													</p>
 												))}
 											</Table.Cell>
-											<Table.Cell>
+											<Table.Cell className='text-right [&>div]:justify-end'>
 												<Button size='sm' variant='ghost' isDisabled={busy} aria-label={"Cancel invitation for " + invitation.email} onPress={() => void cancel(invitation.id)}>
 													<IconX size={16} aria-hidden='true' />
 													Cancel
@@ -330,14 +330,25 @@ export function MemberManager({ scope: chosen, held: chosenHeld }: { scope?: Sco
 											</TextField>
 											{scope.type !== "project" && (
 												<>
-													<NativeSelect variant='secondary' fullWidth>
+													<Select variant='secondary' fullWidth aria-label='Invitation access scope' value={access} onChange={(key) => setAccess(String(key ?? ""))}>
 														<Label>Where should they have access?</Label>
-														<NativeSelect.Trigger aria-label='Invitation access scope' value={access} onChange={(event) => setAccess(event.target.value)}>
-															<NativeSelect.Option value='projects'>Selected projects only</NativeSelect.Option>
-															<NativeSelect.Option value='scope'>{scope.type === "instance" ? "Entire instance and all organizations" : scope.type === "organization" ? "Entire organization, its workspaces and projects" : "Entire workspace and its projects"}</NativeSelect.Option>
-															<NativeSelect.Indicator />
-														</NativeSelect.Trigger>
-													</NativeSelect>
+														<Select.Trigger>
+															<Select.Value />
+															<Select.Indicator />
+														</Select.Trigger>
+														<Select.Popover>
+															<ListBox>
+																<ListBox.Item id='projects'>
+																	Selected projects only
+																	<ListBox.ItemIndicator />
+																</ListBox.Item>
+																<ListBox.Item id='scope'>
+																	{scope.type === "instance" ? "Entire instance and all organizations" : scope.type === "organization" ? "Entire organization, its workspaces and projects" : "Entire workspace and its projects"}
+																	<ListBox.ItemIndicator />
+																</ListBox.Item>
+															</ListBox>
+														</Select.Popover>
+													</Select>
 													{access === "projects" && (
 														<fieldset className='flex flex-col gap-3'>
 															<legend className='mb-2 font-medium'>Projects</legend>
@@ -358,26 +369,47 @@ export function MemberManager({ scope: chosen, held: chosenHeld }: { scope?: Sco
 											)}
 										</>
 									)}
-									<NativeSelect variant='secondary' fullWidth>
+									<Select
+										variant='secondary'
+										fullWidth
+										aria-label='Role preset'
+										value={role}
+										onChange={(key) => {
+											const next = String(key ?? "");
+											setRole(next);
+											if (next !== "custom") setSelected(me.roles[next] ?? []);
+										}}
+									>
 										<Label>Role preset</Label>
-										<NativeSelect.Trigger
-											aria-label='Role preset'
-
-											value={role}
-											onChange={(e) => {
-												const next = e.target.value;
-												setRole(next);
-												if (next !== "custom") setSelected(me.roles[next] ?? []);
-											}}
-										>
-											<NativeSelect.Option value='owner'>Owner</NativeSelect.Option>
-											<NativeSelect.Option value='admin'>Admin</NativeSelect.Option>
-											<NativeSelect.Option value='operator'>Operator</NativeSelect.Option>
-											<NativeSelect.Option value='viewer'>Viewer</NativeSelect.Option>
-											<NativeSelect.Option value='custom'>Custom</NativeSelect.Option>
-											<NativeSelect.Indicator />
-										</NativeSelect.Trigger>
-									</NativeSelect>
+										<Select.Trigger>
+											<Select.Value />
+											<Select.Indicator />
+										</Select.Trigger>
+										<Select.Popover>
+											<ListBox>
+												<ListBox.Item id='owner'>
+													Owner
+													<ListBox.ItemIndicator />
+												</ListBox.Item>
+												<ListBox.Item id='admin'>
+													Admin
+													<ListBox.ItemIndicator />
+												</ListBox.Item>
+												<ListBox.Item id='operator'>
+													Operator
+													<ListBox.ItemIndicator />
+												</ListBox.Item>
+												<ListBox.Item id='viewer'>
+													Viewer
+													<ListBox.ItemIndicator />
+												</ListBox.Item>
+												<ListBox.Item id='custom'>
+													Custom
+													<ListBox.ItemIndicator />
+												</ListBox.Item>
+											</ListBox>
+										</Select.Popover>
+									</Select>
 									<p className='text-muted text-sm'>Inherited permissions are checked and locked. Changing this role does not remove them.</p>
 									<fieldset className='flex flex-col gap-3'>
 										<legend className='mb-3 font-medium'>Permissions</legend>

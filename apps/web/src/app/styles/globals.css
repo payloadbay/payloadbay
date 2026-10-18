@@ -28,7 +28,7 @@ body {
 	min-height: 0;
 }
 
-.sidebar__mobile [data-slot="sidebar-menu-label-text"] {
+[data-slot="sidebar-menu-label-text"] {
 	white-space: normal;
 	overflow-wrap: anywhere;
 }

@@ -2,7 +2,7 @@ import { protectedRoute } from "@api/protected";
 import { readJson } from "@api/handler";
 import { uuid, version } from "@api/parameters";
 import { destinationInput } from "@contracts/destinations";
-import { getDestination, updateDestination } from "@domain/destinations";
+import { getDestination, updateDestination, deleteDestination } from "@domain/destinations";
 
 export const runtime = "nodejs";
 
@@ -24,4 +24,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ dest
 			expectedVersion: version(request),
 		});
 	});
+}
+
+export async function DELETE(request: Request, { params }: { params: Promise<{ destinationId: string }> }) {
+	return protectedRoute(request, async ({ pool }, actor) => deleteDestination(pool, actor, uuid((await params).destinationId), version(request)));
 }

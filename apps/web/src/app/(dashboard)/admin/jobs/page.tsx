@@ -83,8 +83,8 @@ export default function JobsPage() {
 						{[
 							{ label: "Due deliveries", value: data.backlog.reduce((sum, lane) => sum + lane.dueCount, 0) },
 							{ label: "Oldest overdue", value: Math.max(0, ...data.backlog.map((lane) => lane.oldestDueSeconds)) + "s" },
-							{ label: "Successful attempts · 24h", value: data.series.reduce((sum, point) => sum + point.succeeded, 0) },
-							{ label: "Failed attempts · 24h", value: data.series.reduce((sum, point) => sum + point.failed, 0) },
+							{ label: "Successful attempts / 24h", value: data.series.reduce((sum, point) => sum + point.succeeded, 0) },
+							{ label: "Failed attempts / 24h", value: data.series.reduce((sum, point) => sum + point.failed, 0) },
 						].map((metric) => (
 							<Card key={metric.label}>
 								<Card.Header>

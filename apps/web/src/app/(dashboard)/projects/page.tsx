@@ -2,9 +2,9 @@
 
 import { useFeedbackToast } from "@lib/feedback";
 import { useState, type FormEvent } from "react";
-import { Button, Form, TextField, Label, Input, FieldError, Table, Modal } from "@heroui/react";
-import { EmptyState, NativeSelect } from "@heroui-pro/react";
-import { IconFolderPlus, IconArrowRight } from "@tabler/icons-react";
+import { Button, Form, TextField, Label, Input, FieldError, Table, Modal, Select, ListBox } from "@heroui/react";
+import { EmptyState } from "@heroui-pro/react";
+import { IconFolderPlus, IconChevronRight } from "@tabler/icons-react";
 import { useDashboard } from "@components/dashboard-shell";
 import { api } from "@lib/api-client";
 
@@ -79,18 +79,27 @@ export default function DashboardPage() {
 				<Input variant='secondary' placeholder='Search projects…' />
 			</TextField>
 			{workspaces.length > 0 && (
-				<NativeSelect variant='secondary' className='max-w-sm' fullWidth>
+				<Select variant='secondary' className='max-w-sm' fullWidth id='workspace-filter' aria-label='Workspace' value={filter} onChange={(key) => setFilter(String(key ?? ""))}>
 					<Label htmlFor='workspace-filter'>Workspace</Label>
-					<NativeSelect.Trigger id='workspace-filter' aria-label='Workspace' value={filter} onChange={(e) => setFilter(e.target.value)}>
-						<NativeSelect.Option value=''>All accessible projects</NativeSelect.Option>
-						{workspaces.map((w) => (
-							<NativeSelect.Option key={w.id} value={w.id}>
-								{w.name}
-							</NativeSelect.Option>
-						))}
-						<NativeSelect.Indicator />
-					</NativeSelect.Trigger>
-				</NativeSelect>
+					<Select.Trigger>
+						<Select.Value />
+						<Select.Indicator />
+					</Select.Trigger>
+					<Select.Popover>
+						<ListBox>
+							<ListBox.Item id=''>
+								All accessible projects
+								<ListBox.ItemIndicator />
+							</ListBox.Item>
+							{workspaces.map((w) => (
+								<ListBox.Item key={w.id} id={w.id}>
+									{w.name}
+									<ListBox.ItemIndicator />
+								</ListBox.Item>
+							))}
+						</ListBox>
+					</Select.Popover>
+				</Select>
 			)}
 			{form && (
 				<Modal
@@ -109,29 +118,42 @@ export default function DashboardPage() {
 								<Modal.Body>
 									<Form className='flex flex-col gap-4' onSubmit={create}>
 										{form === "workspace" && (
-											<NativeSelect variant='secondary' fullWidth>
+											<Select variant='secondary' fullWidth id='project-organization' isRequired value={organizationId} onChange={(key) => setOrganizationId(String(key ?? ""))}>
 												<Label htmlFor='project-organization'>Organization</Label>
-												<NativeSelect.Trigger id='project-organization' required value={organizationId} onChange={(event) => setOrganizationId(event.target.value)}>
-													{ownedOrganizations.map((item) => (
-														<NativeSelect.Option key={item.id} value={item.id}>
-															{item.name}
-														</NativeSelect.Option>
-													))}
-												</NativeSelect.Trigger>
-											</NativeSelect>
+												<Select.Trigger>
+													<Select.Value />
+													<Select.Indicator />
+												</Select.Trigger>
+												<Select.Popover>
+													<ListBox>
+														{ownedOrganizations.map((item) => (
+															<ListBox.Item key={item.id} id={item.id}>
+																{item.name}
+																<ListBox.ItemIndicator />
+															</ListBox.Item>
+														))}
+													</ListBox>
+												</Select.Popover>
+											</Select>
 										)}
 										{form === "project" && (
-											<NativeSelect variant='secondary' fullWidth>
+											<Select variant='secondary' fullWidth id='project-workspace' aria-label='Project workspace' isRequired value={workspace} onChange={(key) => setWorkspace(String(key ?? ""))}>
 												<Label htmlFor='project-workspace'>Workspace</Label>
-												<NativeSelect.Trigger id='project-workspace' aria-label='Project workspace' required value={workspace} onChange={(e) => setWorkspace(e.target.value)}>
-													{owned.map((w) => (
-														<NativeSelect.Option key={w.id} value={w.id}>
-															{w.name}
-														</NativeSelect.Option>
-													))}
-													<NativeSelect.Indicator />
-												</NativeSelect.Trigger>
-											</NativeSelect>
+												<Select.Trigger>
+													<Select.Value />
+													<Select.Indicator />
+												</Select.Trigger>
+												<Select.Popover>
+													<ListBox>
+														{owned.map((w) => (
+															<ListBox.Item key={w.id} id={w.id}>
+																{w.name}
+																<ListBox.ItemIndicator />
+															</ListBox.Item>
+														))}
+													</ListBox>
+												</Select.Popover>
+											</Select>
 										)}
 										<TextField
 											isRequired
@@ -191,7 +213,7 @@ export default function DashboardPage() {
 										</Table.Cell>
 										<Table.Cell className='hidden sm:table-cell'>{workspaces.find((workspace) => workspace.id === project.workspace_id)?.name ?? "Workspace"}</Table.Cell>
 										<Table.Cell>
-											<IconArrowRight size={18} aria-hidden='true' />
+											<IconChevronRight size={18} aria-hidden='true' />
 										</Table.Cell>
 									</Table.Row>
 								)}

@@ -5,8 +5,8 @@ import { useFeedbackToast } from "@lib/feedback";
 import { use, useEffect, useCallback, useState, useRef, type PointerEvent, type FormEvent } from "react";
 import Link from "next/link";
 import { useDragAndDrop } from "react-aria-components";
-import { Button, Card, Form, TextField, Label, Input, FieldError, Tabs, NumberField, Checkbox, Table, Modal } from "@heroui/react";
-import { EmptyState, NativeSelect } from "@heroui-pro/react";
+import { Button, Form, TextField, Label, Input, FieldError, Tabs, NumberField, Checkbox, Table, Modal, Select, ListBox } from "@heroui/react";
+import { EmptyState } from "@heroui-pro/react";
 import { IconCode, IconPlus, IconCopy, IconLock, IconArrowLeft, IconCheck, IconGripVertical, IconArrowUp, IconArrowDown, IconPencil, IconInfoCircle } from "@tabler/icons-react";
 import { formatScript, formatScriptForDisplay, scriptDocument } from "@lib/script-document";
 import { useUnsavedChanges } from "@components/unsaved-changes";
@@ -193,12 +193,12 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 		void reorder(items);
 	}
 
-	// Native HTML drag remains available for mouse/keyboard. Pointer capture gives
-	// touch handles a direct gesture on browsers that do not initiate HTML dragging.
+	// Pointer gestures start only on the handle; React Aria retains keyboard ordering.
 	function startTouchOrder(event: PointerEvent<HTMLSpanElement>, binding: Binding) {
-		if (event.pointerType !== "touch" || busy || !canEdit || !canPublish || !binding.editable) return;
+		if ((event.pointerType !== "touch" && event.button !== 0) || busy || !canEdit || !canPublish || !binding.editable) return;
 		event.preventDefault();
 		event.stopPropagation();
+		event.currentTarget.querySelector("button")?.focus({ preventScroll: true });
 		event.currentTarget.setPointerCapture(event.pointerId);
 		touchOrder.current = {
 			pointer: event.pointerId,
@@ -434,7 +434,7 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 			{unsavedDialog}
 			<header className='flex flex-wrap items-start justify-between gap-4'>
 				<div>
-					<Link href={scopeType === "project" ? "/projects/" + scopeId : scopeType === "organization" ? "/organizations/" + scopeId : scopeType === "workspace" ? "/workspaces/" + scopeId : scopeType === "endpoint" && endpointScope ? "/projects/" + endpointScope.projectId + "/routes/" + scopeId : "/"} className='text-accent mb-3 flex items-center gap-2 text-sm'>
+					<Link href={scopeType === "project" ? "/projects/" + scopeId : scopeType === "organization" ? "/organizations/" + scopeId : scopeType === "workspace" ? "/workspaces/" + scopeId : scopeType === "endpoint" && endpointScope ? "/projects/" + endpointScope.projectId + "/routes/" + scopeId : "/"} className='button button--secondary w-fit'>
 						<IconArrowLeft size={16} />
 						{scopeType === "project" ? "Back to project" : scopeType === "organization" ? "Back to organization" : scopeType === "workspace" ? "Back to workspace" : scopeType === "endpoint" ? "Back to ingress route" : "Back to overview"}
 					</Link>
@@ -468,30 +468,47 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 			)}
 			{tab === "modules" && scopeType !== "endpoint" ? (
 				modules.length ? (
-					<div className='grid gap-4 md:grid-cols-2'>
-						{modules.map((module) => (
-							<Card key={module.id}>
-								<Card.Header>
-									<h2 className='font-semibold'>{module.name}</h2>
-									<Card.Description>
-										{module.scope.type} · {module.id.slice(0, 8)}
-										{module.originRevisionId ? " · copied version" : ""}
-									</Card.Description>
-								</Card.Header>
-								<Card.Footer>
-									<Button size='sm' variant='secondary' onPress={() => void editModule(module)}>
-										{canEdit ? (module.scope.id === scopeId ? "Edit as new version" : "Edit local copy") : "View source"}
-									</Button>
-									{canEdit && (
-										<Button size='sm' variant='ghost' isDisabled={busy} onPress={() => void copy(module)}>
-											<IconCopy size={16} />
-											Copy locally
-										</Button>
-									)}
-								</Card.Footer>
-							</Card>
-						))}
-					</div>
+					<Table>
+						<Table.ScrollContainer>
+							<Table.Content aria-label='Shared helpers' className='w-full'>
+								<Table.Header>
+									<Table.Column isRowHeader>Helper</Table.Column>
+									<Table.Column>Source</Table.Column>
+									<Table.Column>Revision</Table.Column>
+									<Table.Column className='text-right'>Actions</Table.Column>
+								</Table.Header>
+								<Table.Body>
+									{modules.map((module) => (
+										<Table.Row id={module.id} key={module.id}>
+											<Table.Cell>
+												<strong>{module.name}</strong>
+											</Table.Cell>
+											<Table.Cell>
+												{module.scope.type}
+												{module.originRevisionId ? " (copy)" : ""}
+											</Table.Cell>
+											<Table.Cell>
+												<code>{module.id.slice(0, 8)}</code>
+												<p className='text-muted text-xs'>{new Date(module.createdAt).toLocaleString()}</p>
+											</Table.Cell>
+											<Table.Cell className='text-right [&>div]:justify-end'>
+												<div className='flex justify-end gap-2'>
+													<Button isIconOnly aria-label={canEdit ? (module.scope.id === scopeId ? "Edit as new version" : "Edit local copy") : "View source"} size='sm' variant='ghost' onPress={() => void editModule(module)}>
+														<IconPencil size={18} />
+													</Button>
+													{canEdit && (
+														<Button isIconOnly aria-label={"Copy helper " + module.name} size='sm' variant='ghost' isDisabled={busy} onPress={() => void copy(module)}>
+															<IconCopy size={18} />
+														</Button>
+													)}
+												</div>
+											</Table.Cell>
+										</Table.Row>
+									))}
+								</Table.Body>
+							</Table.Content>
+						</Table.ScrollContainer>
+					</Table>
 				) : (
 					<EmptyState className='border-border rounded-xl border border-dashed py-12'>
 						<EmptyState.Header>
@@ -532,79 +549,86 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 					</Modal>
 					{bindings.length ? (
 						<Table>
-							<Table.ScrollContainer>
-								<Table.Content aria-label='Middleware execution order' dragAndDropHooks={dragAndDropHooks}>
-									<Table.Header>
-										<Table.Column aria-label='Order' className='w-12' />
-										<Table.Column isRowHeader>Middleware</Table.Column>
-										<Table.Column>Stage and scope</Table.Column>
-										<Table.Column>Actions</Table.Column>
-									</Table.Header>
-									<Table.Body items={bindings} dependencies={[touchVisual, busy, canEdit, canPublish]}>
-										{(binding) => (
-											<Table.Row id={binding.id} data-middleware-id={binding.id} className={touchVisual?.source === binding.id ? "opacity-50" : touchVisual?.target === binding.id ? "outline-2 outline-accent outline" : undefined}>
-												<Table.Cell>
-													{binding.editable ? (
-														<span
-															className='inline-flex touch-none'
-															onPointerDownCapture={(event) => startTouchOrder(event, binding)}
-															onPointerMoveCapture={moveTouchOrder}
-															onPointerUpCapture={(event) => endTouchOrder(event)}
-															onPointerCancelCapture={(event) => endTouchOrder(event, true)}
-															onDragStartCapture={(event) => {
-																if (touchOrder.current) event.preventDefault();
-															}}
-														>
-															<Button slot='drag' isIconOnly className='touch-none select-none' aria-description='Drag to reorder; up and down actions are also available' size='sm' variant='ghost' aria-label={"Drag " + binding.name} isDisabled={busy}>
-																<IconGripVertical size={16} />
-															</Button>
-														</span>
-													) : (
-														<IconLock size={16} aria-label='Inherited' />
-													)}
-												</Table.Cell>
-												<Table.Cell>
-													<h2 className='font-semibold'>{binding.name}</h2>
-													<p className='text-muted text-xs'>
-														{binding.failurePolicy} · {binding.enabled ? "enabled" : "disabled"} · version {binding.version}
-													</p>
-													{binding.originBindingId && <p className='text-muted text-xs'>Local replacement</p>}
-												</Table.Cell>
-												<Table.Cell>
-													{binding.stage}
-													<p className='text-muted text-xs'>
-														{binding.scope.type} · {scopes.find((parent) => parent.type === binding.scope.type && parent.id === binding.scope.id)?.name ?? binding.scope.id.slice(0, 8)} · position {binding.position}
-													</p>
-												</Table.Cell>
-												<Table.Cell>
-													{binding.editable ? (
-														<div className='flex items-center gap-2'>
-															<Button size='sm' variant='ghost' isIconOnly aria-label={"Edit middleware " + binding.name} aria-description='Edit middleware' onPress={() => void editBinding(binding)}>
-																<IconPencil size={18} aria-hidden='true' />
-															</Button>
-															<Button size='sm' variant='ghost' isIconOnly aria-label={"Move " + binding.name + " up"} isDisabled={busy || bindings.filter((item) => item.editable && item.stage === binding.stage)[0]?.id === binding.id} onPress={() => move(binding, -1)}>
-																<IconArrowUp size={16} />
-															</Button>
-															<Button size='sm' variant='ghost' isIconOnly aria-label={"Move " + binding.name + " down"} isDisabled={busy || bindings.filter((item) => item.editable && item.stage === binding.stage).at(-1)?.id === binding.id} onPress={() => move(binding, 1)}>
-																<IconArrowDown size={16} />
-															</Button>
-														</div>
-													) : (
-														<div className='flex flex-col gap-2'>
-															<span className='text-muted text-sm'>Inherited · {binding.overridePolicy === "forbidden" ? "overrides locked" : "managed in parent scope"}</span>
-															{canEdit && canPublish && binding.overridePolicy === "allowed" && scopes.some((parent) => parent.type === binding.scope.type && parent.id === binding.scope.id) && (
-																<Button size='sm' variant='secondary' onPress={() => void editBinding(binding, true)}>
-																	Create local override
+							<div
+								onDragStartCapture={(event) => {
+									event.preventDefault();
+								}}
+							>
+								<Table.ScrollContainer>
+									<Table.Content aria-label='Middleware execution order' dragAndDropHooks={dragAndDropHooks}>
+										<Table.Header>
+											<Table.Column aria-label='Order' className='w-12' />
+											<Table.Column isRowHeader>Middleware</Table.Column>
+											<Table.Column>Stage and scope</Table.Column>
+											<Table.Column className='text-right'>Actions</Table.Column>
+										</Table.Header>
+										<Table.Body items={bindings} dependencies={[touchVisual, busy, canEdit, canPublish]}>
+											{(binding) => (
+												<Table.Row id={binding.id} data-middleware-id={binding.id} className={touchVisual?.source === binding.id ? "opacity-50" : touchVisual?.target === binding.id ? "outline-2 outline-accent outline" : undefined}>
+													<Table.Cell>
+														{binding.editable ? (
+															<span
+																data-drag-handle
+																className='inline-flex touch-none cursor-grab active:cursor-grabbing'
+																onPointerDownCapture={(event) => startTouchOrder(event, binding)}
+																onPointerMoveCapture={moveTouchOrder}
+																onPointerUpCapture={(event) => endTouchOrder(event)}
+																onPointerCancelCapture={(event) => endTouchOrder(event, true)}
+																onDragStartCapture={(event) => {
+																	if (touchOrder.current) event.preventDefault();
+																}}
+															>
+																<Button slot='drag' isIconOnly className='touch-none cursor-grab select-none active:cursor-grabbing' aria-description='Drag to reorder; up and down actions are also available' size='sm' variant='ghost' aria-label={"Drag " + binding.name} isDisabled={busy}>
+																	<IconGripVertical size={16} />
 																</Button>
-															)}
-														</div>
-													)}
-												</Table.Cell>
-											</Table.Row>
-										)}
-									</Table.Body>
-								</Table.Content>
-							</Table.ScrollContainer>
+															</span>
+														) : (
+															<IconLock size={16} aria-label='Inherited' />
+														)}
+													</Table.Cell>
+													<Table.Cell>
+														<h2 className='font-semibold'>{binding.name}</h2>
+														<p className='text-muted text-xs'>
+															{binding.failurePolicy} / {binding.enabled ? "enabled" : "disabled"} / version {binding.version}
+														</p>
+														{binding.originBindingId && <p className='text-muted text-xs'>Local replacement</p>}
+													</Table.Cell>
+													<Table.Cell>
+														{binding.stage}
+														<p className='text-muted text-xs'>
+															{binding.scope.type} / {scopes.find((parent) => parent.type === binding.scope.type && parent.id === binding.scope.id)?.name ?? binding.scope.id.slice(0, 8)} / position {binding.position}
+														</p>
+													</Table.Cell>
+													<Table.Cell className='text-right [&>div]:justify-end'>
+														{binding.editable ? (
+															<div className='flex items-center justify-end gap-2'>
+																<Button size='sm' variant='ghost' isIconOnly aria-label={"Edit middleware " + binding.name} aria-description='Edit middleware' onPress={() => void editBinding(binding)}>
+																	<IconPencil size={18} aria-hidden='true' />
+																</Button>
+																<Button size='sm' variant='ghost' isIconOnly aria-label={"Move " + binding.name + " up"} isDisabled={busy || bindings.filter((item) => item.editable && item.stage === binding.stage)[0]?.id === binding.id} onPress={() => move(binding, -1)}>
+																	<IconArrowUp size={16} />
+																</Button>
+																<Button size='sm' variant='ghost' isIconOnly aria-label={"Move " + binding.name + " down"} isDisabled={busy || bindings.filter((item) => item.editable && item.stage === binding.stage).at(-1)?.id === binding.id} onPress={() => move(binding, 1)}>
+																	<IconArrowDown size={16} />
+																</Button>
+															</div>
+														) : (
+															<div className='flex flex-col gap-2'>
+																<span className='text-muted text-sm'>Inherited / {binding.overridePolicy === "forbidden" ? "overrides locked" : "managed in parent scope"}</span>
+																{canEdit && canPublish && binding.overridePolicy === "allowed" && scopes.some((parent) => parent.type === binding.scope.type && parent.id === binding.scope.id) && (
+																	<Button size='sm' variant='secondary' onPress={() => void editBinding(binding, true)}>
+																		Create local override
+																	</Button>
+																)}
+															</div>
+														)}
+													</Table.Cell>
+												</Table.Row>
+											)}
+										</Table.Body>
+									</Table.Content>
+								</Table.ScrollContainer>
+							</div>
 						</Table>
 					) : (
 						<EmptyState className='border-border rounded-xl border border-dashed py-12'>
@@ -664,23 +688,36 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 									</TextField>
 									{tab === "middleware" && (
 										<>
-											<NativeSelect variant='secondary' fullWidth>
+											<Select
+												variant='secondary'
+												fullWidth
+												aria-label='Middleware stage'
+												value={stage}
+												onChange={(key) => {
+													const next = String(key ?? "") as typeof stage;
+													setBody((current) => (current === middlewareStarter(name, stage) ? middlewareStarter(name, next) : current));
+													setStage(next);
+												}}
+												isDisabled={busy || Boolean(editingBinding)}
+											>
 												<Label>Stage</Label>
-												<NativeSelect.Trigger
-													aria-label='Middleware stage'
-													value={stage}
-													onChange={(event) => {
-														const next = event.target.value as typeof stage;
-														setBody((current) => (current === middlewareStarter(name, stage) ? middlewareStarter(name, next) : current));
-														setStage(next);
-													}}
-													disabled={busy || Boolean(editingBinding)}
-												>
-													<NativeSelect.Option value='ingress'>Ingress</NativeSelect.Option>
-													<NativeSelect.Option value='processing'>Processing</NativeSelect.Option>
-													<NativeSelect.Indicator />
-												</NativeSelect.Trigger>
-											</NativeSelect>
+												<Select.Trigger>
+													<Select.Value />
+													<Select.Indicator />
+												</Select.Trigger>
+												<Select.Popover>
+													<ListBox>
+														<ListBox.Item id='ingress'>
+															Ingress
+															<ListBox.ItemIndicator />
+														</ListBox.Item>
+														<ListBox.Item id='processing'>
+															Processing
+															<ListBox.ItemIndicator />
+														</ListBox.Item>
+													</ListBox>
+												</Select.Popover>
+											</Select>
 											<NumberField variant='secondary' value={Number(position)} onChange={(value) => setPosition(String(value))} minValue={0} maxValue={10000}>
 												<Label>Position</Label>
 												<NumberField.Group>
@@ -691,32 +728,65 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 												<FieldError />
 											</NumberField>
 											<div className='grid gap-3 sm:grid-cols-2'>
-												<NativeSelect variant='secondary' fullWidth>
+												<Select variant='secondary' fullWidth aria-label='Middleware failure behavior' value={failure} onChange={(key) => setFailure(String(key ?? "") as typeof failure)}>
 													<Label>Failure behavior</Label>
-													<NativeSelect.Trigger aria-label='Middleware failure behavior' value={failure} onChange={(event) => setFailure(event.target.value as typeof failure)}>
-														<NativeSelect.Option value='required'>Required</NativeSelect.Option>
-														<NativeSelect.Option value='optional'>Optional</NativeSelect.Option>
-														<NativeSelect.Indicator />
-													</NativeSelect.Trigger>
-												</NativeSelect>
-												<NativeSelect variant='secondary' fullWidth>
+													<Select.Trigger>
+														<Select.Value />
+														<Select.Indicator />
+													</Select.Trigger>
+													<Select.Popover>
+														<ListBox>
+															<ListBox.Item id='required'>
+																Required
+																<ListBox.ItemIndicator />
+															</ListBox.Item>
+															<ListBox.Item id='optional'>
+																Optional
+																<ListBox.ItemIndicator />
+															</ListBox.Item>
+														</ListBox>
+													</Select.Popover>
+												</Select>
+												<Select variant='secondary' fullWidth aria-label='Middleware child overrides' value={override} onChange={(key) => setOverride(String(key ?? "") as typeof override)}>
 													<Label>Child overrides</Label>
-													<NativeSelect.Trigger aria-label='Middleware child overrides' value={override} onChange={(event) => setOverride(event.target.value as typeof override)}>
-														<NativeSelect.Option value='allowed'>Allowed</NativeSelect.Option>
-														<NativeSelect.Option value='forbidden'>Locked</NativeSelect.Option>
-														<NativeSelect.Indicator />
-													</NativeSelect.Trigger>
-												</NativeSelect>
+													<Select.Trigger>
+														<Select.Value />
+														<Select.Indicator />
+													</Select.Trigger>
+													<Select.Popover>
+														<ListBox>
+															<ListBox.Item id='allowed'>
+																Allowed
+																<ListBox.ItemIndicator />
+															</ListBox.Item>
+															<ListBox.Item id='forbidden'>
+																Locked
+																<ListBox.ItemIndicator />
+															</ListBox.Item>
+														</ListBox>
+													</Select.Popover>
+												</Select>
 											</div>
 											{stage === "processing" && failure === "required" && (
-												<NativeSelect variant='secondary' fullWidth>
+												<Select variant='secondary' fullWidth aria-label='Middleware required failure outcome' value={action} onChange={(key) => setAction(String(key ?? "") as typeof action)}>
 													<Label>Required failure outcome</Label>
-													<NativeSelect.Trigger aria-label='Middleware required failure outcome' value={action} onChange={(event) => setAction(event.target.value as typeof action)}>
-														<NativeSelect.Option value='retry'>Retry</NativeSelect.Option>
-														<NativeSelect.Option value='fail'>Terminal failure</NativeSelect.Option>
-														<NativeSelect.Indicator />
-													</NativeSelect.Trigger>
-												</NativeSelect>
+													<Select.Trigger>
+														<Select.Value />
+														<Select.Indicator />
+													</Select.Trigger>
+													<Select.Popover>
+														<ListBox>
+															<ListBox.Item id='retry'>
+																Retry
+																<ListBox.ItemIndicator />
+															</ListBox.Item>
+															<ListBox.Item id='fail'>
+																Terminal failure
+																<ListBox.ItemIndicator />
+															</ListBox.Item>
+														</ListBox>
+													</Select.Popover>
+												</Select>
 											)}
 											{editingBinding && (
 												<Checkbox variant='secondary' isSelected={enabled} onChange={setEnabled}>
@@ -757,7 +827,6 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 								</Form>
 							</Modal.Body>
 							<Modal.Footer className='shrink-0'>
-								{" "}
 								{canEdit && (tab === "modules" || canPublish) && (
 									<Button type='submit' form='code-editor-form' isDisabled={busy}>
 										<IconCheck size={16} />

@@ -65,6 +65,7 @@ export async function publish(
 	return transaction(pool, async (db) => {
 		const endpoint = await endpointScope(db, input.endpointId);
 		await requirePermission(db, actor, { type: "project", id: endpoint.project_id }, "code.publish");
+		await db.query("SELECT id FROM payloadbay.project WHERE id=$1 FOR UPDATE", [endpoint.project_id]);
 		const locked = (await db.query("SELECT * FROM payloadbay.endpoint WHERE id=$1 FOR UPDATE", [endpoint.id])).rows[0];
 		if (locked.config_version !== input.expectedVersion) throw new AppError("version_conflict", 409, "Ingress route changed; reload before publishing");
 		const drafts = (await db.query("SELECT * FROM payloadbay.draft WHERE endpoint_id=$1 ORDER BY stage FOR UPDATE", [endpoint.id])).rows;
