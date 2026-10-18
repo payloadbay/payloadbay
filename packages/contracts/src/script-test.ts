@@ -3,6 +3,11 @@ import { z } from "zod";
 export const scriptTestInput = z
 	.object({
 		stage: z.enum(["ingress", "processing"]),
+		includeMiddleware: z.boolean().default(true),
+		expectations: z
+			.object({ decision: z.enum(["accept", "reject", "respondOnly", "complete", "retry", "fail"]).optional(), status: z.number().int().min(100).max(599).optional(), bodyContains: z.string().min(1).max(8192).optional() })
+			.strict()
+			.default({}),
 		body: z.string().max(131072),
 		sharedBindings: z
 			.record(z.string(), z.uuid())

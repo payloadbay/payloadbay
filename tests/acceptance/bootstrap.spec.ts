@@ -287,6 +287,7 @@ test("route editor has nested navigation, a scripting guide, typed method handle
 	await expect(navigation.getByRole("row", { name: "Instance members", exact: true })).toHaveCount(0);
 	await expect(navigation.getByRole("button", { name: "Back to project", exact: true })).toBeVisible();
 	await page.keyboard.press("Escape");
+	await page.getByRole("link", { name: "Open scripts", exact: true }).click();
 	const editor = page.getByRole("textbox", { name: "Ingress code", exact: true });
 	await expect(page.locator(".monaco-editor .view-lines").first()).toBeVisible();
 	await expect(page.getByText("Loading code editor…", { exact: true })).toHaveCount(0, { timeout: 20000 });
@@ -315,8 +316,9 @@ test("route editor has nested navigation, a scripting guide, typed method handle
 	await expect(page.getByLabel("Ingress template", { exact: true })).toHaveValue("unverified");
 	await page.getByRole("button", { name: "Toggle navigation" }).click();
 	await page.getByRole("dialog").getByRole("row", { name: "Secrets", exact: true }).click();
-	await expect(page.getByRole("grid", { name: "Secret bindings", exact: true })).toBeVisible();
-	await expect(page.getByRole("row", { name: /SIGNING_SECRET/ })).toBeVisible();
+	await expect(page.getByRole("grid", { name: "Secret inventory", exact: true })).toBeVisible();
+	await expect(page.getByRole("checkbox", { name: "Signing key v1 available in ingress", exact: true })).toBeChecked();
+	await expect(page.getByRole("checkbox", { name: "Signing key v1 available in processing", exact: true })).toBeChecked();
 	await page.setViewportSize({ width: 320, height: 740 });
 	await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 	await page.evaluate(() => window.scrollTo(0, 0));
@@ -327,7 +329,7 @@ test("route editor has nested navigation, a scripting guide, typed method handle
 	await page.getByRole("link", { name: "Back to project", exact: true }).click();
 	await expect(page.getByRole("dialog", { name: "Discard unsaved changes?" })).toBeVisible();
 	await page.getByRole("button", { name: "Keep editing", exact: true }).click();
-	await expect(page.getByRole("grid", { name: "Secret bindings" })).toBeVisible();
+	await expect(page.getByRole("grid", { name: "Secret inventory" })).toBeVisible();
 });
 
 test("L01 sign-in hint is opt-in plain text without a demo account selector", async ({ page }) => {

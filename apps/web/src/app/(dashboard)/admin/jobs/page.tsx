@@ -124,7 +124,7 @@ export default function JobsPage() {
 										<Table.Column>Oldest age</Table.Column>
 										<Table.Column>Oldest overdue</Table.Column>
 									</Table.Header>
-									<Table.Body renderEmptyState={() => "No executions are waiting for delivery."}>
+									<Table.Body renderEmptyState={() => <div className='px-4 py-8 text-center text-muted'>No executions are waiting for delivery.</div>}>
 										{data.backlog.map((lane) => (
 											<Table.Row id={String(lane.priority)} key={lane.priority}>
 												<Table.Cell>{lane.priority}</Table.Cell>
@@ -152,7 +152,7 @@ export default function JobsPage() {
 										<Table.Column>Created</Table.Column>
 										<Table.Column>Due</Table.Column>
 									</Table.Header>
-									<Table.Body renderEmptyState={() => "No platform jobs have been recorded."}>
+									<Table.Body renderEmptyState={() => <div className='px-4 py-8 text-center text-muted'>No platform jobs have been recorded.</div>}>
 										{data.items.map((job) => (
 											<Table.Row id={job.id} key={job.id}>
 												<Table.Cell>

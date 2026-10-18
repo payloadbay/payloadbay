@@ -492,7 +492,7 @@ test("shared email rendering escapes content and provides a readable plain-text 
 
 test("queued notification delivery pins channel code and branding across later edits", async () => {
 	const { publishNotificationChannel, getNotificationChannel } = await import("../../packages/domain/src/notification-channels.ts");
-	const { saveEmailSettings, snapshotNotificationChannel } = await import("../../packages/domain/src/email-settings.ts");
+	const { snapshotNotificationChannel } = await import("../../packages/domain/src/email-settings.ts");
 	const { runNotificationChannel } = await import("../../packages/domain/src/notification-runtime.ts");
 	const { compile } = await import("../../apps/executor/src/compiler.ts");
 	const { execute } = await import("../../apps/executor/src/supervisor.ts");
@@ -509,16 +509,17 @@ test("queued notification delivery pins channel code and branding across later e
 			source: builtin.source.replace("ctx.email(ctx.message)", 'ctx.email({...ctx.message,title:"Original title"})'),
 			compile,
 		});
-		await saveEmailSettings(fixture.pool, actor, {
-			expectedVersion: 0,
-			channelKey: "smtp",
-			branding: {
+		// Existing queue snapshots retain presentation when stored configuration changes.
+		await fixture.db.query("INSERT INTO payloadbay.email_settings(installation_id,branding,updated_by) VALUES($1,$2,$3)", [
+			scope.installation,
+			JSON.stringify({
 				name: "Original brand",
 				accent: "#156FDE",
 				footer: "Original footer",
 				logoUrl: null,
-			},
-		});
+			}),
+			actor.userId,
+		]);
 		const snapshot = await snapshotNotificationChannel(fixture.pool, channel.id);
 		await publishNotificationChannel(fixture.pool, actor, {
 			id: channel.id,
@@ -528,16 +529,15 @@ test("queued notification delivery pins channel code and branding across later e
 			source: builtin.source.replace("ctx.email(ctx.message)", 'ctx.email({...ctx.message,title:"Changed title"})'),
 			compile,
 		});
-		await saveEmailSettings(fixture.pool, actor, {
-			expectedVersion: 1,
-			channelKey: "smtp",
-			branding: {
+		await fixture.db.query("UPDATE payloadbay.email_settings SET branding=$1,version=version+1 WHERE installation_id=$2", [
+			JSON.stringify({
 				name: "Changed brand",
 				accent: "#156FDE",
 				footer: "Changed footer",
 				logoUrl: null,
-			},
-		});
+			}),
+			scope.installation,
+		]);
 		const result = await runNotificationChannel(
 			fixture.pool,
 			snapshot,
@@ -706,7 +706,7 @@ test("U168 U175 U176 U177 opt-in thresholds exclude other routes destinations an
 	});
 });
 
-test("NC11 email settings reads expose defaults and persisted branding only to instance settings managers", async () => {
+test("NC11 instance customization is unavailable even to instance owners until enterprise licensing exists", async () => {
 	const { getEmailSettings, saveEmailSettings } = await import("../../packages/domain/src/email-settings.ts");
 	await authFixture(async ({ pool, db }) => {
 		const scope = await seedScope(db);
@@ -728,8 +728,10 @@ test("NC11 email settings reads expose defaults and persisted branding only to i
 			footer: "Synthetic settings footer",
 			logoUrl: null,
 		};
-		await saveEmailSettings(pool, owner, { expectedVersion: 0, channelKey: "smtp", branding });
-		assert.deepEqual(await getEmailSettings(pool, owner), { version: 1, channelKey: "smtp", branding });
+		await assert.rejects(saveEmailSettings(pool, owner, { expectedVersion: 0, channelKey: "smtp", branding }), { code: "feature_unavailable", status: 403 });
+		await assert.rejects(saveEmailSettings(pool, { userId: "settings-viewer" }, { expectedVersion: 0, channelKey: "smtp", branding }), { status: 403 });
+		assert.equal((await db.query("SELECT count(*)::int AS count FROM payloadbay.email_settings")).rows[0].count, 0);
+		assert.deepEqual(await getEmailSettings(pool, owner, "https://alpha.example.test"), defaults);
 		await assert.rejects(getEmailSettings(pool, { userId: "settings-viewer" }), { status: 403 });
 	});
 });
@@ -792,5 +794,122 @@ test("CF04 authentication messages bypass even an already pinned custom channel"
 			assert.equal(executed, false);
 			assert.deepEqual(result, { kind: "email", message: { ...message, paragraphs: [] } });
 		}
+	});
+});
+
+test("account notifications combine explicitly authorized resources and exclude unrelated customer incidents", async () => {
+	const { listAccountNotifications, reconcileCondition, dismissNotification } = await import("../../packages/domain/src/notifications.ts");
+	await authFixture(async ({ pool, db }) => {
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'custom',ARRAY['notifications.read','settings.manage'])", [scope.installation]);
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','project',$1,'custom',ARRAY['notifications.read'])", [scope.project]);
+		const platform = await reconcileCondition(pool, {
+			key: "platform-test",
+			revision: "v1",
+			kind: "platform.test",
+			scope: { type: "instance", id: scope.installation },
+			subject: "Platform notice",
+			severity: "info",
+			active: true,
+		});
+		const project = await reconcileCondition(pool, {
+			key: "project-test",
+			revision: "v1",
+			kind: "delivery.test",
+			scope: { type: "project", id: scope.project },
+			subject: "Project notice",
+			severity: "warning",
+			active: true,
+		});
+		await reconcileCondition(pool, {
+			key: "workspace-test",
+			revision: "v1",
+			kind: "delivery.test",
+			scope: { type: "workspace", id: scope.workspace },
+			subject: "Private workspace notice",
+			severity: "warning",
+			active: true,
+		});
+		const actor = { userId: "fixture-owner" };
+		assert.deepEqual(new Set((await listAccountNotifications(pool, actor)).map((notice) => notice.id)), new Set([platform.id, project.id]));
+		await dismissNotification(pool, actor, platform.id);
+		assert.deepEqual(
+			(await listAccountNotifications(pool, actor)).map((notice) => notice.id),
+			[project.id],
+		);
+		await db.query("DELETE FROM payloadbay.grant_record WHERE user_id='fixture-owner' AND scope_type='project'");
+		assert.deepEqual(await listAccountNotifications(pool, actor), []);
+	});
+});
+
+test("installation health reports worker heartbeats and SMTP connectivity without sending email", async () => {
+	const { readInstallationHealth, probeSmtp } = await import("../../packages/domain/src/installation.ts");
+	const { startWorkerHealth } = await import("../../apps/worker/src/health.ts");
+	await authFixture(async (fixture) => {
+		const scope = await seedScope(fixture.db);
+		await fixture.db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await fixture.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'custom',ARRAY['settings.manage'])", [scope.installation]);
+		const config = fixtureConfig(fixture);
+		const before = await (await fetch(fixture.mailUrl + "/api/v1/messages")).json();
+		const initial = await readInstallationHealth(fixture.pool, { userId: "fixture-owner" }, scope.installation, config);
+		assert.equal(initial.worker, "not_seen");
+		assert.equal(initial.smtp, "ready");
+		const heartbeat = startWorkerHealth(fixture.pool, 25);
+		try {
+			const deadline = Date.now() + 3000;
+			while (!(await fixture.db.query("SELECT worker_seen_at FROM payloadbay.installation WHERE worker_seen_at IS NOT NULL")).rowCount) {
+				assert.ok(Date.now() < deadline, "Worker must record a heartbeat");
+				await new Promise((resolve) => setTimeout(resolve, 20));
+			}
+
+			assert.equal((await readInstallationHealth(fixture.pool, { userId: "fixture-owner" }, scope.installation, config)).worker, "recent");
+		} finally {
+			await heartbeat.stop();
+		}
+
+		await fixture.db.query("UPDATE payloadbay.installation SET worker_seen_at=clock_timestamp()-interval '2 minutes'");
+		assert.equal((await readInstallationHealth(fixture.pool, { userId: "fixture-owner" }, scope.installation, config)).worker, "not_seen");
+		assert.equal(await probeSmtp({ smtp: { ...config.smtp, host: "127.0.0.1", port: 1 } }), "unavailable");
+		const after = await (await fetch(fixture.mailUrl + "/api/v1/messages")).json();
+		assert.equal(after.total, before.total, "Connectivity checks do not send email");
+	});
+});
+
+test("account notification pagination applies scoped token restrictions before its result limit", async () => {
+	const { listAccountNotifications, reconcileCondition } = await import("../../packages/domain/src/notifications.ts");
+	const { createToken, authenticateToken } = await import("../../packages/domain/src/tokens.ts");
+	await authFixture(async ({ pool, db }) => {
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		const sibling = (await db.query("INSERT INTO payloadbay.project(workspace_id,name,slug,owner_user_id) VALUES($1,'Sibling','sibling','fixture-owner') RETURNING id", [scope.workspace])).rows[0].id;
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','project',$1,'custom',ARRAY['notifications.read','tokens.manage']),('fixture-owner','project',$2,'custom',ARRAY['notifications.read'])", [scope.project, sibling]);
+		const notice = await reconcileCondition(pool, {
+			key: "scoped-project",
+			revision: "1",
+			kind: "fixture",
+			scope: { type: "project", id: scope.project },
+			subject: "Scoped project alert",
+			severity: "warning",
+			active: true,
+		});
+		await db.query("UPDATE payloadbay.notification_incident SET first_seen=clock_timestamp()-interval '1 hour' WHERE id=$1", [notice.id]);
+		await db.query("INSERT INTO payloadbay.notification_incident(condition_key,revision,kind,scope_type,scope_id,subject,severity,status) SELECT 'sibling-'||n,'1','fixture','project',$1,'Sibling alert','info','active' FROM generate_series(1,210) n", [sibling]);
+		const key = await createToken(
+			pool,
+			{ userId: "fixture-owner" },
+			{
+				scope: { type: "project", id: scope.project },
+				name: "Scoped notifications",
+				permissions: ["notifications.read"],
+				expiresAt: new Date(Date.now() + 3600000),
+			},
+		);
+		const actor = await authenticateToken(pool, key.secret);
+		assert.ok(actor);
+		assert.deepEqual(
+			(await listAccountNotifications(pool, actor)).map((item) => item.id),
+			[notice.id],
+		);
 	});
 });

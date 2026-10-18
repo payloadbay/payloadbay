@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { IconChevronRight } from "@tabler/icons-react";
 import { useState, type FormEvent } from "react";
 import { Button, Form, TextField, Input, Label, FieldError, Table, Modal } from "@heroui/react";
 
@@ -64,8 +65,9 @@ export default function OrganizationsPage() {
 								.map((item) => (
 									<Table.Row id={item.id} key={item.id}>
 										<Table.Cell>
-											<Link href={"/organizations/" + item.id} className='font-medium'>
+											<Link href={"/organizations/" + item.id} className='flex items-center justify-between gap-3 font-medium'>
 												{item.name}
+												<IconChevronRight size={16} aria-hidden='true' />
 											</Link>
 										</Table.Cell>
 										<Table.Cell>{workspaces.filter((workspace) => workspace.organization_id === item.id).length}</Table.Cell>

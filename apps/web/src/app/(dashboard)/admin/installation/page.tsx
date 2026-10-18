@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { Button, Chip, Table } from "@heroui/react";
 import { IconRefresh } from "@tabler/icons-react";
 import { useDashboard } from "@components/dashboard-shell";
@@ -65,14 +64,14 @@ export default function InstallationPage() {
 				{
 					id: "worker",
 					name: "Delivery workers",
-					label: "Not checked",
-					color: "default" as const,
+					label: data.health.worker === "recent" ? "Heartbeat within 60s" : "No recent heartbeat",
+					color: data.health.worker === "recent" ? ("success" as const) : ("warning" as const),
 				},
 				{
 					id: "smtp",
 					name: "Email delivery",
-					label: "Not checked",
-					color: "default" as const,
+					label: data.health.smtp === "ready" ? "SMTP connection verified" : "SMTP unavailable",
+					color: data.health.smtp === "ready" ? ("success" as const) : ("warning" as const),
 				},
 			]
 		: [];
@@ -125,7 +124,7 @@ export default function InstallationPage() {
 								</Table.Content>
 							</Table.ScrollContainer>
 						</Table>
-						<p className='text-muted text-sm'>Worker processing and SMTP delivery are not probed here. Use the event log, jobs and an actual email flow to verify delivery.</p>
+						<p className='text-muted text-sm'>Worker heartbeats confirm recent runtime activity. SMTP checks verify connection and authentication; an actual email flow verifies mailbox delivery.</p>
 					</section>
 					<section className='flex flex-col gap-3'>
 						<h2 className='text-xl font-semibold'>Script execution</h2>
@@ -145,13 +144,7 @@ export default function InstallationPage() {
 					</section>
 					<section className='flex flex-col gap-3'>
 						<h2 className='text-xl font-semibold'>Configuration</h2>
-						<p className='text-muted text-sm'>
-							Infrastructure configuration is supplied by the operator at deployment. Shared email content can be changed in{" "}
-							<Link href='/admin/email' className='underline'>
-								Email settings
-							</Link>
-							.
-						</p>
+						<p className='text-muted text-sm'>Infrastructure configuration is supplied by the operator at deployment.</p>
 						<dl className='grid gap-4 sm:grid-cols-2'>
 							<div>
 								<dt className='text-muted'>SMTP</dt>

@@ -43,3 +43,19 @@ test("SC02 token request contracts restrict workspace selectors to organization 
 	assert.equal(tokenInput.safeParse({ ...token, permissions: ["unknown.permission"] }).success, false);
 	assert.equal(tokenInput.safeParse({ ...token, unexpected: true }).success, false);
 });
+
+test("SC03 account inbox and personal key queries remain documented with complete scope validation", async () => {
+	const { apiQuerySchemas } = await import("../../packages/contracts/src/api-query-schemas.ts");
+	const { openApiDocument } = await import("../../packages/contracts/src/openapi.ts");
+	const inbox = apiQuerySchemas["/api/v1/notifications"];
+	assert.equal(inbox.safeParse({ account: "true" }).success, true);
+	assert.equal(inbox.safeParse({ scopeType: "project", scopeId: randomUUID() }).success, true);
+	assert.equal(inbox.safeParse({ scopeType: "project" }).success, false);
+	assert.equal(inbox.safeParse({ account: "true", scopeType: "project", scopeId: randomUUID() }).success, false);
+	const keys = apiQuerySchemas["/api/v1/tokens"];
+	assert.equal(keys.safeParse({ scopeType: "personal" }).success, true);
+	assert.equal(keys.safeParse({ scopeType: "workspace" }).success, false);
+	const document = openApiDocument();
+	assert.ok(document.paths["/api/v1/notifications"].get.parameters.some((parameter) => parameter.name === "account"));
+	assert.ok(document.paths["/api/v1/tokens"].get.parameters.some((parameter) => parameter.name === "scopeType"));
+});

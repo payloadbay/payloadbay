@@ -748,3 +748,78 @@ test("middleware reorder is atomic, version checked and restricted to one scope 
 		);
 	});
 });
+
+test("synthetic script tests run effective middleware with sample secrets and can isolate the handler", async () => {
+	const { testDraftDry } = await import("../../packages/domain/src/script-testing.ts");
+	const { createMiddlewareBinding } = await import("../../packages/domain/src/middleware.ts");
+	const { createSecret } = await import("../../packages/domain/src/secrets.ts");
+	const { compile } = await import("../../apps/executor/src/compiler.ts");
+	const { execute } = await import("../../apps/executor/src/supervisor.ts");
+	await publicationFixture(async ({ pool, db, scope }) => {
+		const actor = { userId: "fixture-owner" };
+		const secret = await createSecret(pool, actor, { scope: { type: "project", id: scope.project }, name: "SAMPLE", value: "real-fixture-secret" }, "fixture-encryption-key-32-characters");
+		await createMiddlewareBinding(pool, actor, {
+			scope: { type: "project", id: scope.project },
+			stage: "ingress",
+			name: "Sample header",
+			body: 'return ctx.continue({request:{headers:{...ctx.request.headers,"x-synthetic":ctx.secrets.SAMPLE ?? "not-loaded"}}});',
+			position: 0,
+			failurePolicy: "required",
+			overridePolicy: "allowed",
+			secretBindings: { SAMPLE: secret.id },
+			compile,
+		});
+		const input = {
+			stage: "ingress",
+			body: 'export async function POST(ctx: IngressContext): Promise<IngressDecision> { return ctx.respondOnly({status:200,body:ctx.request.headers["x-synthetic"] ?? "no-middleware"}); }',
+			expectations: { decision: "respondOnly", status: 200, bodyContains: "synthetic-value" },
+			fixture: { body: "sample", secrets: { SAMPLE: "synthetic-value" } },
+		};
+		const result = await testDraftDry(pool, actor, scope.endpoint, input, { compile, run: execute });
+		assert.equal(result.middlewareCount, 1);
+		assert.equal(result.checks.length, 3);
+		assert.equal(
+			result.checks.every((check) => check.passed),
+			true,
+		);
+		assert.deepEqual(result.decision, { kind: "respondOnly", response: { status: 200, body: "synthetic-value" } });
+		const withoutSample = await testDraftDry(pool, actor, scope.endpoint, { ...input, fixture: { body: "sample" } }, { compile, run: execute });
+		assert.deepEqual(withoutSample.decision, { kind: "respondOnly", response: { status: 200, body: "not-loaded" } });
+		const handlerOnly = await testDraftDry(pool, actor, scope.endpoint, { ...input, includeMiddleware: false }, { compile, run: execute });
+		assert.equal(handlerOnly.middlewareCount, 0);
+		assert.equal(handlerOnly.checks.filter((check) => check.passed).length, 2);
+		assert.deepEqual(handlerOnly.decision, { kind: "respondOnly", response: { status: 200, body: "no-middleware" } });
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.event")).rows[0].n, 0);
+	});
+});
+
+test("publication archiving preserves event history, rejects active/latest and requires scoped publishing permission", async () => {
+	const { archivePublication, activatePublication } = await import("../../packages/domain/src/publication.ts");
+	await publicationFixture(async ({ pool, db, scope }) => {
+		const clone = async () => (await db.query('INSERT INTO payloadbay.publication(endpoint_id,ingress_revision_id,processing_revision_id,dependency_digest,created_by,created_at,shared_versions) SELECT endpoint_id,ingress_revision_id,processing_revision_id,dependency_digest,created_by,clock_timestamp(),\'{"ingress":{"sdkVersion":"1"},"processing":{"sdkVersion":"1"}}\'::jsonb FROM payloadbay.publication WHERE id=$1 RETURNING id', [scope.publication])).rows[0].id;
+
+		const historical = await clone();
+		const active = await clone();
+		const latest = await clone();
+		await db.query("UPDATE payloadbay.endpoint SET active_publication_id=$1 WHERE id=$2", [active, scope.endpoint]);
+		const input = {
+			endpointId: scope.endpoint,
+			publicationId: historical,
+			expectedVersion: 1,
+			archived: true,
+		};
+		await assert.rejects(archivePublication(pool, { userId: "unrelated" }, input));
+		await assert.rejects(archivePublication(pool, { userId: "fixture-owner" }, { ...input, publicationId: active }), { code: "publication_in_use" });
+		await assert.rejects(archivePublication(pool, { userId: "fixture-owner" }, { ...input, publicationId: latest }), { code: "publication_in_use" });
+		await db.query("INSERT INTO payloadbay.event(endpoint_id,publication_id,original_body,accepted_body,headers,content_type) VALUES($1,$2,'fixture','fixture','{}','text/plain')", [scope.endpoint, historical]);
+		const result = await archivePublication(pool, { userId: "fixture-owner" }, input);
+		assert.equal(result.version, 2);
+		assert.equal((await db.query("SELECT count(*)::int AS count FROM payloadbay.publication WHERE id=$1", [historical])).rows[0].count, 1);
+		assert.equal((await db.query("SELECT publication_id FROM payloadbay.event WHERE endpoint_id=$1", [scope.endpoint])).rows[0].publication_id, historical);
+		await assert.rejects(activatePublication(pool, { userId: "fixture-owner" }, { ...input, expectedVersion: 2 }), { code: "publication_archived" });
+		await assert.rejects(archivePublication(pool, { userId: "fixture-owner" }, { ...input, archived: false }), { code: "version_conflict" });
+		await archivePublication(pool, { userId: "fixture-owner" }, { ...input, archived: false, expectedVersion: 2 });
+		await activatePublication(pool, { userId: "fixture-owner" }, { ...input, expectedVersion: 3 });
+		assert.equal((await db.query("SELECT active_publication_id FROM payloadbay.endpoint WHERE id=$1", [scope.endpoint])).rows[0].active_publication_id, historical);
+	});
+});

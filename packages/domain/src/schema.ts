@@ -21,6 +21,7 @@ export const installation = domain.table(
 		bootstrapState: text("bootstrap_state").notNull().default("pending"),
 		configVersion: integer("config_version").notNull().default(1),
 		deploymentMode: text("deployment_mode").notNull().default("self_hosted"),
+		workerSeenAt: time("worker_seen_at"),
 		createdAt: time("created_at").notNull().defaultNow(),
 	},
 	(t) => [check("installation_deployment_mode", sql`${t.deploymentMode} IN ('self_hosted','hosted')`), unique("installation_singleton").on(t.singleton), check("installation_singleton_true", sql`${t.singleton}`), check("installation_bootstrap_state", sql`${t.bootstrapState} IN ('pending','complete')`)],
@@ -255,6 +256,7 @@ export const apiToken = domain.table(
 		name: text("name").notNull(),
 		permissions: text("permissions").array().notNull(),
 		workspaceIds: uuid("workspace_ids").array(),
+		personal: boolean("personal").notNull().default(false),
 		hash: text("hash").notNull(),
 		expiresAt: time("expires_at").notNull(),
 		revokedAt: time("revoked_at"),
@@ -388,6 +390,15 @@ export const publication = domain.table(
 	},
 	(t) => [unique("publication_id_endpoint").on(t.id, t.endpointId)],
 );
+
+// Archive metadata is separate so published code and historical references remain immutable.
+export const publicationArchive = domain.table("publication_archive", {
+	publicationId: uuid("publication_id")
+		.primaryKey()
+		.references(() => publication.id),
+	archivedBy: text("archived_by").notNull(),
+	archivedAt: time("archived_at").notNull().defaultNow(),
+});
 
 export const destination = domain.table(
 	"destination",

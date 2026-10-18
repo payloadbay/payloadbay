@@ -50,7 +50,8 @@ test("UX42 notification settings recover an unavailable channel catalog without 
 	await expect(page.getByRole("heading", { name: "Notification preferences unavailable" })).toBeVisible();
 	unavailable = false;
 	await page.getByRole("button", { name: "Retry loading preferences", exact: true }).click();
-	await expect(page.getByText("No failure rules are configured for your accessible projects.", { exact: false })).toBeVisible();
+	await expect(page.getByRole("heading", { name: "Choose what should notify you", exact: true })).toBeVisible();
+	await expect(page.getByRole("grid", { name: "Configure notification rules", exact: true })).toBeVisible();
 	await expect(page.getByRole("button", { name: "Retry loading preferences", exact: true })).toHaveCount(0);
 });
 
@@ -160,24 +161,11 @@ test("UX48 cancelling organization-scoped workspace creation leaves the collecti
 	expect(after.map((workspace: { id: string }) => workspace.id).sort()).toEqual(before.map((workspace: { id: string }) => workspace.id).sort());
 });
 
-test("UX49 email draft previews use edited presentation while reset cancellation preserves saved settings", async ({ page }) => {
+test("UX49 hidden instance customization preserves current settings", async ({ page }) => {
 	await ensureBrowserOwner(page);
 	const before = await (await page.request.get("/api/v1/email-settings")).json();
-	await page.goto("/admin/email");
-	await page.getByLabel("Brand name", { exact: true }).fill("Draft review team");
-	await page.getByLabel("Accent color", { exact: true }).fill("#123456");
-	await page.getByLabel("Logo URL", { exact: true }).fill(new URL("/brand/payloadbay-email-logo.png", page.url()).href);
-	await page.getByLabel("Footer", { exact: true }).fill("Synthetic draft preview");
-	await page.getByLabel("Sample email", { exact: true }).selectOption("invitation");
-	await page.getByRole("button", { name: "Preview email", exact: true }).click();
-	const preview = page.frameLocator("iframe[title='Branded email preview']");
-	await expect(preview.getByRole("img", { name: "Draft review team", exact: true })).toHaveAttribute("src", new URL("/brand/payloadbay-email-logo.png", page.url()).href);
-	await expect(preview.locator("body")).toContainText("Synthetic draft preview");
-	await page.getByRole("button", { name: "Reset to shipped defaults", exact: true }).click();
-	const dialog = page.getByRole("dialog", { name: "Reset email settings?" });
-	await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
-	await expect(dialog).toHaveCount(0);
-	await expect(page.getByLabel("Brand name", { exact: true })).toHaveValue("Draft review team");
+	const response = await page.goto("/admin/email");
+	expect(response?.status()).toBe(404);
 	const after = await (await page.request.get("/api/v1/email-settings")).json();
 	expect(after).toEqual(before);
 });
@@ -336,6 +324,7 @@ test("UX53 route keyboard saves and publication rollback preserve already queued
 	await page.getByRole("button", { name: "Copy URL", exact: true }).click();
 	const endpoint = await (await page.request.get("/api/v1/endpoints/" + route.id)).json();
 	expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(endpoint.ingressUrl);
+	await page.getByRole("link", { name: "Open scripts", exact: true }).click();
 	await page.getByRole("tab", { name: "Processing", exact: true }).click();
 	const editor = page.getByRole("textbox", { name: "Processing code", exact: true });
 	await editor.focus();
@@ -355,7 +344,15 @@ test("UX53 route keyboard saves and publication rollback preserve already queued
 	await page.getByRole("row", { name: "Publications", exact: true }).click();
 	const publications = page.getByRole("grid", { name: "Publication history", exact: true });
 	await expect(publications.getByRole("row").filter({ hasText: "v2" })).toContainText("Active");
-	await publications.getByRole("row").filter({ hasText: "v1" }).getByRole("button", { name: "Activate", exact: true }).click();
+	const firstRow = publications.getByRole("row").filter({ hasText: "v1" });
+	await expect(firstRow.getByRole("button", { name: "Delete publication v1", exact: true })).toBeDisabled();
+	await expect(publications.getByRole("button", { name: "Archive publication v2", exact: true })).toBeDisabled();
+	await firstRow.getByRole("button", { name: "Archive publication v1", exact: true }).click();
+	await expect(firstRow).toContainText("Archived");
+	await expect(firstRow.getByRole("button", { name: "Activate publication v1", exact: true })).toBeDisabled();
+	await firstRow.getByRole("button", { name: "Restore publication v1", exact: true }).click();
+	await expect(firstRow).not.toContainText("Archived");
+	await firstRow.getByRole("button", { name: "Activate publication v1", exact: true }).click();
 	await expect.poll(async () => (await (await page.request.get("/api/v1/endpoints/" + route.id)).json()).activePublicationId).toBe(first.id);
 	const events = await (await page.request.get("/api/v1/projects/" + project.id + "/events")).json();
 	expect(events.items).toHaveLength(1);
@@ -363,4 +360,59 @@ test("UX53 route keyboard saves and publication rollback preserve already queued
 	expect(history.publicationId).toBe(second.id);
 	expect(history.executions[0].publication_id).toBe(second.id);
 	expect(history.executions[0].state).toBe("queued");
+});
+
+test("UX64 mobile middleware handles reorder with touch and retain keyboard alternatives", async ({ page }) => {
+	const { commandHeaders } = await import("../helpers/browser-auth.ts");
+	await ensureBrowserOwner(page);
+	await page.setViewportSize({ width: 390, height: 844 });
+	const workspace = (await (await page.request.get("/api/v1/workspaces")).json())[0];
+	const project = await (await page.request.post("/api/v1/projects", { headers: commandHeaders(), data: { parentId: workspace.id, name: "Touch order", slug: "touch-order" } })).json();
+	for (const [position, name] of ["First policy", "Second policy"].entries()) {
+		const result = await page.request.post("/api/v1/middleware", {
+			headers: commandHeaders(),
+			data: {
+				scope: { type: "project", id: project.id },
+				stage: "ingress",
+				name,
+				body: "return ctx.continue();",
+				position,
+				failurePolicy: "required",
+				overridePolicy: "allowed",
+			},
+		});
+		expect(result.status()).toBe(200);
+	}
+
+	const cdp = await page.context().newCDPSession(page);
+	await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+	await cdp.send("Emulation.setUserAgentOverride", { userAgent: "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36", platform: "Linux armv8l" });
+	await page.goto("/code/project/" + project.id + "?section=middleware");
+	await page.getByRole("tab", { name: "Middleware", exact: true }).click();
+	const handle = page.getByRole("button", { name: "Drag Second policy", exact: true });
+	await handle.scrollIntoViewIfNeeded();
+	const source = await handle.boundingBox();
+	const target = await page.getByRole("button", { name: "Drag First policy", exact: true }).boundingBox();
+	expect(source).toBeTruthy();
+	expect(target).toBeTruthy();
+
+	const x = source!.x + source!.width / 2;
+	const start = source!.y + source!.height / 2;
+	const end = target!.y + 3;
+	await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y: start }] });
+	await page.waitForTimeout(900);
+	for (let step = 1; step <= 12; step++) {
+		await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: start + ((end - start) * step) / 12 }] });
+		await page.waitForTimeout(40);
+	}
+
+	await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+
+	const order = async () => (await (await page.request.get("/api/v1/middleware?scopeType=project&scopeId=" + project.id)).json()).map((item: { name: string }) => item.name);
+
+	await expect.poll(order).toEqual(["Second policy", "First policy"]);
+	await page.getByRole("button", { name: "Move First policy up", exact: true }).click();
+	await expect.poll(order).toEqual(["First policy", "Second policy"]);
+	await page.screenshot({ path: test.info().outputPath("middleware-touch-order-mobile.png") });
+	await cdp.detach();
 });

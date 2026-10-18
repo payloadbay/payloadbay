@@ -214,7 +214,7 @@ test("U80 route editor separates ingress and processing bodies", async ({ page }
 	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: await browserOrganization(page), name: "Editor workspace", slug: "editor-workspace" } })).json();
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Editor project", slug: "editor-project" } })).json();
 	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Editable route", slug: "editable" } })).json();
-	await page.goto("/projects/" + project.id + "/routes/" + route.id);
+	await page.goto("/projects/" + project.id + "/routes/" + route.id + "?section=code");
 	await expect(page.getByRole("tab", { name: "Ingress", exact: true }), "Separate lifecycle editor tabs must exist").toBeVisible();
 	await expect(page.getByRole("tab", { name: "Ingress", exact: true })).toHaveAttribute("aria-selected", "true");
 	await expect(page.locator(".monaco-editor .view-lines").first()).toContainText("async function POST(ctx: IngressContext)");
@@ -237,7 +237,7 @@ test("U75 copied template remains editable and leaves future copies unchanged", 
 
 	const first = await create("first");
 	const second = await create("second");
-	await page.goto("/projects/" + project.id + "/routes/" + first.id);
+	await page.goto("/projects/" + project.id + "/routes/" + first.id + "?section=code");
 	await page.getByLabel("Ingress template").selectOption("unverified");
 	const code = page.getByRole("textbox", { name: "Ingress code", exact: true });
 	await code.focus();
@@ -248,7 +248,7 @@ test("U75 copied template remains editable and leaves future copies unchanged", 
 	const saved = await (await page.request.get("/api/v1/endpoints/" + first.id + "/drafts/ingress")).json();
 	expect(saved.body).toContain("my custom copy");
 	expect(saved.body).not.toBe(unverifiedHttpTemplate.source);
-	await page.goto("/projects/" + project.id + "/routes/" + second.id);
+	await page.goto("/projects/" + project.id + "/routes/" + second.id + "?section=code");
 	await page.getByLabel("Ingress template").selectOption("unverified");
 	await expect(page.getByRole("textbox", { name: "Ingress code", exact: true })).toBeAttached();
 	await page.getByRole("button", { name: "Save draft", exact: true }).click();
@@ -264,21 +264,20 @@ test("U265 route editor binds an encrypted signing secret version", async ({ pag
 	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: await browserOrganization(page), name: "Secret workspace", slug: "secret-workspace" } })).json();
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Secret project", slug: "secret-project" } })).json();
 	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Signed route", slug: "signed" } })).json();
-	await page.goto("/projects/" + project.id + "/routes/" + route.id);
+	await page.goto("/projects/" + project.id + "/routes/" + route.id + "?section=code");
 	await page.getByLabel("Ingress template").selectOption("hmac");
 	await page.getByRole("row", { name: "Secrets", exact: true }).click();
 	await expect(page.getByRole("button", { name: "Create secret version", exact: true }), "Secret version controls must be available").toBeVisible();
 	await page.getByRole("button", { name: "Create secret version", exact: true }).click();
 	await expect(page.getByLabel("Secret key")).toHaveValue("");
-	await page.getByLabel("Secret key").fill("Signing key");
+	await page.getByLabel("Secret key").fill("SIGNING_SECRET");
 	await page.getByLabel("Secret value").fill("fixture-private-signing-key");
 	await page.getByRole("dialog").getByRole("button", { name: "Create secret version", exact: true }).click();
 	await expect(page.getByRole("alertdialog", { name: "Secret status", exact: true })).toContainText("Secret version created");
-	await page.getByRole("button", { name: "Bind secret version", exact: true }).click();
-	await page.getByLabel("Script key").fill("SIGNING_SECRET");
-	await page.getByRole("dialog").getByRole("button", { name: "Bind secret version", exact: true }).click();
+	await expect(page.getByRole("checkbox", { name: "SIGNING_SECRET v1 available in ingress" })).toBeChecked();
+	await expect(page.getByRole("checkbox", { name: "SIGNING_SECRET v1 available in processing" })).toBeChecked();
 	await page.getByRole("button", { name: "Save draft", exact: true }).click();
-	await expect(page.getByText("Draft saved · Not published", { exact: true })).toBeVisible();
+	await expect(page.getByText("Draft saved", { exact: true })).toBeVisible();
 	const draft = await (await page.request.get("/api/v1/endpoints/" + route.id + "/drafts/ingress")).json();
 	const versions = await (await page.request.get("/api/v1/secrets?scopeType=project&scopeId=" + project.id)).json();
 	expect(draft.secret_bindings.SIGNING_SECRET).toBe(versions[0].id);
@@ -436,7 +435,7 @@ test("U276 administrator opens and personally dismisses runtime advice", async (
 	await page.goto("/");
 	await expect(page.getByRole("button", { name: "Notifications", exact: true }), "Notification inbox must be available").toBeVisible();
 	await page.getByRole("button", { name: "Notifications", exact: true }).click();
-	await expect(page.getByRole("heading", { name: "Scripts use ordinary Docker containment", exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "Scripts use ordinary Docker containment", exact: true }).click();
 	await expect(page.getByText(/PAYLOADBAY_EXECUTOR_RUNTIME=runsc/)).toBeVisible();
 	await page.getByRole("button", { name: "Dismiss notification Scripts use ordinary Docker containment", exact: true }).click();
 	await expect(page.getByRole("dialog", { name: "Notifications", exact: true }).getByText("No active notifications.", { exact: true })).toBeVisible();
@@ -533,7 +532,7 @@ test("U83 route editor binds helper version and supports editable file imports",
 	const created = await page.request.post("/api/v1/shared-code", { headers, data: { scope: { type: "project", id: project.id }, name: "Messages", source: 'export function message(){return "from shared helper";}\nexport function unused(){return "not imported";}' } });
 	expect(created.status()).toBe(200);
 	const helper = await created.json();
-	await page.goto("/projects/" + project.id + "/routes/" + route.id);
+	await page.goto("/projects/" + project.id + "/routes/" + route.id + "?section=code");
 	await expect(page.getByRole("row", { name: "Helper imports", exact: true })).toHaveCount(0);
 	const code = page.getByRole("textbox", { name: "Ingress code", exact: true });
 	await page.getByRole("button", { name: "Import helper", exact: true }).click();
@@ -627,22 +626,39 @@ test("U299 action feedback appears in toasts instead of inline boxes", async ({ 
 test("U300 route editor tests unsaved ingress with synthetic fixture", async ({ page }) => {
 	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
+	await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
 	const headers = commandHeaders();
 	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: await browserOrganization(page), name: "Test workspace", slug: "test-workspace" } })).json();
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Test project", slug: "test-project" } })).json();
 	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Test route", slug: "test-route" } })).json();
-	await page.goto("/projects/" + project.id + "/routes/" + route.id);
+	await page.goto("/projects/" + project.id + "/routes/" + route.id + "?section=code");
 	const code = page.getByRole("textbox", { name: "Ingress code", exact: true });
 	await code.focus();
 	await page.keyboard.press("ControlOrMeta+A");
 	await page.keyboard.insertText('export async function PATCH(ctx: IngressContext): Promise<IngressDecision> { ctx.log.info("Fixture processed"); ctx.log.warn("Review warning"); return ctx.respondOnly({status:200,body:"synthetic:"+new TextDecoder().decode(ctx.request.body)+":"+ctx.request.headers["x-review"]+":"+(ctx.secrets.MODE === "synthetic" ? "configured" : "missing")}); }');
 	await page.getByRole("row", { name: "Script test", exact: true }).click();
 	await page.getByLabel("Synthetic HTTP method", { exact: true }).selectOption("PATCH");
-	await page.getByLabel("Synthetic request body", { exact: true }).fill("hello");
-	await page.getByLabel("Synthetic headers", { exact: true }).fill('{"x-review":"review"}');
-	await page.getByLabel("Synthetic secrets", { exact: true }).fill('{"MODE":"synthetic"}');
+	await page.getByLabel("Body format", { exact: true }).selectOption("plaintext");
+	for (const [tab, label, value] of [
+		["Body", "Synthetic request body", "hello"],
+		["Headers", "Synthetic headers", '{"x-review":"review"}'],
+		["Sample secrets", "Synthetic secrets", '{"MODE":"synthetic"}'],
+	]) {
+		await page.getByRole("tab", { name: tab, exact: true }).click();
+		const editor = page.getByRole("textbox", { name: label, exact: true });
+		await editor.focus();
+		await page.keyboard.press("ControlOrMeta+A");
+		await page.evaluate((text) => navigator.clipboard.writeText(text), value);
+		await page.keyboard.press("ControlOrMeta+V");
+	}
+
+	await page.getByRole("tab", { name: "Checks", exact: true }).click();
+	await page.getByLabel("Expected decision", { exact: true }).selectOption("respondOnly");
+	await page.getByLabel("Expected HTTP status", { exact: true }).fill("200");
+	await page.getByLabel("Response body contains", { exact: true }).fill("synthetic:hello");
 	await page.getByRole("button", { name: "Test ingress (dry)", exact: true }).click();
 	await expect(page.getByLabel("Synthetic test result", { exact: true })).toContainText("synthetic:hello:review:configured", { timeout: 20000 });
+	await expect(page.getByLabel("Synthetic test result", { exact: true })).toContainText("3/3 checks passed");
 	await expect(page.locator('[data-slot="toast"]').filter({ hasText: "Synthetic test completed" })).toHaveCount(0);
 	await page.getByLabel("Log level", { exact: true }).selectOption("warn");
 	await expect(page.getByLabel("Synthetic test result", { exact: true })).toContainText("Review warning");
@@ -690,7 +706,8 @@ test("U301 code creation follows workspace and project page scope", async ({ pag
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Scope project", slug: "scope-project" } })).json();
 	await page.goto("/code/project/" + project.id);
 	await expect(page.getByLabel("Code scope", { exact: true })).toHaveCount(0);
-	await expect(page.getByText("Scope: this project", { exact: true })).toBeVisible();
+	await expect(page.getByRole("navigation", { name: "Breadcrumbs", exact: true }).getByRole("link", { name: "Scope project", exact: true })).toBeVisible();
+	await expect(page.getByText("Scope: this project", { exact: true })).toHaveCount(0);
 	await page.goto("/code/workspace/" + workspace.id);
 	await expect(page.getByRole("button", { name: "Create helper", exact: true })).toBeVisible();
 	await expect(page.getByLabel("Code scope", { exact: true })).toHaveCount(0);
@@ -705,7 +722,7 @@ test("U302 repeated saves retain a clear saved state without redundant toasts", 
 	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: await browserOrganization(page), name: "Repeat workspace", slug: "repeat-workspace" } })).json();
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Repeat project", slug: "repeat-project" } })).json();
 	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Repeat route", slug: "repeat-route" } })).json();
-	await page.goto("/projects/" + project.id + "/routes/" + route.id);
+	await page.goto("/projects/" + project.id + "/routes/" + route.id + "?section=code");
 	await page.getByRole("button", { name: "Save draft", exact: true }).click();
 	await expect(page.getByText("Draft saved · Not published", { exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "Save draft", exact: true }).click();
@@ -785,6 +802,7 @@ test("U305 project dashboard configures explicit route failure notifications", a
 	await expect(page.getByRole("row", { name: "Notification rules", exact: true }), "Project notification configuration must be discoverable").toBeVisible();
 	await page.getByRole("button", { name: "Notifications", exact: true }).click();
 	await expect(page.getByRole("heading", { name: "Notifications", exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "Dismiss notification Scripts use ordinary Docker containment", exact: true }).click();
 	await expect(page.getByRole("dialog", { name: "Notifications", exact: true }).getByText("No active notifications.", { exact: true })).toBeVisible();
 	await page.keyboard.press("Escape");
 	await page.getByRole("row", { name: "Notification rules", exact: true }).click();
@@ -960,9 +978,17 @@ test("overview and mobile hierarchy preserve context while search opens resource
 	await expect(tick).toHaveCSS("font-size", "12px");
 	expect((await tick.boundingBox())!.height).toBeGreaterThanOrEqual(10);
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+	await page.getByRole("button", { name: "Toggle navigation", exact: true }).click();
 	const searchBar = page.getByRole("button", { name: "Search pages and resources", exact: true });
 	await expect(searchBar).toBeVisible();
-	expect((await searchBar.boundingBox())!.width).toBeGreaterThan(250);
+	const searchSurface = await searchBar.evaluate((button) => {
+		const parent = button.parentElement!;
+		const style = getComputedStyle(parent);
+
+		return { width: button.getBoundingClientRect().width, available: parent.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight), background: getComputedStyle(button).backgroundColor };
+	});
+	expect(searchSurface.width).toBeGreaterThanOrEqual(searchSurface.available - 2);
+	expect(searchSurface.background).not.toBe("rgba(0, 0, 0, 0)");
 	await searchBar.click();
 	await expect(page.getByRole("dialog", { name: "Search pages and resources" })).toBeVisible();
 	await page.keyboard.press("Escape");
@@ -986,6 +1012,8 @@ test("overview and mobile hierarchy preserve context while search opens resource
 	await expect(drawer.getByText("Browse hierarchy", { exact: true })).toHaveCount(0);
 	await expect(drawer.getByRole("row", { name: "Search pages and resources", exact: true })).toHaveCount(0);
 	await page.keyboard.press("Escape");
+	await expect(drawer).toHaveCount(0);
+	await page.getByRole("button", { name: "Toggle navigation", exact: true }).click();
 	await page.getByRole("button", { name: "Search pages and resources", exact: true }).click();
 	const command = page.getByRole("dialog", { name: "Search pages and resources" });
 	await expect(command).toBeVisible();
@@ -1049,7 +1077,7 @@ test("overview and mobile hierarchy preserve context while search opens resource
 	await expect(page.getByRole("menuitem", { name: "Sign out" })).toHaveClass(/text-danger/);
 });
 
-test("instance notification modules fork, preview, publish and deliver branded email", async ({ page, request }) => {
+test("instance notification modules remain forkable while enterprise customization is hidden", async ({ page }) => {
 	const { ensureBrowserOwner } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
 	await page.setViewportSize({ width: 390, height: 844 });
@@ -1068,34 +1096,15 @@ test("instance notification modules fork, preview, publish and deliver branded e
 	await page.getByRole("button", { name: "Publish version", exact: true }).click();
 	await expect(page).toHaveURL(/\/admin\/notification-channels\/[0-9a-f-]{36}$/);
 	await expect(page.getByRole("combobox", { name: "Module version" })).toContainText("v1 · Active · Latest");
-	await page.goto("/admin/email");
-	await page.getByLabel("Brand name", { exact: true }).fill("Review brand");
-	await expect(page.getByRole("combobox", { name: "Transactional email module" })).toHaveCount(0);
-	await expect(page.getByText("Authentication email uses the built-in SMTP handler.", { exact: false })).toBeVisible();
-	await page.getByRole("button", { name: "Preview email", exact: true }).click();
-	await expect(page.frameLocator('iframe[title="Branded email preview"]').getByRole("img", { name: "Review brand", exact: true })).toBeVisible();
-	await expect(page.frameLocator('iframe[title="Branded email preview"]').getByRole("heading", { name: "Your sign-in code", exact: true })).toBeVisible();
-	await expect(page.frameLocator('iframe[title="Branded email preview"]').getByText("123456", { exact: true })).toBeVisible();
-	await page.getByRole("button", { name: "Save email settings", exact: true }).click();
-	await expect(page.getByRole("button", { name: "Save email settings", exact: true })).toBeDisabled();
-	const before = await (await request.get(process.env.PAB_TEST_MAIL_URL + "/api/v1/messages")).json();
-	await page.getByRole("button", { name: "Send test to my email", exact: true }).click();
-	await expect.poll(async () => (await (await request.get(process.env.PAB_TEST_MAIL_URL + "/api/v1/messages")).json()).total).toBeGreaterThan(before.total);
-	const messages = await (await request.get(process.env.PAB_TEST_MAIL_URL + "/api/v1/messages")).json();
-	const message = await (await request.get(process.env.PAB_TEST_MAIL_URL + "/api/v1/message/" + messages.messages[0].ID)).json();
-	expect(message.HTML).toContain("Review brand");
-	expect(message.Text).toContain("synthetic notification");
-	await expect(page.locator("main")).toBeVisible();
-	await page.locator('iframe[title="Branded email preview"]').scrollIntoViewIfNeeded();
-	await page.screenshot({ path: test.info().outputPath("email-settings-mobile.png") });
-	await page
-		.frameLocator('iframe[title="Branded email preview"]')
-		.locator("body")
-		.screenshot({ path: test.info().outputPath("email-body-mobile.png") });
-	await page.getByRole("button", { name: "Reset to shipped defaults", exact: true }).click();
-	await expect(page.getByRole("dialog")).toBeVisible();
-	await page.getByRole("button", { name: "Reset settings", exact: true }).click();
-	await expect(page.getByLabel("Brand name", { exact: true })).toHaveValue("Payload Bay");
+	await page.goto("/admin/installation");
+	await expect(page.getByRole("link", { name: "Email settings", exact: true })).toHaveCount(0);
+	await expect(page.getByRole("link", { name: "Instance customization", exact: true })).toHaveCount(0);
+	const settings = await (await page.request.get("/api/v1/email-settings")).json();
+	const rejected = await page.request.put("/api/v1/email-settings", { headers: { origin: new URL(page.url()).origin, "x-payloadbay-csrf": "1" }, data: { expectedVersion: settings.version, channelKey: "smtp", branding: { ...settings.branding, name: "Unauthorized white label" } } });
+	expect(rejected.status()).toBe(403);
+	expect(await rejected.json()).toMatchObject({ error: { code: "feature_unavailable" } });
+	const hidden = await page.goto("/admin/email");
+	expect(hidden?.status()).toBe(404);
 	const channels = await (await page.request.get("/api/v1/notification-channels")).json();
 	expect(channels.some((channel: { name: string }) => channel.name === "Review email module")).toBeTruthy();
 });
@@ -1345,6 +1354,9 @@ test("U157 dashboard multiplexes live events and notifications on one connection
 	});
 	await page.goto(`/projects/${project.id}/events`);
 	await expect(page.getByRole("heading", { name: "Events", exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "Notifications", exact: true }).click();
+	await page.getByRole("button", { name: "Dismiss notification Scripts use ordinary Docker containment", exact: true }).click();
+	await page.getByRole("dialog", { name: "Notifications", exact: true }).getByRole("button", { name: "Close", exact: true }).click();
 	await expect(page.getByRole("button", { name: "Notifications", exact: true })).toHaveAccessibleDescription("No active notifications.");
 
 	const openStreams = () => page.evaluate(() => (Reflect.get(window, "__payloadbayStreams") as EventSource[]).filter((source) => source.readyState !== EventSource.CLOSED).length);
@@ -1475,6 +1487,9 @@ test("AD03 audit pagination retries a failed next page without losing history", 
 		id,
 		operation,
 		actor: "fixture-owner",
+		actorName: "Fixture actor",
+		resourceName: null,
+		scopeName: "Instance operations",
 		scope: { type: "instance", id: "00000000-0000-4000-8000-000000000001" },
 		resourceId: null,
 		createdAt: "2026-10-17T01:02:03.123456Z",
@@ -1521,11 +1536,11 @@ test("IH01 installation settings and health are factual and instance restricted"
 	expect(health.executor.state).toBe("ready");
 	expect(health.executor.runtime).toBe("workerd");
 	expect(health.executor.hostAttestation).toBe(false);
-	expect(health.worker).toBe("not_checked");
-	expect(health.smtp).toBe("not_checked");
+	expect(["recent", "not_seen"]).toContain(health.worker);
+	expect(health.smtp).toBe("ready");
 	await page.goto("/admin/installation");
 	await expect(page.getByRole("heading", { name: "Installation", exact: true })).toBeVisible();
-	await expect(page.getByRole("grid", { name: "Service health" })).toContainText("Not checked");
+	await expect(page.getByRole("grid", { name: "Service health" })).toContainText("SMTP connection verified");
 	await expect(page.getByText("Disabled · event history is retained", { exact: true })).toBeVisible();
 	await page.screenshot({ path: test.info().outputPath("installation-desktop.png") });
 	await page.setViewportSize({ width: 390, height: 844 });
@@ -1591,7 +1606,7 @@ test("UX54 request client sends edited body and headers", async ({ page }) => {
 	expect(published.status()).toBe(200);
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
-	await page.goto("/projects/" + project.id + "/routes/" + route.id + "?section=overview");
+	await page.goto("/projects/" + project.id + "/routes/" + route.id + "?section=playground");
 	const requestBody = page.getByRole("textbox", { name: "Playground request body", exact: true });
 	await expect(page.getByText("Loading code editor…", { exact: true })).toHaveCount(0);
 	await requestBody.focus();
@@ -1654,4 +1669,170 @@ test("CF10 scoped audit is usable on mobile and platform roles cannot restore cu
 	} finally {
 		await pool.end();
 	}
+});
+
+test("UX60 destination edits preserve delivery configuration and reject stale saves", async ({ page }) => {
+	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
+	await ensureBrowserOwner(page);
+	await page.setViewportSize({ width: 390, height: 844 });
+	const headers = commandHeaders();
+	const workspace = (await (await page.request.get("/api/v1/workspaces")).json())[0];
+	const projectResponse = await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Destination review", slug: "destination-review" } });
+	expect(projectResponse.status()).toBe(200);
+	const project = await projectResponse.json();
+	const created = await page.request.post("/api/v1/projects/" + project.id + "/destinations", {
+		headers,
+		data: {
+			name: "Original receiver",
+			url: "https://example.test/original",
+			method: "PUT",
+			headers: { "x-event-format": "example" },
+			concurrency: 7,
+		},
+	});
+	expect(created.status()).toBe(200);
+	const destination = await created.json();
+	await page.goto("/projects/" + project.id);
+	await page.getByRole("button", { name: "Edit destination Original receiver", exact: true }).click();
+	let dialog = page.getByRole("dialog", { name: "Edit destination", exact: true });
+	await expect(dialog.getByLabel("Destination URL", { exact: true })).toHaveValue("https://example.test/original");
+	await dialog.getByLabel("Name", { exact: true }).fill("Updated receiver");
+	await dialog.getByLabel("Destination URL", { exact: true }).fill("https://example.test/updated");
+	await page.screenshot({ path: test.info().outputPath("destination-edit-mobile.png") });
+	await dialog.getByRole("button", { name: "Save destination", exact: true }).click();
+	await expect(dialog).toHaveCount(0);
+	const saved = await (await page.request.get("/api/v1/destinations/" + destination.id)).json();
+	expect(saved).toMatchObject({
+		name: "Updated receiver",
+		version: 2,
+		concurrency: 7,
+		isDefault: true,
+		http: { method: "PUT", url: "https://example.test/updated", headers: { "x-event-format": "example" } },
+	});
+	await page.getByRole("button", { name: "Edit destination Updated receiver", exact: true }).click();
+	dialog = page.getByRole("dialog", { name: "Edit destination", exact: true });
+	await expect(dialog.getByLabel("Name", { exact: true })).toHaveValue("Updated receiver");
+	const concurrent = await page.request.put("/api/v1/destinations/" + destination.id, {
+		headers: { ...headers, "if-match": JSON.stringify("2") },
+		data: {
+			name: "Concurrent edit",
+			...saved.http,
+			concurrency: saved.concurrency,
+			isDefault: saved.isDefault,
+			secretRefs: saved.secretRefs,
+		},
+	});
+	expect(concurrent.status()).toBe(200);
+	await dialog.getByLabel("Name", { exact: true }).fill("Stale local edit");
+	await dialog.getByRole("button", { name: "Save destination", exact: true }).click();
+	await expect(page.getByRole("alertdialog", { name: "Project error" })).toContainText("Destination changed");
+	await expect(dialog.getByLabel("Name", { exact: true })).toHaveValue("Stale local edit");
+	expect((await (await page.request.get("/api/v1/destinations/" + destination.id)).json()).name).toBe("Concurrent edit");
+	await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+});
+
+test("UX61 route overview owns receiving controls and mobile search closes navigation", async ({ page }) => {
+	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
+	await ensureBrowserOwner(page);
+	await page.setViewportSize({ width: 390, height: 844 });
+	const headers = commandHeaders();
+	const workspace = (await (await page.request.get("/api/v1/workspaces")).json())[0];
+	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Overview review", slug: "overview-review" } })).json();
+	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Review route", slug: "review-route" } })).json();
+	await page.goto("/projects/" + project.id + "/routes/" + route.id);
+	await expect(page.getByLabel("Receiving URL", { exact: true })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Pause delivery", exact: true })).toBeVisible();
+	await page.getByRole("link", { name: "Open scripts", exact: true }).click();
+	await expect(page.getByRole("heading", { name: "Scripts", exact: true })).toBeVisible();
+	await expect(page.getByLabel("Receiving URL", { exact: true })).toHaveCount(0);
+	await expect(page.getByRole("button", { name: "Pause delivery", exact: true })).toHaveCount(0);
+	await page.getByRole("button", { name: "Toggle navigation", exact: true }).click();
+	await page.getByRole("button", { name: "Search pages and resources", exact: true }).click();
+	const search = page.getByRole("dialog", { name: "Search pages and resources", exact: true });
+	await expect(search).toBeVisible();
+	await expect(page.getByRole("button", { name: "Back to project", exact: true })).not.toBeVisible();
+	await page.screenshot({ path: test.info().outputPath("navigation-search-mobile.png") });
+	await page.keyboard.press("Escape");
+	await expect(search).toHaveCount(0);
+	await expect(page.getByRole("heading", { name: "Scripts", exact: true })).toBeVisible();
+});
+
+test("UX62 one secret inventory manages both stages and imports environment text", async ({ page }) => {
+	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
+	await ensureBrowserOwner(page);
+	await page.setViewportSize({ width: 390, height: 844 });
+	const headers = commandHeaders();
+	const workspace = (await (await page.request.get("/api/v1/workspaces")).json())[0];
+	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Secrets review", slug: "secrets-review" } })).json();
+	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Secrets route", slug: "secrets-route" } })).json();
+	await page.goto("/projects/" + project.id + "/routes/" + route.id + "?section=secrets");
+	await expect(page.getByRole("tablist", { name: "Lifecycle scripts" })).toHaveCount(0);
+	await expect(page.getByLabel("Receiving URL", { exact: true })).toHaveCount(0);
+	await page.getByRole("button", { name: "Import .env", exact: true }).click();
+	const dialog = page.getByRole("dialog", { name: "Import environment secrets", exact: true });
+	await dialog.getByRole("textbox", { name: "Environment text", exact: true }).fill('FIRST_KEY="synthetic first"\nSECOND_KEY=synthetic-second\n');
+	await dialog.getByRole("button", { name: "Import secrets", exact: true }).click();
+	await expect(dialog).toHaveCount(0);
+	const inventory = page.getByRole("grid", { name: "Secret inventory", exact: true });
+	await expect(inventory.getByRole("checkbox", { name: "FIRST_KEY v1 available in ingress", exact: true })).toBeChecked();
+	await expect(inventory.getByRole("checkbox", { name: "FIRST_KEY v1 available in processing", exact: true })).toBeChecked();
+	await page.getByRole("alertdialog", { name: "Secret status", exact: true }).getByRole("button", { name: "Close", exact: true }).click();
+	await page.getByRole("button", { name: "Save draft", exact: true }).click();
+	await expect(page.getByText("Draft saved", { exact: true })).toBeVisible();
+	await page.reload();
+	await expect(inventory.getByRole("checkbox", { name: "FIRST_KEY v1 available in processing", exact: true })).toBeChecked();
+	// Click the visible control rather than the library's visually hidden native input.
+	await inventory.getByRole("row").filter({ hasText: "FIRST_KEY" }).locator('[data-slot="checkbox-content"]').nth(1).click();
+	await expect(inventory.getByRole("checkbox", { name: "FIRST_KEY v1 available in processing", exact: true })).not.toBeChecked();
+	await page.getByRole("button", { name: "Save draft", exact: true }).click();
+	await expect(page.getByText("Draft saved", { exact: true })).toBeVisible();
+	const ingress = await (await page.request.get("/api/v1/endpoints/" + route.id + "/drafts/ingress")).json();
+	const processing = await (await page.request.get("/api/v1/endpoints/" + route.id + "/drafts/processing")).json();
+	expect(ingress.secret_bindings.FIRST_KEY).toBeTruthy();
+	expect(processing.secret_bindings.FIRST_KEY).toBeUndefined();
+	expect(processing.secret_bindings.SECOND_KEY).toBeTruthy();
+	const versions = await (await page.request.get("/api/v1/secrets?scopeType=project&scopeId=" + project.id)).json();
+	expect(JSON.stringify(versions)).not.toContain("synthetic-second");
+	await page.screenshot({ path: test.info().outputPath("secrets-stage-inventory-mobile.png") });
+});
+
+test("UX63 request format validation prevents malformed sends and supports XML", async ({ page }) => {
+	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
+	await ensureBrowserOwner(page);
+	await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+	const headers = commandHeaders();
+	const workspace = (await (await page.request.get("/api/v1/workspaces")).json())[0];
+	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Body formats", slug: "body-formats" } })).json();
+	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Format route", slug: "format-route" } })).json();
+	await page.request.patch("/api/v1/endpoints/" + route.id + "/drafts/ingress", { headers: { ...headers, "if-match": JSON.stringify("1") }, data: { body: 'export async function POST(ctx: IngressContext): Promise<IngressDecision> { return ctx.respondOnly({status:200,body:ctx.request.contentType+"|"+new TextDecoder().decode(ctx.request.body)}); }' } });
+	const published = await page.request.post("/api/v1/endpoints/" + route.id + "/publications", { headers, data: { expectedVersion: 1, draftVersions: { ingress: 2, processing: 1 } } });
+	expect(published.status()).toBe(200);
+	await page.goto("/projects/" + project.id + "/routes/" + route.id + "?section=playground");
+	let sent = 0;
+	page.on("request", (request) => {
+		if (new URL(request.url()).pathname.startsWith("/ingress/")) sent++;
+	});
+	const body = page.getByRole("textbox", { name: "Playground request body", exact: true });
+	await body.focus();
+	await page.keyboard.press("ControlOrMeta+A");
+	await page.evaluate((text) => navigator.clipboard.writeText(text), "{");
+	await page.keyboard.press("ControlOrMeta+V");
+	await page.getByRole("button", { name: "Send request", exact: true }).click();
+	await expect(page.getByRole("alertdialog", { name: "Script configuration error" })).toContainText("Correct the JSON body");
+	expect(sent).toBe(0);
+	await page.getByLabel("Body format", { exact: true }).selectOption("xml");
+	await body.focus();
+	await page.keyboard.press("ControlOrMeta+A");
+	await page.evaluate((text) => navigator.clipboard.writeText(text), "<purchase>");
+	await page.keyboard.press("ControlOrMeta+V");
+	await page.getByRole("button", { name: "Send request", exact: true }).click();
+	await expect(page.getByRole("alertdialog", { name: "Script configuration error" })).toContainText("Correct the XML body");
+	expect(sent).toBe(0);
+	await body.focus();
+	await page.keyboard.press("ControlOrMeta+A");
+	await page.evaluate((text) => navigator.clipboard.writeText(text), "<purchase />");
+	await page.keyboard.press("ControlOrMeta+V");
+	await page.getByRole("button", { name: "Send request", exact: true }).click();
+	await expect(page.getByLabel("Response body", { exact: true })).toHaveText("application/xml|<purchase />");
+	expect(sent).toBe(1);
 });

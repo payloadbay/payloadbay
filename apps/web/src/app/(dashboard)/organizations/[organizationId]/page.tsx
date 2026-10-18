@@ -3,6 +3,7 @@
 import { use, useState, type FormEvent } from "react";
 import { Button, Form, TextField, Input, Label, FieldError, Table, Modal } from "@heroui/react";
 
+import { IconChevronRight } from "@tabler/icons-react";
 import { useDashboard } from "@components/dashboard-shell";
 import { api } from "@lib/api-client";
 import { useFeedbackToast } from "@lib/feedback";
@@ -66,7 +67,12 @@ export default function OrganizationPage({ params }: { params: Promise<{ organiz
 								.filter((item) => item.organization_id === organizationId && item.name.toLowerCase().includes(query.toLowerCase()))
 								.map((item) => (
 									<Table.Row id={item.id} key={item.id} href={"/workspaces/" + item.id}>
-										<Table.Cell>{item.name}</Table.Cell>
+										<Table.Cell>
+											<span className='flex items-center justify-between gap-3'>
+												{item.name}
+												<IconChevronRight size={16} aria-hidden='true' className='text-muted shrink-0' />
+											</span>
+										</Table.Cell>
 										<Table.Cell>{projects.filter((project) => project.workspace_id === item.id).length}</Table.Cell>
 									</Table.Row>
 								))}

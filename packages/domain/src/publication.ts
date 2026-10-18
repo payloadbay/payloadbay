@@ -154,10 +154,40 @@ export async function activatePublication(pool: Pool, actor: Actor, input: { end
 		if (locked.config_version !== input.expectedVersion) throw new AppError("version_conflict", 409, "Ingress route changed; reload before rollback");
 		const recorded = (await db.query("SELECT * FROM payloadbay.publication WHERE id=$1 AND endpoint_id=$2", [input.publicationId, endpoint.id])).rows[0];
 		if (!recorded) throw new AppError("not_found", 404, "Publication unavailable");
+		if ((await db.query("SELECT publication_id FROM payloadbay.publication_archive WHERE publication_id=$1", [recorded.id])).rowCount) throw new AppError("publication_archived", 409, "Restore this publication before activating it");
 		for (const stage of ["ingress", "processing"]) if (recorded.shared_versions[stage]?.sdkVersion !== "1") throw new AppError("unsupported_publication", 409, "Publication requires an unsupported script SDK");
 		await db.query("UPDATE payloadbay.endpoint SET active_publication_id=$1,config_version=config_version+1 WHERE id=$2", [recorded.id, endpoint.id]);
 		await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation,resource_id,redacted_diff) VALUES($1,'project',$2,'code.rolled_back',$3,$4)", [actor.userId, endpoint.project_id, recorded.id, JSON.stringify({ from: locked.active_publication_id, to: recorded.id })]);
 
 		return { id: recorded.id, version: locked.config_version + 1 };
+	});
+}
+
+/** Archive only presentation metadata; queued events and explicit replays retain their snapshot. */
+export async function archivePublication(
+	pool: Pool,
+	actor: Actor,
+	input: {
+		endpointId: string;
+		publicationId: string;
+		expectedVersion: number;
+		archived: boolean;
+	},
+) {
+	return transaction(pool, async (db) => {
+		const endpoint = await endpointScope(db, input.endpointId);
+		await requirePermission(db, actor, { type: "project", id: endpoint.project_id }, "code.publish");
+		const locked = (await db.query("SELECT * FROM payloadbay.endpoint WHERE id=$1 FOR UPDATE", [endpoint.id])).rows[0];
+		if (locked.config_version !== input.expectedVersion) throw new AppError("version_conflict", 409, "Ingress route changed; reload before updating publication history");
+		const publication = (await db.query("SELECT id FROM payloadbay.publication WHERE id=$1 AND endpoint_id=$2", [input.publicationId, endpoint.id])).rows[0];
+		if (!publication) throw new AppError("not_found", 404, "Publication unavailable");
+		const latest = (await db.query("SELECT id FROM payloadbay.publication WHERE endpoint_id=$1 ORDER BY created_at DESC,id DESC LIMIT 1", [endpoint.id])).rows[0];
+		if (input.archived && (publication.id === locked.active_publication_id || publication.id === latest.id)) throw new AppError("publication_in_use", 409, "Active and latest publications cannot be archived");
+		if (input.archived) await db.query("INSERT INTO payloadbay.publication_archive(publication_id,archived_by) VALUES($1,$2) ON CONFLICT(publication_id) DO NOTHING", [publication.id, actor.userId]);
+		else await db.query("DELETE FROM payloadbay.publication_archive WHERE publication_id=$1", [publication.id]);
+		await db.query("UPDATE payloadbay.endpoint SET config_version=config_version+1 WHERE id=$1", [endpoint.id]);
+		await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation,resource_id) VALUES($1,'project',$2,$3,$4)", [actor.userId, endpoint.project_id, input.archived ? "code.publication_archived" : "code.publication_restored", publication.id]);
+
+		return { id: publication.id, version: locked.config_version + 1 };
 	});
 }

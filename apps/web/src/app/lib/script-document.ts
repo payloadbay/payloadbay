@@ -19,7 +19,8 @@ export async function formatScript(body: string, stage?: ScriptStage, bindings: 
 	const [{ format }, typescript, estree] = await Promise.all([import("prettier/standalone"), import("prettier/plugins/typescript"), import("prettier/plugins/estree")]);
 	const moduleFile = /^\s*(?:import|export)\s/m.test(body);
 	const frame = scriptFrame(moduleFile ? undefined : stage, bindings);
-	const result = await format(frame.prefix + body + frame.suffix, { ...formatting, parser: "typescript", plugins: [typescript, estree] });
+	const formatted = await format(frame.prefix + body + frame.suffix, { ...formatting, parser: "typescript", plugins: [typescript, estree] });
+	const result = formatted.replace(/^(import[\s\S]*?;\n)(?=(?:export|async|function|const|let|class|type|interface|enum)\b)/, "$1\n");
 	if (!stage || moduleFile) return result;
 	const headerEnd = result.indexOf("{\n", result.indexOf("export default async function"));
 	if (headerEnd < 0 || !result.endsWith("}\n")) throw Error("Could not format the lifecycle function.");

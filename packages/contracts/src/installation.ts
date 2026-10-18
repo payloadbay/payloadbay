@@ -30,8 +30,8 @@ export const installationHealthSchema = z.object({
 		configuredMode: z.enum(["runc", "runsc"]).nullable(),
 		hostAttestation: z.literal(false),
 	}),
-	worker: z.literal("not_checked"),
-	smtp: z.literal("not_checked"),
+	worker: z.enum(["recent", "not_seen"]),
+	smtp: z.enum(["ready", "unavailable"]),
 });
 
 export type InstallationSettings = z.infer<typeof installationSettingsSchema>;

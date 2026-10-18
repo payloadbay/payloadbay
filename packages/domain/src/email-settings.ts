@@ -4,8 +4,6 @@ import { emailBranding, emailSettingsInput, type EmailBranding } from "../../con
 import { AppError } from "../../contracts/src/errors.ts";
 import { requirePermission } from "./membership.ts";
 import { notificationInstance } from "./notification-channels.ts";
-import { transaction } from "./db.ts";
-import { appendChange } from "./changes.ts";
 
 export type ChannelSnapshot = {
 	requestedKey: string;
@@ -26,29 +24,13 @@ export async function getEmailSettings(pool: Pool, actor: Actor, publicUrl?: str
 	return { version: row?.version ?? 0, channelKey: "smtp", branding: row ? emailBranding.parse(row.branding) : defaultEmailBranding(publicUrl) };
 }
 
+/** Instance-wide white-labeling stays unavailable until verified enterprise entitlements exist. */
 export async function saveEmailSettings(pool: Pool, actor: Actor, input: unknown) {
-	const parsed = emailSettingsInput.safeParse(input);
-	if (!parsed.success) throw new AppError("invalid_email_settings", 400, "Provide valid email branding and a channel");
-	const data = parsed.data;
+	const scope = await notificationInstance(pool);
+	await requirePermission(pool, actor, scope, "settings.manage");
+	if (!emailSettingsInput.safeParse(input).success) throw new AppError("invalid_email_settings", 400, "Provide valid instance branding");
 
-	return transaction(pool, async (db) => {
-		const scope = await notificationInstance(db);
-		await requirePermission(db, actor, scope, "settings.manage");
-		await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", ["notification-channels:" + scope.id]);
-		const row = (await db.query("SELECT version FROM payloadbay.email_settings WHERE installation_id=$1 FOR UPDATE", [scope.id])).rows[0];
-		if ((row?.version ?? 0) !== data.expectedVersion) throw new AppError("version_conflict", 409, "Email settings changed; reload before saving");
-		if (data.channelKey !== "smtp" && !(await db.query("SELECT 1 FROM payloadbay.notification_channel WHERE id=$1 AND installation_id=$2 AND kind='email' AND enabled AND active_revision_id IS NOT NULL", [data.channelKey, scope.id])).rowCount) throw new AppError("channel_unavailable", 409, "Choose an enabled email channel");
-		const saved = (await db.query("INSERT INTO payloadbay.email_settings(installation_id,channel_id,branding,updated_by) VALUES($1,$2,$3,$4) ON CONFLICT(installation_id) DO UPDATE SET channel_id=EXCLUDED.channel_id,branding=EXCLUDED.branding,version=payloadbay.email_settings.version+1,updated_by=EXCLUDED.updated_by RETURNING version", [scope.id, data.channelKey === "smtp" ? null : data.channelKey, JSON.stringify(data.branding), actor.userId])).rows[0];
-		await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation,resource_id,redacted_diff) VALUES($1,'instance',$2,'email.settings_updated',$3,$4)", [actor.userId, scope.id, scope.id, JSON.stringify({ version: saved.version, channelKey: data.channelKey })]);
-		await appendChange(db, {
-			scope,
-			kind: "configuration.changed",
-			resourceId: scope.id,
-			capability: "settings.manage",
-		});
-
-		return { version: saved.version as number, channelKey: data.channelKey, branding: data.branding };
-	});
+	throw new AppError("feature_unavailable", 403, "Instance customization requires enterprise licensing, which is not available in this alpha");
 }
 
 /** Queue-time configuration: code revisions and presentation cannot drift during retries. */

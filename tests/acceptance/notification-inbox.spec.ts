@@ -14,6 +14,10 @@ test("U180 U181 notification attention describes severity and follows real scope
 	const project = await created.json();
 	await page.goto(`/projects/${project.id}`);
 	const attention = page.getByRole("button", { name: "Notifications", exact: true });
+	await attention.click();
+	const initial = page.getByRole("dialog", { name: "Notifications", exact: true });
+	await initial.getByRole("button", { name: "Dismiss notification Scripts use ordinary Docker containment", exact: true }).click();
+	await initial.getByRole("button", { name: "Close", exact: true }).click();
 	await expect(attention).toHaveAccessibleDescription("No active notifications.");
 	const pool = database(process.env.DATABASE_URL!);
 	try {

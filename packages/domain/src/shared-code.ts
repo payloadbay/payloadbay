@@ -108,7 +108,7 @@ export async function listSharedVersions(pool: Pool, actor: Actor, scope: ScopeR
 	await requirePermission(pool, actor, scope, "code.read");
 	const ancestry = await dataAncestry(pool, scope);
 	const allowed: ScopeRef[] = [];
-	const first = actor.token ? ancestry.findIndex((parent) => parent.type === actor.token!.scope.type && parent.id === actor.token!.scope.id) : 0;
+	const first = actor.token && !actor.token.personal ? ancestry.findIndex((parent) => parent.type === actor.token!.scope.type && parent.id === actor.token!.scope.id) : 0;
 	for (const parent of ancestry.slice(first)) if ((await actorPermissions(pool, actor, parent)).has("code.read")) allowed.push(parent);
 	const parameters: string[] = [];
 	const clauses = allowed.map((parent) => {
@@ -143,7 +143,7 @@ export async function pinSourceImports(db: Pool | PoolClient, actor: Actor, scop
 		}
 
 		// Nearest visible scope wins; revisions are immutable and newest-first.
-		const first = actor.token ? ancestry.findIndex((parent) => parent.type === actor.token!.scope.type && parent.id === actor.token!.scope.id) : 0;
+		const first = actor.token && !actor.token.personal ? ancestry.findIndex((parent) => parent.type === actor.token!.scope.type && parent.id === actor.token!.scope.id) : 0;
 		for (const parent of ancestry.slice(first).reverse()) {
 			if (!(await actorPermissions(db, actor, parent)).has("code.read")) continue;
 			const row = (await db.query("SELECT id FROM payloadbay.shared_module_revision WHERE scope_type=$1 AND scope_id=$2 AND name=$3 ORDER BY created_at DESC,id DESC LIMIT 1", [parent.type, parent.id, name])).rows[0];

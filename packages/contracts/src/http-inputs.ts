@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { scopeSchema, grantInput } from "./resources.ts";
+import { tokenScopeSchema, scopeSchema, grantInput } from "./resources.ts";
 import { codeScope } from "./code.ts";
 import { emailBranding } from "./notification-channels.ts";
 
@@ -21,7 +21,7 @@ export const draftInput = z.object({ body: z.string().max(131072), sharedBinding
 
 export const publicationInput = z.object({ expectedVersion: z.number().int().positive(), draftVersions: z.object({ ingress: z.number().int().positive(), processing: z.number().int().positive() }).strict() }).strict();
 
-export const activationInput = z.object({ publicationId: z.uuid(), expectedVersion: z.number().int().positive() }).strict();
+export const activationInput = z.object({ publicationId: z.uuid(), expectedVersion: z.number().int().positive(), archived: z.boolean().optional() }).strict();
 
 export const eventReplayInput = z.object({ publicationPolicy: z.enum(["original", "current", "selected"]).optional(), sourceExecutionId: z.uuid().optional(), publicationId: z.uuid().optional() }).strict();
 
@@ -44,10 +44,12 @@ export const endpointInput = z.object({ name: z.string().trim().min(1).max(100),
 
 export const secretInput = z.object({ scope: scopeSchema, name: z.string().min(1).max(100), value: z.string().min(1).max(8192) }).strict();
 
+export const secretImportInput = z.object({ scope: scopeSchema, source: z.string().min(1).max(262144) }).strict();
+
 export const helperImportInput = z.object({ scope: codeScope, body: z.string().max(131072), exports: z.array(z.string().max(100)).min(1).max(100) }).strict();
 
 export const invitationAcceptInput = z.object({ token: z.string().regex(/^[A-Za-z0-9_-]{43}$/) }).strict();
 
-export const tokenRevokeInput = z.object({ scope: scopeSchema, id: z.uuid() }).strict();
+export const tokenRevokeInput = z.object({ scope: tokenScopeSchema, id: z.uuid() }).strict();
 
 export const emptyCommandInput = z.object({}).strict();

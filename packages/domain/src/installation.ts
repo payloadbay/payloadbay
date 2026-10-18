@@ -1,3 +1,4 @@
+import nodemailer from "nodemailer";
 import type { Pool } from "pg";
 import type { Actor } from "./authorization.ts";
 import { requirePermission } from "./membership.ts";
@@ -60,7 +61,29 @@ export async function readInstallationHealth(pool: Pool, actor: Actor, installat
 		checkedAt: new Date().toISOString(),
 		database: "available",
 		executor: await probeExecutor(config),
-		worker: "not_checked",
-		smtp: "not_checked",
+		worker: (await pool.query("SELECT 1 FROM payloadbay.installation WHERE id=$1 AND worker_seen_at>clock_timestamp()-interval '60 seconds'", [installationId])).rowCount ? "recent" : "not_seen",
+		smtp: await probeSmtp(config),
 	});
+}
+
+/** Checks SMTP connectivity/authentication without sending mail or returning provider errors. */
+export async function probeSmtp(config: Pick<ServerConfig, "smtp">): Promise<"ready" | "unavailable"> {
+	const transport = nodemailer.createTransport({
+		host: config.smtp.host,
+		port: config.smtp.port,
+		secure: config.smtp.secure,
+		auth: config.smtp.user ? { user: config.smtp.user, pass: config.smtp.password } : undefined,
+		connectionTimeout: 3000,
+		greetingTimeout: 3000,
+		socketTimeout: 3000,
+	});
+	try {
+		await transport.verify();
+
+		return "ready";
+	} catch {
+		return "unavailable";
+	} finally {
+		transport.close();
+	}
 }

@@ -9,6 +9,7 @@ import { useDashboard } from "@components/dashboard-shell";
 import { LoadingState } from "@components/loading-state";
 import { api } from "@lib/api-client";
 import { useFeedbackToast } from "@lib/feedback";
+import { IconInfoCircle } from "@tabler/icons-react";
 import type { ChannelSummary } from "@domain/notification-channels";
 
 export default function NotificationChannelsPage() {
@@ -51,13 +52,35 @@ export default function NotificationChannelsPage() {
 			<header className='flex flex-wrap items-start justify-between gap-4'>
 				<div>
 					<h1 className='text-3xl font-semibold'>Notification modules</h1>
-					<p className='text-muted mt-2 max-w-2xl'>Use the shipped email module, fork it to change the content, or write an HTTP module for your own service. Published versions are immutable; queued messages keep their original version.</p>
+					<p className='text-muted mt-2 max-w-2xl'>Customize alert delivery with versioned email or HTTP modules.</p>
 				</div>
 				{me.permissions.includes("code.publish") && me.permissions.includes("code.edit") && <Button onPress={() => setCreating(true)}>Create module</Button>}
 			</header>
-			<Link href='/admin/email' className='text-accent'>
-				Email branding and transactional delivery
-			</Link>
+			<Modal>
+				<Button variant='ghost' size='sm' className='self-start'>
+					<IconInfoCircle size={18} aria-hidden='true' />
+					How notification modules work
+				</Button>
+				<Modal.Backdrop>
+					<Modal.Container placement='auto' size='lg'>
+						<Modal.Dialog>
+							<Modal.CloseTrigger />
+							<Modal.Header>
+								<Modal.Heading>Email and HTTP notification modules</Modal.Heading>
+							</Modal.Header>
+							<Modal.Body className='flex flex-col gap-3'>
+								<p>The built-in email module is read-only. Fork it to customize alert content; email still uses the installation’s SMTP transport.</p>
+								<p>Choose an HTTP module for a service such as Discord or a custom webhook. Each user explicitly enables the published version they have reviewed. Publishing an update does not automatically change their subscription.</p>
+								<p>Sign-in codes and invitations always use trusted built-in email handling. Custom modules never receive those messages.</p>
+							</Modal.Body>
+							<Modal.Footer>
+								<Button slot='close'>Got it</Button>
+							</Modal.Footer>
+						</Modal.Dialog>
+					</Modal.Container>
+				</Modal.Backdrop>
+			</Modal>
+
 			{loading ? (
 				<LoadingState label='Loading notification modules…' />
 			) : (

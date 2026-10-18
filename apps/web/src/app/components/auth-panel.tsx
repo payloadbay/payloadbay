@@ -248,7 +248,7 @@ export function AuthPanel({ setup = false, preview = false, loginHint, initialEm
 							{sent && (
 								<div className='flex flex-col gap-2'>
 									<Label htmlFor='sign-in-code'>Sign-in code</Label>
-									<InputOTP id='sign-in-code' name='otp' aria-label='Sign-in code' value={otp} onChange={setOtp} maxLength={6} pasteTransformer={(text) => text.replace(/\D/g, "")} pattern={REGEXP_ONLY_DIGITS} variant='secondary' autoComplete='one-time-code' autoFocus isDisabled={busy} className='justify-center'>
+									<InputOTP id='sign-in-code' name='otp' aria-label='Sign-in code' value={otp} onChange={setOtp} maxLength={6} pasteTransformer={(text) => text.replace(/\D/g, "")} pattern={REGEXP_ONLY_DIGITS} variant='secondary' autoComplete='one-time-code' autoFocus isDisabled={busy} className='mx-auto w-fit justify-center'>
 										<InputOTP.Group>
 											<InputOTP.Slot index={0} />
 											<InputOTP.Slot index={1} />
@@ -264,7 +264,7 @@ export function AuthPanel({ setup = false, preview = false, loginHint, initialEm
 								</div>
 							)}
 
-							<Button type='submit' fullWidth className='justify-center' isDisabled={busy || (sent && otp.length !== 6)} isPending={busy}>
+							<Button type='submit' fullWidth className='mx-auto w-fit justify-center' isDisabled={busy || (sent && otp.length !== 6)} isPending={busy}>
 								{busy ? "Please wait…" : sent ? (setup ? "Create owner and continue" : "Sign in") : "Send sign-in code"}
 								{busy ? <Spinner size='sm' color='current' /> : !sent && <IconMail aria-hidden='true' size={18} />}
 							</Button>

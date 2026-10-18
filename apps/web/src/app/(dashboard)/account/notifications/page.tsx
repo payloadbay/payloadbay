@@ -96,7 +96,7 @@ export default function NotificationPreferencesPage() {
 		<section className='flex flex-col gap-6'>
 			<header>
 				<h1 className='text-3xl font-semibold'>Notification settings</h1>
-				<p className='text-muted mt-2'>Choose how configured failure rules notify you. Email goes to {me.user.email}; custom modules use the version you enable. Later module updates require a new opt-in. These choices affect only you. Thresholds belong to the project or workspace, and every channel is off until you opt in.</p>
+				<p className='text-muted mt-2'>Choose how failure rules notify you at {me.user.email}. These subscriptions affect only your account.</p>
 			</header>
 			{loading ? (
 				<LoadingState label='Loading preferences…' />
@@ -163,7 +163,41 @@ export default function NotificationPreferencesPage() {
 					</Table.ScrollContainer>
 				</Table>
 			) : (
-				<p className='text-muted'>No failure rules are configured for your accessible projects. Your in-app notification inbox remains available.</p>
+				<section className='flex flex-col gap-4'>
+					<div>
+						<h2 className='text-xl font-semibold'>Choose what should notify you</h2>
+						<p className='text-muted mt-2'>No failure rules are configured yet. Create a threshold on a workspace or project, then choose Email or another available channel here. Alerts remain off until you subscribe; your in-app inbox stays available.</p>
+					</div>
+					{[...workspaces, ...projects].some((resource) => resource.permissions.includes("notifications.rules.manage")) && (
+						<Table>
+							<Table.ScrollContainer>
+								<Table.Content aria-label='Configure notification rules'>
+									<Table.Header>
+										<Table.Column isRowHeader>Resource</Table.Column>
+										<Table.Column>Notification rules</Table.Column>
+									</Table.Header>
+									<Table.Body>
+										{[...workspaces.map((workspace) => ({ ...workspace, href: "/workspaces/" + workspace.id + "/notifications", kind: "Workspace" })), ...projects.map((project) => ({ ...project, href: "/projects/" + project.id + "/notifications", kind: "Project" }))]
+											.filter((resource) => resource.permissions.includes("notifications.rules.manage"))
+											.map((resource) => (
+												<Table.Row key={resource.id} id={resource.id}>
+													<Table.Cell>
+														<span className='font-medium'>{resource.name}</span>
+														<span className='text-muted block text-xs'>{resource.kind}</span>
+													</Table.Cell>
+													<Table.Cell>
+														<Link className='button button--secondary button--sm' href={resource.href} aria-label={"Configure notification rules for " + resource.name}>
+															Configure rules
+														</Link>
+													</Table.Cell>
+												</Table.Row>
+											))}
+									</Table.Body>
+								</Table.Content>
+							</Table.ScrollContainer>
+						</Table>
+					)}
+				</section>
 			)}
 			<Link href='/account' className='text-accent'>
 				Back to account settings

@@ -104,18 +104,14 @@ test("K01 personal settings creates a show-once API key and revokes it", async (
 	await page.goto("/account");
 	await page.getByRole("link", { name: "Manage personal API keys", exact: true }).click();
 	await expect(page.getByRole("heading", { name: "Personal API keys", exact: true })).toBeVisible();
-	const me = await (await page.request.get("/api/v1/me")).json();
-	const workspace = (await (await page.request.get("/api/v1/workspaces")).json())[0];
-	await page.getByLabel("Key scope", { exact: true }).selectOption("workspace:" + workspace.id);
-	await page.getByLabel("Key scope", { exact: true }).selectOption("instance:" + me.instanceId);
+	await expect(page.getByLabel("Key scope", { exact: true })).toHaveCount(0);
 	await page.getByRole("button", { name: "Create API key", exact: true }).click();
 	await page.keyboard.press("Escape");
 	await expect(page.getByRole("dialog", { name: "Create API key", exact: true })).toHaveCount(0);
 	await page.getByRole("button", { name: "Create API key", exact: true }).click();
 	await page.getByLabel("Key name", { exact: true }).fill("Review automation");
 	await page.getByLabel("Expires after", { exact: true }).selectOption("7");
-	await page.getByText("metadata.read", { exact: true }).click();
-	await expect(page.getByRole("checkbox", { name: "metadata.read", exact: true })).toBeChecked();
+	await page.getByLabel("Access preset", { exact: true }).selectOption("read");
 	await page.getByRole("button", { name: "Create key", exact: true }).click();
 	const secret = await page.getByRole("textbox", { name: "New API key", exact: true }).inputValue();
 	expect(/^pb_[A-Za-z0-9_-]{43}$/.test(secret)).toBe(true);
@@ -125,18 +121,18 @@ test("K01 personal settings creates a show-once API key and revokes it", async (
 	await expect(page.getByRole("textbox", { name: "New API key", exact: true })).toHaveCount(0);
 	const row = page.getByRole("row").filter({ hasText: "Review automation" });
 	await expect(row).toBeVisible();
-	const keys = await (await page.request.get("/api/v1/tokens?scopeType=instance&scopeId=" + me.instanceId)).json();
+	const keys = await (await page.request.get("/api/v1/tokens?scopeType=personal")).json();
 	const saved = keys.find((key: { name: string }) => key.name === "Review automation");
 	const remaining = new Date(saved.expires_at).getTime() - Date.now();
 	expect(remaining).toBeGreaterThan(6.9 * 86400000);
 	expect(remaining).toBeLessThanOrEqual(7 * 86400000);
-	await row.getByRole("button", { name: "Revoke", exact: true }).click();
+	await row.getByRole("button", { name: /^Revoke / }).click();
 	await page.getByRole("dialog", { name: "Revoke API key" }).getByRole("button", { name: "Cancel", exact: true }).click();
 	expect((await request.get("/api/v1/projects", { headers: { authorization: "Bearer " + secret } })).status()).toBe(200);
-	await row.getByRole("button", { name: "Revoke", exact: true }).click();
+	await row.getByRole("button", { name: /^Revoke / }).click();
 	await page.keyboard.press("Escape");
 	await expect(page.getByRole("dialog", { name: "Revoke API key" })).toHaveCount(0);
-	await row.getByRole("button", { name: "Revoke", exact: true }).click();
+	await row.getByRole("button", { name: /^Revoke / }).click();
 	await page.getByRole("dialog", { name: "Revoke API key" }).getByRole("button", { name: "Revoke key", exact: true }).click();
 	await expect(row).toContainText("Revoked");
 	expect((await request.get("/api/v1/projects", { headers: { authorization: "Bearer " + secret } })).status()).toBe(401);
@@ -144,12 +140,15 @@ test("K01 personal settings creates a show-once API key and revokes it", async (
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-test("K02 organization settings creates a key limited to selected workspaces", async ({ page, request }) => {
+test("K02 organization settings automatically scopes a key to that organization", async ({ page, request }) => {
 	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
 	const organization = (await (await page.request.get("/api/v1/organizations")).json())[0];
 	const workspace = (await (await page.request.get("/api/v1/workspaces")).json())[0];
-	const hiddenResponse = await page.request.post("/api/v1/workspaces", { headers: commandHeaders(), data: { parentId: organization.id, name: "Excluded workspace", slug: "excluded-workspace" } });
+	const otherOrganizationResponse = await page.request.post("/api/v1/organizations", { headers: commandHeaders(), data: { parentId: (await (await page.request.get("/api/v1/me")).json()).instanceId, name: "Other company", slug: "other-company" } });
+	expect(otherOrganizationResponse.status()).toBe(200);
+	const otherOrganization = await otherOrganizationResponse.json();
+	const hiddenResponse = await page.request.post("/api/v1/workspaces", { headers: commandHeaders(), data: { parentId: otherOrganization.id, name: "Excluded workspace", slug: "excluded-workspace" } });
 	expect(hiddenResponse.status()).toBe(200);
 	const hidden = await hiddenResponse.json();
 
@@ -168,9 +167,8 @@ test("K02 organization settings creates a key limited to selected workspaces", a
 	await page.getByRole("button", { name: "Create API key", exact: true }).click();
 	const dialog = page.getByRole("dialog", { name: "Create API key", exact: true });
 	await dialog.getByLabel("Key name", { exact: true }).fill("Workspace integration");
-	await dialog.getByLabel("Workspace access", { exact: true }).selectOption("selected");
-	await dialog.getByText(workspace.name, { exact: true }).click();
-	await dialog.getByText("metadata.read", { exact: true }).click();
+	await expect(dialog.getByLabel("Key scope", { exact: true })).toHaveCount(0);
+	await dialog.getByLabel("Access preset", { exact: true }).selectOption("read");
 	await dialog.getByRole("button", { name: "Create key", exact: true }).click();
 	const secret = await page.getByRole("textbox", { name: "New API key", exact: true }).inputValue();
 	const headers = { authorization: "Bearer " + secret };
@@ -179,5 +177,78 @@ test("K02 organization settings creates a key limited to selected workspaces", a
 	expect((await projects.json()).map((item: { id: string }) => item.id)).toEqual([visible.id]);
 	expect(await (await request.get(`/api/v1/projects?workspaceId=${hidden.id}`, { headers })).json()).toEqual([]);
 	await page.getByRole("button", { name: "I saved this key", exact: true }).click();
-	await expect(page.getByRole("row").filter({ hasText: "Workspace integration" })).toContainText("1 selected workspace");
+	await expect(page.getByRole("row").filter({ hasText: "Workspace integration" })).toBeVisible();
+});
+
+for (const level of ["workspace", "project"] as const) {
+	test("K03 " + level + " keys automatically stay inside their creation context", async ({ page, request }) => {
+		const { ensureBrowserOwner, commandHeaders, browserOrganization } = await import("../helpers/browser-auth.ts");
+		await ensureBrowserOwner(page);
+		const headers = commandHeaders();
+		const organizationId = await browserOrganization(page);
+		const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: organizationId, name: "Scoped key workspace", slug: "scoped-key-workspace" } })).json();
+		const other = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: organizationId, name: "Outside key workspace", slug: "outside-key-workspace" } })).json();
+		const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Key project", slug: "key-project" } })).json();
+		const sibling = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Sibling project", slug: "sibling-project" } })).json();
+		await page.request.post("/api/v1/projects", { headers, data: { parentId: other.id, name: "Outside project", slug: "outside-project" } });
+		await page.goto(level === "workspace" ? "/workspaces/" + workspace.id + "/api-keys" : "/projects/" + project.id + "/api-keys");
+		await page.getByRole("button", { name: "Create API key", exact: true }).click();
+		const dialog = page.getByRole("dialog", { name: "Create API key", exact: true });
+		await expect(dialog.getByLabel("Key scope", { exact: true })).toHaveCount(0);
+		await dialog.getByLabel("Key name", { exact: true }).fill("Context automation");
+		await dialog.getByLabel("Access preset", { exact: true }).selectOption("read");
+		await dialog.getByRole("button", { name: "Create key", exact: true }).click();
+		const secret = await page.getByRole("textbox", { name: "New API key", exact: true }).inputValue();
+		const authorization = { authorization: "Bearer " + secret };
+		const response = await request.get("/api/v1/projects", { headers: authorization });
+		expect(response.status()).toBe(200);
+		expect((await response.json()).map((item: { id: string }) => item.id).sort()).toEqual((level === "workspace" ? [project.id, sibling.id] : [project.id]).sort());
+		expect(await (await request.get("/api/v1/projects?workspaceId=" + other.id, { headers: authorization })).json()).toEqual([]);
+	});
+}
+
+test("K04 a custom personal key enforces its reduced permissions without changing the account", async ({ page, request }) => {
+	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
+	await ensureBrowserOwner(page);
+	const workspace = (await (await page.request.get("/api/v1/workspaces")).json())[0];
+	const projectResponse = await page.request.post("/api/v1/projects", { headers: commandHeaders(), data: { parentId: workspace.id, name: "Custom key project", slug: "custom-key-project" } });
+	expect(projectResponse.status()).toBe(200);
+	const project = await projectResponse.json();
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/account/api-keys");
+	await page.getByRole("button", { name: "Create API key", exact: true }).click();
+	const dialog = page.getByRole("dialog", { name: "Create API key", exact: true });
+	await dialog.getByLabel("Key name", { exact: true }).fill("Custom review access");
+	await dialog.getByLabel("Access preset", { exact: true }).selectOption("custom");
+	const permission = dialog.getByRole("checkbox", { name: "metadata.read", exact: true });
+	await expect(permission).toBeChecked();
+	await dialog.getByText("metadata.read", { exact: true }).click();
+	await expect(permission).not.toBeChecked();
+	await dialog.getByText("metadata.read", { exact: true }).click();
+	await expect(permission).toBeChecked();
+	await permission.press("Space");
+	await expect(permission).not.toBeChecked();
+	await dialog.getByRole("button", { name: "Create key", exact: true }).click();
+	const secret = await page.getByRole("textbox", { name: "New API key", exact: true }).inputValue();
+	const restricted = { authorization: "Bearer " + secret };
+	const visible = await request.get("/api/v1/projects", { headers: restricted });
+	expect(visible.status()).toBe(200);
+	expect(await visible.json()).toEqual([]);
+	expect((await request.get("/api/v1/projects/" + project.id, { headers: restricted })).status()).toBe(403);
+	expect((await page.request.get("/api/v1/projects")).status()).toBe(200);
+	const saved = (await (await page.request.get("/api/v1/tokens?scopeType=personal")).json()).find((item: { name: string; permissions: string[] }) => item.name === "Custom review access");
+	expect(saved.permissions).not.toContain("metadata.read");
+	const me = await (await page.request.get("/api/v1/me")).json();
+	const forbiddenScope = await page.request.post("/api/v1/tokens", {
+		headers: commandHeaders(),
+		data: {
+			scope: { type: "instance", id: me.instanceId },
+			name: "Unsupported instance key",
+			permissions: ["metadata.read"],
+			expiresAt: new Date(Date.now() + 86400000).toISOString(),
+		},
+	});
+	expect(forbiddenScope.status()).toBe(400);
+	await page.getByRole("button", { name: "I saved this key", exact: true }).click();
+	await expect(page.getByRole("textbox", { name: "New API key", exact: true })).toHaveCount(0);
 });

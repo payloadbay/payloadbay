@@ -361,7 +361,10 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 					<h1 className='text-3xl font-semibold'>{embedded ? "Route events" : "Events"}</h1>
 					<p className='text-muted mt-2'>One received event, with its ingress outcome, processing executions and outgoing attempts.</p>
 					<p role='status' className='text-muted mt-2 text-sm'>
-						Live updates: {liveStatus === "connected" ? "Connected" : liveStatus === "connecting" ? "Connecting" : "Reconnecting"}
+						Live updates:{" "}
+						<Chip size='sm' variant='soft' color={liveStatus === "connected" ? "success" : "warning"}>
+							{liveStatus === "connected" ? "Connected" : liveStatus === "connecting" ? "Connecting" : "Reconnecting"}
+						</Chip>
 					</p>
 				</div>
 				<Button variant='secondary' onPress={() => void load()}>

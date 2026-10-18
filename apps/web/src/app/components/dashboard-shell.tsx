@@ -7,7 +7,7 @@ import Image from "next/image";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import { Avatar, Button, Dropdown, Header, Label, Breadcrumbs } from "@heroui/react";
-import { AppLayout, Sidebar, Command } from "@heroui-pro/react";
+import { AppLayout, Sidebar, Command, useSidebar } from "@heroui-pro/react";
 import { IconHome, IconFolder, IconUsers, IconLogout, IconCode, IconSettings, IconInbox, IconBell, IconKey, IconFlask, IconHistory, IconRoute, IconBuilding, IconArrowLeft, IconChevronRight, IconSearch, IconBuildingCommunity, IconChartBar, IconBook, IconActivity, IconClipboardList, IconServer } from "@tabler/icons-react";
 import { PreviewNotice } from "@components/preview-notice";
 import { LiveSubscription } from "@components/live-subscription";
@@ -31,6 +31,26 @@ export function useDashboard() {
 	if (!state) throw Error("Dashboard context is unavailable");
 
 	return state;
+}
+
+function NavigationSearch({ onSearch }: { onSearch: () => void }) {
+	const sidebar = useSidebar();
+
+	return (
+		<Button
+			variant='secondary'
+			aria-label='Search pages and resources'
+			aria-haspopup='dialog'
+			className='text-muted w-full justify-start font-normal'
+			onPress={() => {
+				sidebar.setMobileOpen(false);
+				onSearch();
+			}}
+		>
+			<IconSearch size={18} aria-hidden='true' />
+			Search pages and resources…
+		</Button>
+	);
 }
 
 export function DashboardShell({ children, preview = false }: { children: ReactNode; preview?: boolean }) {
@@ -226,6 +246,13 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 	const projectLinks = project
 		? [
 				{
+					id: "project-api-keys",
+					label: "API keys",
+					href: "/projects/" + project.id + "/api-keys",
+					icon: IconKey,
+					visible: project.permissions.includes("tokens.manage"),
+				},
+				{
 					id: "project-overview",
 					label: "Routes and destinations",
 					href: "/projects/" + project.id,
@@ -264,15 +291,21 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 		: [];
 
 	const routeId = pathname.match(/^\/projects\/[^/]+\/routes\/([^/]+)/)?.[1] ?? pathname.match(/^\/code\/endpoint\/([^/]+)/)?.[1];
-	const routeSection = pathname.startsWith("/code/endpoint/") ? "middleware" : (search.get("section") ?? "code");
+	const routeSection = pathname.startsWith("/code/endpoint/") ? "middleware" : (search.get("section") ?? "overview");
 	const routeAddress = routeId && currentProject ? "/projects/" + currentProject.id + "/routes/" + routeId : "";
 	const routeLinks =
 		!browse && routeId && project
 			? [
 					{
 						id: "overview",
-						label: "Playground",
+						label: "Overview",
 						icon: IconRoute,
+						visible: true,
+					},
+					{
+						id: "playground",
+						label: "Playground",
+						icon: IconFlask,
 						visible: true,
 					},
 					{
@@ -308,7 +341,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 				]
 			: [];
 
-	const administrationLabel = pathname === "/admin/installation" ? "Installation" : pathname === "/admin/audit" ? "Audit log" : pathname === "/admin/jobs" ? "Jobs and queues" : pathname.startsWith("/admin/notification-channels/") ? "Notification module" : pathname === "/admin/notification-channels" ? "Notification modules" : pathname === "/admin/email" ? "Email settings" : "Administration";
+	const administrationLabel = pathname === "/admin/installation" ? "Installation" : pathname === "/admin/audit" ? "Audit log" : pathname === "/admin/jobs" ? "Jobs and queues" : pathname.startsWith("/admin/notification-channels/") ? "Notification module" : pathname === "/admin/notification-channels" ? "Notification modules" : pathname === "/admin/email" ? "Instance customization" : "Administration";
 	const breadcrumbItems: { label: string; href?: string }[] = [{ label: "Overview", href: pathname === "/" ? undefined : "/" }];
 	if (currentOrganization) breadcrumbItems.push({ label: currentOrganization.name, href: "/organizations/" + currentOrganization.id });
 	if (currentWorkspace) breadcrumbItems.push({ label: currentWorkspace.name, href: "/workspaces/" + currentWorkspace.id });
@@ -382,6 +415,13 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 	const workspaceLinks = workspace
 		? [
 				{
+					id: "workspace-api-keys",
+					label: "API keys",
+					href: "/workspaces/" + workspace.id + "/api-keys",
+					icon: IconKey,
+					visible: workspace.permissions.includes("tokens.manage"),
+				},
+				{
 					id: "workspace",
 					label: "Workspace overview",
 					href: "/workspaces/" + workspace.id,
@@ -440,8 +480,8 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 	];
 
 	const groups = [
-		{ label: "Settings", items: contextualLinks.filter((item) => ["code", "helpers", "secrets", "middleware", "project-overview", "project-code", "project-members", "workspace", "workspace-members", "workspace-code", "organization", "organization-members", "organization-code", "organization-api-keys"].includes(item.id)) },
-		{ label: "Observe and troubleshoot", items: contextualLinks.filter((item) => ["events", "project-events", "overview", "test", "organization-usage", "scoped-audit"].includes(item.id)) },
+		{ label: "Settings", items: contextualLinks.filter((item) => ["overview", "code", "helpers", "secrets", "middleware", "project-overview", "project-code", "project-members", "workspace", "workspace-members", "workspace-code", "organization", "organization-members", "organization-code", "organization-api-keys", "workspace-api-keys", "project-api-keys"].includes(item.id)) },
+		{ label: "Observe and troubleshoot", items: contextualLinks.filter((item) => ["events", "project-events", "playground", "test", "organization-usage", "scoped-audit"].includes(item.id)) },
 		{ label: "Publish and history", items: contextualLinks.filter((item) => item.id === "history") },
 		{ label: "Automation", items: contextualLinks.filter((item) => ["project-notifications", "workspace-rules"].includes(item.id)) },
 	];
@@ -480,12 +520,6 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 						label: "Notification modules",
 						href: "/admin/notification-channels",
 						icon: IconBell,
-					},
-					{
-						id: "email-settings",
-						label: "Email settings",
-						href: "/admin/email",
-						icon: IconSettings,
 					},
 				]
 			: []),
@@ -576,6 +610,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 						</Button>
 					)}
 					<p className='mt-2 break-words text-lg font-semibold'>{scopeTitle}</p>
+					<NavigationSearch onSearch={() => setSearchOpen(true)} />
 				</div>
 			</Sidebar.Header>
 			<Sidebar.Content className='min-h-0 overflow-y-auto overscroll-contain pb-6'>
@@ -606,7 +641,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 										{group.items
 											.filter((item) => item.visible)
 											.map((item) => (
-												<Sidebar.MenuItem key={item.id} id={item.id} href={item.href} textValue={item.label} isCurrent={item.href === pathname || item.href === pathname + "?section=" + routeSection}>
+												<Sidebar.MenuItem key={item.id} id={item.id} href={item.href} textValue={item.label} isCurrent={item.href === pathname || item.href === pathname + "?section=" + routeSection || (item.id === "middleware" && pathname.startsWith("/code/endpoint/"))}>
 													<Sidebar.MenuIcon>
 														<item.icon size={18} />
 													</Sidebar.MenuIcon>
@@ -676,12 +711,6 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 											</Sidebar.MenuIcon>
 											<Sidebar.MenuLabel>Notification modules</Sidebar.MenuLabel>
 										</Sidebar.MenuItem>
-										<Sidebar.MenuItem id='email-settings' href='/admin/email' textValue='Email settings' isCurrent={pathname === "/admin/email"}>
-											<Sidebar.MenuIcon>
-												<IconSettings size={18} />
-											</Sidebar.MenuIcon>
-											<Sidebar.MenuLabel>Email settings</Sidebar.MenuLabel>
-										</Sidebar.MenuItem>
 									</>
 								)}
 							</Sidebar.Menu>
@@ -715,12 +744,9 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 										<Image src='/brand/payloadbay-icon-dark-transparent.svg' alt='Payload Bay' width={32} height={32} priority className='min-[360px]:hidden' />
 									</Link>
 								</div>
-								<Button variant='secondary' aria-label='Search pages and resources' aria-haspopup='dialog' onPress={() => setSearchOpen(true)} className='text-muted order-3 w-full justify-start font-normal sm:order-none sm:min-w-0 sm:max-w-lg sm:flex-1'>
-									<IconSearch size={18} aria-hidden='true' />
-									<span className='truncate'>Search pages and resources…</span>
-								</Button>
+
 								<div className='flex shrink-0 items-center gap-2'>
-									{(currentProject?.permissions ?? currentWorkspace?.permissions ?? data.me.permissions).includes("notifications.read") && <NotificationInbox scope={{ type: currentProject ? "project" : currentWorkspace ? "workspace" : "instance", id: currentProject?.id ?? currentWorkspace?.id ?? data.me.instanceId }} />}
+									<NotificationInbox />
 									<Dropdown>
 										<Dropdown.Trigger aria-label='Account menu' className='rounded-full outline-offset-4'>
 											<Avatar size='sm'>

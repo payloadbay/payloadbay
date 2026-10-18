@@ -4,7 +4,7 @@ import { useLiveSubscription } from "@components/live-subscription";
 import { LoadingState } from "@components/loading-state";
 import { useFeedbackToast } from "@lib/feedback";
 import { useEffect, useState, useCallback, useId } from "react";
-import { Button, Modal } from "@heroui/react";
+import { Button, Drawer, Chip } from "@heroui/react";
 
 import { IconBell, IconAlertTriangle, IconAlertOctagon, IconCheck } from "@tabler/icons-react";
 import { api } from "@lib/api-client";
@@ -15,22 +15,30 @@ type Notice = {
 	subject: string;
 	severity: "info" | "warning" | "critical";
 	kind: string;
+	scopeName?: string;
 	data: Record<string, unknown>;
 };
 
-export function NotificationInbox({ scope, label = "Notifications" }: { scope: Scope; label?: string }) {
+export function NotificationInbox({ scope, label = "Notifications" }: { scope?: Scope; label?: string }) {
 	const descriptionId = useId();
+
+	const closeControlId = useId();
+
 	const { subscribe } = useLiveSubscription();
 
 	const [open, setOpen] = useState(false);
 	const [items, setItems] = useState<Notice[]>([]);
+	const [selected, setSelected] = useState<string | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState("");
 	const [busy, setBusy] = useState<string | null>(null);
 
 	useFeedbackToast(error, "", { error: "Notifications error", success: "Success" });
 
-	const fetchData = useCallback(() => api<Notice[]>("/notifications?scopeType=" + scope.type + "&scopeId=" + encodeURIComponent(scope.id)), [scope.type, scope.id]);
+	const scopeType = scope?.type;
+	const scopeId = scope?.id;
+
+	const fetchData = useCallback(() => api<Notice[]>(scopeType && scopeId ? "/notifications?scopeType=" + scopeType + "&scopeId=" + encodeURIComponent(scopeId) : "/notifications?account=true"), [scopeType, scopeId]);
 
 	const receive = useCallback((items: Notice[]) => {
 		setItems(items);
@@ -74,13 +82,14 @@ export function NotificationInbox({ scope, label = "Notifications" }: { scope: S
 			stopNotification();
 			stopResync();
 		};
-	}, [fetchData, receive, failed, scope.type, scope.id, subscribe]);
+	}, [fetchData, receive, failed, scope?.type, scope?.id, subscribe]);
 
 	async function dismiss(id: string) {
 		setBusy(id);
 		try {
 			await api("/notifications/" + id + "/dismiss", { method: "POST" });
 			await load();
+			document.getElementById(closeControlId)?.focus({ preventScroll: true });
 		} catch (cause) {
 			setError(cause instanceof Error ? cause.message : "Could not dismiss notification");
 		} finally {
@@ -95,7 +104,7 @@ export function NotificationInbox({ scope, label = "Notifications" }: { scope: S
 	const description = loading ? "Loading notifications." : items.length > 0 ? `${items.length} active notification${items.length === 1 ? "" : "s"}. Highest severity: ${severity}.` : error ? "Notifications unavailable." : "No active notifications.";
 
 	return (
-		<>
+		<Drawer isOpen={open} onOpenChange={setOpen}>
 			<Button variant='ghost' aria-label={label} aria-describedby={descriptionId} onPress={() => setOpen(true)} className={critical ? "text-danger" : warning ? "text-warning" : "text-accent"}>
 				<span id={descriptionId} className='sr-only'>
 					{description}
@@ -103,48 +112,57 @@ export function NotificationInbox({ scope, label = "Notifications" }: { scope: S
 				<Icon size={20} aria-hidden='true' />
 				{items.length > 0 && <span aria-label='Active notification count'>{items.length}</span>}
 			</Button>
-			<Modal isOpen={open} onOpenChange={setOpen}>
-				<Modal.Backdrop>
-					<Modal.Container placement='auto' size='lg'>
-						<Modal.Dialog>
-							<Modal.CloseTrigger />
-							<Modal.Header>
-								<Modal.Heading>{label}</Modal.Heading>
-								<p className='text-muted text-sm'>Notices for this scope. Dismissal applies to your account.</p>
-							</Modal.Header>
-							<Modal.Body className='flex flex-col gap-4'>
-								{loading ? (
-									<LoadingState label='Loading notifications…' />
-								) : error ? (
-									<div className='flex flex-col items-start gap-3'>
-										<p>Notifications unavailable.</p>
-										<Button variant='secondary' onPress={() => void load()}>
-											Retry loading notifications
-										</Button>
-									</div>
-								) : (
-									items.length === 0 && <p className='text-muted'>No active notifications.</p>
-								)}
-								{items.map((item) => (
-									<article key={item.id} className='border-border rounded-lg border p-4'>
-										<h3 className='font-semibold'>{item.subject}</h3>
-										{item.kind === "executor.containment-advice" && (
-											<>
-												<p className='text-muted mt-2 text-sm'>Configured mode: ordinary Docker (runc). Script execution has container and resource limits; additional host isolation is optional.</p>
-												<p className='mt-3 text-sm'>{typeof item.data.instructions === "string" ? item.data.instructions : ""}</p>
-											</>
-										)}
-										<Button size='sm' variant='secondary' className='mt-4' isDisabled={busy !== null} aria-label={"Dismiss notification " + item.subject} onPress={() => void dismiss(item.id)}>
-											<IconCheck size={16} />
-											Dismiss
-										</Button>
-									</article>
-								))}
-							</Modal.Body>
-						</Modal.Dialog>
-					</Modal.Container>
-				</Modal.Backdrop>
-			</Modal>
-		</>
+			<Drawer.Backdrop>
+				<Drawer.Content placement='right' className='w-full max-w-md'>
+					<Drawer.Dialog className='flex h-dvh max-h-dvh flex-col'>
+						<Drawer.CloseTrigger id={closeControlId} />
+						<Drawer.Header>
+							<Drawer.Heading>{label}</Drawer.Heading>
+							<p className='text-muted text-sm'>All notices you can access. Dismissal applies to your account.</p>
+						</Drawer.Header>
+						<Drawer.Body className='flex min-h-0 flex-col gap-4 overflow-y-auto'>
+							{loading ? (
+								<LoadingState label='Loading notifications…' />
+							) : error ? (
+								<div className='flex flex-col items-start gap-3'>
+									<p>Notifications unavailable.</p>
+									<Button variant='secondary' onPress={() => void load()}>
+										Retry loading notifications
+									</Button>
+								</div>
+							) : (
+								items.length === 0 && <p className='text-muted'>No active notifications.</p>
+							)}
+							{items.map((item) => (
+								<article key={item.id} className='border-border rounded-lg border p-4'>
+									<Button aria-label={item.subject} variant='ghost' className='h-auto w-full justify-start whitespace-normal text-left' onPress={() => setSelected(selected === item.id ? null : item.id)} aria-expanded={selected === item.id}>
+										<span className='flex min-w-0 flex-col gap-2'>
+											<span>{item.subject}</span>
+											<span className='flex flex-wrap items-center gap-2'>
+												<Chip size='sm' color={item.severity === "critical" ? "danger" : item.severity === "warning" ? "warning" : "accent"}>
+													{item.severity}
+												</Chip>
+												{item.scopeName && <span className='text-muted text-xs'>{item.scopeName}</span>}
+											</span>
+										</span>
+									</Button>
+									{selected === item.id && item.kind === "executor.containment-advice" && (
+										<>
+											<p className='text-muted mt-2 text-sm'>Configured mode: ordinary Docker (runc). Script execution has container and resource limits; additional host isolation is optional.</p>
+											<p className='mt-3 text-sm'>{typeof item.data.instructions === "string" ? item.data.instructions : ""}</p>
+										</>
+									)}
+									{selected === item.id && item.kind !== "executor.containment-advice" && <p className='text-muted mt-2 text-sm'>{typeof item.data.observedCount === "number" ? `${item.data.observedCount} failed operations in ${item.data.windowSeconds} seconds. Your configured threshold is ${item.data.threshold}.` : typeof item.data.message === "string" ? item.data.message : "A configured notification condition needs attention."}</p>}
+									<Button size='sm' variant='secondary' className='mt-4' isDisabled={busy !== null} aria-label={"Dismiss notification " + item.subject} onPress={() => void dismiss(item.id)}>
+										<IconCheck size={16} />
+										Dismiss
+									</Button>
+								</article>
+							))}
+						</Drawer.Body>
+					</Drawer.Dialog>
+				</Drawer.Content>
+			</Drawer.Backdrop>
+		</Drawer>
 	);
 }

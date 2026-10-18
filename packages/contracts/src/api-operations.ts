@@ -73,6 +73,7 @@ export const apiOperations = [
 	["delete", "/api/v1/secrets/{secretId}"],
 	["get", "/api/v1/secrets"],
 	["post", "/api/v1/secrets"],
+	["post", "/api/v1/secrets/import"],
 	["post", "/api/v1/shared-code/{revisionId}/copy"],
 	["post", "/api/v1/shared-code/{revisionId}/import"],
 	["get", "/api/v1/shared-code/{revisionId}"],

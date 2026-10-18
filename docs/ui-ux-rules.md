@@ -30,9 +30,8 @@ presentation rather than removing capabilities.
 
 Cross-application search is a dedicated command palette: a focused overlay with
 its own input, results and available actions. A search field or icon is a launcher,
-not an inline filter that replaces the navigation menu with a search list. Make
-application search accessible independently of the navigation drawer, especially
-on mobile. Keep its search interaction and results outside the menu. If launched
+not an inline filter that replaces the navigation menu with a search list. Keep the search launcher clearly visible on its own contrasting surface in navigation,
+including on mobile. Keep the command overlay and results separate from the menu. If launched
 while navigation is open, close the drawer before opening the palette rather
 than stacking competing overlays.
 

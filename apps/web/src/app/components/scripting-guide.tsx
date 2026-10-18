@@ -31,9 +31,9 @@ export function ScriptingGuide() {
 						<Modal.Body className='flex flex-col gap-5'>
 							<section>
 								<h3 className='font-semibold'>1. Receive a request</h3>
-								<p className='text-muted mt-1 text-sm'>Use exported async functions with uppercase names, for example export async function POST(ctx: IngressContext): GET, POST, PUT, PATCH, DELETE, HEAD or OPTIONS. Only exported methods run; other methods receive HTTP 405 with an Allow header.</p>
+								<p className='text-muted mt-1 text-sm'>Export an async handler named GET, POST, PUT, PATCH, DELETE, HEAD or OPTIONS. Only exported methods run; other methods receive HTTP 405 with an Allow header.</p>
 								<pre className='bg-field mt-3 overflow-x-auto rounded-lg p-3 text-xs' tabIndex={0}>
-									{ingressExample}
+									<code>{ingressExample}</code>
 								</pre>
 							</section>
 							<section>
@@ -51,9 +51,11 @@ export function ScriptingGuide() {
 							<section>
 								<h3 className='font-semibold'>Helpers and secrets</h3>
 								<p className='text-muted mt-1 text-sm'>
-									Create helper files under the project’s Code and middleware page. Import its real exports directly in Scripts: <code>{'import { describe } from "@shared/DemoHelpers";'}</code>, or use a default import when the helper exports a default. The editor suggests available modules and exports. Saving pins the selected helper revision; later helper edits do not change an existing publication. Bind secret versions by name and read them from <code>ctx.secrets.NAME</code>; never paste
-									credentials into source.
+									Create helper files under the project’s Code and middleware page. Import its real exports directly in Scripts: a named import, or use a default import when the helper exports a default. The editor suggests available modules and exports. Saving pins the selected helper revision; later helper edits do not change an existing publication. Bind secret versions by name and read them from <code>ctx.secrets.NAME</code>; never paste credentials into source.
 								</p>
+								<pre className='bg-field mt-3 overflow-x-auto rounded-lg p-3 text-xs' tabIndex={0}>
+									<code>{'import { describe } from "@shared/DemoHelpers";\n\nexport async function POST(ctx: IngressContext): Promise<IngressDecision> {\n\tctx.log.info(describe(ctx.request.body));\n\treturn ctx.accept({ event: { body: ctx.request.body, contentType: ctx.request.contentType }, response: { status: 202, body: "Accepted" } });\n}'}</code>
+								</pre>
 							</section>
 							<section>
 								<h3 className='font-semibold'>Save, test, publish</h3>

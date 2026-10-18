@@ -5,7 +5,15 @@ export type ScopeRef = { type: "instance" | "organization" | "workspace" | "proj
 
 export type Grant = { scopeType: ScopeRef["type"]; scopeId: string; permissions: readonly Permission[] };
 
-export type Actor = { userId: string; token?: { id: string; scope: ScopeRef; permissions: readonly Permission[] } };
+export type Actor = {
+	userId: string;
+	token?: {
+		id: string;
+		scope: ScopeRef;
+		personal?: boolean;
+		permissions: readonly Permission[];
+	};
+};
 
 export function effectivePermissions(grants: readonly Grant[], ancestry: readonly ScopeRef[]): Set<Permission> {
 	return new Set(grants.filter((grant) => ancestry.some((scope) => scope.type === grant.scopeType && scope.id === grant.scopeId)).flatMap((grant) => [...grant.permissions]));

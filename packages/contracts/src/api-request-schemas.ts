@@ -6,7 +6,7 @@ import { notificationChannelInput, notificationChannelUpdate, notificationChanne
 import { notificationRuleInput, notificationRuleUpdateInput, notificationSubscriptionInput } from "./notifications.ts";
 import { organizationPolicyInput } from "./organization-policy.ts";
 import { scriptTestInput } from "./script-test.ts";
-import { bootstrapInput, emailPreviewInput, draftInput, publicationInput, activationInput, eventReplayInput, bulkReplayInput, invitationInput, onboardingInput, endpointInput, secretInput, helperImportInput, invitationAcceptInput, tokenRevokeInput, emptyCommandInput } from "./http-inputs.ts";
+import { bootstrapInput, emailPreviewInput, draftInput, publicationInput, activationInput, eventReplayInput, bulkReplayInput, invitationInput, onboardingInput, endpointInput, secretInput, secretImportInput, helperImportInput, invitationAcceptInput, tokenRevokeInput, emptyCommandInput } from "./http-inputs.ts";
 
 /** The same validators used by HTTP handlers; no copied documentation shapes. */
 export const apiRequestSchemas: Record<string, z.ZodType> = {
@@ -41,6 +41,7 @@ export const apiRequestSchemas: Record<string, z.ZodType> = {
 	"post /api/v1/projects/{projectId}/notification-rules": notificationRuleInput,
 	"post /api/v1/projects": resourceInput,
 	"post /api/v1/secrets": secretInput,
+	"post /api/v1/secrets/import": secretImportInput,
 	"post /api/v1/shared-code": sharedVersionInput,
 	"post /api/v1/shared-code/{revisionId}/copy": sharedCopyInput,
 	"post /api/v1/shared-code/{revisionId}/import": helperImportInput,

@@ -3,10 +3,11 @@
 import { LoadingState } from "@components/loading-state";
 import { useFeedbackToast } from "@lib/feedback";
 import { use, useState, useEffect, useCallback, type FormEvent } from "react";
-import { Button, Table, Form, TextField, Label, Input, FieldError, Modal } from "@heroui/react";
+import { Button, Table, Form, TextField, Label, Input, FieldError, Modal, Tooltip, Chip } from "@heroui/react";
 import { EmptyState } from "@heroui-pro/react";
-import { IconRoute, IconPlus, IconPlugConnected } from "@tabler/icons-react";
+import { IconRoute, IconPlus, IconPlugConnected, IconPencil, IconChevronRight } from "@tabler/icons-react";
 import { api } from "@lib/api-client";
+import type { getDestination } from "@domain/destinations";
 import type { ProjectSummary } from "@types";
 
 type IngressRoute = {
@@ -16,6 +17,8 @@ type IngressRoute = {
 	active_publication_id: string | null;
 	paused: boolean;
 };
+type DestinationDetail = Awaited<ReturnType<typeof getDestination>>;
+
 type Destination = {
 	id: string;
 	name: string;
@@ -36,6 +39,7 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 	const [slug, setSlug] = useState("");
 	const [url, setUrl] = useState("");
 	const [busy, setBusy] = useState(false);
+	const [editingDestination, setEditingDestination] = useState<DestinationDetail | null>(null);
 
 	useFeedbackToast(error, "", { error: "Project error", success: "Success" });
 
@@ -78,12 +82,26 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 		};
 	}, [fetchData, receive, failed]);
 
-	async function create(event: FormEvent<HTMLFormElement>) {
+	async function saveConfiguration(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		setBusy(true);
 		setError("");
 		try {
-			await api("/projects/" + projectId + (form === "route" ? "/endpoints" : "/destinations"), { method: "POST", json: form === "route" ? { name, slug } : { name, url } });
+			if (editingDestination) {
+				await api("/destinations/" + editingDestination.id, {
+					method: "PUT",
+					version: editingDestination.version,
+					json: {
+						name,
+						url,
+						method: editingDestination.http.method,
+						headers: editingDestination.http.headers,
+						secretRefs: editingDestination.secretRefs,
+						concurrency: editingDestination.concurrency,
+						isDefault: editingDestination.isDefault,
+					},
+				});
+			} else await api("/projects/" + projectId + (form === "route" ? "/endpoints" : "/destinations"), { method: "POST", json: form === "route" ? { name, slug } : { name, url } });
 			setForm(null);
 			setName("");
 			setSlug("");
@@ -97,11 +115,28 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 	}
 
 	function open(next: "route" | "destination") {
+		setEditingDestination(null);
 		setForm(next);
 		setName("");
 		setSlug("");
 		setUrl("");
 		setError("");
+	}
+
+	async function editDestination(id: string) {
+		setBusy(true);
+		setError("");
+		try {
+			const destination = await api<DestinationDetail>("/destinations/" + id);
+			setEditingDestination(destination);
+			setName(destination.name);
+			setUrl(destination.http.url);
+			setForm("destination");
+		} catch (cause) {
+			setError(cause instanceof Error ? cause.message : "Destination unavailable");
+		} finally {
+			setBusy(false);
+		}
 	}
 
 	if (loading) return <LoadingState label='Loading project…' size='page' />;
@@ -136,11 +171,11 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 							<Modal.Dialog className='max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto'>
 								<Modal.CloseTrigger />
 								<Modal.Header>
-									<Modal.Heading>{form === "route" ? "New ingress route" : "New destination"}</Modal.Heading>
+									<Modal.Heading>{form === "route" ? "New ingress route" : editingDestination ? "Edit destination" : "New destination"}</Modal.Heading>
 									<p>{form === "route" ? "A receiving address with editable verification and processing code." : "An HTTP target reached from the Payload Bay worker. Private network targets are supported."}</p>
 								</Modal.Header>
 								<Modal.Body>
-									<Form onSubmit={create} className='flex flex-col gap-4'>
+									<Form onSubmit={saveConfiguration} className='flex flex-col gap-4'>
 										<TextField
 											isRequired
 											name='name'
@@ -174,7 +209,7 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 										)}
 										<div className='flex gap-2'>
 											<Button type='submit' isDisabled={busy}>
-												{busy ? "Creating…" : form === "route" ? "Create ingress route" : "Create destination"}
+												{busy ? "Saving…" : form === "route" ? "Create ingress route" : editingDestination ? "Save destination" : "Create destination"}
 											</Button>
 											<Button variant='ghost' isDisabled={busy} onPress={() => setForm(null)}>
 												Cancel
@@ -206,13 +241,32 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 								<Table.Header>
 									<Table.Column isRowHeader>Destination</Table.Column>
 									<Table.Column>Delivery target</Table.Column>
+									<Table.Column>Actions</Table.Column>
 								</Table.Header>
 								<Table.Body>
 									{destinations.map((destination) => (
 										<Table.Row key={destination.id} id={destination.id}>
-											<Table.Cell>{destination.name}</Table.Cell>
+											<Table.Cell>
+												{project.permissions.includes("destinations.configure") ? (
+													<Button variant='ghost' className='h-auto justify-start px-0 font-medium' isDisabled={busy} onPress={() => void editDestination(destination.id)}>
+														{destination.name}
+													</Button>
+												) : (
+													destination.name
+												)}
+											</Table.Cell>
 											<Table.Cell>
 												{destination.is_default ? "Default" : "Additional"} · v{destination.version}
+											</Table.Cell>
+											<Table.Cell>
+												{project.permissions.includes("destinations.configure") && (
+													<Tooltip delay={0}>
+														<Button isIconOnly size='sm' variant='ghost' aria-label={"Edit destination " + destination.name} isDisabled={busy} onPress={() => void editDestination(destination.id)}>
+															<IconPencil size={18} aria-hidden='true' />
+														</Button>
+														<Tooltip.Content>Edit destination</Tooltip.Content>
+													</Tooltip>
+												)}
 											</Table.Cell>
 										</Table.Row>
 									))}
@@ -256,12 +310,22 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 									{routes.map((route) => (
 										<Table.Row key={route.id} id={route.id} href={"/projects/" + projectId + "/routes/" + route.id}>
 											<Table.Cell>
-												{route.name}
-												<span className='text-muted block text-xs'>Configure route</span>
+												<span className='flex items-center justify-between gap-3'>
+													{route.name}
+													<IconChevronRight size={16} aria-hidden='true' className='text-muted shrink-0' />
+												</span>
 											</Table.Cell>
 											<Table.Cell>
-												{route.active_publication_id ? "Published" : "Draft"}
-												{route.paused ? " · Delivery paused" : ""}
+												<div className='flex flex-wrap gap-2'>
+													<Chip size='sm' color={route.active_publication_id ? "success" : "default"}>
+														{route.active_publication_id ? "Published" : "Draft"}
+													</Chip>
+													{route.paused && (
+														<Chip size='sm' color='warning'>
+															Delivery paused
+														</Chip>
+													)}
+												</div>
 											</Table.Cell>
 										</Table.Row>
 									))}

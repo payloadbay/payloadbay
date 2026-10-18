@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Button, Checkbox, Chip, FieldError, Form, Input, Label, Table, TextField, Modal } from "@heroui/react";
+import { IconKeyOff } from "@tabler/icons-react";
 import { NativeSelect } from "@heroui-pro/react";
 import { useDashboard } from "@components/dashboard-shell";
 import { LoadingState } from "@components/loading-state";
 import { api } from "@lib/api-client";
 import { useFeedbackToast } from "@lib/feedback";
-import type { Permission } from "@contracts/permissions";
+import { permissions as allPermissions, type Permission } from "@contracts/permissions";
 
 type KeyMetadata = {
 	id: string;
@@ -19,41 +20,32 @@ type KeyMetadata = {
 };
 
 /** The same credential workflow serves personal and organization settings. */
-export function ApiKeyManager({ organizationId }: { organizationId?: string }) {
+export function ApiKeyManager({ organizationId, workspaceId, projectId }: { organizationId?: string; workspaceId?: string; projectId?: string }) {
 	const { me, organizations, workspaces, projects } = useDashboard();
 
-	const options = [
-		{
-			type: "instance",
-			id: me.instanceId,
-			name: "Instance operations",
-			permissions: me.permissions,
-			organizationId: undefined,
-		},
-		...organizations.map((item) => ({
-			type: "organization",
-			id: item.id,
-			name: `Organization: ${item.name}`,
-			permissions: item.permissions,
-			organizationId: item.id,
-		})),
-		...workspaces.map((item) => ({
-			type: "workspace",
-			id: item.id,
-			name: `Workspace: ${item.name}`,
-			permissions: item.permissions,
-			organizationId: item.organization_id,
-		})),
-		...projects.map((item) => ({
-			type: "project",
-			id: item.id,
-			name: `Project: ${item.name}`,
-			permissions: item.permissions,
-			organizationId: item.organization_id,
-		})),
-	].filter((item) => item.permissions.includes("tokens.manage") && (!organizationId || item.organizationId === organizationId));
+	const context = projectId ? projects.find((item) => item.id === projectId) : workspaceId ? workspaces.find((item) => item.id === workspaceId) : organizationId ? organizations.find((item) => item.id === organizationId) : null;
+	const type = projectId ? "project" : workspaceId ? "workspace" : organizationId ? "organization" : "personal";
 
-	const [selection, setSelection] = useState("");
+	const scope = useMemo(
+		() =>
+			type === "personal"
+				? {
+						type,
+						id: me.instanceId,
+						name: "Your account",
+						permissions: [...allPermissions],
+					}
+				: context?.permissions.includes("tokens.manage")
+					? {
+							type,
+							id: context.id,
+							name: context.name,
+							permissions: context.permissions,
+						}
+					: undefined,
+		[type, me.instanceId, context],
+	);
+
 	const [loaded, setLoaded] = useState<{ key: string; items: (KeyMetadata & { expired: boolean })[] } | null>(null);
 	const [failedRequest, setFailedRequest] = useState("");
 	const [refresh, setRefresh] = useState(0);
@@ -63,17 +55,14 @@ export function ApiKeyManager({ organizationId }: { organizationId?: string }) {
 	const [name, setName] = useState("");
 	const [days, setDays] = useState("30");
 	const [selected, setSelected] = useState<Permission[]>([]);
-	const [workspaceMode, setWorkspaceMode] = useState("all");
-	const [workspaceIds, setWorkspaceIds] = useState<string[]>([]);
+	const [preset, setPreset] = useState("full");
 	const [secret, setSecret] = useState("");
 	const [busy, setBusy] = useState(false);
 	const [revoking, setRevoking] = useState<KeyMetadata | null>(null);
 
-	const scope = options.find((item) => `${item.type}:${item.id}` === selection) ?? options[0];
 	const scopeKey = scope ? `${scope.type}:${scope.id}` : "";
 	const requestKey = `${scopeKey}:${refresh}`;
 	const keys = loaded?.key === requestKey ? loaded.items : null;
-	const availableWorkspaces = workspaces.filter((item) => item.organization_id === scope?.id);
 
 	useFeedbackToast(error, notice, { error: "API key action failed", success: "API keys" });
 
@@ -108,9 +97,8 @@ export function ApiKeyManager({ organizationId }: { organizationId?: string }) {
 
 	function startCreate() {
 		setName("");
-		setSelected([]);
-		setWorkspaceMode("all");
-		setWorkspaceIds([]);
+		setSelected([...(scope?.permissions ?? [])]);
+		setPreset("full");
 		setSecret("");
 		setError("");
 		setDialog("create");
@@ -127,11 +115,10 @@ export function ApiKeyManager({ organizationId }: { organizationId?: string }) {
 				const result = await api<{ secret: string }>("/tokens", {
 					method: "POST",
 					json: {
-						scope: { type: scope.type, id: scope.id },
+						scope: scope.type === "personal" ? { type: "personal" } : { type: scope.type, id: scope.id },
 						name,
 						permissions: selected,
 						expiresAt: new Date(Date.now() + Number(days) * 86400000).toISOString(),
-						...(scope.type === "organization" && workspaceMode === "selected" ? { workspaceIds } : {}),
 					},
 				});
 				setSecret(result.secret);
@@ -143,7 +130,7 @@ export function ApiKeyManager({ organizationId }: { organizationId?: string }) {
 				setBusy(false);
 			}
 		},
-		[scope, name, selected, days, workspaceMode, workspaceIds],
+		[scope, name, selected, days],
 	);
 
 	async function revoke() {
@@ -152,7 +139,7 @@ export function ApiKeyManager({ organizationId }: { organizationId?: string }) {
 		setError("");
 		setNotice("");
 		try {
-			await api("/tokens", { method: "DELETE", json: { scope: { type: scope.type, id: scope.id }, id: revoking.id } });
+			await api("/tokens", { method: "DELETE", json: { scope: scope.type === "personal" ? { type: "personal" } : { type: scope.type, id: scope.id }, id: revoking.id } });
 			setRevoking(null);
 			setRefresh((value) => value + 1);
 			setNotice("API key revoked.");
@@ -175,25 +162,14 @@ export function ApiKeyManager({ organizationId }: { organizationId?: string }) {
 	return (
 		<section className='flex min-w-0 flex-col gap-6'>
 			<header>
-				<h1 className='text-3xl font-semibold'>{organizationId ? "Organization API keys" : "Personal API keys"}</h1>
-				<p className='text-muted mt-2'>Keys issued by you. Each key stays within its selected scope and your current permissions. Removing your access also removes the key’s access.</p>
+				<h1 className='text-3xl font-semibold'>{type === "personal" ? "Personal API keys" : `${type[0].toUpperCase() + type.slice(1)} API keys`}</h1>
+				<p className='text-muted mt-2'>{type === "personal" ? "Keys act as your account, with your current access. Choose a preset to restrict a key." : `Keys created here stay within ${scope?.name ?? "this resource"} and your current permissions.`}</p>
 			</header>
 			{!scope ? (
 				<p>No scopes allow you to manage API keys. Ask an administrator for token-management permission.</p>
 			) : (
 				<>
 					<div className='flex flex-wrap items-end gap-3'>
-						<NativeSelect className='w-full sm:max-w-sm' variant='secondary'>
-							<Label htmlFor='api-key-scope'>Key scope</Label>
-							<NativeSelect.Trigger id='api-key-scope' aria-label='Key scope' value={scopeKey} onChange={(event) => setSelection(event.target.value)}>
-								{options.map((item) => (
-									<NativeSelect.Option key={item.id} value={`${item.type}:${item.id}`}>
-										{item.name}
-									</NativeSelect.Option>
-								))}
-								<NativeSelect.Indicator />
-							</NativeSelect.Trigger>
-						</NativeSelect>
 						<Button onPress={startCreate}>Create API key</Button>
 					</div>
 					{!keys && failedRequest !== requestKey ? (
@@ -235,8 +211,8 @@ export function ApiKeyManager({ organizationId }: { organizationId?: string }) {
 													</Chip>
 												</Table.Cell>
 												<Table.Cell>
-													<Button size='sm' variant='danger-soft' isDisabled={Boolean(key.revoked_at)} onPress={() => setRevoking(key)}>
-														Revoke
+													<Button size='sm' variant='danger-soft' isIconOnly aria-label={"Revoke " + key.name} isDisabled={Boolean(key.revoked_at)} onPress={() => setRevoking(key)}>
+														<IconKeyOff size={18} aria-hidden='true' />
 													</Button>
 												</Table.Cell>
 											</Table.Row>
@@ -292,48 +268,38 @@ export function ApiKeyManager({ organizationId }: { organizationId?: string }) {
 												<NativeSelect.Indicator />
 											</NativeSelect.Trigger>
 										</NativeSelect>
-										{scope?.type === "organization" && (
-											<>
-												<NativeSelect variant='secondary'>
-													<Label htmlFor='api-key-workspace-access'>Workspace access</Label>
-													<NativeSelect.Trigger id='api-key-workspace-access' value={workspaceMode} onChange={(event) => setWorkspaceMode(event.target.value)}>
-														<NativeSelect.Option value='all'>All workspaces in this organization</NativeSelect.Option>
-														<NativeSelect.Option value='selected'>Selected workspaces only</NativeSelect.Option>
-														<NativeSelect.Indicator />
-													</NativeSelect.Trigger>
-												</NativeSelect>
-												{workspaceMode === "selected" && (
-													<fieldset className='flex flex-col gap-2'>
-														<legend className='mb-2 font-medium'>Allowed workspaces</legend>
-														{availableWorkspaces.map((workspace) => (
-															<Checkbox variant='secondary' key={workspace.id} isSelected={workspaceIds.includes(workspace.id)} onChange={(checked) => setWorkspaceIds((previous) => (checked ? [...previous, workspace.id] : previous.filter((id) => id !== workspace.id)))}>
-																<Checkbox.Content>
-																	<Checkbox.Control>
-																		<Checkbox.Indicator />
-																	</Checkbox.Control>
-																	{workspace.name}
-																</Checkbox.Content>
-															</Checkbox>
-														))}
-														{availableWorkspaces.length === 0 && <p>No accessible workspaces in this organization.</p>}
-													</fieldset>
-												)}
-											</>
+										<NativeSelect variant='secondary'>
+											<Label htmlFor='key-access-preset'>Access preset</Label>
+											<NativeSelect.Trigger
+												id='key-access-preset'
+												value={preset}
+												onChange={(event) => {
+													const next = event.target.value;
+													setPreset(next);
+													setSelected(next === "read" ? (scope?.permissions ?? []).filter((permission) => permission.endsWith(".read")) : [...(scope?.permissions ?? [])]);
+												}}
+											>
+												<NativeSelect.Option value='full'>{type === "personal" ? "All my access" : "All permitted actions"}</NativeSelect.Option>
+												<NativeSelect.Option value='read'>Read only</NativeSelect.Option>
+												<NativeSelect.Option value='custom'>Custom permissions</NativeSelect.Option>
+											</NativeSelect.Trigger>
+										</NativeSelect>
+										{preset === "custom" && (
+											<fieldset className='flex flex-col gap-2'>
+												<legend className='mb-2 font-medium'>Permissions</legend>
+												<p className='text-muted mb-2 text-sm'>Choose only the operations this integration needs.</p>
+												{scope?.permissions.map((permission) => (
+													<Checkbox variant='secondary' key={permission} isSelected={selected.includes(permission)} onChange={(checked) => setSelected((previous) => (checked ? [...previous, permission] : previous.filter((item) => item !== permission)))}>
+														<Checkbox.Content>
+															<Checkbox.Control>
+																<Checkbox.Indicator />
+															</Checkbox.Control>
+															{permission}
+														</Checkbox.Content>
+													</Checkbox>
+												))}
+											</fieldset>
 										)}
-										<fieldset className='flex flex-col gap-2'>
-											<legend className='mb-2 font-medium'>Permissions</legend>
-											<p className='text-muted mb-2 text-sm'>Choose only the operations this integration needs.</p>
-											{scope?.permissions.map((permission) => (
-												<Checkbox variant='secondary' key={permission} isSelected={selected.includes(permission)} onChange={(checked) => setSelected((previous) => (checked ? [...previous, permission] : previous.filter((item) => item !== permission)))}>
-													<Checkbox.Content>
-														<Checkbox.Control>
-															<Checkbox.Indicator />
-														</Checkbox.Control>
-														{permission}
-													</Checkbox.Content>
-												</Checkbox>
-											))}
-										</fieldset>
 									</Form>
 								)}
 							</Modal.Body>
@@ -345,7 +311,7 @@ export function ApiKeyManager({ organizationId }: { organizationId?: string }) {
 										<Button variant='ghost' isDisabled={busy} onPress={closeDialog}>
 											Cancel
 										</Button>
-										<Button type='submit' form='create-api-key' isPending={busy} isDisabled={selected.length === 0 || (scope?.type === "organization" && workspaceMode === "selected" && workspaceIds.length === 0)}>
+										<Button type='submit' form='create-api-key' isPending={busy} isDisabled={selected.length === 0}>
 											Create key
 										</Button>
 									</>

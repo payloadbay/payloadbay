@@ -578,3 +578,69 @@ test("CF08 instance operations expose aggregate traffic without customer content
 		assert.equal(JSON.stringify(result.series).includes(scope.project), false);
 	});
 });
+
+test("personal keys follow current resource grants without inheriting customer access from instance roles", async () => {
+	const { createPersonalToken, authenticateToken, revokePersonalToken, listPersonalTokens } = await import("../../packages/domain/src/tokens.ts");
+	await authFixture(async ({ pool, db }) => {
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'custom',ARRAY['metadata.read'])", [scope.installation]);
+		const owner = { userId: "fixture-owner" };
+		const key = await createPersonalToken(pool, owner, { name: "Account read key", permissions: ["metadata.read"], expiresAt: new Date(Date.now() + 3600000) });
+		const authenticated = await authenticateToken(pool, key.secret);
+		assert.ok(authenticated?.token?.personal);
+		assert.deepEqual([...(await policy.actorPermissions(db, authenticated, { type: "project", id: scope.project }))], []);
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','project',$1,'custom',ARRAY['metadata.read','payload.read'])", [scope.project]);
+		assert.deepEqual([...(await policy.actorPermissions(db, authenticated, { type: "project", id: scope.project }))], ["metadata.read"]);
+		await assert.rejects(createPersonalToken(pool, authenticated, { name: "Nested key", permissions: ["metadata.read"], expiresAt: new Date(Date.now() + 3600000) }), { status: 403 });
+		await db.query("DELETE FROM payloadbay.grant_record WHERE user_id='fixture-owner' AND scope_type='project'");
+		assert.deepEqual([...(await policy.actorPermissions(db, authenticated, { type: "project", id: scope.project }))], []);
+		assert.equal((await listPersonalTokens(pool, owner)).length, 1);
+		await revokePersonalToken(pool, owner, key.id);
+		assert.equal(await authenticateToken(pool, key.secret), null);
+	});
+});
+
+test("environment secret imports are scoped, encrypted and atomic without changing process variables", async () => {
+	const { importSecrets } = await import("../../packages/domain/src/secrets.ts");
+	await authFixture(async ({ pool, db }) => {
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','project',$1,'custom',ARRAY['secrets.manage','secrets.use'])", [scope.project]);
+		const actor = { userId: "fixture-owner" };
+		const target = { type: "project" as const, id: scope.project };
+		const key = "fixture-encryption-key-32-characters";
+		const before = process.env.PAB_IMPORT_SENTINEL;
+		const imported = await importSecrets(pool, actor, { scope: target, source: '# Synthetic values only\nPAB_IMPORT_SENTINEL="synthetic value"\nOTHER_KEY=fixture-value\n' }, key);
+		assert.equal(imported.length, 2);
+		assert.equal(process.env.PAB_IMPORT_SENTINEL, before);
+		assert.equal(JSON.stringify(imported).includes("fixture-value"), false);
+		await assert.rejects(importSecrets(pool, actor, { scope: { type: "workspace", id: scope.workspace }, source: "KEY=value" }, key), { status: 403 });
+		await assert.rejects(importSecrets(pool, actor, { scope: target, source: "NEW_KEY=value\nLONG_VALUE=" + "x".repeat(8193) }, key), { status: 400 });
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.secret_version")).rows[0].n, 2);
+		await db.query("CREATE FUNCTION payloadbay.reject_synthetic_import() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.name='Z_FAIL' THEN RAISE EXCEPTION 'Synthetic import failure'; END IF; RETURN NEW; END $$");
+		await db.query("CREATE TRIGGER synthetic_import_failure BEFORE INSERT ON payloadbay.secret_version FOR EACH ROW EXECUTE FUNCTION payloadbay.reject_synthetic_import()");
+		await assert.rejects(importSecrets(pool, actor, { scope: target, source: "A_OK=value\nZ_FAIL=value" }, key));
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.secret_version")).rows[0].n, 2);
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.audit WHERE operation='secret.version_created'")).rows[0].n, 2);
+	});
+});
+
+test("audit labels resolve authorized resources without following foreign resource identifiers", async () => {
+	const { listAudit } = await import("../../packages/domain/src/audit.ts");
+	await authFixture(async ({ pool, db }) => {
+		const scope = await seedScope(db);
+		await db.query('INSERT INTO auth."user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES($1,$2,$3,true,clock_timestamp(),clock_timestamp()) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name', ["fixture-owner", "Audit actor", "audit-actor@example.test"]);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','project',$1,'custom',ARRAY['audit.read'])", [scope.project]);
+		const foreignProject = (await db.query("INSERT INTO payloadbay.project(workspace_id,name,slug,owner_user_id) VALUES($1,'Private other project','other-project','fixture-owner') RETURNING id", [scope.workspace])).rows[0].id;
+		const foreignEndpoint = (await db.query("INSERT INTO payloadbay.endpoint(project_id,name,slug,ingress_key) VALUES($1,'Private other route','other-route',gen_random_uuid()::text) RETURNING id", [foreignProject])).rows[0].id;
+		await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation,resource_id) VALUES('fixture-owner','project',$1,'fixture.named',$2),('fixture-owner','project',$1,'fixture.foreign-reference',$3)", [scope.project, scope.endpoint, foreignEndpoint]);
+		const page = await listAudit(pool, { userId: "fixture-owner" }, { type: "project", id: scope.project }, {});
+		assert.equal(page.items.find((item) => item.operation === "fixture.named")?.resourceName, "Fixture");
+		assert.equal(page.items.find((item) => item.operation === "fixture.named")?.scopeName, "Fixture");
+		assert.equal(page.items.find((item) => item.operation === "fixture.named")?.actorName, "Audit actor");
+		assert.equal(page.items.find((item) => item.operation === "fixture.foreign-reference")?.resourceName, null);
+		assert.equal(JSON.stringify(page).includes("Private other"), false);
+	});
+});

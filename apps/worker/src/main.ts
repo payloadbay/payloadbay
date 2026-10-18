@@ -1,3 +1,4 @@
+import { startWorkerHealth } from "./health.ts";
 import { probeExecutor } from "@payloadbay/domain/installation";
 import { workerLanes } from "./runner-lanes.ts";
 import { startNotificationProducer } from "./notifications.ts";
@@ -18,6 +19,7 @@ const broker = createBroker(pool, config);
 let notificationProducer: ReturnType<typeof startNotificationProducer> | undefined;
 let retentionProducer: ReturnType<typeof startRetentionProducer> | undefined;
 let closing = false;
+let health: ReturnType<typeof startWorkerHealth> | undefined;
 
 async function shutdown(code: number) {
 	if (closing) return;
@@ -26,6 +28,7 @@ async function shutdown(code: number) {
 	timer.unref();
 	broker.closeAllConnections();
 	await new Promise<void>((resolve) => broker.close(() => resolve())).catch(() => {});
+	await health?.stop();
 	await recovery?.stop();
 	await notificationProducer?.stop();
 	await retentionProducer?.stop();
@@ -58,6 +61,7 @@ try {
 		});
 	}
 
+	health = startWorkerHealth(pool);
 	notificationProducer = startNotificationProducer(pool, { encryptionKey: config.encryptionKey, publicUrl: config.publicUrl });
 	retentionProducer = startRetentionProducer(pool, config);
 	broker.listen(Number(process.env.PORT ?? 8081), "0.0.0.0");

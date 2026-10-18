@@ -12,7 +12,7 @@ type CodeEditorProps = {
 	onChange: (value: string) => void;
 	label: string;
 	readOnly?: boolean;
-	language?: "typescript" | "json" | "plaintext";
+	language?: "typescript" | "json" | "xml" | "plaintext";
 	stage?: ScriptStage;
 	bindings?: Record<string, string>;
 	onSave?: () => void;
@@ -65,6 +65,7 @@ export function CodeEditor({ value, onChange, label, readOnly = false, language 
 				const monaco = await import("monaco-editor");
 				const typescript = await import("monaco-editor/languages/features/typescript/register.js");
 				if (language === "json") await import("monaco-editor/languages/features/json/register.js");
+				if (language === "xml") await import("monaco-editor/languages/definitions/xml/register.js");
 				if (disposed || !container.current) return;
 				(globalThis as typeof globalThis & { MonacoEnvironment?: unknown }).MonacoEnvironment = {
 					getWorker: (_: string, language: string) => (language === "typescript" || language === "javascript" ? new Worker(new URL("monaco-editor/languages/features/typescript/ts.worker.js", import.meta.url), { type: "module" }) : language === "json" ? new Worker(new URL("monaco-editor/languages/features/json/json.worker.js", import.meta.url), { type: "module" }) : new Worker(new URL("monaco-editor/editor/editor.worker.js", import.meta.url), { type: "module" })),
@@ -116,7 +117,7 @@ export function CodeEditor({ value, onChange, label, readOnly = false, language 
 					}),
 				);
 				const instance = monaco.editor.create(container.current, {
-					model: monaco.editor.createModel(current.current, language, monaco.Uri.parse("file:///scripts/" + crypto.randomUUID() + (language === "typescript" ? ".ts" : language === "json" ? ".json" : ".txt"))),
+					model: monaco.editor.createModel(current.current, language, monaco.Uri.parse("file:///scripts/" + crypto.randomUUID() + (language === "typescript" ? ".ts" : language === "json" ? ".json" : language === "xml" ? ".xml" : ".txt"))),
 					theme: theme(),
 					ariaLabel: label,
 					readOnly: locked.current,

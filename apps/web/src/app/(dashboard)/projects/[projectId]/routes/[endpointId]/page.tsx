@@ -8,11 +8,12 @@ import { EventBrowser } from "@components/event-browser";
 import { useUnsavedChanges } from "@components/unsaved-changes";
 import { ScriptingGuide } from "@components/scripting-guide";
 import { use, useState, useEffect, useCallback } from "react";
-import { Button, Card, Tabs, TextArea, Label, Input, Chip, Table, Modal } from "@heroui/react";
-import { IconArrowLeft, IconCheck, IconUpload, IconPlayerPause, IconPlayerPlay, IconCopy, IconInfoCircle } from "@tabler/icons-react";
+import { Button, Card, Tabs, Checkbox, Label, Input, Chip, Table, Modal, NumberField, TextField } from "@heroui/react";
+import { IconArrowLeft, IconCheck, IconUpload, IconPlayerPause, IconPlayerPlay, IconCopy, IconInfoCircle, IconPlayerTrackNext, IconArchive, IconArchiveOff, IconTrash } from "@tabler/icons-react";
 import { NativeSelect } from "@heroui-pro/react";
 import { formatScript, formatScriptForDisplay, scriptDocument } from "@lib/script-document";
 import { HelperImportPicker } from "@components/helper-import-picker";
+import { HttpRequestEditor, validateHttpBody, bodyContentTypes, type BodyFormat } from "@components/http-request-editor";
 import { CodeEditor } from "@components/code-editor";
 import { SecretBindings } from "@components/secret-bindings";
 import { unpackWire } from "@contracts/wire";
@@ -45,10 +46,18 @@ type Publication = {
 	created_at: string;
 	version_number: number;
 	active: boolean;
+	archived: boolean;
 };
 
 type ScriptTestResult = {
 	mode: string;
+	middlewareCount: number;
+	checks: {
+		name: string;
+		passed: boolean;
+		expected: string | number;
+		actual?: unknown;
+	}[];
 	decision: { kind: string; [key: string]: unknown };
 	logs: { level: string; message: string }[];
 	durationMs: number;
@@ -56,7 +65,7 @@ type ScriptTestResult = {
 
 export default function RoutePage({ params }: { params: Promise<{ projectId: string; endpointId: string }> }) {
 	const { projectId, endpointId } = use(params);
-	const section = useSearchParams().get("section") ?? "code";
+	const section = useSearchParams().get("section") ?? "overview";
 
 	const [route, setRoute] = useState<Route | null>(null);
 	const [drafts, setDrafts] = useState<Record<Stage, Draft> | null>(null);
@@ -77,14 +86,18 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 
 	const [testBody, setTestBody] = useState('{"type":"purchase.completed","data":{"orderId":"demo-001","amount":4900,"currency":"EUR"}}');
 	const [requestMethod, setRequestMethod] = useState("POST");
-	const [bodyLanguage, setBodyLanguage] = useState<"json" | "plaintext">("json");
-	const [requestHeaders, setRequestHeaders] = useState('{"content-type": "application/json"}');
+	const [bodyLanguage, setBodyLanguage] = useState<BodyFormat>("json");
+	const [requestHeaders, setRequestHeaders] = useState("{}");
 	const [sending, setSending] = useState(false);
 	const [requestResult, setRequestResult] = useState<{
 		status: number;
 		body: string;
 		headers: Record<string, string>;
 	} | null>(null);
+	const [expectedDecision, setExpectedDecision] = useState("");
+	const [expectedStatus, setExpectedStatus] = useState<number>(NaN);
+	const [expectedBody, setExpectedBody] = useState("");
+	const [includeMiddleware, setIncludeMiddleware] = useState(true);
 	const [testHeaders, setTestHeaders] = useState("{}");
 	const [testSecrets, setTestSecrets] = useState("{}");
 	const [testResult, setTestResult] = useState<ScriptTestResult | null>(null);
@@ -101,10 +114,15 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 		try {
 			const headers: unknown = JSON.parse(requestHeaders);
 			if (!headers || typeof headers !== "object" || Array.isArray(headers) || Object.values(headers).some((value) => typeof value !== "string")) throw Error("Request headers must be a JSON object with text values");
+			if (!["GET", "HEAD"].includes(requestMethod)) validateHttpBody(bodyLanguage, testBody);
+			const outgoingHeaders = new Headers(headers as Record<string, string>);
+			if (!outgoingHeaders.has("content-type")) outgoingHeaders.set("content-type", bodyContentTypes[bodyLanguage]);
 			const response = await fetch(route.ingressUrl, {
 				method: requestMethod,
 				credentials: "omit",
-				headers: headers as Record<string, string>,
+				headers: outgoingHeaders,
+				redirect: "error",
+				signal: AbortSignal.timeout(15000),
 				...(!["GET", "HEAD"].includes(requestMethod) ? { body: testBody } : {}),
 			});
 			setRequestResult({
@@ -128,16 +146,19 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 		setDiagnostics([]);
 		setTestResult(null);
 		try {
+			if (stage === "processing" || !["GET", "HEAD"].includes(requestMethod)) validateHttpBody(bodyLanguage, testBody);
 			const result = await api<unknown>("/endpoints/" + endpointId + "/test", {
 				method: "POST",
 				json: {
 					stage,
+					includeMiddleware,
+					expectations: { ...(expectedDecision ? { decision: expectedDecision } : {}), ...(stage === "ingress" && Number.isFinite(expectedStatus) ? { status: expectedStatus } : {}), ...(stage === "ingress" && expectedBody ? { bodyContains: expectedBody } : {}) },
 					body: drafts[stage].body,
 					sharedBindings: drafts[stage].shared_bindings,
 					fixture: {
-						body: testBody,
+						body: stage === "ingress" && ["GET", "HEAD"].includes(requestMethod) ? "" : testBody,
 						method: requestMethod,
-						contentType: "application/json",
+						contentType: bodyContentTypes[bodyLanguage],
 						headers: JSON.parse(testHeaders),
 						secrets: JSON.parse(testSecrets),
 					},
@@ -220,17 +241,20 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 		setNotice("");
 	}
 
-	async function save() {
+	async function save(allStages = false) {
 		if (!drafts) return;
 		setBusy(true);
 		setNotice("");
 		setError("");
 		setDiagnostics([]);
 		try {
-			const formatted = await formatScript(drafts[stage].body, stage === "ingress" ? undefined : stage, drafts[stage].shared_bindings);
-			const saved = await api<Draft>("/endpoints/" + endpointId + "/drafts/" + stage, { method: "PATCH", version: drafts[stage].version, json: { body: formatted, sharedBindings: drafts[stage].shared_bindings, secretBindings: drafts[stage].secret_bindings } });
-			setDrafts((previous) => (previous ? { ...previous, [stage]: saved } : previous));
-			setSavedDrafts((previous) => (previous ? { ...previous, [stage]: saved } : previous));
+			for (const slot of allStages ? (["ingress", "processing"] as const) : [stage]) {
+				const formatted = await formatScript(drafts[slot].body, slot === "ingress" ? undefined : slot, drafts[slot].shared_bindings);
+				const saved = await api<Draft>("/endpoints/" + endpointId + "/drafts/" + slot, { method: "PATCH", version: drafts[slot].version, json: { body: formatted, sharedBindings: drafts[slot].shared_bindings, secretBindings: drafts[slot].secret_bindings } });
+				setDrafts((previous) => (previous ? { ...previous, [slot]: saved } : previous));
+				setSavedDrafts((previous) => (previous ? { ...previous, [slot]: saved } : previous));
+			}
+
 			setNotice("");
 		} catch (cause) {
 			failed(cause);
@@ -299,6 +323,22 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 		}
 	}
 
+	async function archive(publication: Publication) {
+		if (!route) return;
+		setNotice("");
+		setBusy(true);
+		setError("");
+		try {
+			await api("/endpoints/" + endpointId + "/publications", { method: "PATCH", json: { publicationId: publication.id, expectedVersion: route.version, archived: !publication.archived } });
+			await load();
+			setNotice(publication.archived ? "Publication restored" : "Publication archived");
+		} catch (cause) {
+			setError(cause instanceof Error ? cause.message : "Could not update publication");
+		} finally {
+			setBusy(false);
+		}
+	}
+
 	if (loading) return <LoadingState label='Loading route configuration…' size='page' />;
 	if (!route)
 		return (
@@ -320,20 +360,37 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 			</Link>
 			<header className='flex flex-wrap items-start justify-between gap-4'>
 				<div>
-					<p className='text-muted text-sm'>Ingress route</p>
-					<h1 className='text-3xl font-semibold'>{route.name}</h1>
-					<p aria-label='Delivery state' className='text-muted mt-2'>
-						{route.paused ? "Delivery paused — ingress still accepts events." : "Delivery active."}
-					</p>
-					<p className='text-muted mt-2'>{route.activePublicationId ? "Published" : "Not published"} · Ingress responds to the sender; Processing handles queued events.</p>
+					{section === "overview" && <p className='text-muted text-sm'>Ingress route</p>}
+					<h1 className='text-3xl font-semibold'>
+						{section === "overview"
+							? route.name
+							: ({
+									code: "Scripts",
+									secrets: "Secrets",
+									playground: "Playground",
+									test: "Script test",
+									events: "Route events",
+									history: "Publication history",
+								}[section] ?? "Route")}
+					</h1>
+					{section === "overview" && (
+						<div className='mt-3 flex flex-wrap items-center gap-2' aria-label='Route status'>
+							<Chip color={route.activePublicationId ? "success" : "default"} size='sm'>
+								{route.activePublicationId ? "Published" : "Draft"}
+							</Chip>
+							<Chip color={route.paused ? "warning" : "success"} size='sm' aria-label='Delivery state'>
+								{route.paused ? "Delivery paused — ingress still accepts events." : "Delivery active."}
+							</Chip>
+						</div>
+					)}
 				</div>
-				{route.permissions.includes("endpoints.pause") && (
+				{section === "overview" && route.permissions.includes("endpoints.pause") && (
 					<Button variant='secondary' isDisabled={busy} onPress={() => void toggleDelivery()}>
 						{route.paused ? <IconPlayerPlay size={18} /> : <IconPlayerPause size={18} />} {route.paused ? "Resume delivery" : "Pause delivery"}
 					</Button>
 				)}
 			</header>
-			{route.ingressUrl && (
+			{section === "overview" && route.ingressUrl && (
 				<Card>
 					<Card.Header>
 						<Card.Description>Receiving URL</Card.Description>
@@ -363,6 +420,21 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 					</Card.Content>
 				</Card>
 			)}
+			{section === "overview" && (
+				<div className='flex flex-wrap gap-3'>
+					{route.permissions.includes("code.read") && (
+						<Link href={"?section=code"} className='button button--primary'>
+							Open scripts
+						</Link>
+					)}
+					<Link href='?section=events' className='button button--secondary'>
+						View events
+					</Link>
+					<Link href='?section=playground' className='button button--secondary'>
+						Open playground
+					</Link>
+				</div>
+			)}
 			{error && (
 				<div>
 					<Button variant='ghost' onPress={() => void load()} isDisabled={busy}>
@@ -380,7 +452,7 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 					))}
 				</ul>
 			)}
-			{drafts && ["code", "secrets"].includes(section) ? (
+			{drafts && section === "code" ? (
 				<Tabs
 					className='min-w-0 w-full'
 					selectedKey={stage}
@@ -457,19 +529,6 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 									/>
 								</div>
 							)}
-							{section === "secrets" && (
-								<SecretBindings
-									projectId={projectId}
-									bindings={drafts[slot].secret_bindings}
-									canUse={route.permissions.includes("secrets.use")}
-									canManage={route.permissions.includes("secrets.manage")}
-									disabled={!editable || busy}
-									onChange={(bindings) => {
-										setNotice("");
-										setDrafts((previous) => (previous ? { ...previous, [slot]: { ...previous[slot], secret_bindings: bindings } } : previous));
-									}}
-								/>
-							)}
 
 							{editable && (
 								<div className='flex flex-wrap items-center justify-center gap-3 sm:justify-start'>
@@ -494,69 +553,60 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 			) : !drafts && section === "code" ? (
 				<p className='text-muted'>You need code-reading permission to inspect these scripts.</p>
 			) : null}
+			{section === "secrets" && drafts && (
+				<>
+					<SecretBindings
+						projectId={projectId}
+						bindings={drafts.ingress.secret_bindings}
+						onChange={(bindings) => setDrafts((previous) => (previous ? { ...previous, ingress: { ...previous.ingress, secret_bindings: bindings } } : previous))}
+						availability={{ bindings: { ingress: drafts.ingress.secret_bindings, processing: drafts.processing.secret_bindings }, onChange: (bindings) => setDrafts((previous) => (previous ? { ingress: { ...previous.ingress, secret_bindings: bindings.ingress }, processing: { ...previous.processing, secret_bindings: bindings.processing } } : previous)) }}
+						canUse={route.permissions.includes("secrets.use")}
+						canManage={route.permissions.includes("secrets.manage")}
+						disabled={!editable || busy}
+					/>
+					{editable && (
+						<div className='flex flex-wrap items-center justify-center gap-3 sm:justify-start'>
+							<Button variant='secondary' isDisabled={busy} onPress={() => void save(true)}>
+								Save draft
+							</Button>
+							{publishable && (
+								<Button isDisabled={busy} onPress={() => void publish()}>
+									Publish both stages
+								</Button>
+							)}
+							<span className='text-muted text-xs'>{JSON.stringify(drafts) === JSON.stringify(savedDrafts) ? "Draft saved" : "Unsaved changes"}</span>
+						</div>
+					)}
+				</>
+			)}
+
 			{section === "events" && <EventBrowser projectId={projectId} endpointId={endpointId} embedded />}
-			{section === "overview" && (
+			{section === "playground" && (
 				<section aria-label='Webhook request client' className='border-border flex min-w-0 flex-col overflow-hidden rounded-xl border'>
 					<header className='bg-surface border-border flex flex-col gap-3 border-b p-4'>
 						<h2 className='text-xl font-semibold'>Webhook playground</h2>
 						<p className='text-muted text-sm'>Send a real request to the published route. Accepted events enter the queue; all received requests remain inspectable. Use synthetic data.</p>
-						<div className='flex min-w-0 flex-wrap items-end gap-3'>
-							<NativeSelect variant='secondary' className='w-28 shrink-0'>
-								<Label>Method</Label>
-								<NativeSelect.Trigger aria-label='HTTP method' value={requestMethod} onChange={(event) => setRequestMethod(event.target.value)}>
-									{["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].map((method) => (
-										<NativeSelect.Option key={method} value={method}>
-											{method}
-										</NativeSelect.Option>
-									))}
-									<NativeSelect.Indicator />
-								</NativeSelect.Trigger>
-							</NativeSelect>
-							<Input aria-label='Request URL' readOnly value={route.ingressUrl ?? "Publish a route first"} variant='secondary' className='min-w-0 flex-1 font-mono text-sm' />
-							<Button onPress={() => void sendRequest()} isPending={sending} isDisabled={!route.activePublicationId || sending}>
-								Send request
-							</Button>
-						</div>
 					</header>
 					<div className='grid min-w-0 divide-y lg:grid-cols-2 lg:divide-x lg:divide-y-0'>
-						<section aria-label='Request' className='flex min-w-0 flex-col gap-4 p-4'>
-							<h3 className='font-semibold'>Request</h3>
-							<Tabs defaultSelectedKey='body'>
-								<Tabs.ListContainer>
-									<Tabs.List aria-label='Request sections'>
-										<Tabs.Tab id='body'>
-											Body
-											<Tabs.Indicator />
-										</Tabs.Tab>
-										<Tabs.Tab id='headers'>
-											Headers
-											<Tabs.Indicator />
-										</Tabs.Tab>
-									</Tabs.List>
-								</Tabs.ListContainer>
-								<Tabs.Panel id='body' className='pt-4'>
-									{["GET", "HEAD"].includes(requestMethod) ? (
-										<p className='text-muted text-sm'>This method sends no request body.</p>
-									) : (
-										<div className='flex flex-col gap-3'>
-											<NativeSelect variant='secondary' className='w-40'>
-												<Label>Body format</Label>
-												<NativeSelect.Trigger aria-label='Body format' value={bodyLanguage} onChange={(event) => setBodyLanguage(event.target.value as "json" | "plaintext")}>
-													<NativeSelect.Option value='json'>JSON</NativeSelect.Option>
-													<NativeSelect.Option value='plaintext'>Text</NativeSelect.Option>
-													<NativeSelect.Indicator />
-												</NativeSelect.Trigger>
-											</NativeSelect>
-											<CodeEditor language={bodyLanguage} label='Playground request body' value={testBody} onChange={setTestBody} />
-										</div>
-									)}
-								</Tabs.Panel>
-								<Tabs.Panel id='headers' className='pt-4'>
-									<CodeEditor language='json' label='Playground request headers' value={requestHeaders} onChange={setRequestHeaders} />
-									<p className='text-muted mt-2 text-xs'>A JSON object of header names and values.</p>
-								</Tabs.Panel>
-							</Tabs>
-						</section>
+						<div className='min-w-0 p-4'>
+							<HttpRequestEditor
+								body={testBody}
+								headers={requestHeaders}
+								format={bodyLanguage}
+								method={requestMethod}
+								bodyLabel='Playground request body'
+								headersLabel='Playground request headers'
+								onBodyChange={setTestBody}
+								onHeadersChange={setRequestHeaders}
+								onFormatChange={setBodyLanguage}
+								onMethodChange={setRequestMethod}
+								action={
+									<Button onPress={() => void sendRequest()} isPending={sending} isDisabled={!route.activePublicationId || sending}>
+										Send request
+									</Button>
+								}
+							/>
+						</div>
 						<section aria-label='HTTP response' className='flex min-w-0 flex-col gap-4 p-4'>
 							<div className='flex flex-wrap items-center justify-between gap-2'>
 								<h3 className='font-semibold'>Response</h3>
@@ -616,9 +666,9 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 											<Modal.Heading>What this test runs</Modal.Heading>
 										</Modal.Header>
 										<Modal.Body className='flex flex-col gap-3'>
-											<p>This test runs the current {stage} handler without saving or publishing it. It does not run middleware.</p>
+											<p>This test runs the current {stage} handler without saving or publishing it. Enabled middleware runs in its configured order when Include middleware is selected.</p>
 											<p>Use sample secret values below. Real secrets are not loaded, direct fetch is blocked, and managed deliveries return a simulated HTTP 204.</p>
-											<p>To test middleware and actual HTTP behavior together, publish the route and use the webhook playground.</p>
+											<p>To test actual HTTP delivery, publish the route and use the playground.</p>
 										</Modal.Body>
 										<Modal.Footer>
 											<Button slot='close'>Got it</Button>
@@ -629,52 +679,111 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 						</Modal>
 					</Card.Header>
 					<Card.Content className='flex flex-col gap-4'>
-						<div className='grid gap-4 sm:grid-cols-2'>
-							<NativeSelect variant='secondary'>
-								<Label>Script stage</Label>
-								<NativeSelect.Trigger aria-label='Script stage' value={stage} onChange={(event) => setStage(event.target.value as Stage)}>
-									<NativeSelect.Option value='ingress'>Ingress</NativeSelect.Option>
-									<NativeSelect.Option value='processing'>Processing</NativeSelect.Option>
-									<NativeSelect.Indicator />
-								</NativeSelect.Trigger>
-							</NativeSelect>
-							{stage === "ingress" && (
-								<NativeSelect variant='secondary'>
-									<Label>Synthetic HTTP method</Label>
-									<NativeSelect.Trigger aria-label='Synthetic HTTP method' value={requestMethod} onChange={(event) => setRequestMethod(event.target.value)}>
-										{["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].map((method) => (
-											<NativeSelect.Option key={method} value={method}>
-												{method}
-											</NativeSelect.Option>
-										))}
+						<HttpRequestEditor
+							body={testBody}
+							headers={testHeaders}
+							secrets={testSecrets}
+							format={bodyLanguage}
+							method={stage === "ingress" ? requestMethod : undefined}
+							methodLabel='Synthetic HTTP method'
+							bodyLabel='Synthetic request body'
+							headersLabel='Synthetic headers'
+							onBodyChange={setTestBody}
+							onHeadersChange={setTestHeaders}
+							onSecretsChange={setTestSecrets}
+							onFormatChange={setBodyLanguage}
+							onMethodChange={setRequestMethod}
+							checks={
+								<div className='flex flex-col gap-4'>
+									<NativeSelect variant='secondary'>
+										<Label>Expected decision</Label>
+										<NativeSelect.Trigger aria-label='Expected decision' value={expectedDecision} onChange={(event) => setExpectedDecision(event.target.value)}>
+											<NativeSelect.Option value=''>No decision check</NativeSelect.Option>
+											{(stage === "ingress" ? ["accept", "reject", "respondOnly"] : ["complete", "retry", "fail"]).map((decision) => (
+												<NativeSelect.Option key={decision} value={decision}>
+													{decision}
+												</NativeSelect.Option>
+											))}
+											<NativeSelect.Indicator />
+										</NativeSelect.Trigger>
+									</NativeSelect>
+									{stage === "ingress" && (
+										<>
+											<NumberField variant='secondary' minValue={100} maxValue={599} value={expectedStatus} onChange={setExpectedStatus}>
+												<Label>Expected HTTP status</Label>
+												<NumberField.Group>
+													<NumberField.Input aria-label='Expected HTTP status' placeholder='Optional' />
+												</NumberField.Group>
+											</NumberField>
+											<TextField value={expectedBody} onChange={setExpectedBody}>
+												<Label>Response body contains</Label>
+												<Input variant='secondary' placeholder='Optional expected text' />
+											</TextField>
+										</>
+									)}
+								</div>
+							}
+
+							controls={
+								<NativeSelect variant='secondary' className='w-40'>
+									<Label>Script stage</Label>
+									<NativeSelect.Trigger
+										aria-label='Script stage'
+										value={stage}
+										onChange={(event) => {
+											setStage(event.target.value as Stage);
+											setExpectedDecision("");
+										}}
+									>
+										<NativeSelect.Option value='ingress'>Ingress</NativeSelect.Option>
+										<NativeSelect.Option value='processing'>Processing</NativeSelect.Option>
 										<NativeSelect.Indicator />
 									</NativeSelect.Trigger>
 								</NativeSelect>
-							)}
-						</div>
-						<label className='flex flex-col gap-2 text-sm'>
-							Synthetic request body
-							<TextArea variant='secondary' aria-label='Synthetic request body' value={testBody} onChange={(event) => setTestBody(event.target.value)} className='min-h-24 font-mono' />
-						</label>
-						<div className='grid gap-4 sm:grid-cols-2'>
-							<label className='flex flex-col gap-2 text-sm'>
-								Synthetic headers (JSON)
-								<TextArea variant='secondary' aria-label='Synthetic headers' value={testHeaders} onChange={(event) => setTestHeaders(event.target.value)} className='font-mono' />
-							</label>
-							<label className='flex flex-col gap-2 text-sm'>
-								Synthetic secrets (JSON)
-								<TextArea variant='secondary' aria-label='Synthetic secrets' value={testSecrets} onChange={(event) => setTestSecrets(event.target.value)} className='font-mono' />
-							</label>
-						</div>
-						<Button variant='secondary' isDisabled={busy} onPress={() => void testSynthetic()}>
-							Test {stage} (dry)
-						</Button>
+							}
+							action={
+								<Button isPending={busy} isDisabled={busy} onPress={() => void testSynthetic()}>
+									Test {stage} (dry)
+								</Button>
+							}
+						/>
+						<Checkbox variant='secondary' isSelected={includeMiddleware} onChange={setIncludeMiddleware} isDisabled={busy}>
+							<Checkbox.Content>
+								<Checkbox.Control>
+									<Checkbox.Indicator />
+								</Checkbox.Control>
+								<span>Include middleware</span>
+							</Checkbox.Content>
+						</Checkbox>
 						{testResult !== null && (
 							<section aria-label='Synthetic test result' className='border-border flex flex-col gap-4 border-t pt-4'>
 								<div className='flex flex-wrap items-center gap-3'>
 									<Chip>{testResult.decision.kind}</Chip>
-									<span className='text-muted text-sm'>{testResult.durationMs} ms · simulated effects</span>
+									{testResult.checks.length > 0 && (
+										<Chip color={testResult.checks.every((check) => check.passed) ? "success" : "danger"}>
+											{testResult.checks.filter((check) => check.passed).length}/{testResult.checks.length} checks passed
+										</Chip>
+									)}
+									<span className='text-muted text-sm'>
+										{testResult.durationMs} ms · {testResult.middlewareCount} middleware · simulated effects
+									</span>
 								</div>
+								{testResult.checks.length > 0 && (
+									<ul aria-label='Test checks' className='flex flex-col gap-2'>
+										{testResult.checks.map((check) => (
+											<li key={check.name} className='flex flex-wrap items-center gap-2'>
+												<Chip size='sm' color={check.passed ? "success" : "danger"}>
+													{check.passed ? "Pass" : "Fail"}
+												</Chip>
+												<span>
+													{check.name}: {String(check.expected)}
+												</span>
+												{!check.passed && check.actual !== undefined && <span className='text-muted'>Received {String(check.actual)}</span>}
+											</li>
+										))}
+									</ul>
+								)}
+
 								<h3 className='font-semibold'>Handler decision</h3>
 								<pre className='bg-field max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-lg p-4 font-mono text-sm'>{JSON.stringify(testResult.decision, null, 2)}</pre>
 								<h3 className='font-semibold'>Execution logs</h3>
@@ -739,15 +848,42 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 															</Chip>
 														)}
 														{index === 0 && <Chip size='sm'>Latest</Chip>}
+														{publication.archived && (
+															<Chip size='sm' color='warning'>
+																Archived
+															</Chip>
+														)}
 													</div>
 												</Table.Cell>
 												<Table.Cell>{new Date(publication.created_at).toLocaleString()}</Table.Cell>
 												<Table.Cell>
-													{publishable && publication.id !== route.activePublicationId && (
-														<Button variant='secondary' size='sm' isDisabled={busy} onPress={() => void rollback(publication.id)}>
-															Activate
+													<div className='flex gap-2'>
+														<Button
+															variant='secondary'
+															size='sm'
+															isIconOnly
+															aria-label={"Activate publication v" + publication.version_number}
+															aria-description={publication.id === route.activePublicationId ? "This version is already active" : publication.archived ? "Restore this version before activating it" : !publishable ? "Publishing permission is required" : "Activate this version for new events"}
+															isDisabled={busy || !publishable || publication.archived || publication.id === route.activePublicationId}
+															onPress={() => void rollback(publication.id)}
+														>
+															<IconPlayerTrackNext size={18} aria-hidden='true' />
 														</Button>
-													)}
+														<Button
+															variant='secondary'
+															size='sm'
+															isIconOnly
+															aria-label={(publication.archived ? "Restore" : "Archive") + " publication v" + publication.version_number}
+															aria-description={publication.id === route.activePublicationId || index === 0 ? "Active and latest publications must remain available" : publication.archived ? "Restore this version to allow activation" : "Archive this version without changing stored events"}
+															isDisabled={busy || !publishable || (!publication.archived && (publication.id === route.activePublicationId || index === 0))}
+															onPress={() => void archive(publication)}
+														>
+															{publication.archived ? <IconArchiveOff size={16} aria-hidden='true' /> : <IconArchive size={16} aria-hidden='true' />}
+														</Button>
+														<Button variant='danger-soft' size='sm' isIconOnly aria-label={"Delete publication v" + publication.version_number} aria-description='Published versions are immutable and retained for event recovery. Archive an inactive version instead.' isDisabled>
+															<IconTrash size={16} aria-hidden='true' />
+														</Button>
+													</div>
 												</Table.Cell>
 											</Table.Row>
 										))}

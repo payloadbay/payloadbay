@@ -3,8 +3,9 @@
 import { use, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Button, Table, Form, TextField, Label, Input, FieldError, Modal } from "@heroui/react";
+import { Button, Table, Form, TextField, Label, Input, FieldError, Modal, Tooltip } from "@heroui/react";
 
+import { IconUsers, IconCode, IconBell, IconChevronRight } from "@tabler/icons-react";
 import { api } from "@lib/api-client";
 import { useFeedbackToast } from "@lib/feedback";
 import { useDashboard } from "@components/dashboard-shell";
@@ -50,18 +51,26 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
 				<h1 className='text-3xl font-semibold'>{workspace.name}</h1>
 				<p className='text-muted mt-2'>Manage projects, inherited access, shared code and project notification rules from this workspace.</p>
 			</header>
-			<div className='flex flex-wrap items-center gap-3'>
+			<div className='flex items-center justify-between gap-3'>
 				{workspace.permissions.includes("projects.create") && workspace.permissions.includes("ownership.transfer") && <Button onPress={() => setOpen(true)}>Create project</Button>}
-				{workspace.permissions.includes("members.manage") && (
-					<Link href={"/workspaces/" + workspaceId + "/members"} className='button button--secondary'>
-						Workspace members
-					</Link>
-				)}
-				{workspace.permissions.includes("code.read") && (
-					<Link href={"/code/workspace/" + workspaceId} className='button button--secondary'>
-						Shared code and middleware
-					</Link>
-				)}
+				<div className='ml-auto flex shrink-0 gap-2'>
+					{workspace.permissions.includes("members.manage") && (
+						<Tooltip delay={0}>
+							<Tooltip.Trigger<"a"> role='link' aria-label='Workspace members' className='button button--secondary button--icon-only' render={(props) => <Link {...props} href={"/workspaces/" + workspaceId + "/members"} />}>
+								<IconUsers size={18} aria-hidden='true' />
+							</Tooltip.Trigger>
+							<Tooltip.Content>Workspace members</Tooltip.Content>
+						</Tooltip>
+					)}
+					{workspace.permissions.includes("code.read") && (
+						<Tooltip delay={0}>
+							<Tooltip.Trigger<"a"> role='link' aria-label='Shared code and middleware' className='button button--secondary button--icon-only' render={(props) => <Link {...props} href={"/code/workspace/" + workspaceId} />}>
+								<IconCode size={18} aria-hidden='true' />
+							</Tooltip.Trigger>
+							<Tooltip.Content>Shared code and middleware</Tooltip.Content>
+						</Tooltip>
+					)}
+				</div>
 			</div>
 			{visible.length ? (
 				<Table>
@@ -75,19 +84,20 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
 								{visible.map((project) => (
 									<Table.Row key={project.id} id={project.id}>
 										<Table.Cell>
-											<Link href={"/projects/" + project.id} className='font-medium'>
+											<Link href={"/projects/" + project.id} className='flex items-center justify-between gap-3 font-medium'>
 												{project.name}
+												<IconChevronRight size={16} className='text-muted shrink-0' aria-hidden='true' />
 											</Link>
 										</Table.Cell>
 										<Table.Cell>
 											<div className='flex flex-wrap gap-2'>
-												<Link href={"/projects/" + project.id} className='text-accent text-sm'>
-													Open project
-												</Link>
 												{project.permissions.includes("notifications.rules.manage") && (
-													<Link href={"/projects/" + project.id + "/notifications"} className='text-accent text-sm'>
-														Notification rules
-													</Link>
+													<Tooltip delay={0}>
+														<Tooltip.Trigger<"a"> role='link' aria-label={"Notification rules for " + project.name} className='button button--ghost button--icon-only button--sm' render={(props) => <Link {...props} href={"/projects/" + project.id + "/notifications"} />}>
+															<IconBell size={18} aria-hidden='true' />
+														</Tooltip.Trigger>
+														<Tooltip.Content>Notification rules</Tooltip.Content>
+													</Tooltip>
 												)}
 											</div>
 										</Table.Cell>

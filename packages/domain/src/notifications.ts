@@ -92,6 +92,63 @@ export async function listNotifications(pool: Pool, actor: Actor, scope: ScopeRe
 		}));
 }
 
+/** One account inbox: database filtering happens before the bounded result window. */
+export async function listAccountNotifications(pool: Pool, actor: Actor) {
+	const rows = (
+		await pool.query(
+			`SELECT n.*,s.read_at,p.name AS project_name,w.name AS workspace_name,o.name AS organization_name FROM payloadbay.notification_incident n
+ LEFT JOIN payloadbay.notification_recipient_state s ON s.incident_id=n.id AND s.user_id=$1
+ LEFT JOIN payloadbay.project p ON n.scope_type='project' AND p.id=n.scope_id AND p.archived_at IS NULL
+ LEFT JOIN payloadbay.workspace w ON w.id=CASE WHEN n.scope_type='workspace' THEN n.scope_id ELSE p.workspace_id END AND w.archived_at IS NULL
+ LEFT JOIN payloadbay.organization o ON o.id=CASE WHEN n.scope_type='organization' THEN n.scope_id ELSE w.organization_id END AND o.archived_at IS NULL
+ JOIN payloadbay.installation i ON i.singleton AND i.bootstrap_state='complete'
+ WHERE n.status='active' AND s.dismissed_at IS NULL
+ AND EXISTS(SELECT 1 FROM payloadbay.admission a WHERE a.user_id=$1 AND a.installation_id=i.id AND a.active)
+ AND EXISTS(SELECT 1 FROM payloadbay.grant_record g WHERE g.user_id=$1 AND 'notifications.read'=ANY(g.permissions) AND (
+ (n.scope_type='instance' AND n.scope_id=i.id AND g.scope_type='instance' AND g.scope_id=i.id)
+ OR (n.scope_type<>'instance' AND o.id IS NOT NULL AND ((g.scope_type='organization' AND g.scope_id=o.id) OR (g.scope_type='workspace' AND g.scope_id=w.id) OR (g.scope_type='project' AND g.scope_id=p.id)))))
+ AND ($2::uuid IS NULL OR EXISTS(SELECT 1 FROM payloadbay.api_token t WHERE t.id=$2 AND t.user_id=$1
+ AND t.revoked_at IS NULL AND t.expires_at>clock_timestamp() AND 'notifications.read'=ANY(t.permissions)
+ AND (t.personal OR (n.scope_type='instance' AND t.scope_type='instance' AND t.scope_id=i.id)
+ OR (n.scope_type<>'instance' AND ((t.scope_type='organization' AND t.scope_id=o.id) OR (t.scope_type='workspace' AND t.scope_id=w.id) OR (t.scope_type='project' AND t.scope_id=p.id))))
+ AND (t.workspace_ids IS NULL OR w.id=ANY(t.workspace_ids))
+ AND (n.kind<>'executor.containment-advice' OR 'settings.manage'=ANY(t.permissions))))
+ ORDER BY n.first_seen DESC,n.id DESC LIMIT 200`,
+			[actor.userId, actor.token?.id ?? null],
+		)
+	).rows;
+	const rights = new Map<string, Awaited<ReturnType<typeof actorPermissions>>>();
+	const items = [];
+	for (const row of rows) {
+		const scope: ScopeRef = { type: row.scope_type, id: row.scope_id };
+		const key = scope.type + scope.id;
+		try {
+			if (!rights.has(key)) rights.set(key, await actorPermissions(pool, actor, scope));
+			const held = rights.get(key)!;
+			if (!held.has("notifications.read") || (row.kind === "executor.containment-advice" && !held.has("settings.manage"))) continue;
+		} catch (error) {
+			if (error instanceof AppError && ["forbidden", "unauthenticated", "not_found"].includes(error.code)) continue;
+			throw error;
+		}
+
+		items.push({
+			id: row.id,
+			kind: row.kind,
+			subject: row.subject,
+			severity: row.severity,
+			status: row.status,
+			firstSeen: row.first_seen,
+			lastSeen: row.last_seen,
+			readAt: row.read_at,
+			data: row.redacted_data,
+			scope,
+			scopeName: scope.type === "instance" ? "Instance operations" : scope.type === "organization" ? row.organization_name : scope.type === "workspace" ? row.workspace_name : row.project_name,
+		});
+	}
+
+	return items;
+}
+
 export async function dismissNotification(pool: Pool, actor: Actor, id: string) {
 	return transaction(pool, async (db) => {
 		const incident = (await db.query("SELECT scope_type,scope_id,kind FROM payloadbay.notification_incident WHERE id=$1", [id])).rows[0];

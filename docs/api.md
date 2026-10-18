@@ -101,13 +101,23 @@ The dashboard exposes the same read-only collection under Administration → Aud
 instance-level `settings.manage`. Settings are read-only operator configuration:
 SMTP configured state, enabled OAuth provider names, registration policy,
 configured executor mode and request/deadline limits. Credentials, database and
-SMTP connection details are excluded. Shared email content remains editable in
-Email settings; these endpoints do not rewrite deployment environment variables.
+SMTP connection details are excluded. Instance customization (including future app-wide white-labeling) is hidden and
+branding writes are disabled until verified enterprise licensing is available.
+These endpoints do not rewrite deployment environment variables.
 
 Health checks query the installation schema and probe the configured executor's
 `/health` with a three-second deadline, a 16KiB response limit and redirects
 blocked. The snapshot distinguishes ready, not-ready and unavailable executor
-states, and never returns raw upstream errors. Worker processing and SMTP
-**delivery** are explicitly `not_checked`. Configured `runc`/`runsc` modes are
+states, and never returns raw upstream errors. Worker health reports whether a heartbeat was recorded within 60 seconds.
+SMTP health verifies a connection and authentication, without sending an email;
+it does not establish mailbox delivery. Configured `runc`/`runsc` modes are
 reported separately for the app and executor, without claiming host attestation.
 This administrative snapshot is not an end-to-end readiness or delivery test.
+
+
+Publication history supports activation and reversible archival through the same
+version-checked PATCH command. Supply `archived: true` to archive, `false` to
+restore, or omit it to activate. Active and latest versions cannot be archived;
+an archived version must be restored before activation. Archival changes separate
+metadata, never the published code or event references. Permanent deletion is not
+supported: retained versions are part of recovery and explicit replay history.

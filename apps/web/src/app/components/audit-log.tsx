@@ -97,19 +97,21 @@ export function AuditLog({ scope }: { scope: ScopeRef }) {
 									<Table.Column>Resource</Table.Column>
 									<Table.Column>Time</Table.Column>
 								</Table.Header>
-								<Table.Body renderEmptyState={() => "No audit actions have been recorded."}>
+								<Table.Body renderEmptyState={() => <div className='px-4 py-8 text-center text-muted'>No audit actions have been recorded.</div>}>
 									{data.items.map((item) => (
 										<Table.Row id={item.id} key={item.id}>
 											<Table.Cell>{item.operation}</Table.Cell>
 											<Table.Cell>
-												<span className='font-mono text-xs'>{item.actor}</span>
+												<span>{item.actorName ?? (item.actor === "system" ? "System" : "Unknown user")}</span>
+												<span className='text-muted block font-mono text-xs'>{item.actor}</span>
 											</Table.Cell>
 											<Table.Cell>
-												{item.scope.type}
+												{item.scopeName ?? item.scope.type}
 												<span className='text-muted block font-mono text-xs'>{item.scope.id}</span>
 											</Table.Cell>
 											<Table.Cell>
-												<span className='font-mono text-xs'>{item.resourceId ?? "—"}</span>
+												<span>{item.resourceName ?? (item.resourceId ? "Recorded resource" : "—")}</span>
+												{item.resourceId && <span className='text-muted block font-mono text-xs'>{item.resourceId}</span>}
 											</Table.Cell>
 											<Table.Cell>{new Date(item.createdAt).toLocaleString()}</Table.Cell>
 										</Table.Row>

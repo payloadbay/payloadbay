@@ -1,3 +1,6 @@
+import { transaction } from "./db.ts";
+import { middlewareSnapshot } from "./middleware.ts";
+import { executePipeline } from "./pipeline.ts";
 import { scriptTestInput } from "../../contracts/src/script-test.ts";
 
 import { createHash, randomUUID } from "node:crypto";
@@ -66,26 +69,65 @@ export async function testDraftDry(pool: Pool, actor: Actor, endpointId: string,
 					secrets: data.fixture.secrets,
 				};
 
+	const middleware = data.includeMiddleware ? await transaction(pool, (db) => middlewareSnapshot(db, endpointId)) : [];
+
+	const run: typeof engine.run = (options) =>
+		middleware.length
+			? executePipeline({
+					...options,
+					bindings: middleware,
+					resolveSecrets: async (bindings) =>
+						Object.fromEntries(
+							Object.keys(bindings)
+								.filter((name) => Object.hasOwn(data.fixture.secrets, name))
+								.map((name) => [name, data.fixture.secrets[name]]),
+						),
+					run: (input) => engine.run({ ...input, dryRun: true, maxFetches: 0 }),
+				})
+			: engine.run(options);
+
+	const result = await run({
+		stage: data.stage,
+		bundle: compiled.bundle,
+		input: context,
+		maxFetches: 0,
+		dryRun: true,
+		broker: async (_target, input) => {
+			const operation = input as { operationId?: unknown };
+			if (typeof operation?.operationId !== "string" || !operation.operationId) throw Error("invalid_operation");
+
+			return {
+				ok: true,
+				status: 204,
+				response: "",
+				attemptId: "dry-run:" + operation.operationId,
+			};
+		},
+	});
+	const outcome = result.decision as { kind: string; response?: { status: number; body?: string | Uint8Array } };
+	const responseBody = typeof outcome.response?.body === "string" ? outcome.response.body : outcome.response?.body instanceof Uint8Array ? new TextDecoder().decode(outcome.response.body) : "";
+	const checks = [];
+	if (data.expectations.decision !== undefined)
+		checks.push({
+			name: "Decision",
+			passed: outcome.kind === data.expectations.decision,
+			expected: data.expectations.decision,
+			actual: outcome.kind,
+		});
+	if (data.expectations.status !== undefined)
+		checks.push({
+			name: "HTTP status",
+			passed: outcome.response?.status === data.expectations.status,
+			expected: data.expectations.status,
+			actual: outcome.response?.status ?? null,
+		});
+	if (data.expectations.bodyContains !== undefined) checks.push({ name: "Response body contains", passed: responseBody.includes(data.expectations.bodyContains), expected: data.expectations.bodyContains });
+
 	return {
+		...result,
 		mode: "dry" as const,
 		simulatedManagedStatus: 204,
-		...(await engine.run({
-			stage: data.stage,
-			bundle: compiled.bundle,
-			input: context,
-			maxFetches: 0,
-			dryRun: true,
-			broker: async (_target, input) => {
-				const operation = input as { operationId?: unknown };
-				if (typeof operation?.operationId !== "string" || !operation.operationId) throw Error("invalid_operation");
-
-				return {
-					ok: true,
-					status: 204,
-					response: "",
-					attemptId: "dry-run:" + operation.operationId,
-				};
-			},
-		})),
+		middlewareCount: middleware.filter((binding) => binding.stage === data.stage).length,
+		checks,
 	};
 }

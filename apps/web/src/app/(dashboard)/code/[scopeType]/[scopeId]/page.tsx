@@ -2,12 +2,12 @@
 
 import { LoadingState } from "@components/loading-state";
 import { useFeedbackToast } from "@lib/feedback";
-import { use, useEffect, useCallback, useState, type FormEvent } from "react";
+import { use, useEffect, useCallback, useState, useRef, type PointerEvent, type FormEvent } from "react";
 import Link from "next/link";
 import { useDragAndDrop } from "react-aria-components";
 import { Button, Card, Form, TextField, Label, Input, FieldError, Tabs, NumberField, Checkbox, Table, Modal } from "@heroui/react";
 import { EmptyState, NativeSelect } from "@heroui-pro/react";
-import { IconCode, IconPlus, IconCopy, IconLock, IconArrowLeft, IconCheck, IconGripVertical, IconArrowUp, IconArrowDown } from "@tabler/icons-react";
+import { IconCode, IconPlus, IconCopy, IconLock, IconArrowLeft, IconCheck, IconGripVertical, IconArrowUp, IconArrowDown, IconPencil, IconInfoCircle } from "@tabler/icons-react";
 import { formatScript, formatScriptForDisplay, scriptDocument } from "@lib/script-document";
 import { useUnsavedChanges } from "@components/unsaved-changes";
 import { ScriptingGuide } from "@components/scripting-guide";
@@ -100,6 +100,16 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 	const [sharedBindings, setSharedBindings] = useState<Record<string, string>>({});
 	const [secretBindings, setSecretBindings] = useState<Record<string, string>>({});
 	const [savedEditor, setSavedEditor] = useState("");
+	const touchOrder = useRef<{
+		pointer: number;
+		source: string;
+		x: number;
+		y: number;
+		active: boolean;
+		target: string | null;
+		after: boolean;
+	} | null>(null);
+	const [touchVisual, setTouchVisual] = useState<{ source: string; target: string | null } | null>(null);
 
 	const editorSnapshot = JSON.stringify({
 		name,
@@ -172,19 +182,65 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 		void reorder(items);
 	}
 
+	function placeMiddleware(keys: ReadonlySet<string | number>, targetId: string, after: boolean) {
+		const target = bindings.find((item) => item.id === targetId);
+		const moved = bindings.filter((item) => keys.has(item.id));
+		if (!target?.editable || !moved.length || moved.some((item) => !item.editable || item.stage !== target.stage)) return;
+		const items = bindings.filter((item) => item.editable && item.stage === target.stage && !keys.has(item.id));
+		const index = items.findIndex((item) => item.id === target.id);
+		if (index < 0) return;
+		items.splice(index + (after ? 1 : 0), 0, ...moved);
+		void reorder(items);
+	}
+
+	// Native HTML drag remains available for mouse/keyboard. Pointer capture gives
+	// touch handles a direct gesture on browsers that do not initiate HTML dragging.
+	function startTouchOrder(event: PointerEvent<HTMLSpanElement>, binding: Binding) {
+		if (event.pointerType !== "touch" || busy || !canEdit || !canPublish || !binding.editable) return;
+		event.preventDefault();
+		event.stopPropagation();
+		event.currentTarget.setPointerCapture(event.pointerId);
+		touchOrder.current = {
+			pointer: event.pointerId,
+			source: binding.id,
+			x: event.clientX,
+			y: event.clientY,
+			active: false,
+			target: null,
+			after: false,
+		};
+	}
+
+	function moveTouchOrder(event: PointerEvent<HTMLSpanElement>) {
+		const drag = touchOrder.current;
+		if (!drag || drag.pointer !== event.pointerId) return;
+		if (!drag.active && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 8) return;
+		event.preventDefault();
+		drag.active = true;
+		const row = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-middleware-id]");
+		const target = bindings.find((item) => item.id === row?.dataset.middlewareId);
+		const source = bindings.find((item) => item.id === drag.source);
+		drag.target = target?.editable && target.id !== drag.source && target.stage === source?.stage ? target.id : null;
+		drag.after = Boolean(row && event.clientY > row.getBoundingClientRect().top + row.getBoundingClientRect().height / 2);
+		setTouchVisual({ source: drag.source, target: drag.target });
+	}
+
+	function endTouchOrder(event: PointerEvent<HTMLSpanElement>, cancelled = false) {
+		const drag = touchOrder.current;
+		if (!drag || drag.pointer !== event.pointerId) return;
+		touchOrder.current = null;
+		setTouchVisual(null);
+		if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+		if (!cancelled && drag.active && drag.target) {
+			event.preventDefault();
+			placeMiddleware(new Set([drag.source]), drag.target, drag.after);
+		}
+	}
+
 	const { dragAndDropHooks } = useDragAndDrop({
 		isDisabled: busy || !canEdit || !canPublish,
 		getItems: (keys) => [...keys].filter((key) => bindings.some((item) => item.id === key && item.editable)).map((key) => ({ "text/plain": String(key) })),
-		onReorder: (event) => {
-			const target = bindings.find((item) => item.id === event.target.key);
-			const moved = bindings.filter((item) => event.keys.has(item.id));
-			if (!target?.editable || moved.some((item) => !item.editable || item.stage !== target.stage)) return;
-			const items = bindings.filter((item) => item.editable && item.stage === target.stage && !event.keys.has(item.id));
-			const index = items.findIndex((item) => item.id === target.id);
-			if (index < 0) return;
-			items.splice(index + (event.target.dropPosition === "after" ? 1 : 0), 0, ...moved);
-			void reorder(items);
-		},
+		onReorder: (event) => placeMiddleware(event.keys, String(event.target.key), event.target.dropPosition === "after"),
 	});
 
 	useEffect(() => {
@@ -394,7 +450,6 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 				)}
 			</header>
 
-			<p className='text-muted text-sm'>Scope: {scopeType === "endpoint" ? "this ingress route" : "this " + scopeType}</p>
 			{scopeType !== "endpoint" && (
 				<Tabs selectedKey={tab} onSelectionChange={(key) => setTab(key as "modules" | "middleware")}>
 					<Tabs.List aria-label='Code category'>
@@ -450,25 +505,60 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 				)
 			) : (
 				<div className='flex flex-col gap-3'>
-					<p className='text-muted text-sm'>Execution order: instance → workspace → project → ingress route. Optional failures keep the last valid context; required failures stop the stage.</p>
+					<Modal>
+						<Button variant='ghost' size='sm' className='self-start'>
+							<IconInfoCircle size={18} aria-hidden='true' />
+							Middleware guide
+						</Button>
+						<Modal.Backdrop>
+							<Modal.Container placement='auto' size='lg'>
+								<Modal.Dialog>
+									<Modal.CloseTrigger />
+									<Modal.Header>
+										<Modal.Heading>Middleware execution order</Modal.Heading>
+									</Modal.Header>
+									<Modal.Body className='flex flex-col gap-3'>
+										<p>Customer routes inherit middleware from their organization, workspace and project, followed by route middleware. Instance middleware stays separate from customer routes.</p>
+										<p>Entries run in table order within each level and lifecycle stage. Required failures stop the chain; optional failures continue with the last valid context.</p>
+										<p>Drag a handle to change the local order. You can also use the up and down actions, or focus the handle and press Enter to begin keyboard reordering.</p>
+										<p>Inherited entries are managed in their parent. Save changes and publish affected routes to activate the new order.</p>
+									</Modal.Body>
+									<Modal.Footer>
+										<Button slot='close'>Got it</Button>
+									</Modal.Footer>
+								</Modal.Dialog>
+							</Modal.Container>
+						</Modal.Backdrop>
+					</Modal>
 					{bindings.length ? (
 						<Table>
 							<Table.ScrollContainer>
 								<Table.Content aria-label='Middleware execution order' dragAndDropHooks={dragAndDropHooks}>
 									<Table.Header>
-										<Table.Column aria-label='Order' />
+										<Table.Column aria-label='Order' className='w-12' />
 										<Table.Column isRowHeader>Middleware</Table.Column>
 										<Table.Column>Stage and scope</Table.Column>
 										<Table.Column>Actions</Table.Column>
 									</Table.Header>
-									<Table.Body items={bindings}>
+									<Table.Body items={bindings} dependencies={[touchVisual, busy, canEdit, canPublish]}>
 										{(binding) => (
-											<Table.Row id={binding.id}>
+											<Table.Row id={binding.id} data-middleware-id={binding.id} className={touchVisual?.source === binding.id ? "opacity-50" : touchVisual?.target === binding.id ? "outline-2 outline-accent outline" : undefined}>
 												<Table.Cell>
 													{binding.editable ? (
-														<Button slot='drag' size='sm' variant='ghost' aria-label={"Drag " + binding.name} isDisabled={busy}>
-															<IconGripVertical size={16} />
-														</Button>
+														<span
+															className='inline-flex touch-none'
+															onPointerDownCapture={(event) => startTouchOrder(event, binding)}
+															onPointerMoveCapture={moveTouchOrder}
+															onPointerUpCapture={(event) => endTouchOrder(event)}
+															onPointerCancelCapture={(event) => endTouchOrder(event, true)}
+															onDragStartCapture={(event) => {
+																if (touchOrder.current) event.preventDefault();
+															}}
+														>
+															<Button slot='drag' isIconOnly className='touch-none select-none' aria-description='Drag to reorder; up and down actions are also available' size='sm' variant='ghost' aria-label={"Drag " + binding.name} isDisabled={busy}>
+																<IconGripVertical size={16} />
+															</Button>
+														</span>
 													) : (
 														<IconLock size={16} aria-label='Inherited' />
 													)}
@@ -489,13 +579,13 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 												<Table.Cell>
 													{binding.editable ? (
 														<div className='flex items-center gap-2'>
-															<Button size='sm' variant='secondary' onPress={() => void editBinding(binding)}>
-																Edit middleware
+															<Button size='sm' variant='ghost' isIconOnly aria-label={"Edit middleware " + binding.name} aria-description='Edit middleware' onPress={() => void editBinding(binding)}>
+																<IconPencil size={18} aria-hidden='true' />
 															</Button>
-															<Button size='sm' variant='ghost' aria-label={"Move " + binding.name + " up"} isDisabled={busy || bindings.filter((item) => item.editable && item.stage === binding.stage)[0]?.id === binding.id} onPress={() => move(binding, -1)}>
+															<Button size='sm' variant='ghost' isIconOnly aria-label={"Move " + binding.name + " up"} isDisabled={busy || bindings.filter((item) => item.editable && item.stage === binding.stage)[0]?.id === binding.id} onPress={() => move(binding, -1)}>
 																<IconArrowUp size={16} />
 															</Button>
-															<Button size='sm' variant='ghost' aria-label={"Move " + binding.name + " down"} isDisabled={busy || bindings.filter((item) => item.editable && item.stage === binding.stage).at(-1)?.id === binding.id} onPress={() => move(binding, 1)}>
+															<Button size='sm' variant='ghost' isIconOnly aria-label={"Move " + binding.name + " down"} isDisabled={busy || bindings.filter((item) => item.editable && item.stage === binding.stage).at(-1)?.id === binding.id} onPress={() => move(binding, 1)}>
 																<IconArrowDown size={16} />
 															</Button>
 														</div>
