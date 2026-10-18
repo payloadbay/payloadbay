@@ -1265,9 +1265,14 @@ test("U159 job administration exposes safe metadata and denies lower rights", as
 		await page.getByRole("row", { name: "Jobs and queues", exact: true }).click();
 		await expect(page.getByRole("heading", { name: "Jobs and queues", exact: true })).toBeVisible();
 		await expect(page.getByRole("grid", { name: "Platform jobs" }).getByRole("row").filter({ hasText: job.id })).toContainText("Queued");
+		const chart = page.getByRole("img", { name: "Aggregate delivery outcomes over 24 hours" });
+		await expect(chart).toBeVisible();
+		await chart.hover();
+		await page.screenshot({ path: test.info().outputPath("jobs-desktop.png"), fullPage: true });
 		await expect(page.getByText("Provider acknowledgement latency is not measured.", { exact: true })).toBeVisible();
 		await page.setViewportSize({ width: 390, height: 844 });
 		await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+		await page.screenshot({ path: test.info().outputPath("jobs-mobile.png"), fullPage: true });
 		await pool.query("UPDATE payloadbay.grant_record SET role_preset='custom',permissions=array_remove(permissions,'jobs.read') WHERE user_id=$1", [me.user.id]);
 		expect((await page.request.get("/api/v1/jobs")).status()).toBe(403);
 		await page.goto("/admin/jobs");
@@ -1615,9 +1620,12 @@ test("CF10 scoped audit is usable on mobile and platform roles cannot restore cu
 	const workspace = await created.json();
 	const project = await (await page.request.post("/api/v1/projects", { headers: commandHeaders(), data: { parentId: workspace.id, name: "Private business", slug: "private-business" } })).json();
 	await page.setViewportSize({ width: 390, height: 844 });
+	for (const path of ["/organizations/" + (await browserOrganization(page)), "/workspaces/" + workspace.id, "/projects/" + project.id]) {
+		await page.goto(path + "/audit");
+		await expect(page.getByRole("grid", { name: "Audit log" })).toContainText("scope.created");
+		await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+	}
 	await page.goto("/workspaces/" + workspace.id + "/audit");
-	await expect(page.getByRole("grid", { name: "Audit log" })).toContainText("scope.created");
-	await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 	expect((await page.request.post("/api/auth/admin/impersonate-user", { headers: commandHeaders(), data: { userId: "customer" } })).status()).toBe(404);
 	const pool = database(process.env.DATABASE_URL!);
 	try {

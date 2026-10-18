@@ -3511,3 +3511,12 @@ pagination, notification module administration and personal preferences. The fir
 attempt could not launch Chromium because libnspr4 was absent; installing official
 Playwright system dependencies resolved that environment failure without product
 changes. Unit51/51 also passes. Exact clean CI is the remaining source gate.
+
+The expanded CF10 flow visits organization, workspace and project audit screens
+before testing customer revocation; it passes1/1. U159 additionally verifies the
+operations chart and captures desktop/mobile screenshots; it passes1/1 and both
+screenshots were visually inspected. The complete local backend rerun passed
+308/309: only the subprocess fixture-cleanup test failed, without exposing its
+child error. Its whole owning file immediately passes2/2 on rerun. That remains
+an unclassified local test-infrastructure failure, not a complete green backend
+claim; clean CI is required. No retries, thresholds or assertions were weakened.
