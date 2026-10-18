@@ -146,3 +146,14 @@ Constitution2.2.0 already mandates test-first behavior; no amendment or hook dis
 ## Implementation fixture refinement
 
 Node files are limited to two concurrent owning files. Within each process, disposable PostgreSQL/SMTP/HTTP containers are reused; each fixture callback receives a fresh database, SMTP/HTTP state resets, callbacks serialize and containers tear down in node:test after hooks. No shared production data or credentials. Owning file and single-test commands are unchanged.
+
+## Confidentiality follow-up — 2026-10-18
+
+The maintainer approved excluding instance code and authority from customer
+scopes in both deployment modes, superseding the earlier unresolved middleware
+policy note. CF01/CF02/CF03 have actual pre-fix reproductions; strengthened CF04
+also fails against isolated 0956117 with a real published notification module.
+Retrospective boundary, transport and browser cases are not invented RED cycles.
+Current local executor36/36, notifications21/21 and static checks pass. Full
+clean-source CI/coverage is still pending; consult the cycle log for the final
+result. Host/network and published-release certification remain separate gates.

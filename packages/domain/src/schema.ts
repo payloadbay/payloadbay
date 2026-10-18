@@ -681,6 +681,7 @@ export const notificationSubscription = domain.table(
 			.references((): AnyPgColumn => notificationRule.id),
 		userId: text("user_id").notNull(),
 		channel: text("channel").notNull(),
+		channelRevisionId: uuid("channel_revision_id").references(() => notificationChannelRevision.id),
 		enabled: boolean("enabled").notNull().default(false),
 	},
 	(t) => [primaryKey({ columns: [t.ruleId, t.userId, t.channel] }), check("notification_subscription_channel", sql`(${t.channel} IN ('inbox','smtp') OR ${t.channel} ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')`)],

@@ -281,3 +281,102 @@ test("EX34 ingress startup survives another listener taking a released ephemeral
 		await Promise.all(competitors.map((server) => new Promise<void>((resolve) => close.call(server, () => resolve()))));
 	}
 });
+
+test("CF11 platform notification code cannot fetch loopback infrastructure", async () => {
+	await withFixtures(async (fixture) => {
+		const before = await (await fetch(fixture.httpUrl + "/receipts")).json();
+		const script = await compile({ stage: "notification", body: `try { await fetch(${JSON.stringify(fixture.httpUrl + "/delivery")},{method:'POST',body:'private probe'}); return ctx.fail({ reason: 'private target reached' }); } catch { return ctx.complete(); }` });
+		const result = await execute({ stage: "notification", bundle: script.bundle, input: {} });
+		assert.deepEqual(result.decision, { kind: "complete" });
+		assert.equal((await (await fetch(fixture.httpUrl + "/receipts")).json()).length, before.length);
+	});
+});
+
+test("CF12 notification transport pins DNS and bounds responses with operator-only private targets", async () => {
+	const { notificationFetch, publicAddress } = await import("../../apps/executor/src/notification-fetch.ts");
+	const { createServer } = await import("node:http");
+	const { networkInterfaces } = await import("node:os");
+	const { gzipSync, deflateSync, brotliCompressSync } = await import("node:zlib");
+	for (const address of ["127.0.0.1", "169.254.169.254", "10.0.0.1", "100.100.100.200", "192.168.0.1", "0.0.0.0", "224.0.0.1", "::1", "::ffff:127.0.0.1", "fd00:ec2::254", "2001:db8::1", "invalid"]) assert.equal(publicAddress(address), false, address);
+	for (const address of ["8.8.8.8", "1.1.1.1", "2606:4700:4700::1111"]) assert.equal(publicAddress(address), true, address);
+
+	const signal = () => AbortSignal.timeout(5000);
+
+	for (const value of ["http://127.0.0.1/", "http://2130706433/", "http://[::ffff:127.0.0.1]/", "http://169.254.169.254/", "http://100.100.100.200/", "http://[fd00:ec2::254]/", "http://localhost/"]) await assert.rejects(notificationFetch(new URL(value), { method: "GET", headers: {}, signal: signal() }, [new URL(value).hostname.replace(/^\[|\]$/g, "")]), /notification_target_blocked/);
+	await assert.rejects(notificationFetch(new URL("ftp://example.test/"), { method: "GET", headers: {}, signal: signal() }), /invalid_target/);
+	await assert.rejects(notificationFetch(new URL("https://user:pass@example.test/"), { method: "GET", headers: {}, signal: signal() }), /invalid_target/);
+	await assert.rejects(notificationFetch(new URL("http://example.test/"), { method: "GET", headers: {}, signal: AbortSignal.abort() }));
+	const address = Object.values(networkInterfaces())
+		.flat()
+		.find((entry) => entry?.family === "IPv4" && !entry.internal)!.address;
+	let requests = 0;
+	const server = createServer((request, response) => {
+		requests++;
+		assert.ok([address + ":" + (server.address() as import("node:net").AddressInfo).port, "configured.invalid:" + (server.address() as import("node:net").AddressInfo).port].includes(request.headers.host!));
+		if (request.url === "/redirect") {
+			response.writeHead(302, { location: "http://169.254.169.254/" }).end();
+
+			return;
+		}
+
+		if (request.url === "/empty") {
+			response.writeHead(204).end();
+
+			return;
+		}
+
+		if (request.url === "/large") {
+			response.end(Buffer.alloc(1048577));
+
+			return;
+		}
+
+		if (request.url === "/bomb") {
+			response.setHeader("content-encoding", "gzip");
+			response.end(gzipSync(Buffer.alloc(1048577)));
+
+			return;
+		}
+
+		const text = Buffer.from("bounded reply");
+		const encodings = { "/gzip": ["gzip", gzipSync(text)], "/deflate": ["deflate", deflateSync(text)], "/br": ["br", brotliCompressSync(text)] } as const;
+		const encoded = encodings[request.url as keyof typeof encodings];
+		if (encoded) {
+			response.setHeader("content-encoding", encoded[0]);
+			response.end(encoded[1]);
+		} else response.end(text);
+	});
+	await new Promise<void>((resolve) => server.listen(0, "0.0.0.0", resolve));
+	const url = "http://" + address + ":" + (server.address() as import("node:net").AddressInfo).port;
+
+	const get = (path: string) => notificationFetch(new URL(path, url), { method: "GET", headers: { host: "wrong-host" }, signal: signal() }, [address]);
+
+	try {
+		const dns = await import("node:dns/promises");
+		const { syncBuiltinESMExports } = await import("node:module");
+		const pinned = test.mock.method(dns.default, "lookup", (async () => [{ address, family: 4 }]) as unknown as typeof dns.lookup);
+		syncBuiltinESMExports();
+		try {
+			const target = new URL(url);
+			target.hostname = "configured.invalid";
+			assert.equal(await (await notificationFetch(target, { method: "GET", headers: {}, signal: signal() }, ["configured.invalid"])).text(), "bounded reply");
+			assert.equal(pinned.mock.callCount(), 1, "Connection must use the validated answer, not resolve the hostname again");
+		} finally {
+			pinned.mock.restore();
+			syncBuiltinESMExports();
+		}
+
+		for (const path of ["/", "/gzip", "/deflate", "/br"]) assert.equal(await (await get(path)).text(), "bounded reply");
+		const before = requests;
+		assert.equal((await get("/redirect")).status, 302);
+		assert.equal(requests, before + 1, "Redirects must never be followed");
+		assert.equal(await (await get("/empty")).text(), "");
+		assert.equal(await (await notificationFetch(new URL(url), { method: "HEAD", headers: {}, signal: signal() }, [address])).text(), "");
+		await assert.rejects(get("/large"), /response_limit/);
+		await assert.rejects(get("/bomb"));
+	} finally {
+		await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+	}
+
+	await assert.rejects(get("/"));
+});

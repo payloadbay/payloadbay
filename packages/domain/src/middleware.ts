@@ -1,6 +1,6 @@
 import type { Pool, PoolClient } from "pg";
 import { transaction } from "./db.ts";
-import { requirePermission, scopeAncestry } from "./membership.ts";
+import { requirePermission, dataAncestry } from "./membership.ts";
 import type { Actor, ScopeRef } from "./authorization.ts";
 import { AppError } from "../../contracts/src/errors.ts";
 import { appendChange } from "./changes.ts";
@@ -30,7 +30,7 @@ export async function middlewareActorScope(db: Pool | PoolClient, scope: Middlew
 
 export async function middlewareScopes(db: Pool | PoolClient, scope: MiddlewareScope): Promise<MiddlewareScope[]> {
 	const actorScope = await middlewareActorScope(db, scope);
-	const ancestors = await scopeAncestry(db, actorScope);
+	const ancestors = await dataAncestry(db, actorScope);
 
 	return scope.type === "endpoint" ? [...ancestors, scope] : ancestors;
 }
@@ -54,7 +54,7 @@ async function compileBinding(db: PoolClient, actor: Actor, input: BindingInput)
 	const domainScope = await middlewareActorScope(db, input.scope);
 	await requirePermission(db, actor, domainScope, "code.edit");
 	await requirePermission(db, actor, domainScope, "code.publish");
-	const ancestry = await scopeAncestry(db, domainScope);
+	const ancestry = await dataAncestry(db, domainScope);
 	const secrets: Record<string, string> = Object.create(null);
 	if (!input.name.trim() || input.name.length > 100 || !Number.isInteger(input.position) || input.position < 0 || input.position > 10000 || Buffer.byteLength(input.body) > 131072) throw new AppError("invalid_middleware", 400, "Provide a middleware name, position and bounded body");
 	for (const [name, id] of Object.entries(input.secretBindings ?? {})) {

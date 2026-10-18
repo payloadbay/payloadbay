@@ -71,7 +71,7 @@ test("RT03 retention is disabled by default and its database capability cannot b
 		const job = (await db.query("INSERT INTO payloadbay.platform_job(kind,encrypted_payload,job_key) VALUES('event_retention',$1,$2) RETURNING id,generation", [encryptPrivate({}, config.encryptionKey), "disabled-retention:" + randomUUID()])).rows[0];
 		await platformJobTask(pool, config)({ jobId: job.id, generation: job.generation });
 		assert.equal((await db.query("SELECT count(*)::int AS count FROM payloadbay.event")).rows[0].count, 2);
-		await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation) VALUES('fixture-owner','instance',$1,'fixture.guard-proof')", [scope.installation]);
+		await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation) VALUES('fixture-owner','instance',$1,'fixture.guard-proof')", [scope.project]);
 		const role = "pab_retention_test_" + randomUUID().replaceAll("-", "");
 		const password = randomUUID() + randomUUID();
 		const connection = new URL(fixture.databaseUrl);
@@ -129,7 +129,7 @@ test("RT05 replay racing completed retention returns not-found instead of a fore
 	await authFixture(async ({ db, pool }) => {
 		const scope = await seedScope(db);
 		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
-		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'custom',ARRAY['events.replay'])", [scope.installation]);
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','project',$1,'custom',ARRAY['events.replay'])", [scope.project]);
 		const event = (await db.query("INSERT INTO payloadbay.event(endpoint_id,publication_id,received_at,original_body,accepted_body,headers,content_type) VALUES($1,$2,statement_timestamp()-interval '40 days',$3,$3,'{}','text/plain') RETURNING id", [scope.endpoint, scope.publication, Buffer.from("synthetic retained request")])).rows[0].id;
 		const execution = (await db.query("INSERT INTO payloadbay.execution(event_id,endpoint_id,publication_id,state) VALUES($1,$2,$3,'succeeded') RETURNING id", [event, scope.endpoint, scope.publication])).rows[0].id;
 		await db.query("INSERT INTO payloadbay.usage_fact(organization_id,workspace_id,project_id,metric,source_key,occurred_at) VALUES($1,$2,$3,'execution.succeeded',$4,statement_timestamp()-interval '40 days')", [scope.organization, scope.workspace, scope.project, execution]);
@@ -165,7 +165,7 @@ test("RT06 retention rechecks a replay committed after its selection snapshot be
 	await authFixture(async ({ db, pool }) => {
 		const scope = await seedScope(db);
 		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
-		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'custom',ARRAY['events.replay'])", [scope.installation]);
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','project',$1,'custom',ARRAY['events.replay'])", [scope.project]);
 		const event = (await db.query("INSERT INTO payloadbay.event(endpoint_id,publication_id,received_at,original_body,accepted_body,headers,content_type) VALUES($1,$2,statement_timestamp()-interval '40 days',$3,$3,'{}','text/plain') RETURNING id", [scope.endpoint, scope.publication, Buffer.from("synthetic snapshot request")])).rows[0].id;
 		const old = (await db.query("INSERT INTO payloadbay.execution(event_id,endpoint_id,publication_id,state) VALUES($1,$2,$3,'succeeded') RETURNING id", [event, scope.endpoint, scope.publication])).rows[0].id;
 		await db.query("INSERT INTO payloadbay.usage_fact(organization_id,workspace_id,project_id,metric,source_key,occurred_at) VALUES($1,$2,$3,'execution.succeeded',$4,statement_timestamp()-interval '40 days')", [scope.organization, scope.workspace, scope.project, old]);

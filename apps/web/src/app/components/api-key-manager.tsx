@@ -26,7 +26,7 @@ export function ApiKeyManager({ organizationId }: { organizationId?: string }) {
 		{
 			type: "instance",
 			id: me.instanceId,
-			name: "Entire instance",
+			name: "Instance operations",
 			permissions: me.permissions,
 			organizationId: undefined,
 		},

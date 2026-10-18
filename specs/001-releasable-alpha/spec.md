@@ -90,7 +90,7 @@ Invalid/missing verification; malformed/binary bodies; exact challenge bytes; co
 - **FR-016**: Define execution/revision/action identity and recovery semantics so recorded completed actions are reused; intentional replay creates a new run. Do not promise transparent continuation of arbitrary JS state.
 - **FR-017**: Support draft/test/publish/rollback, pinned compatible dependencies and bounded isolated execution with controlled capabilities/secrets, proven on supported runtime modes.
 - **FR-018**: Support shared/global code modules/functions; publishing pins dependency revisions and does not silently mutate active handlers.
-- **FR-019**: Support instance/organization/workspace/project/endpoint-scoped user middleware with explicit order, versioned bindings and configurable required/optional failure behavior. Permission inheritance follows instance → organization → workspace → project on self-hosted installations; hosted customer authorization begins at organization.
+- **FR-019**: Support instance/organization/workspace/project/endpoint-scoped user middleware with explicit order, versioned bindings and configurable required/optional failure behavior. Customer authorization and configured dependency inheritance begin at organization in every deployment. Instance roles never imply customer membership.
 
 ### Shared deployment foundation — confirmed 2026-10-16
 
@@ -204,9 +204,10 @@ its descriptive function name is not the runtime dispatch identity. Monaco expos
 available module paths and exported types, and formatting preserves native source.
 
 
-### Hosted privacy clarification — confirmed 2026-10-17
+### Confidentiality boundary — confirmed 2026-10-18
 
-The instance-role boundary also applies to resource lists and scoped API tokens.
-Hosted platform audit views exclude customer-scope activity. Automatic
-instance-wide middleware inheritance is a separate unresolved trust-model finding;
-the role changes alone do not certify a confidential public hosted service.
+Self-hosted and hosted deployments both separate instance operations from customer authority. Instance administration cannot grant itself customer membership or inspect customer events, code, secrets, audit or notifications. Explicit customer membership is required and revocable. Scoped customer audit includes its descendants only. Setup creates explicit default-organization ownership; that ownership is separate from the platform role.
+
+Instance middleware cannot execute on customer requests. Old compiled helper/secret dependencies outside the customer boundary stop safely until republished. Authentication messages bypass editable notification code even when queued before an update. Custom alert module consent is immutable-version pinned; no mutable platform default silently receives customer notification content.
+
+These are application authorization requirements, not a claim of complete production confidentiality certification. Published deployment/upgrade/restore validation, isolated host execution and deployment-level credential/network controls remain independent release gates.

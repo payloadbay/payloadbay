@@ -94,7 +94,7 @@ export async function listInvitations(pool: Pool, actor: Actor, scope: ScopeRef)
 	await requirePermission(pool, actor, scope, "members.manage");
 	const ancestry = await scopeAncestry(pool, scope);
 
-	return (await pool.query("SELECT id,email,grants,expires_at,state FROM payloadbay.invitation WHERE installation_id=$3 AND state='pending' AND expires_at>clock_timestamp() AND (($1='instance') OR (scope_type=$1 AND scope_id=$2) OR grants @> $4::jsonb) ORDER BY created_at DESC LIMIT 200", [scope.type, scope.id, ancestry[0].id, JSON.stringify([{ scope }])])).rows;
+	return (await pool.query("SELECT id,email,grants,expires_at,state FROM payloadbay.invitation WHERE installation_id=$3 AND state='pending' AND expires_at>clock_timestamp() AND ((scope_type=$1 AND scope_id=$2) OR ($1<>'instance' AND grants @> $4::jsonb)) ORDER BY created_at DESC LIMIT 200", [scope.type, scope.id, ancestry[0].id, JSON.stringify([{ scope }])])).rows;
 }
 
 export async function invitationDetails(pool: Pool, token: string) {

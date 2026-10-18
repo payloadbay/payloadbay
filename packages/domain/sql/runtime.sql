@@ -4,17 +4,24 @@
 DO $$
 DECLARE legacy record; operator_id text;
 BEGIN
- FOR legacy IN SELECT id,installation_id,name,archived_at FROM payloadbay.workspace WHERE organization_id IS NULL ORDER BY id FOR UPDATE LOOP
-  SELECT g.user_id INTO operator_id FROM payloadbay.grant_record g
-   JOIN payloadbay.admission a ON a.user_id=g.user_id AND a.installation_id=legacy.installation_id AND a.active
-   WHERE g.scope_type='instance' AND g.scope_id=legacy.installation_id AND g.role_preset='owner'
-   ORDER BY g.user_id LIMIT 1;
-  IF operator_id IS NULL THEN RAISE EXCEPTION 'Organization mapping requires an active instance owner'; END IF;
+ FOR legacy IN SELECT id,installation_id,name,archived_at,owner_user_id FROM payloadbay.workspace WHERE organization_id IS NULL ORDER BY id FOR UPDATE LOOP
+  SELECT a.user_id INTO operator_id FROM payloadbay.admission a
+   WHERE a.user_id=legacy.owner_user_id AND a.installation_id=legacy.installation_id AND a.active;
+  IF operator_id IS NULL THEN RAISE EXCEPTION 'Organization mapping requires the recorded workspace owner to be active'; END IF;
   INSERT INTO payloadbay.organization(id,installation_id,name,slug,owner_user_id,archived_at)
    VALUES(legacy.id,legacy.installation_id,legacy.name,'migrated-'||legacy.id::text,operator_id,legacy.archived_at);
   UPDATE payloadbay.workspace SET organization_id=legacy.id WHERE id=legacy.id;
  END LOOP;
 END $$;
+
+-- Preserve recorded bootstrap ownership without turning platform administration into customer membership.
+INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions)
+ SELECT o.owner_user_id,'organization',o.id,'owner',g.permissions
+ FROM payloadbay.organization o JOIN payloadbay.installation i ON i.id=o.installation_id
+ JOIN payloadbay.grant_record g ON g.user_id=o.owner_user_id AND g.scope_type='instance' AND g.scope_id=o.installation_id AND g.role_preset='owner'
+ JOIN payloadbay.admission a ON a.user_id=o.owner_user_id AND a.installation_id=o.installation_id AND a.active
+ WHERE i.bootstrap_state='complete' AND o.archived_at IS NULL
+ ON CONFLICT(user_id,scope_type,scope_id) DO NOTHING;
 
 -- Resource ancestry is stable after creation; legacy NULL lineage can be backfilled.
 CREATE OR REPLACE FUNCTION payloadbay.reject_resource_parent() RETURNS trigger LANGUAGE plpgsql AS $$

@@ -299,3 +299,18 @@ with its credential before that workflow can push the CI-owned migration commit.
 No key was created, no protection changed, and the unrelated dirty workflow draft
 was not edited. Approved merge and coordinated published images still precede
 operator installation/upgrade/restore certification.
+
+## Approved confidentiality boundary — 2026-10-18
+
+Both modes now separate instance operations from organization/workspace/project
+access. Explicit grants and customer invitations are required; instance keys and
+instance administration cannot confer customer access. Scoped customer audit,
+private-dependency checks on historical publications, trusted authentication SMTP
+and recipient-approved notification code pins form the application boundary.
+See docs/permissions.md for deployment allowances and ownership separation.
+
+This addresses a compromised dashboard administrator account, not a compromised
+host/database/SMTP deployment. Hosted executor network segregation, independent
+security assessment and published-image operator acceptance remain release gates.
+Initial setup intentionally grants the same person explicit platform and default
+organization ownership; remove the latter when separating those responsibilities.

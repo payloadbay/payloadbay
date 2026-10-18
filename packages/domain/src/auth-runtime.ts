@@ -87,6 +87,7 @@ export function createAuth(pool: Pool, config: ServerConfig) {
 		],
 		hooks: {
 			before: createAuthMiddleware(async (ctx) => {
+				if (ctx.path.startsWith("/admin/") && (ctx.request || ctx.headers)) throw new APIError("NOT_FOUND", { message: "Resource unavailable" });
 				if (ctx.path.includes("forget-password") || ctx.path.includes("reset-password") || ctx.path.includes("sign-up")) throw new APIError("NOT_FOUND", { message: "This authentication method is unavailable" });
 				if (ctx.path === "/sign-in/email-otp") {
 					const email = String(ctx.body?.email ?? "")
@@ -106,6 +107,7 @@ export function createAuth(pool: Pool, config: ServerConfig) {
 		api: auth.api,
 		async handler(request: Request) {
 			const pathname = new URL(request.url).pathname;
+			if (pathname.startsWith("/api/auth/admin/")) return Response.json({ error: { code: "not_found", message: "Resource unavailable" } }, { status: 404 });
 			if (pathname === "/api/auth/email-otp/send-verification-otp" && request.method === "POST") {
 				if (request.headers.get("origin") && request.headers.get("origin") !== new URL(config.publicUrl).origin) return Response.json({ error: { code: "invalid_origin", message: "Request origin is not allowed" } }, { status: 403 });
 				const body = await request.json().catch(() => null);

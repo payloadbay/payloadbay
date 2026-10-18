@@ -1,7 +1,7 @@
 import { protectedRoute } from "@api/protected";
 import { readJson } from "@api/handler";
 import { grantInput, scopeSchema } from "@contracts/resources";
-import { setGrant, requirePermission, scopeAncestry } from "@domain/membership";
+import { setGrant, requirePermission, scopeAncestry, dataAncestry } from "@domain/membership";
 import { effectivePermissions } from "@domain/authorization";
 import { AppError } from "@contracts/errors";
 
@@ -16,7 +16,8 @@ export async function GET(request: Request) {
 		if (!parsed.success) throw new AppError("invalid_input", 400, "Choose a valid member scope");
 		await requirePermission(pool, actor, parsed.data, "members.manage");
 		const ancestry = await scopeAncestry(pool, parsed.data);
-		const parents = ancestry.slice(0, -1);
+		const authorizedAncestry = await dataAncestry(pool, parsed.data);
+		const parents = authorizedAncestry.slice(0, -1);
 		const members = (
 			await pool.query(
 				`
@@ -31,7 +32,7 @@ WHERE a.installation_id=$3 AND a.active
     WHERE inherited.user_id=u.id AND inherited.scope_type=parent.type AND inherited.scope_id=parent.id
   ))
 ORDER BY u.name,u.id LIMIT 200`,
-				[parsed.data.type, parsed.data.id, ancestry[0].id, parsed.data.type === "instance" ? "member" : "inherited", JSON.stringify(ancestry)],
+				[parsed.data.type, parsed.data.id, ancestry[0].id, parsed.data.type === "instance" ? "member" : "inherited", JSON.stringify(authorizedAncestry)],
 			)
 		).rows;
 

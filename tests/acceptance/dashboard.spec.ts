@@ -981,7 +981,7 @@ test("overview and mobile hierarchy preserve context while search opens resource
 	await expect(globalRows.nth(1)).toContainText("Organizations");
 	await expect(globalRows.nth(2)).toContainText("Workspaces");
 	await expect(drawer.getByRole("row", { name: "Event log", exact: true })).toBeVisible();
-	await expect(drawer.getByRole("treegrid", { name: "Instance administration" }).getByRole("row", { name: "Instance members", exact: true })).toBeVisible();
+	await expect(drawer.getByRole("treegrid", { name: "Instance access" }).getByRole("row", { name: "Instance members", exact: true })).toBeVisible();
 
 	await expect(drawer.getByText("Browse hierarchy", { exact: true })).toHaveCount(0);
 	await expect(drawer.getByRole("row", { name: "Search pages and resources", exact: true })).toHaveCount(0);
@@ -1070,7 +1070,8 @@ test("instance notification modules fork, preview, publish and deliver branded e
 	await expect(page.getByRole("combobox", { name: "Module version" })).toContainText("v1 · Active · Latest");
 	await page.goto("/admin/email");
 	await page.getByLabel("Brand name", { exact: true }).fill("Review brand");
-	await page.getByRole("combobox", { name: "Transactional email module" }).selectOption({ label: "Review email module · v1" });
+	await expect(page.getByRole("combobox", { name: "Transactional email module" })).toHaveCount(0);
+	await expect(page.getByText("Authentication email uses the built-in SMTP handler.", { exact: false })).toBeVisible();
 	await page.getByRole("button", { name: "Preview email", exact: true }).click();
 	await expect(page.frameLocator('iframe[title="Branded email preview"]').getByRole("img", { name: "Review brand", exact: true })).toBeVisible();
 	await expect(page.frameLocator('iframe[title="Branded email preview"]').getByRole("heading", { name: "Your sign-in code", exact: true })).toBeVisible();
@@ -1602,4 +1603,46 @@ test("UX54 request client sends edited body and headers", async ({ page }) => {
 	await page.getByRole("button", { name: "Send request", exact: true }).click();
 	await expect(page.getByLabel("Response body", { exact: true })).toHaveText('{"review":true}|editor');
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
+test("CF10 scoped audit is usable on mobile and platform roles cannot restore customer access", async ({ page }) => {
+	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
+	const { database } = await import("../../packages/domain/src/db.ts");
+	await ensureBrowserOwner(page);
+	const me = await (await page.request.get("/api/v1/me")).json();
+	const created = await page.request.post("/api/v1/workspaces", { headers: commandHeaders(), data: { parentId: await browserOrganization(page), name: "Private department", slug: "private-department" } });
+	expect(created.status()).toBe(200);
+	const workspace = await created.json();
+	const project = await (await page.request.post("/api/v1/projects", { headers: commandHeaders(), data: { parentId: workspace.id, name: "Private business", slug: "private-business" } })).json();
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/workspaces/" + workspace.id + "/audit");
+	await expect(page.getByRole("grid", { name: "Audit log" })).toContainText("scope.created");
+	await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+	expect((await page.request.post("/api/auth/admin/impersonate-user", { headers: commandHeaders(), data: { userId: "customer" } })).status()).toBe(404);
+	const pool = database(process.env.DATABASE_URL!);
+	try {
+		await pool.query("DELETE FROM payloadbay.grant_record WHERE user_id=$1 AND scope_type<>'instance'", [me.user.id]);
+		expect((await page.request.get("/api/v1/audit?scopeType=workspace&scopeId=" + workspace.id)).status()).toBe(403);
+		expect((await page.request.get("/api/v1/audit?scopeType=project&scopeId=" + project.id)).status()).toBe(403);
+		expect(
+			(
+				await page.request.put("/api/v1/members", {
+					headers: commandHeaders(),
+					data: {
+						scope: { type: "project", id: project.id },
+						userId: me.user.id,
+						role: "custom",
+						permissions: ["metadata.read"],
+					},
+				})
+			).status(),
+		).toBe(403);
+		const audit = await (await page.request.get("/api/v1/audit")).json();
+		expect(audit.items.every((item: { scope: { type: string } }) => item.scope.type === "instance")).toBe(true);
+		await page.reload();
+		await expect(page.getByRole("heading", { name: "Audit access is restricted" })).toBeVisible();
+		await expect(page.getByRole("grid", { name: "Audit log" })).toHaveCount(0);
+	} finally {
+		await pool.end();
+	}
 });

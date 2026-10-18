@@ -28,8 +28,9 @@ The maintainer approved replacing the Supabase foundation on 2026-10-13.
   grant the Next.js application a Docker socket or treat node:vm as isolation.
 - HeroUI, API-first Route Handlers, authenticated SSE and Zod/OpenAPI are selected.
 - Instance access, workspace ownership and project-scoped roles are distinct.
-  Ordinary admission is not global administration; granted roles inherit
-  instance → organization → workspace → project. Endpoints have separate ingress/processing scripts.
+  Ordinary admission is not global administration. Instance roles stop at the
+  platform boundary in every deployment; explicit customer roles inherit
+  organization → workspace → project. Endpoints have separate ingress/processing scripts.
 
 The request path runs bounded ingress code, commits event plus processing job
 atomically, then acknowledges. Destination delivery happens asynchronously.

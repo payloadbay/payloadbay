@@ -13,12 +13,12 @@ test("U51 admission grants no resource access", async () => {
 	});
 });
 
-test("U52 instance grants apply to child resources", async () => {
+test("U52 instance grants stop before customer resources", async () => {
 	await authFixture(async ({ db }) => {
 		const scope = await seedScope(db);
 		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
 		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'custom',ARRAY['payload.read'])", [scope.installation]);
-		assert.deepEqual([...(await policy.actorPermissions(db, { userId: "fixture-owner" }, { type: "project", id: scope.project }))], ["payload.read"]);
+		assert.deepEqual([...(await policy.actorPermissions(db, { userId: "fixture-owner" }, { type: "project", id: scope.project }))], []);
 	});
 });
 
@@ -151,6 +151,7 @@ test("U236 resource creation scopes owner and preserves unique slugs", async () 
 		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
 		const { permissions } = await import("../../packages/contracts/src/permissions.ts");
 		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, permissions]);
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','organization',$1,'owner',$2)", [scope.organization, permissions]);
 		const actor = { userId: "fixture-owner" };
 		const input = {
 			type: "workspace" as const,
@@ -352,7 +353,8 @@ test("AD02 audit history preserves microsecond pagination and scope boundaries",
 			["project", scope.project],
 			["endpoint", scope.endpoint],
 		]) {
-			expected.push((await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation,redacted_diff,created_at) VALUES('fixture-owner',$1,$2,'fixture.audit',$3,'2026-10-17T01:02:03.123456Z') RETURNING id", [type, id, JSON.stringify({ private: "never return this diff" })])).rows[0].id);
+			const auditId = (await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation,redacted_diff,created_at) VALUES('fixture-owner',$1,$2,'fixture.audit',$3,'2026-10-17T01:02:03.123456Z') RETURNING id", [type, id, JSON.stringify({ private: "never return this diff" })])).rows[0].id;
+			if (type === "instance") expected.push(auditId);
 		}
 
 		await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation) VALUES('other','instance',gen_random_uuid(),'fixture.other')");
@@ -434,7 +436,9 @@ test("HT03 hosted staff gain only customer-invited rights after acceptance", asy
 		await identity(f.db, "customer");
 		const setup = await bootstrapOwner(f.pool, { userId: "staff", providedSecret: setupSecret, expectedSecret: setupSecret });
 		await f.db.query("UPDATE payloadbay.installation SET deployment_mode='hosted'");
+		await f.db.query("DELETE FROM payloadbay.grant_record WHERE user_id='staff' AND scope_type='organization'");
 		await f.db.query("INSERT INTO payloadbay.admission(installation_id,user_id) VALUES($1,'customer')", [setup.installationId]);
+		await f.db.query("UPDATE payloadbay.organization SET owner_user_id='customer' WHERE id=$1", [setup.organizationId]);
 		await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('customer','organization',$1,'admin',$2)", [setup.organizationId, rolePermissions.admin]);
 		const scope = { type: "organization" as const, id: setup.organizationId };
 		const staff = { userId: "staff" };
@@ -454,5 +458,123 @@ test("HT03 hosted staff gain only customer-invited rights after acceptance", asy
 		} finally {
 			await service.close();
 		}
+	});
+});
+
+test("CF01 self-hosted platform grants do not grant departmental access or self-membership", async () => {
+	await authFixture(async ({ pool, db }) => {
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete',deployment_mode='self_hosted'");
+		const { permissions } = await import("../../packages/contracts/src/permissions.ts");
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, permissions]);
+		const actor = { userId: "fixture-owner" };
+		assert.equal((await policy.actorPermissions(db, actor, { type: "instance", id: scope.installation })).has("members.manage"), true);
+		for (const resource of [
+			{ type: "organization" as const, id: scope.organization },
+			{ type: "workspace" as const, id: scope.workspace },
+			{ type: "project" as const, id: scope.project },
+		]) {
+			assert.deepEqual([...(await policy.actorPermissions(db, actor, resource))], []);
+			await assert.rejects(policy.requirePermission(db, actor, resource, "payload.read"), { code: "forbidden" });
+		}
+
+		await assert.rejects(
+			policy.setGrant(pool, actor, {
+				scope: { type: "project", id: scope.project },
+				userId: actor.userId,
+				role: "owner",
+				permissions,
+				expectedVersion: null,
+			}),
+			{ code: "forbidden" },
+		);
+		const { listResources } = await import("../../packages/domain/src/resources.ts");
+		for (const type of ["organization", "workspace", "project"] as const) assert.deepEqual(await listResources(pool, actor, type), []);
+		const token = (await db.query("INSERT INTO payloadbay.api_token(user_id,scope_type,scope_id,name,permissions,hash,expires_at) VALUES('fixture-owner','instance',$1,'platform',ARRAY['payload.read'],'hosted-platform-token',clock_timestamp()+interval '1 hour') RETURNING id", [scope.installation])).rows[0].id;
+		await assert.rejects(policy.actorPermissions(db, { ...actor, token: { id: token, scope: { type: "instance", id: scope.installation }, permissions: ["payload.read"] } }, { type: "project", id: scope.project }), { code: "unauthenticated" });
+	});
+});
+
+test("CF02 self-hosted platform audit excludes departmental activity", async () => {
+	await authFixture(async ({ pool, db }) => {
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete',deployment_mode='self_hosted'");
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'custom',ARRAY['audit.read'])", [scope.installation]);
+		await db.query("INSERT INTO payloadbay.audit(actor,operation,scope_type,scope_id) VALUES('fixture-owner','platform.review','instance',$1),('fixture-owner','customer.review','project',$2)", [scope.installation, scope.project]);
+		const { listAudit } = await import("../../packages/domain/src/audit.ts");
+		const audit = await listAudit(pool, { userId: "fixture-owner" }, scope.installation, {});
+		assert.deepEqual(
+			audit.items.map((item) => item.operation),
+			["platform.review"],
+		);
+	});
+});
+
+test("CF05 scoped audit excludes parents siblings private diffs and revoked access", async () => {
+	const { listAudit } = await import("../../packages/domain/src/audit.ts");
+	await authFixture(async ({ pool, db }) => {
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','workspace',$1,'custom',ARRAY['audit.read'])", [scope.workspace]);
+		const sibling = (await db.query("INSERT INTO payloadbay.workspace(installation_id,organization_id,name,slug,owner_user_id) VALUES($1,$2,'Private department','private','fixture-owner') RETURNING id", [scope.installation, scope.organization])).rows[0].id;
+		for (const [type, id] of [
+			["instance", scope.installation],
+			["organization", scope.organization],
+			["workspace", scope.workspace],
+			["workspace", sibling],
+			["project", scope.project],
+			["endpoint", scope.endpoint],
+		])
+			await db.query("INSERT INTO payloadbay.audit(actor,operation,scope_type,scope_id,redacted_diff) VALUES('customer','review',$1,$2,jsonb_build_object('secret','never return'))", [type, id]);
+		const result = await listAudit(pool, { userId: "fixture-owner" }, { type: "workspace", id: scope.workspace }, {});
+		assert.deepEqual(new Set(result.items.map((item) => item.scope.type)), new Set(["workspace", "project", "endpoint"]));
+		assert.equal(JSON.stringify(result).includes("never return"), false);
+		await assert.rejects(listAudit(pool, { userId: "fixture-owner" }, { type: "workspace", id: sibling }, {}), { code: "forbidden" });
+		await db.query("DELETE FROM payloadbay.grant_record WHERE user_id='fixture-owner'");
+		await assert.rejects(listAudit(pool, { userId: "fixture-owner" }, { type: "workspace", id: scope.workspace }, {}), { code: "forbidden" });
+	});
+});
+
+test("CF06 instance invitation lists do not disclose departmental invitations", async () => {
+	const { listInvitations } = await import("../../packages/domain/src/invitations.ts");
+	await authFixture(async ({ pool, db }) => {
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'custom',ARRAY['members.manage'])", [scope.installation]);
+		for (const [type, id, email] of [
+			["instance", scope.installation, "platform@example.test"],
+			["project", scope.project, "department@example.test"],
+		])
+			await db.query("INSERT INTO payloadbay.invitation(installation_id,scope_type,scope_id,email,token_digest,grants,created_by) VALUES($1,$2,$3,$4,$4,'[]','customer')", [scope.installation, type, id, email]);
+		const result = await listInvitations(pool, { userId: "fixture-owner" }, { type: "instance", id: scope.installation });
+		assert.deepEqual(
+			result.map((row) => row.email),
+			["platform@example.test"],
+		);
+	});
+});
+
+test("CF08 instance operations expose aggregate traffic without customer content", async () => {
+	const { readJobAdministration } = await import("../../packages/domain/src/overview.ts");
+	await authFixture(async ({ pool, db }) => {
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'custom',ARRAY['jobs.read'])", [scope.installation]);
+		const eventId = await seedEvent(db, scope);
+		const execution = (await db.query("INSERT INTO payloadbay.execution(event_id,endpoint_id,publication_id) VALUES($1,$2,$3) RETURNING id", [eventId, scope.endpoint, scope.publication])).rows[0].id;
+		await db.query("INSERT INTO payloadbay.managed_operation(execution_id,operation_id,input_digest,destination_snapshot,generation) VALUES($1,'private-operation','fixture','{}',1)", [execution]);
+		await db.query("INSERT INTO payloadbay.delivery_attempt(execution_id,operation_id,execution_attempt,generation,status_code,ended_at) VALUES($1,'private-operation',1,1,503,clock_timestamp())", [execution]);
+		const result = await readJobAdministration(pool, { userId: "fixture-owner" }, scope.installation);
+		assert.equal(result.series.length, 24);
+		assert.equal(
+			result.series.reduce((sum, point) => sum + point.failed, 0),
+			1,
+		);
+		assert.equal(
+			result.series.reduce((sum, point) => sum + point.succeeded, 0),
+			0,
+		);
+		assert.equal(JSON.stringify(result).includes("private-operation"), false);
+		assert.equal(JSON.stringify(result.series).includes(scope.project), false);
 	});
 });

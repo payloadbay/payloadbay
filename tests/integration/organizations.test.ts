@@ -291,6 +291,9 @@ test("FT01c legacy workspace mapping preserves event execution and grant identit
 		const scope = await seedScope(db);
 		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
 		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, rolePermissions.owner]);
+		await identity(db, "aaa-unrelated-operator");
+		await db.query("INSERT INTO payloadbay.admission(installation_id,user_id) VALUES($1,'aaa-unrelated-operator')", [scope.installation]);
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('aaa-unrelated-operator','instance',$1,'owner',$2)", [scope.installation, rolePermissions.owner]);
 		const eventId = await seedEvent(db, scope);
 		const execution = (await db.query("INSERT INTO payloadbay.execution(event_id,endpoint_id,publication_id) VALUES($1,$2,$3) RETURNING id", [eventId, scope.endpoint, scope.publication])).rows[0];
 		const { scheduleDispatch } = await import("../../packages/domain/src/execution-lease.ts");
@@ -315,9 +318,16 @@ test("FT01c legacy workspace mapping preserves event execution and grant identit
 		await db.query(source);
 		const mapped = (await db.query("SELECT organization_id FROM payloadbay.workspace WHERE id=$1", [scope.workspace])).rows[0];
 		assert.ok(mapped.organization_id, "legacy workspace must receive an organization");
+		assert.equal((await db.query("SELECT owner_user_id FROM payloadbay.organization WHERE id=$1", [mapped.organization_id])).rows[0].owner_user_id, "fixture-owner");
 		await db.query(source);
 		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.organization")).rows[0].n, 1);
-		assert.deepEqual((await db.query("SELECT * FROM payloadbay.grant_record ORDER BY id")).rows, grants);
+		const migratedGrants = (await db.query("SELECT * FROM payloadbay.grant_record ORDER BY id")).rows;
+		assert.deepEqual(
+			migratedGrants.filter((grant) => grants.some((before) => before.id === grant.id)),
+			grants,
+		);
+		assert.equal(migratedGrants.length, grants.length + 1);
+		assert.ok(migratedGrants.some((grant) => grant.scope_type === "organization" && grant.scope_id === mapped.organization_id && grant.user_id === "fixture-owner" && grant.role_preset === "owner"));
 		assert.deepEqual((await db.query("SELECT execution_id,generation,graphile_job_id,job_key FROM payloadbay.dispatch ORDER BY execution_id,generation")).rows, dispatches);
 		assert.deepEqual((await db.query("SELECT id,key FROM graphile_worker.jobs ORDER BY id")).rows, jobs);
 		assert.equal((await db.query("SELECT event_id,endpoint_id,publication_id FROM payloadbay.execution WHERE id=$1", [execution.id])).rows[0].event_id, eventId);
@@ -401,7 +411,7 @@ test("FT03e unrelated organization secrets and code cannot be read or pinned acr
 		);
 		assert.equal((await resolveSharedModules(pool, { userId: "customer-a" }, { type: "project", id: projectA.id }, { formatEvent: helper.id })).formatEvent.revisionId, helper.id);
 		await assert.rejects(getSharedVersion(pool, { userId: "customer-b" }, helper.id), { code: "forbidden" });
-		await assert.rejects(resolveSharedModules(pool, { userId: "operator" }, { type: "project", id: projectB.id }, { formatEvent: helper.id }), { code: "invalid_shared_binding" });
+		await assert.rejects(resolveSharedModules(pool, { userId: "operator" }, { type: "project", id: projectB.id }, { formatEvent: helper.id }), { code: "forbidden" });
 		assert.deepEqual(await listSharedVersions(pool, { userId: "customer-b" }, { type: "project", id: projectB.id }), []);
 	});
 });
@@ -605,6 +615,7 @@ test("FT10c a flooded organization cannot hide a neighboring organization behind
 test("FT03h publications inherit only their organization middleware and reject foreign secret pins", async () => {
 	await authFixture(async ({ pool, db }) => {
 		const { a, b, projectA, projectB } = await customerPair(pool, db);
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('customer-b','organization',$1,'custom',ARRAY['secrets.use','code.read'])", [a.organizationId]);
 		const { createEndpoint } = await import("../../packages/domain/src/endpoints.ts");
 		const { createMiddlewareBinding } = await import("../../packages/domain/src/middleware.ts");
 		const { publish, saveDraft } = await import("../../packages/domain/src/publication.ts");
@@ -666,7 +677,7 @@ test("FT03h publications inherit only their organization middleware and reject f
 		await assert.rejects(
 			createMiddlewareBinding(
 				pool,
-				{ userId: "operator" },
+				{ userId: "customer-b" },
 				{
 					scope: { type: "project", id: projectB.id },
 					name: "Invalid copy",
@@ -681,10 +692,11 @@ test("FT03h publications inherit only their organization middleware and reject f
 			),
 			{ code: "invalid_middleware_origin" },
 		);
+
 		const secret = await createSecret(pool, { userId: "customer-a" }, { scope: { type: "organization", id: a.organizationId }, name: "signingKey", value: "synthetic-value" }, "fixture-encryption-key-32-characters");
 		await saveDraft(
 			pool,
-			{ userId: "operator" },
+			{ userId: "customer-b" },
 			{
 				endpointId: endpointB.id,
 				stage: "processing",
@@ -696,7 +708,7 @@ test("FT03h publications inherit only their organization middleware and reject f
 		await assert.rejects(
 			publish(
 				pool,
-				{ userId: "operator" },
+				{ userId: "customer-b" },
 				{
 					endpointId: endpointB.id,
 					expectedVersion: 1,
@@ -743,7 +755,7 @@ test("FT02c organization ownership retains an active owner during transfer", asy
 		await db.query("UPDATE payloadbay.admission SET active=true WHERE user_id='replacement-owner'");
 		await setGrant(pool, { userId: "customer-a" }, demote);
 		assert.equal((await db.query("SELECT owner_user_id FROM payloadbay.organization WHERE id=$1", [a.organizationId])).rows[0].owner_user_id, "replacement-owner");
-		await assert.rejects(setGrant(pool, { userId: "operator" }, { ...demote, userId: "replacement-owner" }), { code: "last_owner" });
+		await assert.rejects(setGrant(pool, { userId: "operator" }, { ...demote, userId: "replacement-owner" }), { code: "forbidden" });
 	});
 });
 

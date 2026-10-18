@@ -37,7 +37,7 @@ test("U320 preview seed provisions a repeatable admitted demo owner and project"
 			const { listResources } = await import("../../packages/domain/src/resources.ts");
 			const { actorPermissions, requirePermission } = await import("../../packages/domain/src/membership.ts");
 			const projects = await listResources(f.pool, { userId: owner.id }, "project");
-			assert.equal(projects.length, 3);
+			assert.equal(projects.length, 2, "Platform ownership must not reveal the separate customer demo project");
 			const demo = projects.find((project) => project.slug === "webhook-playground")!;
 			const privateProject = projects.find((project) => project.slug === "admin-only")!;
 			const instanceId = (await f.db.query("SELECT id FROM payloadbay.installation")).rows[0].id;

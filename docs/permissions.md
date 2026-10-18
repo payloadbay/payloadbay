@@ -2,7 +2,29 @@
 
 Payload Bay admits users to an instance separately from granting resource access. Admission by itself grants no global role. Every API request checks current admission and the relevant grants; neither session caching nor a token snapshot preserves removed rights.
 
-On self-hosted installations, positive grants apply down the hierarchy: instance → organization → workspace → project. Organization grants do not reach sibling organizations. Workspace grants do not reach sibling workspaces, and project grants do not reach sibling projects. Child permissions add to inherited permissions; there is no child deny rule. A self-hosted instance administrator therefore retains its inherited project access. In hosted mode, instance grants stop at the platform boundary: customer access starts with an explicit organization, workspace or project grant. Platform ownership alone cannot read customer data, manage customer members, or create a customer grant for itself. A customer may explicitly invite a staff account as an ordinary member; only that customer-selected grant applies, and its removal revokes access. Platform roles cannot create that customer grant for themselves. Instance-scoped API tokens cannot cross that hosted boundary. Hosted platform audit views include instance activity only, not customer-scope activity. This role boundary does not certify the complete hosted trust model: instance-wide middleware inheritance still requires a separate hosted-mode decision.
+Instance grants stop at the platform boundary in both self-hosted and hosted installations. Customer/department authority starts with an explicit organization, workspace or project grant. Organization grants inherit into its workspaces/projects; workspace grants inherit into its projects. There is no child deny rule: use separate owners and scoped memberships for departments that must be private from each other. An organization owner intentionally has organization-wide authority. Instance administration alone grants no customer resource visibility, self-membership, secret access or customer audit access. Customer invitations may explicitly grant staff ordinary scoped membership; acceptance and later revocation are enforced normally. An account holding both platform and organization ownership retains the latter authority independently. Setup explicitly creates both memberships for the first owner; transfer organization ownership and remove that membership when separating infrastructure operators from business owners.
+
+Instance-scoped API keys are for instance operations, not customer APIs. Personal keys can target an explicitly authorized organization, workspace or project. Resource lists, direct IDs, membership lists, live updates and tokens use the same current customer boundary. Instance audit contains platform actions only. A customer audit query requires audit.read on its requested organization, workspace or project and includes only its descendants; private diffs and event/secret content are excluded.
+
+Configured customer middleware and helper/secret dependencies start at the organization boundary. Instance middleware is not executed for customer events, including old snapshots. Old compiled helpers outside that boundary block execution until the customer owner republishes; no immutable history is rewritten. Old instance-secret bindings must be replaced with customer-scoped secrets before republishing. Pending work and event history are retained.
+
+Authentication emails always use trusted SMTP handling; editable notification code never receives real login codes or invitation links. Custom alert subscriptions pin the exact version accepted by the recipient. Later platform module changes do not update an existing subscription; legacy subscriptions without a pin require renewed opt-in. Runtime checks also protect already queued authentication and alert jobs. SMTP deployment credentials remain outside dashboard control.
+
+Platform notification adapters may fetch public HTTP/HTTPS destinations only.
+DNS answers are checked and pinned to the actual connection; redirects are not
+followed. Loopback, link-local and metadata destinations stay blocked. Operators
+who deliberately need an internal notification service can configure exact
+hostnames using `PAYLOADBAY_NOTIFICATION_ALLOWED_HOSTS` on the executor process.
+This deployment-only allowlist is not editable through an instance administrator
+account. Customer destination routing keeps its separately configured private
+network behavior; this is not a substitute for hosted executor network isolation.
+
+The boundary protects against a compromised application administrator account.
+It does not protect against an operator controlling the database, host, deployed
+code, SMTP service or encryption keys. A hosted release still needs independent
+security review and deployment network/sandbox validation. Self-hosted setup
+creates one person with two explicit roles; those roles must be separated when
+that person should administer infrastructure without customer access.
 
 | Preset | Default permissions |
 |---|---|

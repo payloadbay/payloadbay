@@ -1,3 +1,4 @@
+import { assertExecutionDependencies } from "@payloadbay/domain/execution-dependencies";
 import { executePipeline } from "../../../../packages/domain/src/pipeline.ts";
 import type { Pool } from "pg";
 import { randomUUID } from "node:crypto";
@@ -30,6 +31,7 @@ export function processEventTask(pool: Pool, config: ServerConfig, run?: (option
 		const heartbeat = startHeartbeat(pool, authority, () => abort.abort());
 		try {
 			const row = (await pool.query(`SELECT e.id,e.original_body,e.accepted_body,e.content_type,e.metadata,p.shared_versions,p.effective_bindings,r.bundle,ep.project_id FROM payloadbay.event e JOIN payloadbay.publication p ON p.id=$2 JOIN payloadbay.stage_revision r ON r.id=p.processing_revision_id JOIN payloadbay.endpoint ep ON ep.id=e.endpoint_id WHERE e.id=$1`, [execution.event_id, execution.publication_id])).rows[0];
+			await assertExecutionDependencies(pool, row.project_id, "processing", row.shared_versions.processing ?? {}, row.effective_bindings ?? []);
 			const secrets = await resolvePinnedSecrets(pool, row.project_id, row.shared_versions.processing?.secrets ?? {}, config.encryptionKey);
 			const options: ExecuteOptions = {
 				stage: "processing",

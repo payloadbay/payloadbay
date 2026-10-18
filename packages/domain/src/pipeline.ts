@@ -49,7 +49,7 @@ export async function executePipeline(options: ExecuteOptions & { bindings: read
 		return validateDecision(stage, result.decision);
 	};
 
-	const bindings = options.bindings.filter((binding) => binding.stage === options.stage).sort((a, b) => rank[a.scopeType] - rank[b.scopeType] || a.position - b.position || a.id.localeCompare(b.id));
+	const bindings = options.bindings.filter((binding) => binding.stage === options.stage && binding.scopeType !== "instance").sort((a, b) => rank[a.scopeType] - rank[b.scopeType] || a.position - b.position || a.id.localeCompare(b.id));
 	if (bindings.length > 32) throw Error("middleware_limit");
 	for (const binding of bindings) {
 		const secrets = options.resolveSecrets ? await options.resolveSecrets(binding.secretBindings ?? {}) : {};

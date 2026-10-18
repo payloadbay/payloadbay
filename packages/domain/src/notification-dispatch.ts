@@ -13,7 +13,7 @@ export async function queueIncidentNotifications(pool: Pool, incidentId: string,
 		if (!rule) return 0;
 		const subscribers = (
 			await db.query(
-				`SELECT subscription.user_id,subscription.channel FROM payloadbay.notification_subscription subscription JOIN auth."user" recipient ON recipient.id=subscription.user_id AND recipient."emailVerified" WHERE subscription.rule_id=$1 AND subscription.enabled AND (subscription.channel='smtp' OR EXISTS(SELECT 1 FROM payloadbay.notification_channel channel WHERE channel.id::text=subscription.channel AND channel.enabled)) AND NOT EXISTS(SELECT 1 FROM payloadbay.notification_dispatch dispatch WHERE dispatch.incident_id=$2 AND dispatch.generation=$3 AND dispatch.user_id=subscription.user_id AND dispatch.channel=subscription.channel) ORDER BY subscription.user_id,subscription.channel LIMIT 100 FOR UPDATE OF subscription SKIP LOCKED`,
+				`SELECT subscription.user_id,subscription.channel,subscription.channel_revision_id FROM payloadbay.notification_subscription subscription JOIN auth."user" recipient ON recipient.id=subscription.user_id AND recipient."emailVerified" WHERE subscription.rule_id=$1 AND subscription.enabled AND (subscription.channel='smtp' OR (subscription.channel_revision_id IS NOT NULL AND EXISTS(SELECT 1 FROM payloadbay.notification_channel channel WHERE channel.id::text=subscription.channel AND channel.enabled))) AND NOT EXISTS(SELECT 1 FROM payloadbay.notification_dispatch dispatch WHERE dispatch.incident_id=$2 AND dispatch.generation=$3 AND dispatch.user_id=subscription.user_id AND dispatch.channel=subscription.channel) ORDER BY subscription.user_id,subscription.channel LIMIT 100 FOR UPDATE OF subscription SKIP LOCKED`,
 				[rule.id, incident.id, incident.generation],
 			)
 		).rows;
@@ -35,7 +35,7 @@ export async function queueIncidentNotifications(pool: Pool, incidentId: string,
 				incidentId: incident.id,
 				incidentGeneration: incident.generation,
 				userId: subscriber.user_id,
-				channelSnapshot: await snapshotNotificationChannel(db, subscriber.channel, publicUrl),
+				channelSnapshot: await snapshotNotificationChannel(db, subscriber.channel, publicUrl, subscriber.channel_revision_id ?? undefined),
 			};
 			const key = `notification:${incident.id}:${incident.generation}:${subscriber.user_id}:${subscriber.channel}`;
 			const job = (await db.query("INSERT INTO payloadbay.platform_job(kind,encrypted_payload,job_key) VALUES('notification_mail',$1,$2) RETURNING id,generation", [encryptPrivate(payload, encryptionKey), key])).rows[0];

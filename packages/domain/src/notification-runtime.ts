@@ -14,7 +14,7 @@ export type NotificationInput = Pick<NotificationContext, "kind" | "message" | "
 
 /** The shipped email adapter is trusted platform code; copies use the same contract in workerd. */
 export async function runNotificationChannel(pool: Pool, snapshot: ChannelSnapshot, input: NotificationInput, config: ServerConfig, options: { dryRun?: boolean; run?: (options: ExecuteOptions) => Promise<ExecutionResult> } = {}) {
-	if (!snapshot.channelId) return notificationDecision.parse({ kind: "email", message: emailContent.parse(input.message) });
+	if (input.kind.startsWith("auth.") || !snapshot.channelId) return notificationDecision.parse({ kind: "email", message: emailContent.parse(input.message) });
 	const row = (await pool.query("SELECT r.compiled,r.secret_bindings,c.installation_id FROM payloadbay.notification_channel_revision r JOIN payloadbay.notification_channel c ON c.id=r.channel_id WHERE r.id=$1 AND c.id=$2 AND c.enabled", [snapshot.revisionId, snapshot.channelId])).rows[0];
 	if (!row) throw new AppError("channel_unavailable", 409, "The pinned notification channel is unavailable");
 	const secrets: Record<string, string> = Object.create(null);

@@ -36,11 +36,11 @@ type MailPayload = {
 
 /** Resolve live policy on every attempt; script output never selects the SMTP recipient. */
 async function resolveMessage(pool: Pool, job: PlatformJob, data: MailPayload, config: ServerConfig) {
-	const snapshot = data.channelSnapshot ?? {
+	const snapshot = (job.kind === "otp_mail" || job.kind === "invitation_mail" || (job.kind === "notification_mail" && data.channelSnapshot?.requestedKey === "smtp") ? null : data.channelSnapshot) ?? {
 		requestedKey: "smtp",
 		channelId: null,
 		revisionId: null,
-		branding: defaultEmailBranding(config.publicUrl),
+		branding: data.channelSnapshot?.branding ?? defaultEmailBranding(config.publicUrl),
 	};
 	if (job.expiry && job.expiry.getTime() <= Date.now()) return null;
 	if (snapshot.channelId && !(await pool.query("SELECT 1 FROM payloadbay.notification_channel WHERE id=$1 AND enabled", [snapshot.channelId])).rowCount) return null;
@@ -48,7 +48,7 @@ async function resolveMessage(pool: Pool, job: PlatformJob, data: MailPayload, c
 	let message: EmailContent;
 	let kind: NotificationInput["kind"];
 	if (job.kind === "notification_mail") {
-		const current = await notificationMessage(pool, job.id, config);
+		const current = await notificationMessage(pool, job.id, config, snapshot.revisionId);
 		if (!current) return null;
 		email = current.email;
 		message = current.message;

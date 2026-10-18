@@ -10,7 +10,6 @@ import { useDashboard } from "@components/dashboard-shell";
 import { LoadingState } from "@components/loading-state";
 import { useUnsavedChanges } from "@components/unsaved-changes";
 import { emailBranding, type EmailBranding } from "@contracts/notification-channels";
-import type { ChannelSummary } from "@domain/notification-channels";
 
 type Settings = { version: number; channelKey: string; branding: EmailBranding };
 type Rendered = { subject: string; html: string; text: string };
@@ -21,7 +20,6 @@ export default function EmailSettingsPage() {
 	const [settings, setSettings] = useState<Settings | null>(null);
 	const [branding, setBranding] = useState(emailBranding.parse({}));
 	const [channelKey, setChannelKey] = useState("smtp");
-	const [channels, setChannels] = useState<ChannelSummary[]>([]);
 	const [kind, setKind] = useState("login");
 	const [rendered, setRendered] = useState<Rendered | null>(null);
 	const [busy, setBusy] = useState(false);
@@ -38,14 +36,13 @@ export default function EmailSettingsPage() {
 
 	useEffect(() => {
 		let active = true;
-		Promise.all([api<Settings>("/email-settings"), api<ChannelSummary[]>("/notification-channels")])
+		api<Settings>("/email-settings")
 			.then(
-				([data, available]) => {
+				(data) => {
 					if (!active) return;
 					setSettings(data);
 					setBranding(data.branding);
 					setChannelKey(data.channelKey);
-					setChannels(available);
 				},
 				(cause) => {
 					if (active) setError(cause.message);
@@ -126,21 +123,7 @@ export default function EmailSettingsPage() {
 						</TextField>
 					</Card.Content>
 				</Card>
-				<NativeSelect variant='secondary'>
-					<Label>Transactional email module</Label>
-					<NativeSelect.Trigger aria-label='Transactional email module' value={channelKey} onChange={(event) => setChannelKey(event.target.value)}>
-						{channels
-							.filter((channel) => channel.kind === "email" && channel.enabled)
-							.map((channel) => (
-								<NativeSelect.Option key={channel.id} value={channel.id}>
-									{channel.name}
-									{channel.builtin ? " · Shipped" : " · v" + channel.activeVersion}
-								</NativeSelect.Option>
-							))}
-						<NativeSelect.Indicator />
-					</NativeSelect.Trigger>
-				</NativeSelect>
-				<p className='text-muted text-sm'>The selected module receives login codes and invitation URLs so it can customize their email content. Only choose code you trust. The shipped module remains available as a recovery option.</p>
+				<p className='text-muted text-sm'>Authentication email uses the built-in SMTP handler. Notification modules cannot read sign-in codes or invitation links.</p>
 				<div className='flex flex-wrap justify-center gap-3 sm:justify-start'>
 					<Button type='submit' isDisabled={busy || !dirty}>
 						Save email settings

@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const jobAdministrationSchema = z.object({
 	acknowledgmentLatency: z.null(),
+	series: z.array(z.object({ hour: z.iso.datetime(), succeeded: z.number().int().nonnegative(), failed: z.number().int().nonnegative() })),
 	backlog: z.array(
 		z.object({
 			priority: z.number().int(),

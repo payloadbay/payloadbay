@@ -49,8 +49,25 @@ export async function readJobAdministration(pool: Pool, actor: Actor, installati
 			)
 		).rows;
 
+		const series = (
+			await db.query(
+				`WITH hours AS (
+ SELECT generate_series(date_trunc('hour',now())-interval '23 hours',date_trunc('hour',now()),interval '1 hour') AS hour
+ ), attempts AS (
+ SELECT date_trunc('hour',a.ended_at) AS hour,
+ count(*) FILTER(WHERE a.status_code BETWEEN 200 AND 299)::int AS succeeded,
+ count(*) FILTER(WHERE a.status_code IS NULL OR a.status_code NOT BETWEEN 200 AND 299)::int AS failed
+ FROM payloadbay.delivery_attempt a JOIN payloadbay.execution x ON x.id=a.execution_id
+ JOIN payloadbay.endpoint ep ON ep.id=x.endpoint_id JOIN payloadbay.project p ON p.id=ep.project_id JOIN payloadbay.workspace w ON w.id=p.workspace_id
+ WHERE w.installation_id=$1 AND a.ended_at>=date_trunc('hour',now())-interval '23 hours' GROUP BY 1
+ ) SELECT h.hour,COALESCE(a.succeeded,0)::int AS succeeded,COALESCE(a.failed,0)::int AS failed FROM hours h LEFT JOIN attempts a USING(hour) ORDER BY h.hour`,
+				[installationId],
+			)
+		).rows.map((row) => ({ ...row, hour: row.hour.toISOString() }));
+
 		return {
 			acknowledgmentLatency: null,
+			series,
 			backlog: backlog.map((row) => ({
 				priority: row.priority,
 				dueCount: row.due_count,

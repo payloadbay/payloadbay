@@ -1,7 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 import { transaction } from "./db.ts";
 import { encryptPrivate, decryptPrivate } from "./private-crypto.ts";
-import { requirePermission, scopeAncestry, actorPermissions } from "./membership.ts";
+import { requirePermission, dataAncestry, actorPermissions } from "./membership.ts";
 import type { Actor, ScopeRef } from "./authorization.ts";
 import { AppError } from "../../contracts/src/errors.ts";
 
@@ -45,7 +45,7 @@ export async function revokeSecret(pool: Pool, actor: Actor, id: string) {
 }
 
 export async function resolvePinnedSecrets(db: Pool | PoolClient, projectId: string, bindings: Record<string, string>, key: string) {
-	const ancestry = await scopeAncestry(db, { type: "project", id: projectId });
+	const ancestry = await dataAncestry(db, { type: "project", id: projectId });
 	const values: Record<string, string> = Object.create(null);
 	let bytes = 0;
 	for (const [name, id] of Object.entries(bindings)) {
@@ -63,7 +63,7 @@ export async function resolvePinnedSecrets(db: Pool | PoolClient, projectId: str
 export async function listSecrets(pool: Pool, actor: Actor, scope: ScopeRef) {
 	const held = await actorPermissions(pool, actor, scope);
 	if (!held.has("secrets.manage") && !held.has("secrets.use")) throw new AppError("forbidden", 403, "You do not have access to these secrets");
-	const ancestors = await scopeAncestry(pool, scope);
+	const ancestors = await dataAncestry(pool, scope);
 	const allowed: ScopeRef[] = [];
 	const first = actor.token ? ancestors.findIndex((s) => s.type === actor.token!.scope.type && s.id === actor.token!.scope.id) : 0;
 	for (const ancestor of ancestors.slice(first)) {

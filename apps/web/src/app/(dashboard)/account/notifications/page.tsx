@@ -13,6 +13,8 @@ type Channel = {
 	name: string;
 	enabled: boolean;
 	kind: string;
+	activeRevisionId: string | null;
+	activeVersion: number;
 };
 
 type Preference = {
@@ -25,6 +27,7 @@ type Preference = {
 	severity: string;
 	smtpEnabled: boolean;
 	channels: string[];
+	channelVersions: Record<string, number>;
 };
 
 export default function NotificationPreferencesPage() {
@@ -69,8 +72,19 @@ export default function NotificationPreferencesPage() {
 		setBusy(rule.id);
 		setError("");
 		try {
-			await api("/notification-rules/" + rule.id + "/subscription", { method: "PUT", json: { enabled, channel } });
-			setPreferences((previous) => previous.map((item) => (item.id === rule.id ? { ...item, smtpEnabled: channel === "smtp" ? enabled : item.smtpEnabled, channels: enabled ? [...new Set([...item.channels, channel])] : item.channels.filter((id) => id !== channel) } : item)));
+			await api("/notification-rules/" + rule.id + "/subscription", { method: "PUT", json: { enabled, channel, ...(enabled && channel !== "smtp" ? { revisionId: channels.find((item) => item.id === channel)?.activeRevisionId } : {}) } });
+			setPreferences((previous) =>
+				previous.map((item) =>
+					item.id === rule.id
+						? {
+								...item,
+								smtpEnabled: channel === "smtp" ? enabled : item.smtpEnabled,
+								channels: enabled ? [...new Set([...item.channels, channel])] : item.channels.filter((id) => id !== channel),
+								channelVersions: enabled && channel !== "smtp" ? { ...item.channelVersions, [channel]: channels.find((entry) => entry.id === channel)!.activeVersion } : item.channelVersions,
+							}
+						: item,
+				),
+			);
 		} catch (cause) {
 			setError(cause instanceof Error ? cause.message : "Could not save preference");
 		} finally {
@@ -82,7 +96,7 @@ export default function NotificationPreferencesPage() {
 		<section className='flex flex-col gap-6'>
 			<header>
 				<h1 className='text-3xl font-semibold'>Notification settings</h1>
-				<p className='text-muted mt-2'>Choose how configured failure rules notify you. Email goes to {me.user.email}; custom modules use their instance-configured destination. These choices affect only you. Thresholds belong to the project or workspace, and every channel is off until you opt in.</p>
+				<p className='text-muted mt-2'>Choose how configured failure rules notify you. Email goes to {me.user.email}; custom modules use the version you enable. Later module updates require a new opt-in. These choices affect only you. Thresholds belong to the project or workspace, and every channel is off until you opt in.</p>
 			</header>
 			{loading ? (
 				<LoadingState label='Loading preferences…' />
@@ -135,6 +149,7 @@ export default function NotificationPreferencesPage() {
 														</Switch.Content>
 														<span>
 															{channel.name}
+															{channel.id !== "smtp" ? ` · v${rule.channels.includes(channel.id) ? (rule.channelVersions[channel.id] ?? channel.activeVersion) : channel.activeVersion}` : ""}
 															{!channel.enabled ? " · Paused" : ""}
 														</span>
 													</Switch>

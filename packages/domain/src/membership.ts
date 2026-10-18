@@ -33,11 +33,18 @@ export async function scopeAncestry(db: Pool | PoolClient, scope: ScopeRef): Pro
 	return [{ type: "instance", id: result.installation_id }, { type: "organization", id: result.organization_id }, { type: "workspace", id: result.workspace_id }, scope];
 }
 
+/** Customer authority and configured code start at the organization boundary in every deployment. */
+export async function dataAncestry(db: Pool | PoolClient, scope: ScopeRef): Promise<ScopeRef[]> {
+	const ancestry = await scopeAncestry(db, scope);
+
+	return scope.type === "instance" ? ancestry : ancestry.filter((parent) => parent.type !== "instance");
+}
+
 export async function actorPermissions(db: Pool | PoolClient, actor: Actor, scope: ScopeRef) {
 	const ancestry = await scopeAncestry(db, scope);
-	const active = await db.query("SELECT i.deployment_mode FROM payloadbay.admission a JOIN payloadbay.installation i ON i.id=a.installation_id WHERE a.installation_id=$1 AND a.user_id=$2 AND a.active", [ancestry[0].id, actor.userId]);
+	const active = await db.query("SELECT 1 FROM payloadbay.admission a WHERE a.installation_id=$1 AND a.user_id=$2 AND a.active", [ancestry[0].id, actor.userId]);
 	if (!active.rowCount) throw new AppError("unauthenticated", 401, "Authentication required");
-	const authorizationAncestry = active.rows[0].deployment_mode === "hosted" && scope.type !== "instance" ? ancestry.filter((parent) => parent.type !== "instance") : ancestry;
+	const authorizationAncestry = scope.type !== "instance" ? ancestry.filter((parent) => parent.type !== "instance") : ancestry;
 	const rows = (await db.query("SELECT scope_type,scope_id,permissions FROM payloadbay.grant_record WHERE user_id=$1", [actor.userId])).rows;
 	let result = effectivePermissions(
 		rows.map((row) => ({ scopeType: row.scope_type, scopeId: row.scope_id, permissions: row.permissions })),

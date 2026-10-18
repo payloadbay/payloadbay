@@ -511,7 +511,7 @@ test("queued notification delivery pins channel code and branding across later e
 		});
 		await saveEmailSettings(fixture.pool, actor, {
 			expectedVersion: 0,
-			channelKey: channel.id,
+			channelKey: "smtp",
 			branding: {
 				name: "Original brand",
 				accent: "#156FDE",
@@ -519,7 +519,7 @@ test("queued notification delivery pins channel code and branding across later e
 				logoUrl: null,
 			},
 		});
-		const snapshot = await snapshotNotificationChannel(fixture.pool, "smtp");
+		const snapshot = await snapshotNotificationChannel(fixture.pool, channel.id);
 		await publishNotificationChannel(fixture.pool, actor, {
 			id: channel.id,
 			expectedVersion: channel.version,
@@ -569,7 +569,7 @@ test("custom HTTP notification delivery uses the isolated executor and respects 
 		await identity(fixture.db, "fixture-owner");
 		await fixture.db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
 		await fixture.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, permissions]);
-		const executor = await executorFixture({ network: fixture.network });
+		const executor = await executorFixture({ network: fixture.network, notificationHosts: ["http"] });
 		try {
 			const config = { ...fixtureConfig(fixture), executorUrl: executor.url };
 			const actor = { userId: "fixture-owner" };
@@ -631,7 +631,17 @@ test("custom channel subscriptions queue immutable code pins and deduplicate eac
 			compile,
 		});
 		await setNotificationSubscription(fixture.pool, actor, fixture.rule.id, { channel: "smtp", enabled: false });
-		await setNotificationSubscription(fixture.pool, actor, fixture.rule.id, { channel: channel.id, enabled: true });
+		await setNotificationSubscription(fixture.pool, actor, fixture.rule.id, { channel: channel.id, enabled: true, revisionId: channel.activeRevisionId });
+		const changed = await publishNotificationChannel(fixture.pool, actor, {
+			id: channel.id,
+			expectedVersion: channel.version,
+			name: "Changed alerts",
+			kind: "webhook",
+			source: "export default async function sendNotification(ctx: NotificationContext): Promise<NotificationDecision> { return ctx.fail({ reason: 'changed' }); }",
+			compile,
+		});
+		await assert.rejects(setNotificationSubscription(fixture.pool, actor, fixture.rule.id, { channel: channel.id, enabled: true, revisionId: channel.activeRevisionId }), { code: "channel_version_changed" });
+
 		const config = fixtureConfig(fixture);
 		assert.equal(await queueIncidentNotifications(fixture.pool, fixture.incident.id, config.encryptionKey), 1);
 		assert.equal(await queueIncidentNotifications(fixture.pool, fixture.incident.id, config.encryptionKey), 0);
@@ -641,7 +651,7 @@ test("custom channel subscriptions queue immutable code pins and deduplicate eac
 		assert.equal(payload.channelSnapshot.channelId, channel.id);
 		assert.equal(payload.channelSnapshot.revisionId, channel.activeRevisionId);
 		assert.deepEqual((await listNotificationPreferences(fixture.pool, actor, fixture.scope.project))[0].channels, [channel.id]);
-		await updateNotificationChannel(fixture.pool, actor, channel.id, { expectedVersion: channel.version, enabled: false });
+		await updateNotificationChannel(fixture.pool, actor, channel.id, { expectedVersion: changed.version, enabled: false });
 		await setNotificationSubscription(fixture.pool, actor, fixture.rule.id, { channel: channel.id, enabled: false });
 		assert.deepEqual((await listNotificationPreferences(fixture.pool, actor, fixture.scope.project))[0].channels, []);
 	});
@@ -721,5 +731,66 @@ test("NC11 email settings reads expose defaults and persisted branding only to i
 		await saveEmailSettings(pool, owner, { expectedVersion: 0, channelKey: "smtp", branding });
 		assert.deepEqual(await getEmailSettings(pool, owner), { version: 1, channelKey: "smtp", branding });
 		await assert.rejects(getEmailSettings(pool, { userId: "settings-viewer" }), { status: 403 });
+	});
+});
+
+test("CF04 authentication messages bypass even an already pinned custom channel", async () => {
+	const { runNotificationChannel } = await import("../../packages/domain/src/notification-runtime.ts");
+	const { defaultEmailBranding } = await import("../../packages/domain/src/email-settings.ts");
+	await authFixture(async (fixture) => {
+		const config = fixtureConfig(fixture);
+		const scope = await seedScope(fixture.db);
+		await fixture.db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		const { permissions } = await import("../../packages/contracts/src/permissions.ts");
+		await fixture.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, permissions]);
+		const { publishNotificationChannel } = await import("../../packages/domain/src/notification-channels.ts");
+		const { compile } = await import("../../apps/executor/src/compiler.ts");
+		const { execute } = await import("../../apps/executor/src/supervisor.ts");
+		const channel = await publishNotificationChannel(
+			fixture.pool,
+			{ userId: "fixture-owner" },
+			{
+				name: "Unsafe auth adapter",
+				kind: "email",
+				source: "return ctx.email({...ctx.message,title:'Custom code read '+ctx.message.code});",
+				compile,
+			},
+		);
+		for (const kind of ["auth.login-code", "auth.invitation"] as const) {
+			let executed = false;
+			const message = {
+				subject: "Authentication",
+				title: "Authentication",
+				paragraphs: [],
+				code: "123456",
+				action: { label: "Accept", url: "https://example.test/invitation/private" },
+			};
+			const result = await runNotificationChannel(
+				fixture.pool,
+				{
+					requestedKey: "smtp",
+					channelId: channel.id,
+					revisionId: channel.activeRevisionId,
+					branding: defaultEmailBranding(),
+				},
+				{
+					kind,
+					message,
+					recipient: { email: "customer@example.test" },
+					deliveryId: "job",
+					attempt: 1,
+				},
+				config,
+				{
+					run: async (options) => {
+						executed = true;
+
+						return execute(options);
+					},
+				},
+			);
+			assert.equal(executed, false);
+			assert.deepEqual(result, { kind: "email", message: { ...message, paragraphs: [] } });
+		}
 	});
 });

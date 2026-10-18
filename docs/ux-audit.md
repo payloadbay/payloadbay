@@ -182,7 +182,7 @@ bulk-selection presets, publication history as a table, and delivery-attempt
 selection with response inspection. Validation evidence is recorded separately;
 this list alone is not a completion claim.
 
-### Additional findings awaiting maintainer direction
+### Additional findings and follow-up direction
 
 These are source-audit findings, not newly implemented behavior:
 
@@ -194,12 +194,10 @@ These are source-audit findings, not newly implemented behavior:
   The separate receiving URL remains available, but the client itself should
   give the editable URL its own usable row.
 
-- Hosted customer privacy also needs an explicit policy for instance-wide code.
-  Middleware currently inherits from the physical instance ancestry. Removing
-  implicit customer grants does not by itself isolate customer processing from
-  platform-authored middleware. Decide whether hosted customer execution should
-  start inheritance at the organization boundary, while self-hosted inheritance
-  remains instance-wide. This has not been silently changed in the UX follow-up.
+- The approved confidentiality follow-up now starts customer authorization and
+  code inheritance at the organization boundary in both deployment modes.
+  Instance roles cannot read customer audit or install inherited customer code;
+  explicit customer memberships remain independent. See docs/permissions.md.
 
 - The HTTP playground has no cancellation control or explicit response-size
   boundary. A slow or unusually large response can leave a reviewer waiting or

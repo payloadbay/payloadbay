@@ -47,7 +47,7 @@ export async function saveDraft(
 }
 
 import { createHash } from "node:crypto";
-import { scopeAncestry } from "./membership.ts";
+import { dataAncestry } from "./membership.ts";
 import type { compile } from "../../../apps/executor/src/compiler.ts";
 
 type Compiler = (input: unknown) => ReturnType<typeof compile>;
@@ -69,7 +69,7 @@ export async function publish(
 		if (locked.config_version !== input.expectedVersion) throw new AppError("version_conflict", 409, "Ingress route changed; reload before publishing");
 		const drafts = (await db.query("SELECT * FROM payloadbay.draft WHERE endpoint_id=$1 ORDER BY stage FOR UPDATE", [endpoint.id])).rows;
 		if (drafts.length !== 2 || drafts.some((d) => d.version !== input.draftVersions[d.stage as Stage])) throw new AppError("version_conflict", 409, "Draft changed; reload before publishing");
-		const ancestry = await scopeAncestry(db, { type: "project", id: endpoint.project_id });
+		const ancestry = await dataAncestry(db, { type: "project", id: endpoint.project_id });
 		const middleware = await middlewareSnapshot(db, endpoint.id);
 		const compiled = [];
 		const secretBindings: Record<string, Record<string, string>> = {};

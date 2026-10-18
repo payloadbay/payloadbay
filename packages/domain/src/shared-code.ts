@@ -2,7 +2,7 @@ import type { Pool, PoolClient } from "pg";
 import ts from "typescript";
 import { createHash, randomUUID } from "node:crypto";
 import { transaction } from "./db.ts";
-import { requirePermission, scopeAncestry, actorPermissions } from "./membership.ts";
+import { requirePermission, dataAncestry, actorPermissions } from "./membership.ts";
 import type { Actor, ScopeRef } from "./authorization.ts";
 import { AppError } from "../../contracts/src/errors.ts";
 import { appendChange } from "./changes.ts";
@@ -88,7 +88,7 @@ export async function copySharedVersion(
 }
 
 export async function resolveSharedModules(db: Pool | PoolClient, actor: Actor, scope: ScopeRef, bindings: Record<string, string>) {
-	const ancestry = await scopeAncestry(db, scope);
+	const ancestry = await dataAncestry(db, scope);
 	const modules: Record<string, { source: string; revisionId: string }> = Object.create(null);
 	let bytes = 0;
 	if (Object.keys(bindings).length > 32) throw new AppError("shared_code_limit", 413, "At most 32 shared code bindings are supported");
@@ -106,7 +106,7 @@ export async function resolveSharedModules(db: Pool | PoolClient, actor: Actor, 
 
 export async function listSharedVersions(pool: Pool, actor: Actor, scope: ScopeRef) {
 	await requirePermission(pool, actor, scope, "code.read");
-	const ancestry = await scopeAncestry(pool, scope);
+	const ancestry = await dataAncestry(pool, scope);
 	const allowed: ScopeRef[] = [];
 	const first = actor.token ? ancestry.findIndex((parent) => parent.type === actor.token!.scope.type && parent.id === actor.token!.scope.id) : 0;
 	for (const parent of ancestry.slice(first)) if ((await actorPermissions(pool, actor, parent)).has("code.read")) allowed.push(parent);
@@ -134,7 +134,7 @@ export async function pinSourceImports(db: Pool | PoolClient, actor: Actor, scop
 	}
 
 	if (names.size > 32) throw new AppError("shared_code_limit", 413, "At most 32 helper imports are supported");
-	const ancestry = await scopeAncestry(db, scope);
+	const ancestry = await dataAncestry(db, scope);
 	const pinned: Record<string, string> = Object.create(null);
 	for (const name of names) {
 		if (Object.hasOwn(existing, name)) {

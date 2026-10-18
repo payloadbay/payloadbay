@@ -1,7 +1,14 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 
-export async function executorFixture(options: { network?: string; brokerUrl?: string; dockerfile?: string } = {}) {
+export async function executorFixture(
+	options: {
+		network?: string;
+		brokerUrl?: string;
+		dockerfile?: string;
+		notificationHosts?: string[];
+	} = {},
+) {
 	const docker = (args: string[]) => execFileSync("docker", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 
 	docker(["build", "--target", "runner", "-f", options.dockerfile ?? "deploy/Dockerfile.executor", "-t", "payloadbay-bootstrap/executor-development:local", "."]);
@@ -29,6 +36,7 @@ export async function executorFixture(options: { network?: string; brokerUrl?: s
 		"--add-host",
 		"host.docker.internal:host-gateway",
 		...(options.network ? ["--network", options.network, "--network-alias", "executor"] : []),
+		...(options.notificationHosts ? ["-e", "PAYLOADBAY_NOTIFICATION_ALLOWED_HOSTS=" + options.notificationHosts.join(",")] : []),
 		...(options.brokerUrl ? ["-e", "PAYLOADBAY_BROKER_URL=" + options.brokerUrl] : []),
 		"-e",
 		"PAYLOADBAY_EXECUTOR_TOKEN=" + token,

@@ -783,3 +783,47 @@ test("FT08f oversized transformed events retain the bounded raw request as a rec
 		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.execution")).rows[0].n, 0);
 	});
 });
+
+test("CF09 historical platform helper bundles are blocked before ingress and processing execute", async () => {
+	const { processEventTask } = await import("../../apps/worker/src/tasks/process-event.ts");
+	const { fixtureConfig } = await import("../helpers/auth-fixtures.ts");
+	const { seedEvent } = await import("../helpers/domain-fixtures.ts");
+	await authFixture(async (fixture) => {
+		const { pool, db } = fixture;
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		const helper = (await db.query("INSERT INTO payloadbay.shared_module_revision(scope_type,scope_id,name,source,source_digest,bundle_digest) VALUES('instance',$1,'Legacy','export const x = 1','source','bundle') RETURNING id", [scope.installation])).rows[0].id;
+		const manifests = { ingress: { modules: { Legacy: helper } }, processing: { modules: { Legacy: helper } } };
+		const publication = (await db.query("INSERT INTO payloadbay.publication(endpoint_id,ingress_revision_id,processing_revision_id,shared_versions,dependency_digest,created_by) SELECT endpoint_id,ingress_revision_id,processing_revision_id,$1,'old-global-helper','fixture-owner' FROM payloadbay.publication WHERE id=$2 RETURNING id", [JSON.stringify(manifests), scope.publication])).rows[0].id;
+		await db.query("UPDATE payloadbay.endpoint SET active_publication_id=$1 WHERE id=$2", [publication, scope.endpoint]);
+		const key = (await db.query("SELECT ingress_key FROM payloadbay.endpoint WHERE id=$1", [scope.endpoint])).rows[0].ingress_key;
+		let called = false;
+
+		const run = async () => {
+			called = true;
+			throw Error("Private input reached platform code");
+		};
+
+		await assert.rejects(
+			receiveIngress(
+				pool,
+				{
+					key,
+					url: "https://fixture.test/ingress",
+					body: new Uint8Array([42]),
+					headers: {},
+					method: "POST",
+				},
+				{ ...options, run },
+			),
+			{ code: "publication_scope_changed" },
+		);
+		assert.equal(called, false);
+		assert.equal((await db.query("SELECT ingress_outcome FROM payloadbay.event")).rows[0].ingress_outcome, "error");
+		const event = await seedEvent(db, { endpoint: scope.endpoint, publication });
+		const execution = (await db.query("INSERT INTO payloadbay.execution(event_id,endpoint_id,publication_id) VALUES($1,$2,$3) RETURNING id", [event, scope.endpoint, publication])).rows[0].id;
+		await processEventTask(pool, fixtureConfig(fixture), run)({ executionId: execution, endpointId: scope.endpoint, generation: 1 });
+		assert.equal(called, false);
+		assert.equal((await db.query("SELECT state FROM payloadbay.execution WHERE id=$1", [execution])).rows[0].state, "retry_wait");
+	});
+});

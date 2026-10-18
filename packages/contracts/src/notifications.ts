@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { channelKey } from "./notification-channels.ts";
 
-export const notificationSubscriptionInput = z.object({ enabled: z.boolean(), channel: channelKey.default("smtp") }).strict();
+export const notificationSubscriptionInput = z.object({ enabled: z.boolean(), channel: channelKey.default("smtp"), revisionId: z.uuid().optional() }).strict();
 
 export const notificationRuleOutput = z
 	.object({
@@ -21,7 +21,7 @@ export const notificationRuleOutput = z
 	})
 	.strict();
 
-export const notificationPreferenceOutput = notificationRuleOutput.extend({ smtpEnabled: z.boolean(), channels: z.array(channelKey).max(100).default([]) });
+export const notificationPreferenceOutput = notificationRuleOutput.extend({ smtpEnabled: z.boolean(), channels: z.array(channelKey).max(100).default([]), channelVersions: z.record(z.string(), z.number().int().positive()).default({}) });
 
 export const notificationRuleInput = z
 	.object({

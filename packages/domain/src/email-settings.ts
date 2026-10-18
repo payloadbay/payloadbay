@@ -23,7 +23,7 @@ export async function getEmailSettings(pool: Pool, actor: Actor, publicUrl?: str
 	await requirePermission(pool, actor, scope, "settings.manage");
 	const row = (await pool.query("SELECT * FROM payloadbay.email_settings WHERE installation_id=$1", [scope.id])).rows[0];
 
-	return { version: row?.version ?? 0, channelKey: row?.channel_id ?? "smtp", branding: row ? emailBranding.parse(row.branding) : defaultEmailBranding(publicUrl) };
+	return { version: row?.version ?? 0, channelKey: "smtp", branding: row ? emailBranding.parse(row.branding) : defaultEmailBranding(publicUrl) };
 }
 
 export async function saveEmailSettings(pool: Pool, actor: Actor, input: unknown) {
@@ -52,10 +52,10 @@ export async function saveEmailSettings(pool: Pool, actor: Actor, input: unknown
 }
 
 /** Queue-time configuration: code revisions and presentation cannot drift during retries. */
-export async function snapshotNotificationChannel(db: Pool | PoolClient, requestedKey = "smtp", publicUrl?: string): Promise<ChannelSnapshot> {
+export async function snapshotNotificationChannel(db: Pool | PoolClient, requestedKey = "smtp", publicUrl?: string, approvedRevisionId?: string): Promise<ChannelSnapshot> {
 	const installation = (await db.query("SELECT id FROM payloadbay.installation WHERE singleton")).rows[0];
 	const settings = installation ? (await db.query("SELECT channel_id,branding FROM payloadbay.email_settings WHERE installation_id=$1", [installation.id])).rows[0] : null;
-	const selectedId = requestedKey === "smtp" ? settings?.channel_id : requestedKey;
+	const selectedId = requestedKey === "smtp" ? null : requestedKey;
 	if (!selectedId)
 		return {
 			requestedKey,
@@ -63,7 +63,7 @@ export async function snapshotNotificationChannel(db: Pool | PoolClient, request
 			revisionId: null,
 			branding: settings ? emailBranding.parse(settings.branding) : defaultEmailBranding(publicUrl),
 		};
-	const channel = (await db.query("SELECT id,active_revision_id FROM payloadbay.notification_channel WHERE id=$1 AND installation_id=$2 AND enabled AND active_revision_id IS NOT NULL", [selectedId, installation?.id])).rows[0];
+	const channel = (await db.query("SELECT c.id,r.id AS active_revision_id FROM payloadbay.notification_channel c JOIN payloadbay.notification_channel_revision r ON r.channel_id=c.id AND r.id=COALESCE($3::uuid,c.active_revision_id) WHERE c.id=$1 AND c.installation_id=$2 AND c.enabled", [selectedId, installation?.id, approvedRevisionId ?? null])).rows[0];
 	if (!channel) throw new AppError("channel_unavailable", 409, "Notification channel unavailable");
 
 	return {

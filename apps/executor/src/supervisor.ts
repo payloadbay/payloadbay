@@ -1,3 +1,4 @@
+import { notificationFetch } from "./notification-fetch.ts";
 import { packWire, unpackWire, wireRuntimeSource } from "../../../packages/contracts/src/wire.ts";
 import { workerdConfig } from "./workerd-config.ts";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -92,13 +93,24 @@ export async function execute(options: ExecuteOptions): Promise<ExecutionResult>
 			if (++fetches > (options.maxFetches ?? 8)) throw Error("fetch_quota");
 			const url = new URL(payload.url);
 			if (!["http:", "https:"].includes(url.protocol)) throw Error("invalid_target");
-			const response = await fetch(url, {
+			const requestOptions = {
 				method: payload.method,
 				headers: payload.headers,
 				body: ["GET", "HEAD"].includes(payload.method) ? undefined : Buffer.from(payload.body, "base64"),
-				redirect: "manual",
+				redirect: "manual" as const,
 				signal: AbortSignal.any([abort.signal, AbortSignal.timeout(10000)]),
-			});
+			};
+			const response =
+				options.stage === "notification"
+					? await notificationFetch(
+							url,
+							requestOptions,
+							(process.env.PAYLOADBAY_NOTIFICATION_ALLOWED_HOSTS ?? "")
+								.split(",")
+								.map((host) => host.trim().toLowerCase())
+								.filter(Boolean),
+						)
+					: await fetch(url, requestOptions);
 			let size = 0;
 			const parts: Buffer[] = [];
 			if (response.body)

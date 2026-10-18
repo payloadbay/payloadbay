@@ -1,3 +1,4 @@
+import { assertExecutionDependencies } from "./execution-dependencies.ts";
 import { validateProviderResponse } from "../../contracts/src/provider-response.ts";
 import { executePipeline } from "./pipeline.ts";
 import { mayAcceptIngress } from "./organization-policy.ts";
@@ -53,6 +54,7 @@ export async function receiveIngress(pool: Pool, input: IngressInput, options: I
 	if (!route) throw new AppError("ingress_unavailable", 404, "Ingress route unavailable");
 	let decision: ReturnType<typeof ingressDecision.parse>;
 	try {
+		await assertExecutionDependencies(pool, route.project_id, "ingress", route.shared_versions.ingress ?? {}, route.effective_bindings ?? []);
 		const secrets = await resolvePinnedSecrets(pool, route.project_id, route.shared_versions.ingress?.secrets ?? {}, options.encryptionKey);
 		const execution = await executePipeline({
 			bindings: route.effective_bindings ?? [],

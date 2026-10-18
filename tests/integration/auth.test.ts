@@ -9,7 +9,7 @@ test("U40 concurrent setup creates exactly one owner", async () => {
 		await identity(f.db, "owner-b");
 		const results = await Promise.allSettled(["owner-a", "owner-b"].map((userId) => bootstrapOwner(f.pool, { userId, providedSecret: setupSecret, expectedSecret: setupSecret })));
 		assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
-		assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.grant_record WHERE role_preset='owner'")).rows[0].count, 1);
+		assert.equal((await f.db.query("SELECT count(*)::int AS count FROM payloadbay.grant_record WHERE role_preset='owner' AND scope_type='instance'")).rows[0].count, 1);
 	});
 });
 
@@ -582,7 +582,7 @@ test("U234 owner setup code is secret protected and closes permanently", async (
 				.join("; ");
 			await setup.completeOwnerSetup(f.pool, service, config, new Request(config.publicUrl + "/api/v1/bootstrap", { headers: { cookie: cookies } }), setupSecret);
 			await assert.rejects(setup.requestOwnerCode(f.pool, service, config, input), { code: "already_configured" });
-			assert.equal((await f.db.query("SELECT count(*)::int AS n FROM payloadbay.grant_record WHERE role_preset='owner'")).rows[0].n, 1);
+			assert.equal((await f.db.query("SELECT count(*)::int AS n FROM payloadbay.grant_record WHERE role_preset='owner' AND scope_type='instance'")).rows[0].n, 1);
 		} finally {
 			await service.close();
 		}
@@ -645,6 +645,7 @@ test("invitations keep project access pending until verified acceptance and supp
 			const scope = await seedScope(f.db);
 			await f.db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
 			await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, rolePermissions.owner]);
+			await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','organization',$1,'owner',$2)", [scope.organization, rolePermissions.owner]);
 			const actor = { userId: "fixture-owner" };
 			const project = { type: "project" as const, id: scope.project };
 			const invite = await createInvitation(f.pool, actor, { scope: project, email: "invited@example.test", grants: [{ scope: project, role: "operator", permissions: rolePermissions.operator }] }, service, config.encryptionKey, config.publicUrl);
@@ -685,6 +686,7 @@ test("invitation acceptance rechecks the issuer's authority and cannot cross the
 			const scope = await seedScope(f.db);
 			await f.db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
 			await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, rolePermissions.owner]);
+			await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','organization',$1,'owner',$2)", [scope.organization, rolePermissions.owner]);
 			const project = { type: "project" as const, id: scope.project };
 			const actor = { userId: "fixture-owner" };
 			await assert.rejects(createInvitation(f.pool, actor, { scope: project, email: "wrong@example.test", grants: [{ scope: { type: "instance", id: scope.installation }, role: "owner", permissions: rolePermissions.owner }] }, service, config.encryptionKey, config.publicUrl), { code: "invalid_scope" });

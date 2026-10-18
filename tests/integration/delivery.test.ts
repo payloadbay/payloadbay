@@ -140,8 +140,7 @@ test("U254 first destination is default and explicit switch is atomic", async ()
 	const { permissions } = await import("../../packages/contracts/src/permissions.ts");
 	await deliveryFixture(async ({ pool, db, authority, httpUrl }) => {
 		const project = (await db.query("SELECT project_id FROM payloadbay.endpoint WHERE id=$1", [authority.endpointId])).rows[0].project_id;
-		const installation = (await db.query("SELECT id FROM payloadbay.installation")).rows[0].id;
-		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [installation, permissions]);
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','project',$1,'owner',$2)", [project, permissions]);
 		const actor = { userId: "fixture-owner" };
 		const first = await createDestination(pool, actor, { projectId: project, name: "App", url: httpUrl + "/delivery" });
 		assert.equal(first.is_default, true, "first destination must become default");
@@ -189,8 +188,7 @@ test("U256 stale destination editor cannot overwrite saved target", async () => 
 	const { permissions } = await import("../../packages/contracts/src/permissions.ts");
 	await deliveryFixture(async ({ pool, db, authority, httpUrl }) => {
 		const projectId = (await db.query("SELECT project_id FROM payloadbay.endpoint WHERE id=$1", [authority.endpointId])).rows[0].project_id;
-		const installation = (await db.query("SELECT id FROM payloadbay.installation")).rows[0].id;
-		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [installation, permissions]);
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','project',$1,'owner',$2)", [projectId, permissions]);
 		const actor = { userId: "fixture-owner" };
 		const created = await createDestination(pool, actor, { projectId, name: "App", url: httpUrl + "/original" });
 		const input = {

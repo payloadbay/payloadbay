@@ -9,6 +9,7 @@ async function publicationFixture(run: (f: Parameters<Parameters<typeof authFixt
 		const scope = await seedScope(f.db);
 		await f.db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
 		await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, permissions]);
+		await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','organization',$1,'owner',$2)", [scope.organization, permissions]);
 		await f.db.query("INSERT INTO payloadbay.draft(endpoint_id,stage,body) VALUES($1,'ingress',$2),($1,'processing',$3)", [scope.endpoint, 'return {kind:"respondOnly",response:{status:200,body:"version-one"}};', 'return {kind:"complete"};']);
 		await run({ ...f, scope });
 	});
@@ -374,6 +375,7 @@ test("U127 shared code copy preserves origin and edits create local immutable ve
 		const scope = await seedScope(db);
 		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
 		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, permissions]);
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','organization',$1,'owner',$2)", [scope.organization, permissions]);
 		const original = await createSharedVersion(
 			pool,
 			{ userId: "fixture-owner" },

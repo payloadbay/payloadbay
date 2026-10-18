@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, Chip, Table } from "@heroui/react";
+import { Button, Card, Chip, Table } from "@heroui/react";
+import { LineChart } from "@heroui-pro/react/line-chart";
 import { IconRefresh } from "@tabler/icons-react";
 import { useDashboard } from "@components/dashboard-shell";
 import { LoadingState } from "@components/loading-state";
@@ -60,7 +61,7 @@ export default function JobsPage() {
 			<header className='flex flex-wrap items-start justify-between gap-4'>
 				<div>
 					<h1 className='text-3xl font-semibold'>Jobs and queues</h1>
-					<p className='text-muted mt-2'>Instance-wide operational snapshot. Refresh to see the latest state.</p>
+					<p className='text-muted mt-2'>Operational health across the installation. Customer content stays in its own scope.</p>
 				</div>
 				<Button variant='secondary' onPress={() => setRevision((value) => value + 1)}>
 					<IconRefresh aria-hidden='true' size={18} />
@@ -78,9 +79,42 @@ export default function JobsPage() {
 				<LoadingState label='Loading jobs and queues' />
 			) : (
 				<>
+					<div className='grid min-w-0 grid-cols-2 gap-4 lg:grid-cols-4'>
+						{[
+							{ label: "Due deliveries", value: data.backlog.reduce((sum, lane) => sum + lane.dueCount, 0) },
+							{ label: "Oldest overdue", value: Math.max(0, ...data.backlog.map((lane) => lane.oldestDueSeconds)) + "s" },
+							{ label: "Successful attempts · 24h", value: data.series.reduce((sum, point) => sum + point.succeeded, 0) },
+							{ label: "Failed attempts · 24h", value: data.series.reduce((sum, point) => sum + point.failed, 0) },
+						].map((metric) => (
+							<Card key={metric.label}>
+								<Card.Header>
+									<Card.Description>{metric.label}</Card.Description>
+								</Card.Header>
+								<Card.Content>
+									<p className='text-2xl font-semibold tabular-nums'>{typeof metric.value === "number" ? metric.value.toLocaleString() : metric.value}</p>
+								</Card.Content>
+							</Card>
+						))}
+					</div>
+					<Card className='min-w-0'>
+						<Card.Header>
+							<Card.Title>Delivery activity</Card.Title>
+							<Card.Description>Completed HTTP attempts over the last 24 hours, including retries.</Card.Description>
+						</Card.Header>
+						<Card.Content className='min-w-0'>
+							<LineChart data={data.series.map((point) => ({ ...point, hour: point.hour.slice(11, 16) }))} height={220} role='img' aria-label='Aggregate delivery outcomes over 24 hours' className='min-w-0'>
+								<LineChart.Grid vertical={false} />
+								<LineChart.XAxis dataKey='hour' minTickGap={32} interval='preserveStartEnd' />
+								<LineChart.YAxis allowDecimals={false} width={32} />
+								<LineChart.Line dataKey='succeeded' name='Successful' stroke='var(--color-success)' dot={false} isAnimationActive={false} />
+								<LineChart.Line dataKey='failed' name='Failed' stroke='var(--color-danger)' dot={false} isAnimationActive={false} />
+								<LineChart.Tooltip content={<LineChart.TooltipContent valueFormatter={(value) => Number(value).toLocaleString()} />} />
+							</LineChart>
+						</Card.Content>
+					</Card>
 					<section className='flex min-w-0 flex-col gap-3'>
 						<h2 className='text-xl font-semibold'>Due delivery backlog</h2>
-						<p className='text-muted text-sm'>Queued or retrying executions that are due now, excluding paused routes. Lower priority numbers run first. Age since creation includes time before a retry became due; overdue age starts at its due time.</p>
+						<p className='text-muted text-sm'>Deliveries ready to run, grouped by priority. Paused routes are excluded.</p>
 						<Table>
 							<Table.ScrollContainer>
 								<Table.Content aria-label='Due delivery backlog' className='w-full min-w-128'>
@@ -107,7 +141,7 @@ export default function JobsPage() {
 					</section>
 					<section className='flex min-w-0 flex-col gap-3'>
 						<h2 className='text-xl font-semibold'>Platform jobs</h2>
-						<p className='text-muted text-sm'>Up to 100 trusted background jobs, active work first, then ordered by due time. Payloads and raw errors are excluded. Delivery work appears in the backlog above and the event log.</p>
+						<p className='text-muted text-sm'>Recent background jobs, with active work first. Customer payloads, secrets and error contents are never shown here.</p>
 						<Table>
 							<Table.ScrollContainer>
 								<Table.Content aria-label='Platform jobs' className='w-full min-w-160'>
@@ -123,7 +157,7 @@ export default function JobsPage() {
 											<Table.Row id={job.id} key={job.id}>
 												<Table.Cell>
 													<span>{job.kind}</span>
-													<span className='text-muted block font-mono text-xs'>{job.id}</span>
+													<span className='text-muted hidden font-mono text-xs sm:block'>{job.id}</span>
 												</Table.Cell>
 												<Table.Cell>
 													<Chip size='sm' variant='soft' color={states[job.state].color}>

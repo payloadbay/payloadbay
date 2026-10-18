@@ -3,11 +3,11 @@ import type { ServerConfig } from "../../../../packages/domain/src/config.ts";
 import { actorPermissions } from "../../../../packages/domain/src/membership.ts";
 
 /** Resolve current preferences and authority immediately before the SMTP attempt. */
-export async function notificationMessage(pool: Pool, jobId: string, config: ServerConfig) {
+export async function notificationMessage(pool: Pool, jobId: string, config: ServerConfig, revisionId?: string | null) {
 	const incident = (
 		await pool.query(
-			`SELECT notification.*,recipient.email FROM payloadbay.notification_dispatch dispatch JOIN payloadbay.notification_incident notification ON notification.id=dispatch.incident_id AND notification.generation=dispatch.generation JOIN payloadbay.notification_rule rule ON rule.id::text=notification.redacted_data->>'ruleId' AND COALESCE(rule.project_id,rule.workspace_id)=notification.scope_id AND rule.enabled AND rule.version::text=notification.revision JOIN payloadbay.notification_subscription subscription ON subscription.rule_id=rule.id AND subscription.user_id=dispatch.user_id AND subscription.channel=dispatch.channel AND subscription.enabled AND (dispatch.channel='smtp' OR EXISTS(SELECT 1 FROM payloadbay.notification_channel channel WHERE channel.id::text=dispatch.channel AND channel.enabled)) JOIN auth."user" recipient ON recipient.id=dispatch.user_id AND recipient."emailVerified" AND recipient.banned IS NOT TRUE WHERE dispatch.platform_job_id=$1 AND dispatch.state='queued' AND notification.status='active' AND notification.scope_type IN ('project','workspace') AND notification.kind='delivery.failure-threshold'`,
-			[jobId],
+			`SELECT notification.*,recipient.email FROM payloadbay.notification_dispatch dispatch JOIN payloadbay.notification_incident notification ON notification.id=dispatch.incident_id AND notification.generation=dispatch.generation JOIN payloadbay.notification_rule rule ON rule.id::text=notification.redacted_data->>'ruleId' AND COALESCE(rule.project_id,rule.workspace_id)=notification.scope_id AND rule.enabled AND rule.version::text=notification.revision JOIN payloadbay.notification_subscription subscription ON subscription.rule_id=rule.id AND subscription.user_id=dispatch.user_id AND subscription.channel=dispatch.channel AND subscription.enabled AND (dispatch.channel='smtp' OR (subscription.channel_revision_id=$2::uuid AND EXISTS(SELECT 1 FROM payloadbay.notification_channel channel WHERE channel.id::text=dispatch.channel AND channel.enabled))) JOIN auth."user" recipient ON recipient.id=dispatch.user_id AND recipient."emailVerified" AND recipient.banned IS NOT TRUE WHERE dispatch.platform_job_id=$1 AND dispatch.state='queued' AND notification.status='active' AND notification.scope_type IN ('project','workspace') AND notification.kind='delivery.failure-threshold'`,
+			[jobId, revisionId ?? null],
 		)
 	).rows[0];
 	if (!incident) return null;

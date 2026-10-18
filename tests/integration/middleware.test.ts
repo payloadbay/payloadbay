@@ -43,7 +43,7 @@ test("U285 pinned middleware executes hierarchy then scope order before handler"
 				};
 			}
 
-			assert.equal(options.input.event.metadata.order, "instance-first,instance-second,workspace,project,endpoint", "middleware hierarchy must precede main handler");
+			assert.equal(options.input.event.metadata.order, "workspace,project,endpoint", "middleware hierarchy must precede main handler");
 
 			return {
 				decision: { kind: "complete" as const },
@@ -53,7 +53,7 @@ test("U285 pinned middleware executes hierarchy then scope order before handler"
 			};
 		},
 	});
-	assert.deepEqual(seen, ["instance-first", "instance-second", "workspace", "project", "endpoint", "handler"], "middleware hierarchy must precede main handler");
+	assert.deepEqual(seen, ["workspace", "project", "endpoint", "handler"], "middleware hierarchy must precede main handler");
 	assert.equal((result.decision as { kind: string }).kind, "complete");
 	assert.deepEqual(original.event.metadata, {});
 });
@@ -130,8 +130,8 @@ test("U123 required ingress middleware failure returns rejection without main ha
 		bindings: [
 			{
 				id: "required",
-				scopeType: "instance",
-				scopeId: "instance",
+				scopeType: "organization",
+				scopeId: "organization",
 				stage: "ingress",
 				position: 0,
 				revisionId: "revision",
@@ -207,6 +207,7 @@ test("U121 publication pins middleware in hierarchy order and executes it before
 		const scope = await seedScope(db);
 		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
 		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, permissions]);
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','organization',$1,'owner',$2)", [scope.organization, permissions]);
 		for (const [type, id] of [
 			["endpoint", scope.endpoint],
 			["workspace", scope.workspace],
@@ -240,7 +241,7 @@ test("U121 publication pins middleware in hierarchy order and executes it before
 			},
 		);
 		const recorded = (await db.query("SELECT p.effective_bindings,r.bundle FROM payloadbay.publication p JOIN payloadbay.stage_revision r ON r.id=p.processing_revision_id WHERE p.id=$1", [published.id])).rows[0];
-		assert.equal(recorded.effective_bindings.length, 5, "publication must include middleware snapshot");
+		assert.equal(recorded.effective_bindings.length, 4, "publication must include middleware snapshot");
 		const event = await seedEvent(db, { endpoint: scope.endpoint, publication: published.id });
 		await db.query("INSERT INTO payloadbay.execution(event_id,endpoint_id,publication_id) VALUES($1,$2,$3)", [event, scope.endpoint, published.id]);
 		const result = await executePipeline({
@@ -264,7 +265,7 @@ test("U121 publication pins middleware in hierarchy order and executes it before
 		});
 		assert.deepEqual(
 			result.logs.map((log) => log.message),
-			["instance", "organization", "workspace", "project", "endpoint", "handler"],
+			["organization", "workspace", "project", "endpoint", "handler"],
 		);
 		assert.equal((result.decision as { kind: string }).kind, "complete");
 	});
@@ -280,11 +281,12 @@ test("U125 a non-overridable parent binding blocks child replacement", async () 
 		const scope = await seedScope(db);
 		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
 		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, permissions]);
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','organization',$1,'owner',$2)", [scope.organization, permissions]);
 		const parent = await createMiddlewareBinding(
 			pool,
 			{ userId: "fixture-owner" },
 			{
-				scope: { type: "instance", id: scope.installation },
+				scope: { type: "organization", id: scope.organization },
 				stage: "processing",
 				name: "Required policy",
 				body: "return ctx.continue();",
@@ -331,6 +333,7 @@ test("U288 actual ingress and worker execute their pinned middleware stages", as
 		const scope = await seedScope(db);
 		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
 		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, permissions]);
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','organization',$1,'owner',$2)", [scope.organization, permissions]);
 		const common = {
 			scope: { type: "project" as const, id: scope.project },
 			position: 0,
@@ -402,6 +405,7 @@ test("U289 middleware edit conflicts preserve publication pinned revision", asyn
 		const scope = await seedScope(db);
 		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
 		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, permissions]);
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','organization',$1,'owner',$2)", [scope.organization, permissions]);
 		const binding = await createMiddlewareBinding(
 			pool,
 			{ userId: "fixture-owner" },
@@ -503,4 +507,72 @@ test("U295 merged middleware patch obeys aggregate limits", async () => {
 		});
 		assert.equal(result.logs[0].message, "Optional middleware failed");
 	}
+});
+
+test("CF03 persisted instance middleware never receives customer context", async () => {
+	const { executePipeline } = await import("../../packages/domain/src/pipeline.ts");
+	const seen: string[] = [];
+	const result = await executePipeline({
+		stage: "processing",
+		bundle: "customer-handler",
+		input: { event: { body: "confidential" } },
+		bindings: [
+			{
+				id: "legacy-global",
+				scopeType: "instance",
+				scopeId: "installation",
+				stage: "processing",
+				position: 0,
+				revisionId: "legacy",
+				bundle: "platform-script",
+				failurePolicy: "required",
+				version: 1,
+			},
+		],
+		run: async (options) => {
+			seen.push(options.bundle);
+
+			return {
+				decision: options.stage === "processing" ? { kind: "complete" } : { kind: "continue" },
+				logs: [],
+				peakRssBytes: 1,
+				durationMs: 1,
+			};
+		},
+	});
+	assert.deepEqual(seen, ["customer-handler"]);
+	assert.equal((result.decision as { kind: string }).kind, "complete");
+});
+
+test("CF07 old compiled helper pins are checked against the customer boundary", async () => {
+	const { assertExecutionDependencies } = await import("../../packages/domain/src/execution-dependencies.ts");
+	const { authFixture } = await import("../helpers/auth-fixtures.ts");
+	const { seedScope } = await import("../helpers/domain-fixtures.ts");
+	await authFixture(async ({ pool, db }) => {
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+
+		const module = async (type: string, id: string) => (await db.query("INSERT INTO payloadbay.shared_module_revision(scope_type,scope_id,name,source,source_digest,bundle_digest) VALUES($1,$2,'Legacy','export const x = 1','source','bundle') RETURNING id", [type, id])).rows[0].id;
+
+		const instance = await module("instance", scope.installation);
+		const project = await module("project", scope.project);
+		await assertExecutionDependencies(pool, scope.project, "ingress", {}, []);
+		await assertExecutionDependencies(pool, scope.project, "ingress", { modules: { Local: project } }, []);
+		await assert.rejects(assertExecutionDependencies(pool, scope.project, "ingress", { modules: { Legacy: instance } }, []), { code: "publication_scope_changed" });
+		const binding = {
+			id: "old",
+			scopeType: "project" as const,
+			scopeId: scope.project,
+			stage: "processing" as const,
+			position: 0,
+			revisionId: "old",
+			bundle: "old",
+			failurePolicy: "required" as const,
+			version: 1,
+			manifest: { modules: { Legacy: instance } },
+		};
+		await assert.rejects(assertExecutionDependencies(pool, scope.project, "processing", {}, [binding]), { code: "publication_scope_changed" });
+		await assertExecutionDependencies(pool, scope.project, "ingress", {}, [binding]);
+		await assert.rejects(assertExecutionDependencies(pool, scope.project, "ingress", { modules: { Missing: crypto.randomUUID() } }, []), { code: "publication_scope_changed" });
+	});
 });

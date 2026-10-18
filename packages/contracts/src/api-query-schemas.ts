@@ -17,7 +17,7 @@ const events = selection.extend({ ...pageQuery.shape, view: z.enum(["requests", 
 
 /** Recognized HTTP filters, reusing canonical scope, page and usage primitives. */
 export const apiQuerySchemas: Record<string, z.ZodType> = {
-	"/api/v1/audit": pageQuery,
+	"/api/v1/audit": pageQuery.extend({ scopeType: scopeSchema.shape.type.optional(), scopeId: scopeSchema.shape.id.optional() }).refine((value) => Boolean(value.scopeType) === Boolean(value.scopeId), "Choose a complete audit scope"),
 	"/api/v1/changes": z.object({
 		scopeType: z.enum(["instance", "workspace", "project", "accessible"]),
 		scopeId: z.uuid(),

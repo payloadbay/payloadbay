@@ -68,7 +68,7 @@ export const notificationChannelUpdate = z
 export const emailSettingsInput = z
 	.object({
 		expectedVersion: z.number().int().nonnegative(),
-		channelKey: channelKey.default("smtp"),
+		channelKey: z.literal("smtp").default("smtp"),
 		branding: emailBranding,
 	})
 	.strict();

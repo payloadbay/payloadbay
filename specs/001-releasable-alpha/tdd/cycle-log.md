@@ -3469,3 +3469,45 @@ App needs credential wiring for its master migration commit; no new credential
 or bypass was created. Master merge, generated SQL, coordinated published images
 and operator installation/upgrade/restore remain unexecuted. Six unrelated drafts
 remain unchanged. This final reconciliation changes documentation only.
+
+## Customer confidentiality hardening — 2026-10-18
+
+Maintainer approval extends the customer boundary to self-hosted departments as
+well as hosted customers. Instance authority no longer inherits into customer
+scopes. Explicit customer membership remains independent, including customer
+invitations to staff accounts. Initial setup grants the first owner both roles
+explicitly; legacy mapping uses the recorded workspace owner, never the first
+platform owner. Customer audit is scoped; instance audit contains platform
+records only. Customer script dependencies cannot inherit platform code/secrets,
+including already-published snapshots. Historical events and queued work remain.
+
+Actual RED evidence: CF01/CF02 reproduced self-hosted authorization/audit access;
+CF03 reproduced platform middleware execution. CF04 was strengthened to publish
+and execute a real notification module. Running it against isolated 0956117
+reproduced authentication-code exposure; the patched test passes. Its earlier
+invalid-module setup failure is not credited as a RED. Authentication delivery
+now always uses trusted SMTP; custom incident subscriptions pin recipient-approved
+code. Platform adapter networking checks and pins DNS, blocks private targets by
+default, never follows redirects and bounds response capture/decompression.
+Deployment-only exact-host allowances preserve deliberate internal adapters.
+
+Focused checks pass CF01/CF02, CF03, CF04, CF05/CF08/HT03, CF07, CF09 and CF11/CF12.
+ESLint, web/tooling TypeScript, formatting and inventory pass. Complete executor
+passes36/36; notifications pass21/21. The diagnostic backend run passed307/309:
+one test exposed the adapter IPv4 classification bug, now fixed and covered by
+CF12; the other contained an invalid ctx.fail argument, now corrected. The whole
+notification file passes after both corrections. Browser and clean exact-SHA CI
+verification remain pending at this entry; previous green CI is not attributed
+to this patch. CF08's initial invalid-FK fixture failure is not test-first evidence.
+
+A fresh read-only investigator and independent patch reviewer examined the
+boundary. Review added recorded-owner migration selection and execution-time
+validation of old helper pins. No standalone Codex Security scan or production
+certification is claimed. Existing Docker/workflow drafts remain excluded.
+
+Follow-up local browser verification passes7/7: CF10 scoped mobile audit and
+post-revocation denial, U159/U160 job operations, AD01/AD03 audit permissions and
+pagination, notification module administration and personal preferences. The first
+attempt could not launch Chromium because libnspr4 was absent; installing official
+Playwright system dependencies resolved that environment failure without product
+changes. Unit51/51 also passes. Exact clean CI is the remaining source gate.

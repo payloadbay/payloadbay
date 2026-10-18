@@ -317,6 +317,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 		breadcrumbItems.push({ label: routeMetadata?.name ?? "Ingress route", href: routeAddress });
 		breadcrumbItems.push({ label: routeSection === "middleware" ? "Middleware" : (routeLinks.find((item) => item.id === routeSection)?.label ?? "Scripts") });
 	} else if (pathname.endsWith("/members")) breadcrumbItems.push({ label: currentProject ? "Project members" : currentWorkspace ? "Workspace members" : currentOrganization ? "Organization members" : "Instance members" });
+	else if (pathname.endsWith("/audit")) breadcrumbItems.push({ label: "Audit log" });
 	else if (pathname.endsWith("/usage")) breadcrumbItems.push({ label: "Usage and limits" });
 	else if (pathname.endsWith("/api-keys")) breadcrumbItems.push({ label: currentOrganization ? "API keys" : "Personal API keys" });
 	else if (pathname.startsWith("/code/")) breadcrumbItems.push({ label: currentProject || currentWorkspace || currentOrganization ? "Code and middleware" : "Instance code and middleware" });
@@ -420,10 +421,27 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 					visible: project.permissions.includes("code.read"),
 				}
 			: null;
-	const contextualLinks = !browse && routeId ? [...routeLinks.map((item) => ({ ...item, href: routeAddress + "?section=" + item.id })), ...(middlewareLink ? [middlewareLink] : [])] : project ? projectLinks : workspace ? workspaceLinks : organization ? organizationLinks : [];
+	const primaryContextualLinks = !browse && routeId ? [...routeLinks.map((item) => ({ ...item, href: routeAddress + "?section=" + item.id })), ...(middlewareLink ? [middlewareLink] : [])] : project ? projectLinks : workspace ? workspaceLinks : organization ? organizationLinks : [];
+	const auditResource = project ?? workspace ?? organization;
+	const auditType = project ? "project" : workspace ? "workspace" : "organization";
+	const contextualLinks = [
+		...primaryContextualLinks,
+		...(!routeId && auditResource?.permissions.includes("audit.read")
+			? [
+					{
+						id: "scoped-audit",
+						label: "Audit log",
+						href: "/" + (auditType === "project" ? "projects" : auditType === "workspace" ? "workspaces" : "organizations") + "/" + auditResource.id + "/audit",
+						icon: IconClipboardList,
+						visible: true,
+					},
+				]
+			: []),
+	];
+
 	const groups = [
 		{ label: "Settings", items: contextualLinks.filter((item) => ["code", "helpers", "secrets", "middleware", "project-overview", "project-code", "project-members", "workspace", "workspace-members", "workspace-code", "organization", "organization-members", "organization-code", "organization-api-keys"].includes(item.id)) },
-		{ label: "Observe and troubleshoot", items: contextualLinks.filter((item) => ["events", "project-events", "overview", "test", "organization-usage"].includes(item.id)) },
+		{ label: "Observe and troubleshoot", items: contextualLinks.filter((item) => ["events", "project-events", "overview", "test", "organization-usage", "scoped-audit"].includes(item.id)) },
 		{ label: "Publish and history", items: contextualLinks.filter((item) => item.id === "history") },
 		{ label: "Automation", items: contextualLinks.filter((item) => ["project-notifications", "workspace-rules"].includes(item.id)) },
 	];
@@ -602,57 +620,73 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 			</Sidebar.Content>
 			{(admin || data.me.permissions.includes("settings.manage") || data.me.permissions.includes("jobs.read") || data.me.permissions.includes("audit.read")) && !scoped && (
 				<Sidebar.Footer>
-					<Sidebar.Group>
-						<Sidebar.GroupLabel>Administration</Sidebar.GroupLabel>
-						<Sidebar.Menu aria-label='Instance administration'>
-							{data.me.permissions.includes("audit.read") && (
-								<Sidebar.MenuItem id='instance-audit' href='/admin/audit' textValue='Audit log' isCurrent={pathname === "/admin/audit"}>
-									<Sidebar.MenuIcon>
-										<IconClipboardList size={18} />
-									</Sidebar.MenuIcon>
-									<Sidebar.MenuLabel>Audit log</Sidebar.MenuLabel>
-								</Sidebar.MenuItem>
-							)}
-							{data.me.permissions.includes("jobs.read") && (
-								<Sidebar.MenuItem id='instance-jobs' href='/admin/jobs' textValue='Jobs and queues' isCurrent={pathname === "/admin/jobs"}>
-									<Sidebar.MenuIcon>
-										<IconActivity size={18} />
-									</Sidebar.MenuIcon>
-									<Sidebar.MenuLabel>Jobs and queues</Sidebar.MenuLabel>
-								</Sidebar.MenuItem>
-							)}
-							{admin && (
-								<Sidebar.MenuItem id='instance-members' href='/admin/members' textValue='Instance members' isCurrent={pathname === "/admin/members"}>
-									<Sidebar.MenuIcon>
-										<IconUsers size={18} />
-									</Sidebar.MenuIcon>
-									<Sidebar.MenuLabel>Instance members</Sidebar.MenuLabel>
-								</Sidebar.MenuItem>
-							)}
-							{data.me.permissions.includes("settings.manage") && (
-								<>
-									<Sidebar.MenuItem id='installation' href='/admin/installation' textValue='Installation' isCurrent={pathname === "/admin/installation"}>
+					{(data.me.permissions.includes("audit.read") || data.me.permissions.includes("jobs.read")) && (
+						<Sidebar.Group>
+							<Sidebar.GroupLabel>Operations</Sidebar.GroupLabel>
+							<Sidebar.Menu aria-label='Instance operations'>
+								{data.me.permissions.includes("audit.read") && (
+									<Sidebar.MenuItem id='instance-audit' href='/admin/audit' textValue='Audit log' isCurrent={pathname === "/admin/audit"}>
 										<Sidebar.MenuIcon>
-											<IconServer size={18} />
+											<IconClipboardList size={18} />
 										</Sidebar.MenuIcon>
-										<Sidebar.MenuLabel>Installation</Sidebar.MenuLabel>
+										<Sidebar.MenuLabel>Audit log</Sidebar.MenuLabel>
 									</Sidebar.MenuItem>
-									<Sidebar.MenuItem id='notification-modules' href='/admin/notification-channels' textValue='Notification modules' isCurrent={pathname.startsWith("/admin/notification-channels")}>
+								)}
+								{data.me.permissions.includes("jobs.read") && (
+									<Sidebar.MenuItem id='instance-jobs' href='/admin/jobs' textValue='Jobs and queues' isCurrent={pathname === "/admin/jobs"}>
 										<Sidebar.MenuIcon>
-											<IconBell size={18} />
+											<IconActivity size={18} />
 										</Sidebar.MenuIcon>
-										<Sidebar.MenuLabel>Notification modules</Sidebar.MenuLabel>
+										<Sidebar.MenuLabel>Jobs and queues</Sidebar.MenuLabel>
 									</Sidebar.MenuItem>
-									<Sidebar.MenuItem id='email-settings' href='/admin/email' textValue='Email settings' isCurrent={pathname === "/admin/email"}>
+								)}
+							</Sidebar.Menu>
+						</Sidebar.Group>
+					)}
+					{admin && (
+						<Sidebar.Group>
+							<Sidebar.GroupLabel>Access</Sidebar.GroupLabel>
+							<Sidebar.Menu aria-label='Instance access'>
+								{admin && (
+									<Sidebar.MenuItem id='instance-members' href='/admin/members' textValue='Instance members' isCurrent={pathname === "/admin/members"}>
 										<Sidebar.MenuIcon>
-											<IconSettings size={18} />
+											<IconUsers size={18} />
 										</Sidebar.MenuIcon>
-										<Sidebar.MenuLabel>Email settings</Sidebar.MenuLabel>
+										<Sidebar.MenuLabel>Instance members</Sidebar.MenuLabel>
 									</Sidebar.MenuItem>
-								</>
-							)}
-						</Sidebar.Menu>
-					</Sidebar.Group>
+								)}
+							</Sidebar.Menu>
+						</Sidebar.Group>
+					)}
+					{data.me.permissions.includes("settings.manage") && (
+						<Sidebar.Group>
+							<Sidebar.GroupLabel>Configuration</Sidebar.GroupLabel>
+							<Sidebar.Menu aria-label='Instance configuration'>
+								{data.me.permissions.includes("settings.manage") && (
+									<>
+										<Sidebar.MenuItem id='installation' href='/admin/installation' textValue='Installation' isCurrent={pathname === "/admin/installation"}>
+											<Sidebar.MenuIcon>
+												<IconServer size={18} />
+											</Sidebar.MenuIcon>
+											<Sidebar.MenuLabel>Installation</Sidebar.MenuLabel>
+										</Sidebar.MenuItem>
+										<Sidebar.MenuItem id='notification-modules' href='/admin/notification-channels' textValue='Notification modules' isCurrent={pathname.startsWith("/admin/notification-channels")}>
+											<Sidebar.MenuIcon>
+												<IconBell size={18} />
+											</Sidebar.MenuIcon>
+											<Sidebar.MenuLabel>Notification modules</Sidebar.MenuLabel>
+										</Sidebar.MenuItem>
+										<Sidebar.MenuItem id='email-settings' href='/admin/email' textValue='Email settings' isCurrent={pathname === "/admin/email"}>
+											<Sidebar.MenuIcon>
+												<IconSettings size={18} />
+											</Sidebar.MenuIcon>
+											<Sidebar.MenuLabel>Email settings</Sidebar.MenuLabel>
+										</Sidebar.MenuItem>
+									</>
+								)}
+							</Sidebar.Menu>
+						</Sidebar.Group>
+					)}
 				</Sidebar.Footer>
 			)}
 		</>

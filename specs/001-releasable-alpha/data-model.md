@@ -18,7 +18,7 @@ Design artifact; schema/runtime sources own implementation and CI owns release m
 | ApiToken         | id,userId,scopeId,permissionSet,hash,expiresAt,revokedAt                                                | Hash only; token rights intersect current user rights                                                               |
 | SecretVersion    | id,scopeId,reference,name,encryptedValue,keyId,version,revokedAt                                        | Explicit use/manage rights; never in payload logs/revision plaintext                                                |
 
-Owner transfer and last-owner changes occur transactionally and audit the actor. Scope predicates apply to all resources including list/search/live cursors. Instance grants intentionally cross workspaces; admission alone does not.
+Owner transfer and last-owner changes occur transactionally and audit the actor. Scope predicates apply to all resources including list/search/live cursors. Instance grants never cross the platform/customer boundary. Explicit organization/workspace grants inherit into their descendants; admission alone grants no customer authority.
 
 ## Code, destinations and acceptance
 
@@ -108,3 +108,5 @@ These definitions are pending runtime work. Use existing execution lease/state
 as the capacity authority where possible rather than adding a competing lease
 system. See [tenant-metering contract](contracts/tenant-metering.md) for precise
 fact identities, failure behavior and source insertion points.
+
+Notification subscriptions store nullable channel_revision_id referencing an immutable module revision. SMTP uses trusted code without a custom revision. Existing custom subscriptions with no pin remain inactive for dispatch until the recipient opts in again.
