@@ -1794,7 +1794,7 @@ test("UX62 one secret inventory manages both stages and imports environment text
 	const inventory = page.getByRole("grid", { name: "Secret inventory", exact: true });
 	await expect(inventory.getByRole("checkbox", { name: "FIRST_KEY v1 available in ingress", exact: true })).toBeChecked();
 	await expect(inventory.getByRole("checkbox", { name: "FIRST_KEY v1 available in processing", exact: true })).toBeChecked();
-	await page.getByRole("alertdialog", { name: "Secret status", exact: true }).getByRole("button", { name: "Close", exact: true }).click();
+	await page.getByRole("alertdialog", { name: "Secret status", exact: true }).getByRole("button", { name: "Close", exact: true }).press("Enter");
 	await page.getByRole("button", { name: "Save draft", exact: true }).click();
 	await expect(page.getByText("Draft saved", { exact: true })).toBeVisible();
 	await page.reload();

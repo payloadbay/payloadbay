@@ -337,20 +337,25 @@ test("L01 sign-in hint is opt-in plain text without a demo account selector", as
 	const hint = "Try these accounts:\nInstance owner: owner@example.test\nProject viewer: viewer@example.test\n<script>not executable</script>";
 	for (const options of [{ loginHint: hint }, { loginHint: "   " }, { preview: true }]) {
 		await nextFixture(async ({ url }) => {
-			await page.goto(url + "/login");
-			await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
-			await expect(page.getByRole("combobox")).toHaveCount(0);
-			await expect(page.getByLabel("Email address")).toHaveValue("");
-			const note = page.getByRole("note", { name: "Sign-in information" });
-			if (options.loginHint === hint) {
-				await expect(note).toHaveText(hint);
-				await expect(note.locator("script")).toHaveCount(0);
-				await page.route("**/api/auth/email-otp/send-verification-otp", (route) => route.fulfill({ status: 200, contentType: "application/json", body: '{"success":true}' }));
-				await page.getByLabel("Email address").fill("viewer@example.test");
-				await page.getByRole("button", { name: "Send sign-in code" }).click();
-				await expect(page.getByLabel("Sign-in code", { exact: true })).toBeVisible();
-				await expect(note).toHaveCount(0);
-			} else await expect(note).toHaveCount(0);
+			try {
+				await page.goto(url + "/login");
+				await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+				await expect(page.getByRole("combobox")).toHaveCount(0);
+				await expect(page.getByLabel("Email address")).toHaveValue("");
+				const note = page.getByRole("note", { name: "Sign-in information" });
+				if (options.loginHint === hint) {
+					await expect(note).toHaveText(hint);
+					await expect(note.locator("script")).toHaveCount(0);
+					await page.route("**/api/auth/email-otp/send-verification-otp", (route) => route.fulfill({ status: 200, contentType: "application/json", body: '{"success":true}' }));
+					await page.getByLabel("Email address").fill("viewer@example.test");
+					await page.getByRole("button", { name: "Send sign-in code" }).click();
+					await expect(page.getByLabel("Sign-in code", { exact: true })).toBeVisible();
+					await expect(note).toHaveCount(0);
+				} else await expect(note).toHaveCount(0);
+			} finally {
+				// Release browser connections before the isolated server flushes coverage and exits.
+				await page.goto("about:blank");
+			}
 		}, options);
 	}
 });
