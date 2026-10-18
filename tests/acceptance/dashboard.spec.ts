@@ -444,7 +444,7 @@ test("U276 administrator opens and personally dismisses runtime advice", async (
 	await expect(page.getByRole("dialog", { name: "Notifications", exact: true }).getByText("No active notifications.", { exact: true })).toBeVisible();
 });
 
-test("U292 project code page creates helper version and processing middleware", async ({ page }) => {
+test("U292 shared code copies immutable helpers and edits and reorders middleware", async ({ page }) => {
 	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
 	const headers = commandHeaders();
@@ -479,6 +479,17 @@ test("U292 project code page creates helper version and processing middleware", 
 	const helperVersions = await (await page.request.get("/api/v1/shared-code?scopeType=project&scopeId=" + project.id)).json();
 	const newestHelper = await (await page.request.get("/api/v1/shared-code/" + helperVersions[0].id)).json();
 	expect(newestHelper.source).toContain("shared v2");
+	await page
+		.locator('[data-slot="card"]')
+		.filter({ hasText: newestHelper.id.slice(0, 8) })
+		.getByRole("button", { name: "Copy locally", exact: true })
+		.click();
+	await expect.poll(async () => (await (await page.request.get("/api/v1/shared-code?scopeType=project&scopeId=" + project.id)).json())[0].originRevisionId).toBe(newestHelper.id);
+	const copiedHelpers = await (await page.request.get("/api/v1/shared-code?scopeType=project&scopeId=" + project.id)).json();
+	const copiedSource = await (await page.request.get("/api/v1/shared-code/" + copiedHelpers[0].id)).json();
+	expect(copiedSource.source).toBe(newestHelper.source);
+	expect((await (await page.request.get("/api/v1/shared-code/" + newestHelper.id)).json()).source).toBe(newestHelper.source);
+
 	await page.getByRole("tab", { name: "Middleware", exact: true }).click();
 	await page.getByRole("button", { name: "Create middleware", exact: true }).click();
 	await page.getByLabel("Middleware name", { exact: true }).fill("Project policy");
@@ -520,6 +531,12 @@ test("U292 project code page creates helper version and processing middleware", 
 	await page.getByRole("tab", { name: "Middleware", exact: true }).click();
 	await page.getByRole("button", { name: "Move Second policy up", exact: true }).click();
 	await expect.poll(async () => (await (await page.request.get("/api/v1/middleware?scopeType=project&scopeId=" + project.id)).json())[0].name).toBe("Second policy");
+	await page.getByRole("button", { name: "Move Second policy down", exact: true }).click();
+	await expect.poll(async () => (await (await page.request.get("/api/v1/middleware?scopeType=project&scopeId=" + project.id)).json())[0].name).toBe("Project policy");
+	await page.getByRole("button", { name: "Edit middleware Project policy", exact: true }).click();
+	await page.getByLabel("Middleware name", { exact: true }).fill("Updated project policy");
+	await page.getByRole("button", { name: "Save middleware", exact: true }).click();
+	await expect.poll(async () => (await (await page.request.get("/api/v1/middleware?scopeType=project&scopeId=" + project.id)).json())[0].name).toBe("Updated project policy");
 });
 
 test("U83 route editor binds helper version and supports editable file imports", async ({ page }) => {
@@ -1059,6 +1076,7 @@ test("overview and mobile hierarchy preserve context while search opens resource
 	await expect(page.getByRole("dialog")).toHaveCount(0);
 	await page.setViewportSize({ width: 1440, height: 900 });
 	await expect(searchBar).toBeVisible();
+	await page.screenshot({ path: test.info().outputPath("navigation-desktop.png"), animations: "disabled" });
 	await searchBar.click();
 	await expect(page.getByRole("dialog", { name: "Search pages and resources" })).toBeVisible();
 	await page.keyboard.press("Escape");

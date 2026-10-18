@@ -5,6 +5,7 @@ import { LoadingState } from "@components/loading-state";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Button, Card, Table } from "@heroui/react";
+import { IconChevronRight } from "@tabler/icons-react";
 import { LineChart } from "@heroui-pro/react/line-chart";
 import { useDashboard } from "@components/dashboard-shell";
 import { api } from "@lib/api-client";
@@ -164,7 +165,10 @@ export default function DashboardPage() {
 											{overview.recent.map((item) => (
 												<Table.Row key={item.id} id={item.id} href={`/projects/${item.project_id}/routes/${item.endpoint_id}?section=events`}>
 													<Table.Cell>
-														<span className='block font-medium'>{item.endpoint_name}</span>
+														<span className='flex items-center justify-between gap-3 font-medium'>
+															{item.endpoint_name}
+															<IconChevronRight size={16} aria-hidden='true' className='text-muted shrink-0' />
+														</span>
 														<span className='text-muted text-xs'>{item.project_name}</span>
 													</Table.Cell>
 													<Table.Cell>
@@ -202,7 +206,12 @@ export default function DashboardPage() {
 								<Table.Body>
 									{projects.slice(0, 5).map((project) => (
 										<Table.Row key={project.id} id={project.id} href={"/projects/" + project.id}>
-											<Table.Cell>{project.name}</Table.Cell>
+											<Table.Cell>
+												<span className='flex items-center justify-between gap-3'>
+													{project.name}
+													<IconChevronRight size={16} aria-hidden='true' className='text-muted shrink-0' />
+												</span>
+											</Table.Cell>
 											<Table.Cell>{workspaces.find((item) => item.id === project.workspace_id)?.name ?? "Project access only"}</Table.Cell>
 										</Table.Row>
 									))}

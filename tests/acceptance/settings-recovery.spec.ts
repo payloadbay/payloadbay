@@ -399,6 +399,14 @@ test("UX64 mobile middleware handles reorder with touch and retain keyboard alte
 	const x = source!.x + source!.width / 2;
 	const start = source!.y + source!.height / 2;
 	const end = target!.y + 3;
+
+	const order = async () => (await (await page.request.get("/api/v1/middleware?scopeType=project&scopeId=" + project.id)).json()).map((item: { name: string }) => item.name);
+
+	await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y: start }] });
+	await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: end }] });
+	await cdp.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] });
+	await expect.poll(order).toEqual(["First policy", "Second policy"]);
+
 	await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y: start }] });
 	await page.waitForTimeout(900);
 	for (let step = 1; step <= 12; step++) {
@@ -408,11 +416,75 @@ test("UX64 mobile middleware handles reorder with touch and retain keyboard alte
 
 	await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
 
-	const order = async () => (await (await page.request.get("/api/v1/middleware?scopeType=project&scopeId=" + project.id)).json()).map((item: { name: string }) => item.name);
-
 	await expect.poll(order).toEqual(["Second policy", "First policy"]);
 	await page.getByRole("button", { name: "Move First policy up", exact: true }).click();
 	await expect.poll(order).toEqual(["First policy", "Second policy"]);
 	await page.screenshot({ path: test.info().outputPath("middleware-touch-order-mobile.png") });
 	await cdp.detach();
+});
+
+test("UX65 secret rotation pins stages independently and cancelled forms discard plaintext", async ({ page }) => {
+	const { commandHeaders } = await import("../helpers/browser-auth.ts");
+	await ensureBrowserOwner(page);
+	await page.setViewportSize({ width: 390, height: 844 });
+	const workspace = (await (await page.request.get("/api/v1/workspaces")).json())[0];
+	const project = await (await page.request.post("/api/v1/projects", { headers: commandHeaders(), data: { parentId: workspace.id, name: "Secret rotation", slug: "secret-rotation" } })).json();
+	const endpoint = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers: commandHeaders(), data: { name: "Rotation route", slug: "rotation-route" } })).json();
+	await page.goto("/projects/" + project.id + "/routes/" + endpoint.id + "?section=secrets");
+	const create = page.getByRole("dialog", { name: "Create secret version", exact: true });
+	for (const dismiss of ["cancel", "escape"]) {
+		await page.getByRole("button", { name: "Create secret version", exact: true }).click();
+		await expect(create.getByLabel("Secret value", { exact: true })).toHaveValue("");
+		await create.getByLabel("Secret key", { exact: true }).fill("DISCARDED_KEY");
+		await create.getByLabel("Secret value", { exact: true }).fill("discarded-synthetic-value");
+		if (dismiss === "cancel") await create.getByRole("button", { name: "Cancel", exact: true }).click();
+		else await page.keyboard.press("Escape");
+		await expect(create).toHaveCount(0);
+	}
+
+	const environment = page.getByRole("dialog", { name: "Import environment secrets", exact: true });
+	for (const dismiss of ["cancel", "escape"]) {
+		await page.getByRole("button", { name: "Import .env", exact: true }).click();
+		await expect(environment.getByLabel("Environment text", { exact: true })).toHaveValue("");
+		await environment.getByLabel("Environment text", { exact: true }).fill("DISCARDED_KEY=discarded-synthetic-value");
+		await environment.getByRole("checkbox", { name: "Processing", exact: true }).press("Space");
+		if (dismiss === "cancel") await environment.getByRole("button", { name: "Cancel", exact: true }).click();
+		else await page.keyboard.press("Escape");
+		await expect(environment).toHaveCount(0);
+	}
+
+	expect(await (await page.request.get("/api/v1/secrets?scopeType=project&scopeId=" + project.id)).json()).toEqual([]);
+	for (const [index, excluded] of ["Processing", "Ingress"].entries()) {
+		await page.getByRole("button", { name: "Create secret version", exact: true }).click();
+		await expect(create.getByLabel("Secret key", { exact: true })).toHaveValue("");
+		await expect(create.getByLabel("Secret value", { exact: true })).toHaveValue("");
+		await create.getByLabel("Secret key", { exact: true }).fill("SHARED_KEY");
+		await create.getByLabel("Secret value", { exact: true }).fill("synthetic-version-" + (index + 1));
+		await create.getByRole("checkbox", { name: excluded, exact: true }).press("Space");
+		await create.getByRole("button", { name: "Create secret version", exact: true }).click();
+		await expect(create).toHaveCount(0);
+		await page.getByRole("alertdialog", { name: "Secret status", exact: true }).getByRole("button", { name: "Close", exact: true }).press("Enter");
+	}
+
+	const versions = await (await page.request.get("/api/v1/secrets?scopeType=project&scopeId=" + project.id)).json();
+	expect(versions).toHaveLength(2);
+	expect(JSON.stringify(versions)).not.toContain("synthetic-version-");
+	const first = versions.find((item: { version: number }) => item.version === 1);
+	const second = versions.find((item: { version: number }) => item.version === 2);
+	await page.getByRole("button", { name: "Bind secret version", exact: true }).click();
+	const bind = page.getByRole("dialog", { name: "Bind a secret", exact: true });
+	await bind.getByLabel("Script key", { exact: true }).fill("LEGACY_KEY");
+	await bind.getByLabel("Secret version", { exact: true }).selectOption(first.id);
+	const ingress = bind.getByRole("checkbox", { name: "Ingress", exact: true });
+	await expect(ingress).not.toBeChecked();
+	await ingress.press("Space");
+	await ingress.press("Space");
+	await bind.getByRole("button", { name: "Bind secret version", exact: true }).click();
+	await expect(bind).toHaveCount(0);
+	await page.getByRole("button", { name: "Save draft", exact: true }).click();
+	await expect(page.getByText("Draft saved", { exact: true })).toBeVisible();
+	const inDraft = await (await page.request.get("/api/v1/endpoints/" + endpoint.id + "/drafts/ingress")).json();
+	const outDraft = await (await page.request.get("/api/v1/endpoints/" + endpoint.id + "/drafts/processing")).json();
+	expect(inDraft.secret_bindings).toEqual({ SHARED_KEY: first.id });
+	expect(outDraft.secret_bindings).toEqual({ SHARED_KEY: second.id, LEGACY_KEY: first.id });
 });

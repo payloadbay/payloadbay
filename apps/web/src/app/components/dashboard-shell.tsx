@@ -47,8 +47,8 @@ function NavigationSearch({ onSearch }: { onSearch: () => void }) {
 				onSearch();
 			}}
 		>
-			<IconSearch size={18} aria-hidden='true' />
-			Search pages and resources…
+			<IconSearch size={18} aria-hidden='true' className='shrink-0' />
+			<span className='min-w-0 truncate'>Search pages and resources…</span>
 		</Button>
 	);
 }
