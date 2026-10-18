@@ -252,6 +252,13 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 					visible: organization.permissions.includes("members.manage"),
 				},
 				{
+					id: "organization-security",
+					label: "Security",
+					href: "/organizations/" + organization.id + "/security",
+					icon: IconKey,
+					visible: organization.permissions.includes("members.manage"),
+				},
+				{
 					id: "organization-code",
 					label: "Code and middleware",
 					href: "/code/organization/" + organization.id,
@@ -377,6 +384,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 	} else if (pathname.endsWith("/members")) breadcrumbItems.push({ label: currentProject ? "Project members" : currentWorkspace ? "Workspace members" : currentOrganization ? "Organization members" : "Instance members" });
 	else if (pathname.endsWith("/audit")) breadcrumbItems.push({ label: "Audit log" });
 	else if (pathname.endsWith("/usage")) breadcrumbItems.push({ label: "Usage and limits" });
+	else if (currentOrganization && pathname.endsWith("/security")) breadcrumbItems.push({ label: "Security" });
 	else if (pathname.endsWith("/api-keys")) breadcrumbItems.push({ label: currentOrganization ? "API keys" : "Personal API keys" });
 	else if (pathname.startsWith("/code/")) breadcrumbItems.push({ label: currentProject || currentWorkspace || currentOrganization ? "Code and middleware" : "Instance code and middleware" });
 	else if (pathname.endsWith("/notifications")) breadcrumbItems.push({ label: currentProject || currentWorkspace || currentOrganization ? "Notification rules" : "Notification settings" });
@@ -505,7 +513,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 	];
 
 	const groups = [
-		{ label: "Settings", items: contextualLinks.filter((item) => ["overview", "code", "helpers", "secrets", "middleware", "project-overview", "project-code", "project-members", "workspace", "workspace-members", "workspace-code", "organization", "organization-members", "organization-code", "organization-api-keys", "workspace-api-keys", "project-api-keys"].includes(item.id)) },
+		{ label: "Settings", items: contextualLinks.filter((item) => ["organization-security", "overview", "code", "helpers", "secrets", "middleware", "project-overview", "project-code", "project-members", "workspace", "workspace-members", "workspace-code", "organization", "organization-members", "organization-code", "organization-api-keys", "workspace-api-keys", "project-api-keys"].includes(item.id)) },
 		{ label: "Observe and troubleshoot", items: contextualLinks.filter((item) => ["events", "project-events", "playground", "test", "organization-usage", "scoped-audit"].includes(item.id)) },
 		{ label: "Publish and history", items: contextualLinks.filter((item) => item.id === "history") },
 		{ label: "Automation", items: contextualLinks.filter((item) => ["project-notifications", "workspace-rules"].includes(item.id)) },
@@ -780,6 +788,11 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 								</div>
 
 								<div className='flex shrink-0 items-center gap-2'>
+									{data.me.passkeyEnrollmentRequired && (
+										<Link href='/account' className='button button--secondary button--sm'>
+											Add required passkey
+										</Link>
+									)}
 									<NotificationInbox />
 									<Dropdown>
 										<Dropdown.Trigger aria-label='Account menu' className='rounded-full outline-offset-4'>

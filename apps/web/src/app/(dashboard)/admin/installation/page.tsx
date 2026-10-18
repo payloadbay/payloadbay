@@ -1,18 +1,29 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, Chip, Table } from "@heroui/react";
-import { IconRefresh } from "@tabler/icons-react";
+import { Button, Chip, Table, Modal, TextField, Input, Label, Select, ListBox } from "@heroui/react";
+import { IconPlus, IconPencil, IconTrash, IconRefresh } from "@tabler/icons-react";
 import { useDashboard } from "@components/dashboard-shell";
 import { LoadingState } from "@components/loading-state";
 import { api } from "@lib/api-client";
 import { useFeedbackToast } from "@lib/feedback";
-import type { InstallationSettings, InstallationHealth } from "@contracts/installation";
+import type { ConfiguredInstallationSettings as InstallationSettings, InstallationHealth } from "@contracts/installation";
 
 export default function InstallationPage() {
 	const { me } = useDashboard();
 
 	const authorized = me.permissions.includes("settings.manage");
+
+	const [provider, setProvider] = useState<"google" | "github">("google");
+	const [clientId, setClientId] = useState("");
+	const [clientSecret, setClientSecret] = useState("");
+	const [editing, setEditing] = useState(false);
+	const [removing, setRemoving] = useState<"google" | "github" | null>(null);
+	const [saving, setSaving] = useState(false);
+	const [actionError, setActionError] = useState("");
+	const [notice, setNotice] = useState("");
+
+	useFeedbackToast(actionError, notice, { error: "OAuth configuration error", success: "OAuth configuration saved" });
 
 	const [revision, setRevision] = useState(0);
 	const [result, setResult] = useState<{ revision: number; settings: InstallationSettings; health: InstallationHealth } | null>(null);
@@ -38,6 +49,28 @@ export default function InstallationPage() {
 			active = false;
 		};
 	}, [authorized, revision]);
+
+	async function saveProvider(remove = false) {
+		if (!data) return;
+		setSaving(true);
+		setActionError("");
+		setNotice("");
+		try {
+			const oauth: Record<string, { clientId: string; clientSecret?: string }> = Object.fromEntries(Object.entries(data.settings.configuration.settings.oauth).map(([name, value]) => [name, { clientId: value!.clientId }]));
+			if (remove && removing) delete oauth[removing];
+			else oauth[provider] = { clientId, ...(clientSecret ? { clientSecret } : {}) };
+			await api("/installation/settings", { method: "PUT", json: { version: data.settings.configuration.version, settings: { oauth } } });
+			setEditing(false);
+			setRemoving(null);
+			setClientSecret("");
+			setRevision((value) => value + 1);
+			setNotice(remove ? "OAuth provider removed." : "OAuth provider saved.");
+		} catch (cause) {
+			setActionError(cause instanceof Error ? cause.message : "Could not save OAuth provider");
+		} finally {
+			setSaving(false);
+		}
+	}
 
 	if (!authorized)
 		return (
@@ -142,6 +175,160 @@ export default function InstallationPage() {
 						</dl>
 						<p className='text-muted text-sm'>The executor reports its configuration, not host attestation. Ordinary Docker uses runc; optional gVisor requires host setup and an explicit runsc configuration. The notification inbox carries the runtime advisory.</p>
 					</section>
+
+					<section className='flex min-w-0 flex-col gap-3'>
+						<header className='flex items-center justify-between gap-3'>
+							<h2 className='text-xl font-semibold'>Sign-in providers</h2>
+							<Button
+								variant='secondary'
+								onPress={() => {
+									setProvider("google");
+									setClientId("");
+									setClientSecret("");
+									setEditing(true);
+								}}
+							>
+								<IconPlus size={16} />
+								Add provider
+							</Button>
+						</header>
+						<Table>
+							<Table.ScrollContainer>
+								<Table.Content aria-label='OAuth sign-in providers'>
+									<Table.Header>
+										<Table.Column isRowHeader>Provider</Table.Column>
+										<Table.Column>Client ID</Table.Column>
+										<Table.Column className='text-right'>Actions</Table.Column>
+									</Table.Header>
+									<Table.Body>
+										{Object.entries(data.settings.configuration.settings.oauth).map(([name, value]) => (
+											<Table.Row key={name} id={name}>
+												<Table.Cell>{name === "google" ? "Google" : "GitHub"}</Table.Cell>
+												<Table.Cell className='max-w-64 truncate'>{value?.clientId}</Table.Cell>
+												<Table.Cell>
+													<div className='flex justify-end gap-2'>
+														<Button
+															isIconOnly
+															variant='ghost'
+															aria-label={"Edit " + name}
+															onPress={() => {
+																setProvider(name as "google" | "github");
+																setClientId(value?.clientId ?? "");
+																setClientSecret("");
+																setEditing(true);
+															}}
+														>
+															<IconPencil size={16} />
+														</Button>
+														<Button isIconOnly variant='danger-soft' aria-label={"Remove " + name} onPress={() => setRemoving(name as "google" | "github")}>
+															<IconTrash size={16} />
+														</Button>
+													</div>
+												</Table.Cell>
+											</Table.Row>
+										))}
+									</Table.Body>
+								</Table.Content>
+							</Table.ScrollContainer>
+						</Table>
+						{Object.keys(data.settings.configuration.settings.oauth).length === 0 && <p className='text-muted p-4 text-center'>No OAuth sign-in providers configured.</p>}
+						<p className='text-muted text-sm'>Email-code sign-in stays available. SMTP is managed by the deployment environment.</p>
+					</section>
+					<Modal.Backdrop
+						isOpen={editing}
+						onOpenChange={(open) => {
+							if (!saving) {
+								setEditing(open);
+								if (!open) setClientSecret("");
+							}
+						}}
+					>
+						<Modal.Container placement='center'>
+							<Modal.Dialog className='sm:max-w-lg'>
+								<Modal.CloseTrigger />
+								<Modal.Header>
+									<Modal.Heading>OAuth sign-in provider</Modal.Heading>
+								</Modal.Header>
+								<Modal.Body className='flex flex-col gap-4'>
+									<Select
+										variant='secondary'
+										aria-label='OAuth provider'
+										value={provider}
+										onChange={(key) => {
+											const name = String(key) as "google" | "github";
+											setProvider(name);
+											setClientId(data.settings.configuration.settings.oauth[name]?.clientId ?? "");
+											setClientSecret("");
+										}}
+									>
+										<Label>Provider</Label>
+										<Select.Trigger>
+											<Select.Value />
+											<Select.Indicator />
+										</Select.Trigger>
+										<Select.Popover>
+											<ListBox>
+												<ListBox.Item id='google'>
+													Google
+													<ListBox.ItemIndicator />
+												</ListBox.Item>
+												<ListBox.Item id='github'>
+													GitHub
+													<ListBox.ItemIndicator />
+												</ListBox.Item>
+											</ListBox>
+										</Select.Popover>
+									</Select>
+									<TextField value={clientId} onChange={setClientId} isRequired>
+										<Label>Client ID</Label>
+										<Input variant='secondary' />
+									</TextField>
+									<TextField value={clientSecret} onChange={setClientSecret}>
+										<Label>Client secret</Label>
+										<Input type='password' variant='secondary' autoComplete='new-password' placeholder={data.settings.configuration.settings.oauth[provider]?.secretConfigured ? "Leave blank to keep the saved secret" : "Enter the application secret"} />
+									</TextField>
+									<div>
+										<Label>Callback URL</Label>
+										<code className='bg-field block overflow-x-auto rounded-lg p-3'>
+											{typeof window === "undefined" ? "" : window.location.origin}/api/auth/callback/{provider}
+										</code>
+									</div>
+								</Modal.Body>
+								<Modal.Footer>
+									<Button variant='secondary' slot='close' isDisabled={saving}>
+										Cancel
+									</Button>
+									<Button isPending={saving} isDisabled={saving || !clientId.trim()} onPress={() => void saveProvider()}>
+										Save provider
+									</Button>
+								</Modal.Footer>
+							</Modal.Dialog>
+						</Modal.Container>
+					</Modal.Backdrop>
+					<Modal.Backdrop
+						isOpen={removing !== null}
+						onOpenChange={(open) => {
+							if (!open && !saving) setRemoving(null);
+						}}
+					>
+						<Modal.Container placement='center'>
+							<Modal.Dialog>
+								<Modal.CloseTrigger />
+								<Modal.Header>
+									<Modal.Heading>Remove sign-in provider?</Modal.Heading>
+								</Modal.Header>
+								<Modal.Body>Email-code and passkey sign-in remain available.</Modal.Body>
+								<Modal.Footer>
+									<Button variant='secondary' slot='close'>
+										Cancel
+									</Button>
+									<Button variant='danger' isPending={saving} onPress={() => void saveProvider(true)}>
+										Remove provider
+									</Button>
+								</Modal.Footer>
+							</Modal.Dialog>
+						</Modal.Container>
+					</Modal.Backdrop>
 					<section className='flex flex-col gap-3'>
 						<h2 className='text-xl font-semibold'>Configuration</h2>
 						<p className='text-muted text-sm'>Deployment settings apply to this installation.</p>

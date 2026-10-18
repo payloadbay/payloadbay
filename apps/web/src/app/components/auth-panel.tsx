@@ -31,6 +31,7 @@ export function AuthPanel({ setup = false, preview = false, loginHint, initialEm
 	const [error, setError] = useState("");
 	const [available, setAvailable] = useState(!setup);
 	const [configured, setConfigured] = useState(false);
+	const [oauthProviders, setOauthProviders] = useState<string[]>([]);
 	const [registrationEnabled, setRegistrationEnabled] = useState(false);
 
 	useFeedbackToast(error, "", { error: setup ? "Setup unavailable" : "Could not sign in" });
@@ -38,9 +39,12 @@ export function AuthPanel({ setup = false, preview = false, loginHint, initialEm
 	useEffect(() => {
 		if (setup) return;
 		let active = true;
-		api<{ registrationEnabled: boolean }>("/onboarding")
+		api<{ registrationEnabled: boolean; oauthProviders?: string[] }>("/onboarding")
 			.then((status) => {
-				if (active) setRegistrationEnabled(status.registrationEnabled);
+				if (active) {
+					setRegistrationEnabled(status.registrationEnabled);
+					setOauthProviders(status.oauthProviders ?? []);
+				}
 			})
 			.catch(() => {});
 
@@ -269,10 +273,33 @@ export function AuthPanel({ setup = false, preview = false, loginHint, initialEm
 								{busy ? <Spinner size='sm' color='current' /> : !sent && <IconMail aria-hidden='true' size={18} />}
 							</Button>
 							{!setup && !sent && (
-								<Button variant='secondary' fullWidth onPress={() => void signInWithPasskey()} isDisabled={busy}>
-									<IconFingerprint size={18} />
-									Sign in with a passkey
-								</Button>
+								<>
+									{oauthProviders.map((provider) => (
+										<Button
+											key={provider}
+											variant='secondary'
+											className='w-full'
+											isDisabled={busy}
+											onPress={async () => {
+												setBusy(true);
+												setError("");
+												try {
+													const result = await authClient.signIn.social({ provider, callbackURL: new URL(returnTo, window.location.origin).href });
+													if (result.error) throw Error("Could not start provider sign-in");
+												} catch (cause) {
+													setError(cause instanceof Error ? cause.message : "Could not start sign-in");
+													setBusy(false);
+												}
+											}}
+										>
+											Continue with {provider === "google" ? "Google" : "GitHub"}
+										</Button>
+									))}
+									<Button variant='secondary' fullWidth onPress={() => void signInWithPasskey()} isDisabled={busy}>
+										<IconFingerprint size={18} />
+										Sign in with a passkey
+									</Button>
+								</>
 							)}
 							{sent && (
 								<div className='grid w-full grid-cols-2 gap-3'>

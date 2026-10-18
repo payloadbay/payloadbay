@@ -4,6 +4,7 @@ export const scriptTestInput = z
 	.object({
 		stage: z.enum(["ingress", "processing"]),
 		includeMiddleware: z.boolean().default(true),
+		assertionSource: z.string().max(32768).default(""),
 		expectations: z
 			.object({ decision: z.enum(["accept", "reject", "respondOnly", "complete", "retry", "fail"]).optional(), status: z.number().int().min(100).max(599).optional(), bodyContains: z.string().min(1).max(8192).optional() })
 			.strict()
@@ -30,3 +31,23 @@ export const scriptTestInput = z
 			.strict(),
 	})
 	.strict();
+
+export const savedScriptTestInput = z.object({ name: z.string().trim().min(1).max(100), version: z.number().int().min(0), definition: scriptTestInput.omit({ body: true, sharedBindings: true }) }).strict();
+
+export const scriptTestContextDeclaration = `
+type ScriptTestContext = {
+ decision: {kind:string};
+ response: {status:number|null;body:string};
+ test: (name:string,run:()=>void|Promise<void>)=>Promise<void>;
+ expect:(actual:unknown)=>{toBe(expected:unknown):void;toEqual(expected:unknown):void;toContain(expected:string):void;toBeTruthy():void};
+};
+`;
+
+export const exampleAssertionSource = `export default async function testResponse({ response, test, expect }: ScriptTestContext) {
+	await test("Returns a successful response", () => {
+		expect(response.status).toBe(202);
+	});
+}
+`;
+
+export type SavedScriptTestDefinition = z.infer<typeof savedScriptTestInput>["definition"];

@@ -23,7 +23,17 @@ test("U2 partial SMTP configuration reports a configuration error", () => {
 	expect(() => readConfig({ SMTP_HOST: "mail.example.test" })).toThrow("SMTP configuration is incomplete");
 });
 
-test("U3 partial OAuth configuration reports a configuration error", () => expect(() => readConfig({ ...smtp, GOOGLE_CLIENT_ID: "fixture-id" })).toThrow("OAuth configuration is incomplete"));
+test("U3 environment values cannot enable database-managed OAuth clients", () => {
+	expect(readConfig({ ...smtp, GOOGLE_CLIENT_ID: "ignored-client" }).oauth).toEqual({});
+	expect(
+		readConfig({
+			...smtp,
+			GOOGLE_CLIENT_ID: "ignored-client",
+			GOOGLE_CLIENT_SECRET: "ignored-secret",
+			GITHUB_CLIENT_ID: "ignored-github",
+		}).oauth,
+	).toEqual({});
+});
 
 import { publicError } from "../../packages/contracts/src/errors.ts";
 
@@ -276,4 +286,27 @@ test("RT01 event retention is opt-in and rejects invalid deletion windows", () =
 	expect(readServerConfig({ ...serverEnv, PAYLOADBAY_EVENT_RETENTION_DAYS: "0" }).eventRetentionDays).toBe(0);
 	expect(readServerConfig({ ...serverEnv, PAYLOADBAY_EVENT_RETENTION_DAYS: "30" }).eventRetentionDays).toBe(30);
 	for (const value of ["-1", "0.5", "36501", "not-a-number"]) expect(() => readServerConfig({ ...serverEnv, PAYLOADBAY_EVENT_RETENTION_DAYS: value })).toThrow("Server configuration requires attention");
+});
+
+test("UX70 documented token creation excludes instance authority and preserves personal/customer scopes", async () => {
+	const { tokenCreationInput } = await import("../../packages/contracts/src/resources.ts");
+	const { openApiDocument } = await import("../../packages/contracts/src/openapi.ts");
+	const input = { name: "Review", permissions: ["metadata.read"], expiresAt: "2030-01-01T00:00:00.000Z" };
+	expect(tokenCreationInput.safeParse({ ...input, scope: { type: "instance", id: "11111111-1111-4111-8111-111111111111" } }).success).toBe(false);
+	expect(tokenCreationInput.safeParse({ ...input, scope: { type: "personal" } }).success).toBe(true);
+	expect(tokenCreationInput.safeParse({ ...input, scope: { type: "project", id: "11111111-1111-4111-8111-111111111111" } }).success).toBe(true);
+	expect(JSON.stringify(openApiDocument().paths["/api/v1/tokens"].post.requestBody)).not.toContain('"instance"');
+});
+
+test("UX71 helper declarations choose nearest scope and preserve explicit revision pins", async () => {
+	const { helperModuleBindings } = await import("../../apps/web/src/app/lib/helper-resolution.ts");
+	const helpers = [
+		{ id: "instance", name: "Helper", scope: { type: "instance" } },
+		{ id: "workspace", name: "Helper", scope: { type: "workspace" } },
+		{ id: "organization", name: "Helper", scope: { type: "organization" } },
+	];
+	expect(helperModuleBindings(helpers).get("Helper")).toBe("workspace");
+	expect(helperModuleBindings(helpers.filter((helper) => helper.scope.type !== "workspace")).get("Helper")).toBe("organization");
+	expect(helperModuleBindings([...helpers, { id: "project", name: "Helper", scope: { type: "project" } }]).get("Helper")).toBe("project");
+	expect(helperModuleBindings(helpers, { Helper: "pinned" }).get("Helper")).toBe("pinned");
 });

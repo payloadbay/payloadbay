@@ -500,3 +500,81 @@ test("UX65 secret rotation pins stages independently and cancelled forms discard
 	expect(inDraft.secret_bindings).toEqual({ SHARED_KEY: first.id });
 	expect(outDraft.secret_bindings).toEqual({ SHARED_KEY: second.id, LEGACY_KEY: first.id });
 });
+
+test("UX77 OAuth providers are edited in the dashboard while SMTP stays deployment-only", async ({ page }) => {
+	await ensureBrowserOwner(page);
+	await page.setViewportSize({ width: 1440, height: 1000 });
+	await page.goto("/admin/installation");
+	await page.getByRole("button", { name: "Add provider", exact: true }).click();
+	let dialog = page.getByRole("dialog", { name: "OAuth sign-in provider", exact: true });
+	await dialog.getByLabel("Client ID", { exact: true }).fill("synthetic-review-client");
+	await dialog.getByLabel("Client secret", { exact: true }).fill("synthetic-review-secret");
+	await dialog.getByRole("button", { name: "Save provider", exact: true }).click();
+	await expect(dialog).toHaveCount(0);
+	await expect(page.getByRole("grid", { name: "OAuth sign-in providers" })).toContainText("synthetic-review-client");
+	const settings = await (await page.request.get("/api/v1/installation/settings")).json();
+	expect(JSON.stringify(settings)).not.toContain("synthetic-review-secret");
+	expect(settings.configuration.settings.oauth.google.secretConfigured).toBe(true);
+	expect(settings.configuration.settings.smtp).toBeUndefined();
+	expect((await (await page.request.get("/api/v1/onboarding")).json()).oauthProviders).toEqual(["google"]);
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.getByRole("button", { name: "Edit google", exact: true }).click();
+	dialog = page.getByRole("dialog", { name: "OAuth sign-in provider", exact: true });
+	await expect(dialog.getByLabel("Client secret", { exact: true })).toHaveValue("");
+	await expect(dialog).toBeInViewport();
+	await page.screenshot({ path: "/tmp/pab-audit-oauth-mobile.png", animations: "disabled" });
+	await dialog.getByRole("button", { name: "Save provider", exact: true }).click();
+	await expect(dialog).toHaveCount(0);
+	await page.getByRole("button", { name: "Remove google", exact: true }).click();
+	await page.getByRole("dialog", { name: "Remove sign-in provider?" }).getByRole("button", { name: "Remove provider", exact: true }).click();
+	await expect(page.getByText("No OAuth sign-in providers configured.", { exact: true })).toBeVisible();
+});
+
+test("UX79 organization owner can require passkeys after enrolling their device", async ({ page, context }) => {
+	const { commandHeaders } = await import("../helpers/browser-auth.ts");
+	await ensureBrowserOwner(page);
+	const client = await context.newCDPSession(page);
+	await client.send("WebAuthn.enable");
+	await client.send("WebAuthn.addVirtualAuthenticator", {
+		options: {
+			protocol: "ctap2",
+			transport: "internal",
+			hasResidentKey: true,
+			hasUserVerification: true,
+			isUserVerified: true,
+			automaticPresenceSimulation: true,
+		},
+	});
+	await page.goto("/account");
+	await page.getByLabel("Passkey name", { exact: true }).fill("Organization device");
+	await page.getByRole("button", { name: "Add passkey", exact: true }).click();
+	await expect(page.getByRole("grid", { name: "Your passkeys" })).toContainText("Organization device");
+	const organization = (await (await page.request.get("/api/v1/organizations")).json())[0];
+	await page.setViewportSize({ width: 390, height: 844 });
+
+	let unavailable = true;
+	await page.route("**/api/v1/organizations/" + organization.id + "/security", (route) => (unavailable && route.request().method() === "GET" ? route.fulfill({ status: 503, json: { error: { code: "unavailable", message: "Synthetic settings outage" } } }) : route.continue()));
+	await page.goto("/organizations/" + organization.id + "/security");
+	await expect(page.getByRole("button", { name: "Retry security settings", exact: true })).toBeVisible();
+	unavailable = false;
+	await page.getByRole("button", { name: "Retry security settings", exact: true }).click();
+	const breadcrumbs = page.getByRole("navigation", { name: "Breadcrumbs", exact: true });
+	await expect(breadcrumbs.getByRole("link", { name: organization.name, exact: true })).toHaveAttribute("href", "/organizations/" + organization.id);
+	await expect(breadcrumbs.getByText("Security", { exact: true })).toBeVisible();
+
+	await page.getByText("Require a registered passkey", { exact: true }).click();
+	await page.getByRole("button", { name: "Save security policy", exact: true }).click();
+	await expect(page.getByRole("button", { name: "Save security policy", exact: true })).toBeDisabled();
+	const saved = await (await page.request.get("/api/v1/organizations/" + organization.id + "/security")).json();
+	expect(saved.requirePasskey).toBe(true);
+	await page.screenshot({ path: "/tmp/pab-audit-passkey-mobile.png", fullPage: true, animations: "disabled" });
+	const keys = await (await page.request.get("/api/auth/passkey/list-user-passkeys")).json();
+	const removed = await page.request.post("/api/auth/passkey/delete-passkey", { headers: commandHeaders(), data: { id: keys[0].id } });
+	expect(removed.status()).toBe(400);
+	expect((await removed.json()).message).toContain("requires at least one registered passkey");
+	const still = await (await page.request.get("/api/auth/passkey/list-user-passkeys")).json();
+	expect(still).toHaveLength(1);
+	await page.getByText("Require a registered passkey", { exact: true }).click();
+	await page.getByRole("button", { name: "Save security policy", exact: true }).click();
+	await expect(page.getByRole("button", { name: "Save security policy", exact: true })).toBeDisabled();
+});

@@ -913,3 +913,31 @@ test("account notification pagination applies scoped token restrictions before i
 		);
 	});
 });
+
+test("UX69 personal snooze expires without resolving or hiding another recipient's incident", async () => {
+	const { reconcileRuntimeNotice, listNotifications, listAccountNotifications, snoozeNotification } = await import("../../packages/domain/src/notifications.ts");
+	await authFixture(async ({ pool, db }) => {
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await db.query("INSERT INTO payloadbay.admission(installation_id,user_id) VALUES($1,'snooze-peer')", [scope.installation]);
+		for (const user of ["fixture-owner", "snooze-peer"]) await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES($1,'instance',$2,'custom',ARRAY['notifications.read','settings.manage'])", [user, scope.installation]);
+		const incident = await reconcileRuntimeNotice(pool, scope.installation, "runc");
+		const parent = { type: "instance" as const, id: scope.installation };
+		const actor = { userId: "fixture-owner" };
+		await assert.rejects(snoozeNotification(pool, { userId: "outsider" }, incident.id, 60));
+		await assert.rejects(snoozeNotification(pool, actor, incident.id, 5));
+		await snoozeNotification(pool, actor, incident.id, 60);
+		assert.equal((await listNotifications(pool, actor, parent)).length, 0);
+		assert.equal((await listAccountNotifications(pool, actor)).length, 0);
+		assert.equal((await listNotifications(pool, { userId: "snooze-peer" }, parent)).length, 1);
+		assert.equal((await db.query("SELECT status FROM payloadbay.notification_incident WHERE id=$1", [incident.id])).rows[0].status, "active");
+		await db.query("UPDATE payloadbay.notification_recipient_state SET snoozed_until=clock_timestamp()-interval '1 second' WHERE incident_id=$1 AND user_id=$2", [incident.id, actor.userId]);
+		assert.equal((await listNotifications(pool, actor, parent)).length, 1);
+		assert.equal((await listAccountNotifications(pool, actor)).length, 1);
+		await snoozeNotification(pool, actor, incident.id, 60);
+		await reconcileRuntimeNotice(pool, scope.installation, "runsc");
+		const next = await reconcileRuntimeNotice(pool, scope.installation, "runc");
+		assert.notEqual(next.id, incident.id);
+		assert.equal((await listNotifications(pool, actor, parent)).length, 1);
+	});
+});

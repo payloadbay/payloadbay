@@ -49,3 +49,30 @@ test("U180 U181 notification attention describes severity and follows real scope
 		await pool.end();
 	}
 });
+
+test("UX72 notification snooze persists after navigation and returns after expiry", async ({ page }) => {
+	await ensureBrowserOwner(page);
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/");
+	await page.getByRole("button", { name: "Notifications", exact: true }).click();
+	const dialog = page.getByRole("dialog", { name: "Notifications", exact: true });
+	const subject = "Scripts use ordinary Docker containment";
+	await expect(dialog.getByRole("button", { name: subject, exact: true })).toBeVisible();
+	await dialog.getByRole("button", { name: "Snooze notification " + subject }).click();
+	await page.getByRole("listbox").last().getByRole("option", { name: "One hour", exact: true }).click();
+	await expect(dialog.getByRole("button", { name: subject, exact: true })).toHaveCount(0);
+	await page.reload();
+	await page.getByRole("button", { name: "Notifications", exact: true }).click();
+	await expect(page.getByRole("dialog", { name: "Notifications", exact: true })).toContainText("No active notifications.");
+	const pool = database(process.env.DATABASE_URL!);
+	try {
+		await pool.query("UPDATE payloadbay.notification_recipient_state SET snoozed_until=clock_timestamp()-interval '1 second' WHERE snoozed_until IS NOT NULL");
+	} finally {
+		await pool.end();
+	}
+
+	await page.setViewportSize({ width: 1440, height: 1000 });
+	await page.reload();
+	await page.getByRole("button", { name: "Notifications", exact: true }).click();
+	await expect(page.getByRole("dialog", { name: "Notifications", exact: true }).getByRole("button", { name: subject, exact: true })).toBeVisible();
+});

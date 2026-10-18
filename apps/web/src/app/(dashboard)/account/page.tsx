@@ -59,6 +59,7 @@ export default function AccountPage() {
 			const result = await authClient.passkey.addPasskey({ name: passkeyName.trim() || "My passkey" });
 			if (result.error) throw Error(result.error.message ?? "Passkey registration was not completed");
 			setPasskeys(await loadPasskeys());
+			await reload();
 			setNotice("Your passkey is ready for sign-in.");
 		} catch (cause) {
 			setError(cause instanceof Error ? cause.message : "Could not register passkey");
@@ -103,6 +104,7 @@ export default function AccountPage() {
 	return (
 		<section className='flex max-w-xl flex-col gap-6'>
 			<header>
+				{me.passkeyEnrollmentRequired && <p className='text-warning'>Your organization requires a passkey. Add one to access its resources.</p>}
 				<h1 className='text-3xl font-semibold'>Account settings</h1>
 				<p className='text-muted mt-2'>Manage how your name appears in this instance.</p>
 			</header>
@@ -176,7 +178,7 @@ export default function AccountPage() {
 													<p className='text-muted text-xs'>{key.createdAt ? new Date(key.createdAt).toLocaleDateString() : ""}</p>
 												</Table.Cell>
 												<Table.Cell className='text-right [&>div]:justify-end'>
-													<Button isIconOnly size='sm' variant='ghost' aria-label={"Remove passkey " + (key.name || "Unnamed passkey")} isDisabled={busy} onPress={() => void removePasskey(key.id)}>
+													<Button isIconOnly size='sm' variant='ghost' aria-label={"Remove passkey " + (key.name || "Unnamed passkey")} isDisabled={busy || (Boolean(me.passkeyRequired) && passkeys.length <= 1)} onPress={() => void removePasskey(key.id)}>
 														<IconTrash size={18} />
 													</Button>
 												</Table.Cell>

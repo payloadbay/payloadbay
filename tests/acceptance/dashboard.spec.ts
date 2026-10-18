@@ -1926,3 +1926,61 @@ test("UX68 route traffic recovers an outage and live counts stay specific to tha
 	await expect(page.getByRole("img", { name: /^24-hour traffic: 1 incoming requests, 1 accepted/ })).toBeVisible();
 	await expect(page.getByRole("grid", { name: "Route recent executions", exact: true }).getByRole("row")).toHaveCount(2);
 });
+
+test("UX78 saved assertion scripts can be restored and run against the current handler", async ({ page }) => {
+	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
+	await ensureBrowserOwner(page);
+	const headers = commandHeaders();
+	const workspace = (await (await page.request.get("/api/v1/workspaces")).json())[0];
+	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Saved test review", slug: "saved-test-review" } })).json();
+	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Test route", slug: "test-route" } })).json();
+	const draft = await page.request.patch("/api/v1/endpoints/" + route.id + "/drafts/ingress", { headers: { ...headers, "if-match": '"1"' }, data: { body: 'export async function POST(ctx:IngressContext){return ctx.respondOnly({status:200,body:"fixture"});}' } });
+	expect(draft.status()).toBe(200);
+
+	const created = await page.request.post("/api/v1/endpoints/" + route.id + "/tests", {
+		headers: commandHeaders(),
+		data: {
+			name: "Saved response",
+			version: 0,
+			definition: {
+				stage: "ingress",
+				includeMiddleware: true,
+				assertionSource: 'export default async function checks({decision,test,expect}:ScriptTestContext){await test("Returns a decision",()=>expect(decision.kind).toBeTruthy());}',
+				fixture: {
+					body: '{"type":"synthetic"}',
+					contentType: "application/json",
+					method: "POST",
+					headers: {},
+					secrets: {},
+				},
+				expectations: {},
+			},
+		},
+	});
+	expect(created.status()).toBe(200);
+	await page.goto("/projects/" + project.id + "/routes/" + route.id + "?section=test");
+	await chooseOption(page.getByRole("button", { name: /Saved test/ }), (await created.json()).id);
+	await expect(page.getByLabel("Test name", { exact: true })).toHaveValue("Saved response");
+	await expect(page.getByRole("region", { name: "TypeScript test assertions" }).locator(".view-lines")).toContainText("Returns a decision");
+	await page.getByRole("tab", { name: "Checks", exact: true }).click();
+	await page.getByRole("region", { name: "TypeScript test assertions" }).getByText("ScriptTestContext", { exact: true }).hover();
+	await expect(page.locator(".monaco-hover").filter({ hasText: "ScriptTestContext" }).last()).toContainText("response");
+	await page.mouse.move(0, 0);
+
+	await page.getByLabel("Test name", { exact: true }).fill("Updated response test");
+	await page.getByRole("button", { name: "Save test", exact: true }).click();
+	await expect.poll(async () => (await (await page.request.get("/api/v1/endpoints/" + route.id + "/tests")).json())[0].version).toBe(2);
+
+	const runResponse = page.waitForResponse((response) => response.url().endsWith("/endpoints/" + route.id + "/test") && response.request().method() === "POST");
+	await page.getByRole("button", { name: "Test ingress (dry)", exact: true }).click();
+	expect((await runResponse).status()).toBe(200);
+	await expect(page.getByRole("region", { name: "Synthetic test result" })).toContainText("Returns a decision");
+	await expect(page.getByRole("list", { name: "Test checks" })).not.toContainText("undefined");
+	await page.screenshot({ path: "/tmp/pab-audit-saved-tests-desktop.png", fullPage: true, animations: "disabled" });
+	await page.getByRole("button", { name: "Delete saved test", exact: true }).click();
+	await page.getByRole("dialog", { name: "Delete saved test?" }).getByRole("button", { name: "Delete test", exact: true }).click();
+	await expect(page.getByLabel("Test name", { exact: true })).toHaveValue("");
+	await page.getByLabel("Test name", { exact: true }).fill("New browser-created test");
+	await page.getByRole("button", { name: "Save test", exact: true }).click();
+	await expect.poll(async () => (await (await page.request.get("/api/v1/endpoints/" + route.id + "/tests")).json())[0]?.name).toBe("New browser-created test");
+});

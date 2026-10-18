@@ -40,7 +40,7 @@ Evidence: disposable local workerd1.20261013.1/esbuild0.28.2 probe passed TS com
 Sources: https://github.com/cloudflare/workerd , https://developers.cloudflare.com/workers/runtime-apis/nodejs/ , https://gvisor.dev/docs/ , https://gvisor.dev/docs/user_guide/quick_start/docker/ , https://deno.com/blog/cloudflare .
 
 ## R7. Auth, permissions and email
-Decision: Better Auth SMTP email OTP default, signup/passwords disabled, bootstrap secret + verified email, admitted scoped invitations, env-enabled supported OAuth; positive grants inherit instance/workspace/project and tokens intersect current permissions.
+Decision: Better Auth SMTP email OTP default, signup/passwords disabled, bootstrap secret + verified email, admitted scoped invitations, database-managed supported OAuth (updated by the approved 2026-10-18 follow-up); SMTP remains environment-only. Customer grants inherit organization/workspace/project; instance authority stops at the platform boundary, and tokens intersect current permissions.
 Rationale: requested passwordless experience and small role presets with customizable permissions; owner/membership/auth identity are distinct.
 Alternatives: blanket Community global-admin behavior and automatic domain isolation by auth library rejected. No unverified-email account linking. Magic links/password toggles and broad enterprise identity integrations later.
 Sources: https://better-auth.com/docs/plugins/email-otp , https://better-auth.com/docs/plugins/organization , https://nodemailer.com/smtp . Clipify source config.ts, mcp-options.ts, permissions.ts and organization-access.ts verified the scoped permission/OAuth pattern; do not copy provider/billing roles.

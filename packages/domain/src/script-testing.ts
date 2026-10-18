@@ -1,7 +1,7 @@
 import { transaction } from "./db.ts";
 import { middlewareSnapshot } from "./middleware.ts";
 import { executePipeline } from "./pipeline.ts";
-import { scriptTestInput } from "../../contracts/src/script-test.ts";
+import { scriptTestContextDeclaration, scriptTestInput } from "../../contracts/src/script-test.ts";
 
 import { createHash, randomUUID } from "node:crypto";
 import type { Pool } from "pg";
@@ -14,6 +14,43 @@ import type { compile } from "../../../apps/executor/src/compiler.ts";
 import type { ExecuteOptions, ExecutionResult } from "../../../apps/executor/src/supervisor.ts";
 
 export { scriptTestInput } from "../../contracts/src/script-test.ts";
+
+const assertionRunner = `
+const result = JSON.parse(new TextDecoder().decode(ctx.event.body));
+let count = 0;
+const pending: Promise<void>[] = [];
+
+function equal(actual: unknown, expected: unknown): boolean {
+ if (Object.is(actual, expected)) return true;
+ if (!actual || !expected || typeof actual !== "object" || typeof expected !== "object" || Array.isArray(actual) !== Array.isArray(expected)) return false;
+ const left = actual as Record<string, unknown>;
+ const right = expected as Record<string, unknown>;
+ const keys = Object.keys(left);
+ return keys.length === Object.keys(right).length && keys.every(key => Object.hasOwn(right, key) && equal(left[key], right[key]));
+}
+
+const expect = (actual: unknown) => ({
+ toBe(expected: unknown) { if (!Object.is(actual, expected)) throw Error("Values differ"); },
+ toEqual(expected: unknown) { if (!equal(actual, expected)) throw Error("Values differ"); },
+ toContain(expected: string) { if (typeof actual !== "string" || !actual.includes(expected)) throw Error("Text does not contain expected value"); },
+ toBeTruthy() { if (!actual) throw Error("Expected a truthy value"); }
+});
+
+const test = (name: string, run: () => void | Promise<void>) => {
+ if (++count > 32) throw Error("At most 32 checks");
+ const check = Promise.resolve().then(run).then(
+  () => { ctx.log.info("assertion", { name: String(name).slice(0,100), passed: true }); },
+  () => { ctx.log.info("assertion", { name: String(name).slice(0,100), passed: false }); }
+ );
+ pending.push(check);
+ return check;
+};
+
+await Assertions.default({ ...result, expect, test });
+await Promise.all(pending);
+if (count === 0) throw Error("Define at least one test");
+return ctx.complete();
+`;
 
 export async function requireTestAuthority(pool: Pool, actor: Actor, endpointId: string, effects: boolean) {
 	const { endpoint } = await endpointFor(pool, actor, endpointId, "code.read");
@@ -122,6 +159,39 @@ export async function testDraftDry(pool: Pool, actor: Actor, endpointId: string,
 			actual: outcome.response?.status ?? null,
 		});
 	if (data.expectations.bodyContains !== undefined) checks.push({ name: "Response body contains", passed: responseBody.includes(data.expectations.bodyContains), expected: data.expectations.bodyContains });
+
+	if (data.assertionSource.trim()) {
+		const assertionBundle = await engine.compile({
+			stage: "processing",
+			sourceId: "test-assertions",
+			body: assertionRunner,
+			sharedModules: { Assertions: { source: scriptTestContextDeclaration + data.assertionSource, revisionId: randomUUID() } },
+		});
+		const assertions = await engine.run({
+			stage: "processing",
+			bundle: assertionBundle.bundle,
+			input: {
+				event: {
+					id,
+					body: new TextEncoder().encode(JSON.stringify({ decision: { kind: outcome.kind }, response: { status: outcome.response?.status ?? null, body: responseBody } })),
+					originalBody: new Uint8Array(),
+					contentType: "application/json",
+					metadata: {},
+				},
+				executionId: id,
+				generation: 0,
+				attempt: 0,
+				secrets: {},
+			},
+			maxFetches: 0,
+			dryRun: true,
+			deadlineMs: 2000,
+		});
+		for (const log of assertions.logs) {
+			const entry = log.data as { name?: unknown; passed?: unknown } | undefined;
+			if (log.message === "assertion" && typeof entry?.name === "string" && typeof entry.passed === "boolean") checks.push({ name: entry.name, passed: entry.passed });
+		}
+	}
 
 	return {
 		...result,

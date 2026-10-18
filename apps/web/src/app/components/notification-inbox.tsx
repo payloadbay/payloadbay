@@ -4,9 +4,9 @@ import { useLiveSubscription } from "@components/live-subscription";
 import { LoadingState } from "@components/loading-state";
 import { useFeedbackToast } from "@lib/feedback";
 import { useEffect, useState, useCallback, useId } from "react";
-import { Button, Popover, Chip } from "@heroui/react";
+import { Button, Popover, Chip, Select, Label, ListBox } from "@heroui/react";
 
-import { IconBell, IconAlertTriangle, IconAlertOctagon, IconCheck, IconX } from "@tabler/icons-react";
+import { IconBell, IconAlertTriangle, IconAlertOctagon, IconCheck, IconX, IconClockPause } from "@tabler/icons-react";
 import { api } from "@lib/api-client";
 
 type Scope = { type: "instance" | "organization" | "workspace" | "project"; id: string };
@@ -74,15 +74,32 @@ export function NotificationInbox({ scope, label = "Notifications" }: { scope?: 
 			);
 
 		void refresh();
+		const expiryTimer = setInterval(() => {
+			if (document.visibilityState === "visible") void refresh();
+		}, 30000);
 		const stopNotification = subscribe("notification.changed", refresh);
 		const stopResync = subscribe("resync-required", refresh);
 
 		return () => {
 			active = false;
+			clearInterval(expiryTimer);
 			stopNotification();
 			stopResync();
 		};
 	}, [fetchData, receive, failed, scope?.type, scope?.id, subscribe]);
+
+	async function snooze(id: string, minutes: number) {
+		setBusy(id);
+		try {
+			await api("/notifications/" + id + "/snooze", { method: "POST", json: { minutes } });
+			await load();
+			document.getElementById(closeControlId)?.focus({ preventScroll: true });
+		} catch (cause) {
+			setError(cause instanceof Error ? cause.message : "Could not snooze notification");
+		} finally {
+			setBusy(null);
+		}
+	}
 
 	async function dismiss(id: string) {
 		setBusy(id);
@@ -159,9 +176,41 @@ export function NotificationInbox({ scope, label = "Notifications" }: { scope?: 
 									</>
 								)}
 								{selected === item.id && item.kind !== "executor.containment-advice" && <p className='text-muted mt-2 text-sm'>{typeof item.data.observedCount === "number" ? `${item.data.observedCount} failed operations in ${item.data.windowSeconds} seconds. Your configured threshold is ${item.data.threshold}.` : typeof item.data.message === "string" ? item.data.message : "A configured notification condition needs attention."}</p>}
-								<Button isIconOnly size='sm' variant='secondary' className='mt-4' isDisabled={busy !== null} aria-label={"Dismiss notification " + item.subject} onPress={() => void dismiss(item.id)}>
-									<IconCheck size={16} />
-								</Button>
+								<div className='mt-4 flex items-end gap-2'>
+									<Select
+										variant='secondary'
+										aria-label={"Snooze notification " + item.subject}
+										placeholder='Snooze'
+										isDisabled={busy !== null}
+										onChange={(key) => {
+											if (key) void snooze(item.id, Number(key));
+										}}
+									>
+										<Label className='sr-only'>Snooze notification {item.subject}</Label>
+										<Select.Trigger>
+											<IconClockPause size={16} />
+											<Select.Value />
+											<Select.Indicator />
+										</Select.Trigger>
+										<Select.Popover>
+											<ListBox>
+												{[
+													[15, "15 minutes"],
+													[60, "One hour"],
+													[1440, "One day"],
+												].map(([minutes, label]) => (
+													<ListBox.Item key={minutes} id={String(minutes)} textValue={String(label)}>
+														{label}
+														<ListBox.ItemIndicator />
+													</ListBox.Item>
+												))}
+											</ListBox>
+										</Select.Popover>
+									</Select>
+									<Button isIconOnly size='sm' variant='secondary' isDisabled={busy !== null} aria-label={"Dismiss notification " + item.subject} onPress={() => void dismiss(item.id)}>
+										<IconCheck size={16} />
+									</Button>
+								</div>
 							</article>
 						))}
 					</div>

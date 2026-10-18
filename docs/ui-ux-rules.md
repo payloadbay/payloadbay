@@ -184,3 +184,11 @@ Verify live views through real domain actions, not only a connected indicator or
 manually dispatched test event. Map subscriptions to every relevant outcome,
 including acceptance and retention, and test recovery after a failed read or
 stream gap. A live indicator must correspond to an actually refreshed view.
+
+Configuration controls must have one authoritative source per setting. Show
+whether a setting is deployment-managed or editable; never offer a dashboard
+change that is silently shadowed elsewhere. Stored credentials use blank
+replacement fields with explicit preservation behavior, never secret read-back.
+Security policies must describe exactly what they enforce (for example,
+enrollment versus a fresh authentication challenge) and keep enrollment/recovery
+actions reachable when resource access is restricted.

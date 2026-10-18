@@ -86,7 +86,7 @@ export async function deleteEndpoint(pool: Pool, actor: Actor, id: string, expec
 		const locked = (await db.query("SELECT * FROM payloadbay.endpoint WHERE id=$1 FOR UPDATE", [id])).rows[0];
 		if (!locked) throw new AppError("not_found", 404, "Ingress route unavailable");
 		if (locked.config_version !== expectedVersion) throw new AppError("version_conflict", 409, "Ingress route changed; reload before deleting");
-		const used = await db.query("SELECT 1 FROM payloadbay.publication WHERE endpoint_id=$1 UNION ALL SELECT 1 FROM payloadbay.event WHERE endpoint_id=$1 UNION ALL SELECT 1 FROM payloadbay.notification_rule WHERE endpoint_id=$1 UNION ALL SELECT 1 FROM payloadbay.middleware_binding WHERE scope_type='endpoint' AND scope_id=$1 LIMIT 1", [id]);
+		const used = await db.query("SELECT 1 FROM payloadbay.publication WHERE endpoint_id=$1 UNION ALL SELECT 1 FROM payloadbay.event WHERE endpoint_id=$1 UNION ALL SELECT 1 FROM payloadbay.notification_rule WHERE endpoint_id=$1 UNION ALL SELECT 1 FROM payloadbay.middleware_binding WHERE scope_type='endpoint' AND scope_id=$1 UNION ALL SELECT 1 FROM payloadbay.saved_script_test WHERE endpoint_id=$1 LIMIT 1", [id]);
 		if (used.rowCount) throw new AppError("resource_in_use", 409, "This route has saved history or related settings. Pause delivery instead; its history must be preserved.");
 		await db.query("DELETE FROM payloadbay.draft WHERE endpoint_id=$1", [id]);
 		await db.query("DELETE FROM payloadbay.endpoint WHERE id=$1", [id]);

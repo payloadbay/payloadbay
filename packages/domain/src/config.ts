@@ -15,12 +15,6 @@ export function readConfig(env: Record<string, string | undefined>) {
 	});
 	if (!smtp.success) throw new Error("SMTP configuration is incomplete or invalid");
 	const oauth: Record<string, { clientId: string; clientSecret: string }> = {};
-	for (const provider of ["GOOGLE", "GITHUB"]) {
-		const clientId = env[provider + "_CLIENT_ID"];
-		const clientSecret = env[provider + "_CLIENT_SECRET"];
-		if (Boolean(clientId) !== Boolean(clientSecret)) throw new Error("OAuth configuration is incomplete");
-		if (clientId && clientSecret) oauth[provider.toLowerCase()] = { clientId, clientSecret };
-	}
 
 	return { smtp: smtp.data, oauth };
 }

@@ -73,7 +73,7 @@ async function incidentAccess(db: Pool | PoolClient, actor: Actor, incident: { s
 
 export async function listNotifications(pool: Pool, actor: Actor, scope: ScopeRef) {
 	await requirePermission(pool, actor, scope, "notifications.read");
-	const rows = (await pool.query("SELECT n.*,s.read_at,s.dismissed_at FROM payloadbay.notification_incident n LEFT JOIN payloadbay.notification_recipient_state s ON s.incident_id=n.id AND s.user_id=$1 WHERE n.scope_type=$2 AND n.scope_id=$3 AND n.status='active' AND s.dismissed_at IS NULL ORDER BY n.first_seen DESC,n.id DESC LIMIT 200", [actor.userId, scope.type, scope.id])).rows;
+	const rows = (await pool.query("SELECT n.*,s.read_at,s.dismissed_at FROM payloadbay.notification_incident n LEFT JOIN payloadbay.notification_recipient_state s ON s.incident_id=n.id AND s.user_id=$1 WHERE n.scope_type=$2 AND n.scope_id=$3 AND n.status='active' AND s.dismissed_at IS NULL AND (s.snoozed_until IS NULL OR s.snoozed_until<=clock_timestamp()) ORDER BY n.first_seen DESC,n.id DESC LIMIT 200", [actor.userId, scope.type, scope.id])).rows;
 	const held = await actorPermissions(pool, actor, scope);
 
 	return rows
@@ -102,7 +102,7 @@ export async function listAccountNotifications(pool: Pool, actor: Actor) {
  LEFT JOIN payloadbay.workspace w ON w.id=CASE WHEN n.scope_type='workspace' THEN n.scope_id ELSE p.workspace_id END AND w.archived_at IS NULL
  LEFT JOIN payloadbay.organization o ON o.id=CASE WHEN n.scope_type='organization' THEN n.scope_id ELSE w.organization_id END AND o.archived_at IS NULL
  JOIN payloadbay.installation i ON i.singleton AND i.bootstrap_state='complete'
- WHERE n.status='active' AND s.dismissed_at IS NULL
+ WHERE n.status='active' AND s.dismissed_at IS NULL AND (s.snoozed_until IS NULL OR s.snoozed_until<=clock_timestamp())
  AND EXISTS(SELECT 1 FROM payloadbay.admission a WHERE a.user_id=$1 AND a.installation_id=i.id AND a.active)
  AND EXISTS(SELECT 1 FROM payloadbay.grant_record g WHERE g.user_id=$1 AND 'notifications.read'=ANY(g.permissions) AND (
  (n.scope_type='instance' AND n.scope_id=i.id AND g.scope_type='instance' AND g.scope_id=i.id)
@@ -161,5 +161,25 @@ export async function dismissNotification(pool: Pool, actor: Actor, id: string) 
 			resourceId: id,
 			capability: incident.kind === "executor.containment-advice" ? "settings.manage" : "notifications.read",
 		});
+	});
+}
+
+/** Personal snooze expires in SQL; a new incident generation is never muted. */
+export async function snoozeNotification(pool: Pool, actor: Actor, id: string, minutes: number) {
+	if (![15, 60, 1440].includes(minutes)) throw new AppError("invalid_input", 400, "Choose 15 minutes, one hour or one day");
+
+	return transaction(pool, async (db) => {
+		const incident = (await db.query("SELECT scope_type,scope_id,kind FROM payloadbay.notification_incident WHERE id=$1 AND status='active'", [id])).rows[0];
+		if (!incident) throw new AppError("not_found", 404, "Notification unavailable");
+		await incidentAccess(db, actor, incident);
+		const row = (await db.query("INSERT INTO payloadbay.notification_recipient_state(incident_id,user_id,read_at,snoozed_until) VALUES($1,$2,clock_timestamp(),clock_timestamp()+$3*interval '1 minute') ON CONFLICT(incident_id,user_id) DO UPDATE SET snoozed_until=EXCLUDED.snoozed_until RETURNING snoozed_until", [id, actor.userId, minutes])).rows[0];
+		await appendChange(db, {
+			scope: { type: incident.scope_type, id: incident.scope_id },
+			kind: "notification.changed",
+			resourceId: id,
+			capability: incident.kind === "executor.containment-advice" ? "settings.manage" : "notifications.read",
+		});
+
+		return { snoozedUntil: row.snoozed_until };
 	});
 }

@@ -1,3 +1,4 @@
+import { resolveInstallationConfiguration } from "@domain/installation-configuration";
 import { onboardingInput } from "@contracts/http-inputs";
 import { getServices } from "@lib/server";
 import { handle, readJson } from "@api/handler";
@@ -20,6 +21,7 @@ export async function GET(request: Request) {
 		return Response.json(
 			{
 				registrationEnabled: config.registrationPolicy === "organization",
+				oauthProviders: Object.keys((await resolveInstallationConfiguration(pool, config)).config.oauth),
 				authenticated: Boolean(session?.user.emailVerified),
 				needsOrganization: Boolean(session?.user.emailVerified && !admission && config.registrationPolicy === "organization"),
 				blocked: admission?.active === false,

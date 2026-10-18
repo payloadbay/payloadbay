@@ -1,5 +1,7 @@
 "use client";
 
+import { scriptTestContextDeclaration } from "@contracts/script-test";
+import { helperModuleBindings } from "@lib/helper-resolution";
 import { LoadingState } from "@components/loading-state";
 import { useEffect, useRef, useState } from "react";
 import { scriptFrame, formatScript, type ScriptStage } from "@lib/script-document";
@@ -80,13 +82,10 @@ export function CodeEditor({ value, onChange, label, readOnly = false, language 
 				typescript.typescriptDefaults.setModeConfiguration({ ...typescript.typescriptDefaults.modeConfiguration, documentRangeFormattingEdits: false, onTypeFormattingEdits: false });
 				typescript.typescriptDefaults.setDiagnosticsOptions({ noSemanticValidation: false, noSyntaxValidation: false });
 				const contextTypes = ["IngressContext", "ProcessingContext", "IngressDecision", "ProcessingDecision", "IngressMiddlewareContext", "ProcessingMiddlewareContext", "IngressMiddlewareDecision", "ProcessingMiddlewareDecision"];
-				const declarations = `declare namespace PayloadBay {\n${sdkDeclarations}\n}\n` + contextTypes.map((name) => `type ${name} = PayloadBay.${name};`).join("\n");
+				const declarations = scriptTestContextDeclaration + `declare namespace PayloadBay {\n${sdkDeclarations}\n}\n` + contextTypes.map((name) => `type ${name} = PayloadBay.${name};`).join("\n");
 				const sdk = typescript.typescriptDefaults.addExtraLib(declarations, "file:///payloadbay-sdk.d.ts");
 				const available: { id: string; name: string; scope: { type: string } }[] = helperType && helperId ? await api("/shared-code?scopeType=" + helperType + "&scopeId=" + helperId) : [];
-				const ranks: Record<string, number> = { instance: 0, workspace: 1, project: 2 };
-				const modules = new Map<string, string>();
-				for (const helper of [...available].sort((a, b) => ranks[b.scope.type] - ranks[a.scope.type])) if (!modules.has(helper.name)) modules.set(helper.name, helper.id);
-				for (const [name, id] of Object.entries(bindings ?? {})) modules.set(name, id);
+				const modules = helperModuleBindings(available, bindings);
 				await Promise.all(
 					[...modules.entries()].map(async ([name, id]) => {
 						const helper = await api<{ source: string }>("/shared-code/" + encodeURIComponent(id));

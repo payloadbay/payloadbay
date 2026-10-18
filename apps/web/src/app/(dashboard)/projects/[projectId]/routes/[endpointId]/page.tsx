@@ -1,5 +1,6 @@
 "use client";
 
+import { exampleAssertionSource, type SavedScriptTestDefinition } from "@contracts/script-test";
 import { TrafficChart } from "@components/traffic-chart";
 import type { TrafficSnapshot } from "@types";
 import { useLiveSubscription } from "@components/live-subscription";
@@ -26,6 +27,13 @@ import { unverifiedHttpTemplate } from "@sdk/templates/unverified";
 import { deliveryTemplate } from "@sdk/templates/delivery";
 import type { CompilationDiagnostic } from "@contracts/compilation";
 import type { Permission } from "@contracts/permissions";
+
+type SavedTest = {
+	id: string;
+	name: string;
+	version: number;
+	definition: SavedScriptTestDefinition;
+};
 
 type Stage = "ingress" | "processing";
 type Draft = {
@@ -58,7 +66,7 @@ type ScriptTestResult = {
 	checks: {
 		name: string;
 		passed: boolean;
-		expected: string | number;
+		expected?: string | number;
 		actual?: unknown;
 	}[];
 	decision: { kind: string; [key: string]: unknown };
@@ -127,8 +135,6 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 	const [savedDrafts, setSavedDrafts] = useState<Record<Stage, Draft> | null>(null);
 	const [history, setHistory] = useState<Publication[]>([]);
 
-	const { dialog: unsavedDialog } = useUnsavedChanges(Boolean(drafts && savedDrafts && JSON.stringify(drafts) !== JSON.stringify(savedDrafts)));
-
 	const [templates, setTemplates] = useState<Partial<Record<Stage, string>>>({});
 	const [stage, setStage] = useState<Stage>("ingress");
 	const [loading, setLoading] = useState(true);
@@ -158,7 +164,17 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 	const [includeMiddleware, setIncludeMiddleware] = useState(true);
 	const [testHeaders, setTestHeaders] = useState("{}");
 	const [testSecrets, setTestSecrets] = useState("{}");
+	const [savedTests, setSavedTests] = useState<SavedTest[]>([]);
+	const [testDirty, setTestDirty] = useState(false);
+	const [selectedTest, setSelectedTest] = useState<SavedTest | null>(null);
+	const [testName, setTestName] = useState("");
+	const [assertionSource, setAssertionSource] = useState("");
+	const [savingTest, setSavingTest] = useState(false);
+	const [deletingTest, setDeletingTest] = useState(false);
 	const [testResult, setTestResult] = useState<ScriptTestResult | null>(null);
+
+	const { dialog: unsavedDialog, confirmDiscard } = useUnsavedChanges(testDirty || Boolean(drafts && savedDrafts && JSON.stringify(drafts) !== JSON.stringify(savedDrafts)));
+
 	const [logLevel, setLogLevel] = useState("all");
 	const [logSearch, setLogSearch] = useState("");
 
@@ -195,6 +211,101 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 		}
 	}
 
+	useEffect(() => {
+		if (section !== "test") return;
+		let active = true;
+		api<SavedTest[]>("/endpoints/" + endpointId + "/tests").then(
+			(items) => {
+				if (active) setSavedTests(items);
+			},
+			(cause) => {
+				if (active) failed(cause);
+			},
+		);
+
+		return () => {
+			active = false;
+		};
+	}, [endpointId, section]);
+
+	function chooseSavedTest(id: string) {
+		setTestDirty(false);
+		const saved = savedTests.find((item) => item.id === id) ?? null;
+		setSelectedTest(saved);
+		setTestName(saved?.name ?? "");
+		if (!saved) {
+			setAssertionSource("");
+
+			return;
+		}
+
+		const definition = saved.definition;
+		setStage(definition.stage);
+		setIncludeMiddleware(definition.includeMiddleware);
+		setAssertionSource(definition.assertionSource);
+		setTestBody(definition.fixture.body);
+		setRequestMethod(definition.fixture.method);
+		setTestHeaders(JSON.stringify(definition.fixture.headers, null, "\t"));
+		setTestSecrets(JSON.stringify(definition.fixture.secrets, null, "\t"));
+		setBodyLanguage(definition.fixture.contentType.includes("json") ? "json" : definition.fixture.contentType.includes("xml") ? "xml" : "plaintext");
+		setExpectedDecision(definition.expectations.decision ?? "");
+		setStatusInput(definition.expectations.status === undefined ? "" : String(definition.expectations.status));
+		setExpectedBody(definition.expectations.bodyContains ?? "");
+		setTestResult(null);
+	}
+
+	async function saveTest() {
+		if (!route?.permissions.includes("code.edit")) return;
+		setSavingTest(true);
+		setError("");
+		setNotice("");
+		try {
+			const assertions = assertionSource.trim() ? await formatScript(assertionSource) : "";
+			const definition = {
+				stage,
+				includeMiddleware,
+				assertionSource: assertions,
+				expectations: { ...(expectedDecision ? { decision: expectedDecision } : {}), ...(stage === "ingress" && Number.isFinite(expectedStatus) ? { status: expectedStatus } : {}), ...(stage === "ingress" && expectedBody ? { bodyContains: expectedBody } : {}) },
+				fixture: {
+					body: testBody,
+					method: requestMethod,
+					contentType: bodyContentTypes[bodyLanguage],
+					headers: JSON.parse(testHeaders),
+					secrets: JSON.parse(testSecrets),
+				},
+			};
+			const saved = await api<{ id: string; name: string; version: number }>("/endpoints/" + endpointId + "/tests" + (selectedTest ? "/" + selectedTest.id : ""), { method: selectedTest ? "PUT" : "POST", json: { name: testName, version: selectedTest?.version ?? 0, definition } });
+			const items = await api<SavedTest[]>("/endpoints/" + endpointId + "/tests");
+			setSavedTests(items);
+			setSelectedTest(items.find((item) => item.id === saved.id) ?? null);
+			setAssertionSource(assertions);
+			setTestDirty(false);
+			setNotice("Test saved.");
+		} catch (cause) {
+			failed(cause);
+		} finally {
+			setSavingTest(false);
+		}
+	}
+
+	async function deleteTest() {
+		if (!selectedTest) return;
+		setSavingTest(true);
+		try {
+			await api("/endpoints/" + endpointId + "/tests/" + selectedTest.id, { method: "DELETE" });
+			setSavedTests(await api("/endpoints/" + endpointId + "/tests"));
+			setSelectedTest(null);
+			setTestName("");
+			setDeletingTest(false);
+			setTestDirty(false);
+			setNotice("Saved test deleted.");
+		} catch (cause) {
+			failed(cause);
+		} finally {
+			setSavingTest(false);
+		}
+	}
+
 	async function testSynthetic() {
 		if (!drafts) return;
 		setBusy(true);
@@ -211,6 +322,7 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 				json: {
 					stage,
 					includeMiddleware,
+					assertionSource,
 					expectations: { ...(expectedDecision ? { decision: expectedDecision } : {}), ...(stage === "ingress" && Number.isFinite(expectedStatus) ? { status: expectedStatus } : {}), ...(stage === "ingress" && expectedBody ? { bodyContains: expectedBody } : {}) },
 					body: drafts[stage].body,
 					sharedBindings: drafts[stage].shared_bindings,
@@ -805,6 +917,67 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 						</Modal>
 					</Card.Header>
 					<Card.Content className='flex flex-col gap-4'>
+						<div className='flex flex-col gap-3 sm:flex-row sm:items-end'>
+							<Select className='min-w-0 flex-1' variant='secondary' aria-label='Saved test' value={selectedTest?.id ?? ""} onChange={(key) => confirmDiscard(() => chooseSavedTest(String(key ?? "")))}>
+								<Label>Saved test</Label>
+								<Select.Trigger>
+									<Select.Value />
+									<Select.Indicator />
+								</Select.Trigger>
+								<Select.Popover>
+									<ListBox>
+										<ListBox.Item id=''>
+											Unsaved test
+											<ListBox.ItemIndicator />
+										</ListBox.Item>
+										{savedTests.map((item) => (
+											<ListBox.Item key={item.id} id={item.id}>
+												{item.name}
+												<ListBox.ItemIndicator />
+											</ListBox.Item>
+										))}
+									</ListBox>
+								</Select.Popover>
+							</Select>
+							<TextField
+								className='min-w-0 flex-1'
+								value={testName}
+								onChange={(value) => {
+									setTestName(value);
+									setTestDirty(true);
+								}}
+							>
+								<Label>Test name</Label>
+								<Input variant='secondary' placeholder='e.g. Twitch challenge' />
+							</TextField>
+							<Button variant='secondary' isPending={savingTest} isDisabled={savingTest || !testName.trim() || !route.permissions.includes("code.edit")} onPress={() => void saveTest()}>
+								Save test
+							</Button>
+							{selectedTest && route.permissions.includes("code.edit") && (
+								<Button isIconOnly variant='danger-soft' aria-label='Delete saved test' onPress={() => setDeletingTest(true)}>
+									<IconTrash size={16} />
+								</Button>
+							)}
+						</div>
+						<Modal.Backdrop isOpen={deletingTest} onOpenChange={setDeletingTest}>
+							<Modal.Container placement='center'>
+								<Modal.Dialog>
+									<Modal.CloseTrigger />
+									<Modal.Header>
+										<Modal.Heading>Delete saved test?</Modal.Heading>
+									</Modal.Header>
+									<Modal.Body>This removes the saved fixture and assertions.</Modal.Body>
+									<Modal.Footer>
+										<Button slot='close' variant='secondary'>
+											Cancel
+										</Button>
+										<Button variant='danger' isPending={savingTest} onPress={() => void deleteTest()}>
+											Delete test
+										</Button>
+									</Modal.Footer>
+								</Modal.Dialog>
+							</Modal.Container>
+						</Modal.Backdrop>
 						<HttpRequestEditor
 							body={testBody}
 							headers={testHeaders}
@@ -814,11 +987,26 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 							methodLabel='Synthetic HTTP method'
 							bodyLabel='Synthetic request body'
 							headersLabel='Synthetic headers'
-							onBodyChange={setTestBody}
-							onHeadersChange={setTestHeaders}
-							onSecretsChange={setTestSecrets}
-							onFormatChange={setBodyLanguage}
-							onMethodChange={setRequestMethod}
+							onBodyChange={(value) => {
+								setTestBody(value);
+								setTestDirty(true);
+							}}
+							onHeadersChange={(value) => {
+								setTestHeaders(value);
+								setTestDirty(true);
+							}}
+							onSecretsChange={(value) => {
+								setTestSecrets(value);
+								setTestDirty(true);
+							}}
+							onFormatChange={(value) => {
+								setBodyLanguage(value);
+								setTestDirty(true);
+							}}
+							onMethodChange={(value) => {
+								setRequestMethod(value);
+								setTestDirty(true);
+							}}
 							checks={
 								<div className='flex flex-col gap-4'>
 									<Select variant='secondary' aria-label='Expected decision' value={expectedDecision} onChange={(key) => setExpectedDecision(String(key ?? ""))}>
@@ -844,7 +1032,15 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 									</Select>
 									{stage === "ingress" && (
 										<>
-											<ComboBox allowsCustomValue variant='secondary' inputValue={statusInput} onInputChange={setStatusInput}>
+											<ComboBox
+												allowsCustomValue
+												variant='secondary'
+												inputValue={statusInput}
+												onInputChange={(value) => {
+													setStatusInput(value);
+													setTestDirty(true);
+												}}
+											>
 												<Label>Expected HTTP status</Label>
 												<ComboBox.InputGroup>
 													<Input aria-label='Expected HTTP status' placeholder='e.g. 200' inputMode='numeric' />
@@ -861,7 +1057,13 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 													</ListBox>
 												</ComboBox.Popover>
 											</ComboBox>
-											<TextField value={expectedBody} onChange={setExpectedBody}>
+											<TextField
+												value={expectedBody}
+												onChange={(value) => {
+													setExpectedBody(value);
+													setTestDirty(true);
+												}}
+											>
 												<Label>Response body contains</Label>
 												<Input variant='secondary' placeholder='Optional expected text' />
 											</TextField>
@@ -906,7 +1108,40 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 								</Button>
 							}
 						/>
-						<Checkbox variant='secondary' isSelected={includeMiddleware} onChange={setIncludeMiddleware} isDisabled={busy}>
+						<section className='flex min-w-0 flex-col gap-3' aria-label='TypeScript test assertions'>
+							<header className='flex items-center justify-between gap-3'>
+								<h3 className='font-semibold'>TypeScript assertions</h3>
+								<Button
+									variant='secondary'
+									isDisabled={Boolean(assertionSource)}
+									onPress={() => {
+										setAssertionSource(exampleAssertionSource);
+										setTestDirty(true);
+									}}
+								>
+									Add example
+								</Button>
+							</header>
+							<CodeEditor
+								value={assertionSource}
+								onChange={(value) => {
+									setAssertionSource(value);
+									if (value !== assertionSource) setTestDirty(true);
+								}}
+								label='Test assertions'
+								onSave={() => void saveTest()}
+							/>
+							<p className='text-muted text-sm'>Use test(name, callback) and expect(value).toBe(), toEqual(), toContain() or toBeTruthy(). Checks run against the current handler result.</p>
+						</section>
+						<Checkbox
+							variant='secondary'
+							isSelected={includeMiddleware}
+							onChange={(value) => {
+								setIncludeMiddleware(value);
+								setTestDirty(true);
+							}}
+							isDisabled={busy}
+						>
 							<Checkbox.Content>
 								<Checkbox.Control>
 									<Checkbox.Indicator />
@@ -924,7 +1159,7 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 										</Chip>
 									)}
 									<span className='text-muted text-sm'>
-										{testResult.durationMs} ms / {testResult.middlewareCount} middleware / simulated effects
+										{testResult.durationMs.toFixed(1)} ms / {testResult.middlewareCount} middleware / simulated effects
 									</span>
 								</div>
 								{testResult.checks.length > 0 && (
@@ -935,7 +1170,8 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 													{check.passed ? "Pass" : "Fail"}
 												</Chip>
 												<span>
-													{check.name}: {String(check.expected)}
+													{check.name}
+													{check.expected !== undefined ? ": " + String(check.expected) : ""}
 												</span>
 												{!check.passed && check.actual !== undefined && <span className='text-muted'>Received {String(check.actual)}</span>}
 											</li>

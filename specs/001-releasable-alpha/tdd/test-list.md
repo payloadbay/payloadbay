@@ -48,7 +48,7 @@ Boundary examples sample invariants; no property-based tool is installed. Timers
 |---|---|---|---|---|---|
 | U1 | Complete SMTP configuration is accepted | FR-011, FR-020, FR-022 | example | DONE | `tests/unit/contracts.test.ts::U1 complete SMTP configuration is accepted` |
 | U2 | Partial SMTP configuration reports a configuration error | FR-011, FR-020, FR-022 | example | DONE | `tests/unit/contracts.test.ts::U2 partial SMTP configuration reports a configuration error` |
-| U3 | Partial OAuth configuration reports a configuration error | FR-011, FR-020, FR-022 | example | DONE | `tests/unit/contracts.test.ts::U3 partial OAuth configuration reports a configuration error` |
+| U3 | Environment values cannot enable database-managed OAuth clients | FR-011, FR-020, FR-022 | example | DONE | `tests/unit/contracts.test.ts::U3 environment values cannot enable database-managed OAuth clients` |
 | U4 | Public errors omit secrets and SQL internals | FR-011, FR-020, FR-022 | example | DONE | `tests/unit/contracts.test.ts::U4 public errors omit secrets and SQL internals` |
 | U5 | Valid public Zod values retain their documented shapes | FR-011, FR-020, FR-022 | example | DONE | `tests/unit/contracts.test.ts::U5 valid public Zod values retain documented shapes` |
 

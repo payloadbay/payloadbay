@@ -25,3 +25,5 @@ export const organizationPolicyInput = z
 		processingConcurrency: z.number().int().min(0).max(128),
 	})
 	.strict();
+
+export const organizationSecurityInput = z.object({ version: z.number().int().min(0), requirePasskey: z.boolean() }).strict();

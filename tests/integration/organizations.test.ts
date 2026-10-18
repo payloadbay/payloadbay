@@ -786,3 +786,52 @@ test("FT03i revoked organization tokens cannot continue accessible live backfill
 		await assert.rejects(readChanges(pool, actor, input), { code: "unauthenticated" });
 	});
 });
+
+test("UX75 organization passkey policy gates inherited access and protects the last key", async () => {
+	const { authFixture, identity } = await import("../helpers/auth-fixtures.ts");
+	const { seedScope } = await import("../helpers/domain-fixtures.ts");
+	const { permissions } = await import("../../packages/contracts/src/permissions.ts");
+	const { saveOrganizationSecurity, passkeyEnrollmentRequired } = await import("../../packages/domain/src/organization-security.ts");
+	const { actorPermissions } = await import("../../packages/domain/src/membership.ts");
+	await authFixture(async ({ pool, db }) => {
+		const scope = await seedScope(db);
+		await identity(db, "fixture-owner");
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		for (const name of ["fixture-owner", "passkey-member"]) {
+			if (name !== "fixture-owner") {
+				await identity(db, name);
+				await db.query("INSERT INTO payloadbay.admission(installation_id,user_id) VALUES($1,$2)", [scope.installation, name]);
+			}
+
+			await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES($1,'organization',$2,'custom',$3)", [name, scope.organization, permissions]);
+		}
+
+		const actor = { userId: "fixture-owner" };
+		await assert.rejects(saveOrganizationSecurity(pool, actor, scope.organization, { version: 0, requirePasskey: true }), { code: "passkey_required" });
+
+		const addKey = async (id: string, user: string) => db.query('INSERT INTO auth.passkey(id,"userId","publicKey","credentialID",counter,"deviceType","backedUp") VALUES($1,$2,\'synthetic\',$1,0,\'singleDevice\',false)', [id, user]);
+
+		await addKey("policy-owner", "fixture-owner");
+		await saveOrganizationSecurity(pool, actor, scope.organization, { version: 0, requirePasskey: true });
+		assert.equal((await actorPermissions(pool, { userId: "passkey-member" }, { type: "project", id: scope.project })).size, 0);
+		assert.equal(await passkeyEnrollmentRequired(pool, "passkey-member"), true);
+		await addKey("policy-member", "passkey-member");
+		assert.equal(await passkeyEnrollmentRequired(pool, "passkey-member"), false);
+		assert.ok((await actorPermissions(pool, { userId: "passkey-member" }, { type: "project", id: scope.project })).has("metadata.read"));
+		await assert.rejects(db.query("DELETE FROM auth.passkey WHERE id='policy-member'"), /passkey is required/);
+		await identity(db, "custom-code-member");
+		await db.query("INSERT INTO payloadbay.admission(installation_id,user_id) VALUES($1,$2)", [scope.installation, "custom-code-member"]);
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES($1,'organization',$2,'custom',ARRAY['code.read'])", ["custom-code-member", scope.organization]);
+		await addKey("policy-custom", "custom-code-member");
+		await assert.rejects(db.query("DELETE FROM auth.passkey WHERE id='policy-custom'"), /passkey is required/);
+
+		await assert.rejects(saveOrganizationSecurity(pool, actor, scope.organization, { version: 0, requirePasskey: false }), { code: "version_conflict" });
+		await addKey("policy-owner-second", "fixture-owner");
+		const deletions = await Promise.allSettled([db.query("DELETE FROM auth.passkey WHERE id='policy-owner'"), pool.query("DELETE FROM auth.passkey WHERE id='policy-owner-second'")]);
+		assert.equal(deletions.filter((result) => result.status === "fulfilled").length, 1);
+		assert.equal(Number((await db.query('SELECT count(*) FROM auth.passkey WHERE "userId"=$1', [actor.userId])).rows[0].count), 1);
+
+		await saveOrganizationSecurity(pool, actor, scope.organization, { version: 1, requirePasskey: false });
+		await db.query("DELETE FROM auth.passkey WHERE id='policy-member'");
+	});
+});

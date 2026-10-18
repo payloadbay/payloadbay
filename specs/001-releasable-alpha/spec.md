@@ -138,7 +138,7 @@ First alpha includes the plain editor/template/shared-code/middleware and two-st
 
 - **FR-020**: Provide a versioned API-first dashboard/API using Zod schemas and locally bundled Scalar/OpenAPI, shared server-only authorization, cookie/token transport and future MCP-compatible capability scopes.
 - **FR-021**: Provide one authenticated SSE change subscription with reconnect/backfill and permission revocation; do not require polling to see event/job updates.
-- **FR-022**: Default to SMTP email-code sign-in, public registration/passwords disabled; support atomic owner bootstrap, scoped invitation acceptance/cancellation, and optional user-registered passkeys with email-code recovery. Supported OAuth providers enable only from complete operator configuration.
+- **FR-022**: Default to SMTP email-code sign-in, public registration/passwords disabled; support atomic owner bootstrap, scoped invitation acceptance/cancellation, and user-registered passkeys with email-code recovery. Organization managers can require passkey enrollment. SMTP remains environment-only; supported OAuth applications enable only from complete encrypted database configuration managed through the installation dashboard.
 - **FR-023**: Self-hosted role/custom-permission grants inherit instance → organization → workspace → project. Hosted instance roles grant no customer-scope access or authority to self-grant it. A customer may invite a staff account as an ordinary member; only customer-selected rights apply after acceptance, and removal revokes them. Organization/workspace/project grants inherit only within their descendants. Admission alone grants no global data access; protect last-owner/transfer and grant escalation.
 - **FR-024**: Each endpoint binds a complete editable Ingress module with named HTTP method exports and a separate Processing body with a protected lifecycle wrapper. The generated dispatcher returns 405 for unsupported methods. Monaco diagnostics and server publication validation reject missing/invalid entrypoints; shared modules/middleware are versioned and pinned.
 - **FR-025**: Prompt delivery to healthy destinations is independently measured from provider acknowledgement. Continuous workers, critical priority/reserved capacity and visible queue age prevent bulk background backlog from silently delaying critical events for minutes.
@@ -238,3 +238,26 @@ provider configuration, arbitrary authored regression-test scripts, notification
 snoozing and quota utilization bars need separate behavior/authorization decisions.
 A limit alone does not provide an accurate usage numerator, and visible accessible
 resource counts must not be presented as organization-wide quota consumption.
+
+### Approved audit follow-up and organization security
+
+- Helper autocomplete must resolve visible declarations with the same nearest
+  scope precedence as imports, including organizations, while preserving explicit
+  immutable revision pins.
+- API-key creation documentation must exclude unsupported instance keys and keep
+  the HTTP handler's explicit denial. Personal keys and customer-resource keys
+  retain current live authorization intersections.
+- OAuth sign-in applications are managed through the installation dashboard and
+  encrypted database configuration, with optimistic versions, redacted audit
+  history and no credential read-back. SMTP remains exclusively deployment-env
+  configuration; it must never acquire a second database override.
+- Named synthetic request fixtures and authored TypeScript assertions can be
+  saved per ingress route, restored and run against current handler code through
+  bounded workerd execution. Real effects remain unavailable in these tests.
+- Recipients can snooze an inbox incident for 15 minutes, one hour or one day.
+  Expiry restores its visibility; dismissal, other users and new incident
+  generations remain independent. Email subscription policy is separate.
+- Organization membership managers can require registered passkeys throughout
+  the customer hierarchy. Enabling requires their own enrollment; existing
+  unenrolled members can enroll through account settings. Last-required-key
+  deletion is prevented. Enrollment is not described as per-session MFA.

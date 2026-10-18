@@ -823,3 +823,86 @@ test("publication archiving preserves event history, rejects active/latest and r
 		assert.equal((await db.query("SELECT active_publication_id FROM payloadbay.endpoint WHERE id=$1", [scope.endpoint])).rows[0].active_publication_id, historical);
 	});
 });
+
+test("UX74 saved TypeScript checks run in workerd and retain encrypted versioned fixtures", async () => {
+	const { testDraftDry } = await import("../../packages/domain/src/script-testing.ts");
+	const { saveScriptTest, listSavedScriptTests, deleteScriptTest } = await import("../../packages/domain/src/saved-script-tests.ts");
+	const { compile } = await import("../../apps/executor/src/compiler.ts");
+	const { execute } = await import("../../apps/executor/src/supervisor.ts");
+	await publicationFixture(async ({ pool, db, scope }) => {
+		const actor = { userId: "fixture-owner" };
+		const key = "fixture-encryption-key-32-characters";
+		const assertionSource = 'export default async function checks({response,test,expect}:ScriptTestContext){await test("status",()=>expect(response.status).toBe(200));await test("body",()=>expect(response.body).toContain("hello"));await test("objects",()=>expect({b:2,a:1}).toEqual({a:1,b:2}));await test("expected failure",()=>expect(response.status).toBe(503));}';
+		const definition = {
+			stage: "ingress",
+			includeMiddleware: true,
+			assertionSource,
+			fixture: { body: "synthetic-request", secrets: { SAMPLE: "synthetic-saved-secret" } },
+			expectations: {},
+		};
+		const saved = await saveScriptTest(pool, actor, scope.endpoint, undefined, { name: "Response checks", version: 0, definition }, key);
+		assert.equal(saved.version, 1);
+		const bytes = (await db.query("SELECT encrypted_definition FROM payloadbay.saved_script_test WHERE id=$1", [saved.id])).rows[0].encrypted_definition;
+		assert.equal(bytes.toString().includes("synthetic-saved-secret"), false);
+		assert.equal((await listSavedScriptTests(pool, actor, scope.endpoint, key)).length, 1);
+		await assert.rejects(listSavedScriptTests(pool, { userId: "outsider" }, scope.endpoint, key));
+		await assert.rejects(saveScriptTest(pool, actor, scope.endpoint, saved.id, { name: "Stale", version: 0, definition }, key), { code: "version_conflict" });
+		const updated = await saveScriptTest(pool, actor, scope.endpoint, saved.id, { name: "Updated checks", version: 1, definition }, key);
+		assert.equal(updated.version, 2);
+		const result = await testDraftDry(pool, actor, scope.endpoint, { ...definition, body: 'export async function POST(ctx:IngressContext){return ctx.respondOnly({status:200,body:"hello"});}' }, { compile, run: execute });
+		assert.deepEqual(
+			result.checks.map((check) => [check.name, check.passed]),
+			[
+				["status", true],
+				["body", true],
+				["objects", true],
+				["expected failure", false],
+			],
+		);
+		await assert.rejects(testDraftDry(pool, actor, scope.endpoint, { ...definition, assertionSource: 'export default async function checks(){await fetch("https://external.invalid");}', body: "export async function POST(ctx:IngressContext){return ctx.respondOnly({status:200});}" }, { compile, run: execute }));
+		await deleteScriptTest(pool, actor, scope.endpoint, saved.id);
+		const { listAudit } = await import("../../packages/domain/src/audit.ts");
+		const audit = await listAudit(pool, actor, { type: "project", id: scope.project }, {});
+		assert.equal(audit.items.find((item) => item.operation === "code.test_deleted")?.resourceName, "Updated checks");
+
+		assert.equal((await listSavedScriptTests(pool, actor, scope.endpoint, key)).length, 0);
+	});
+});
+
+test("UX80 editor helper declarations match execution pins across organization workspace and project scopes", async () => {
+	const { createSharedVersion, listSharedVersions, pinSourceImports } = await import("../../packages/domain/src/shared-code.ts");
+	const { helperModuleBindings } = await import("../../apps/web/src/app/lib/helper-resolution.ts");
+	const { compile } = await import("../../apps/executor/src/compiler.ts");
+	await publicationFixture(async ({ pool, scope }) => {
+		const actor = { userId: "fixture-owner" };
+		const scopes = [
+			{ type: "project" as const, id: scope.project },
+			{ type: "workspace" as const, id: scope.workspace },
+			{ type: "organization" as const, id: scope.organization },
+		];
+		const ids = new Map<string, string>();
+		for (const parent of scopes) {
+			const helper = await createSharedVersion(pool, actor, {
+				scope: parent,
+				name: "Rules",
+				source: "export default function origin(){return " + JSON.stringify(parent.type) + ";}",
+				compile,
+			});
+			ids.set(parent.type, helper.id);
+		}
+
+		const source = 'import origin from "@shared/Rules";export async function POST(ctx:IngressContext){return ctx.respondOnly({status:200,body:origin()});}';
+		for (const parent of scopes) {
+			const available = JSON.parse(JSON.stringify(await listSharedVersions(pool, actor, parent)));
+			const editor = helperModuleBindings(available);
+			const execution = await pinSourceImports(pool, actor, parent, source);
+			assert.equal(editor.get("Rules"), ids.get(parent.type));
+			assert.equal(editor.get("Rules"), execution.Rules);
+		}
+
+		const parent = scopes[0];
+		const available = JSON.parse(JSON.stringify(await listSharedVersions(pool, actor, parent)));
+		const pinned = { Rules: ids.get("organization")! };
+		assert.equal(helperModuleBindings(available, pinned).get("Rules"), (await pinSourceImports(pool, actor, parent, source, pinned)).Rules);
+	});
+});

@@ -1,12 +1,12 @@
-import { getServices } from "@lib/server";
+import { getConfiguredServices } from "@lib/server";
 import { authenticateRequest } from "@domain/principal";
 import { handle } from "@api/handler";
 import { AppError, publicError } from "@contracts/errors";
 import type { Principal } from "@domain/request-types";
 
-export async function protectedRoute(request: Request, run: (services: ReturnType<typeof getServices>, actor: Principal) => Promise<unknown>) {
+export async function protectedRoute(request: Request, run: (services: Awaited<ReturnType<typeof getConfiguredServices>>, actor: Principal) => Promise<unknown>) {
 	try {
-		const services = getServices();
+		const services = await getConfiguredServices();
 
 		const headers = new Headers();
 		const response = await handle(request, { origin: new URL(services.config.publicUrl).origin, authenticate: (r) => authenticateRequest(services.pool, services.identity, r, headers) }, ({ actor }) => run(services, actor));

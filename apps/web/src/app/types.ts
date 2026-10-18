@@ -4,6 +4,8 @@ import type { Permission } from "@contracts/permissions";
 export type AppLayoutProps = Readonly<{ children: ReactNode }>;
 
 export type MeProfile = {
+	passkeyEnrollmentRequired?: boolean;
+	passkeyRequired?: boolean;
 	user: { id: string; name: string; email: string };
 	instanceId: string;
 	permissions: Permission[];

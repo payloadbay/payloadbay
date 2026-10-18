@@ -665,6 +665,7 @@ export const notificationRecipientState = domain.table(
 		userId: text("user_id").notNull(),
 		readAt: time("read_at"),
 		dismissedAt: time("dismissed_at"),
+		snoozedUntil: time("snoozed_until"),
 	},
 	(t) => [primaryKey({ columns: [t.incidentId, t.userId] })],
 );
@@ -784,4 +785,32 @@ export const emailSettings = domain.table("email_settings", {
 	branding: jsonb("branding").notNull().default({}),
 	version: integer("version").notNull().default(1),
 	updatedBy: text("updated_by").notNull(),
+});
+
+export const installationConfiguration = domain.table("installation_configuration", {
+	installationId: uuid("installation_id")
+		.primaryKey()
+		.references(() => installation.id),
+	version: integer("version").notNull().default(1),
+	encryptedSettings: bytes("encrypted_settings").notNull(),
+	updatedAt: time("updated_at").notNull().defaultNow(),
+});
+
+export const savedScriptTest = domain.table("saved_script_test", {
+	id: id(),
+	endpointId: uuid("endpoint_id")
+		.notNull()
+		.references(() => endpoint.id),
+	name: text("name").notNull(),
+	version: integer("version").notNull().default(1),
+	encryptedDefinition: bytes("encrypted_definition").notNull(),
+	updatedAt: time("updated_at").notNull().defaultNow(),
+});
+
+export const organizationSecurity = domain.table("organization_security", {
+	organizationId: uuid("organization_id")
+		.primaryKey()
+		.references(() => organization.id),
+	requirePasskey: boolean("require_passkey").notNull().default(false),
+	version: integer("version").notNull().default(1),
 });

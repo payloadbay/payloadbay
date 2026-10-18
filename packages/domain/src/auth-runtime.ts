@@ -1,7 +1,8 @@
+import { passkeyPolicyRequired } from "./organization-security.ts";
 import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
 import { admin, emailOTP } from "better-auth/plugins";
-import { createAuthMiddleware, APIError } from "better-auth/api";
+import { createAuthMiddleware, APIError, getSessionFromCtx } from "better-auth/api";
 import { Pool } from "pg";
 import { createHmac, randomUUID } from "node:crypto";
 import { authSchemaOptions } from "./auth-schema.ts";
@@ -9,15 +10,17 @@ import { queueMail } from "./mail-queue.ts";
 import { requestLoginCode } from "./auth.ts";
 import type { ServerConfig } from "./config.ts";
 
-export function createAuth(pool: Pool, config: ServerConfig) {
-	const identityPool = new Pool({
-		connectionString: config.databaseUrl,
-		options: "-c search_path=auth",
-		connectionTimeoutMillis: 5000,
-		statement_timeout: 10000,
-		idle_in_transaction_session_timeout: 10000,
-	});
-	identityPool.on("error", () => console.error("Authentication database connection unavailable"));
+export function createAuth(pool: Pool, config: ServerConfig, sharedIdentityPool?: Pool) {
+	const identityPool =
+		sharedIdentityPool ??
+		new Pool({
+			connectionString: config.databaseUrl,
+			options: "-c search_path=auth",
+			connectionTimeoutMillis: 5000,
+			statement_timeout: 10000,
+			idle_in_transaction_session_timeout: 10000,
+		});
+	if (!sharedIdentityPool) identityPool.on("error", () => console.error("Authentication database connection unavailable"));
 	const auth = betterAuth({
 		...authSchemaOptions(identityPool),
 		secret: config.authSecret,
@@ -89,6 +92,15 @@ export function createAuth(pool: Pool, config: ServerConfig) {
 			before: createAuthMiddleware(async (ctx) => {
 				if (ctx.path.startsWith("/admin/") && (ctx.request || ctx.headers)) throw new APIError("NOT_FOUND", { message: "Resource unavailable" });
 				if (ctx.path.includes("forget-password") || ctx.path.includes("reset-password") || ctx.path.includes("sign-up")) throw new APIError("NOT_FOUND", { message: "This authentication method is unavailable" });
+
+				if (ctx.path === "/passkey/delete-passkey") {
+					const session = await getSessionFromCtx(ctx, { disableCookieCache: true });
+					if (session && (await passkeyPolicyRequired(pool, session.user.id))) {
+						const count = Number((await pool.query('SELECT count(*) FROM auth.passkey WHERE "userId"=$1', [session.user.id])).rows[0].count);
+						if (count <= 1) throw new APIError("BAD_REQUEST", { message: "Your organization requires at least one registered passkey" });
+					}
+				}
+
 				if (ctx.path === "/sign-in/email-otp") {
 					const email = String(ctx.body?.email ?? "")
 						.trim()
@@ -103,6 +115,7 @@ export function createAuth(pool: Pool, config: ServerConfig) {
 	});
 
 	return {
+		databasePool: identityPool,
 		auth,
 		api: auth.api,
 		async handler(request: Request) {

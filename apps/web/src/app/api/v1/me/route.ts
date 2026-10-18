@@ -1,3 +1,4 @@
+import { passkeyEnrollmentRequired, passkeyPolicyRequired } from "@domain/organization-security";
 import { protectedRoute } from "@api/protected";
 import { actorPermissions } from "@domain/membership";
 import { rolePermissions } from "@domain/authorization";
@@ -13,6 +14,8 @@ export async function GET(request: Request) {
 
 		return {
 			user,
+			passkeyEnrollmentRequired: await passkeyEnrollmentRequired(pool, actor.userId),
+			passkeyRequired: await passkeyPolicyRequired(pool, actor.userId),
 			instanceId: installation.id,
 			permissions: [...(await actorPermissions(pool, actor, { type: "instance", id: installation.id }))],
 			roles: rolePermissions,

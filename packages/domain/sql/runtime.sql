@@ -276,3 +276,19 @@ REVOKE ALL ON FUNCTION payloadbay.prune_expired_events(timestamptz,integer) FROM
 GRANT EXECUTE ON FUNCTION payloadbay.prune_expired_events(timestamptz,integer) TO payloadbay_worker;
 
 GRANT DELETE ON payloadbay.endpoint,payloadbay.draft,payloadbay.destination TO payloadbay_app;
+
+GRANT DELETE ON payloadbay.saved_script_test TO payloadbay_app;
+
+-- Serialize removal per user; a required enrollment cannot be removed by racing deletes.
+CREATE OR REPLACE FUNCTION payloadbay.protect_required_passkey() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ PERFORM 1 FROM auth."user" WHERE id=OLD."userId" FOR UPDATE;
+ IF NOT EXISTS(SELECT 1 FROM auth.passkey WHERE "userId"=OLD."userId" AND id<>OLD.id)
+ AND EXISTS(SELECT 1 FROM payloadbay.organization_security s JOIN payloadbay.organization o ON o.id=s.organization_id AND o.archived_at IS NULL JOIN payloadbay.grant_record g ON g.user_id=OLD."userId" AND cardinality(g.permissions)>0 AND ((g.scope_type='organization' AND g.scope_id=o.id) OR (g.scope_type='workspace' AND g.scope_id IN(SELECT id FROM payloadbay.workspace WHERE organization_id=o.id)) OR (g.scope_type='project' AND g.scope_id IN(SELECT p.id FROM payloadbay.project p JOIN payloadbay.workspace w ON w.id=p.workspace_id WHERE w.organization_id=o.id))) WHERE s.require_passkey)
+ THEN RAISE EXCEPTION 'A passkey is required by your organization'; END IF;
+ RETURN OLD;
+END $$;
+DROP TRIGGER IF EXISTS required_passkey ON auth.passkey;
+CREATE TRIGGER required_passkey BEFORE DELETE ON auth.passkey FOR EACH ROW EXECUTE FUNCTION payloadbay.protect_required_passkey();
+
+GRANT SELECT("userId") ON auth.passkey TO payloadbay_worker;

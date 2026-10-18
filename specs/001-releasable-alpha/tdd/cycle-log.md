@@ -3543,3 +3543,23 @@ coverage is therefore skipped, not claimed green. The corrective commit retains
 all customer-denial assertions and has local installation13/13 plus complete
 lint/tooling TypeScript/format checks before push. Its exact-SHA full CI remains
 the final gate.
+
+## Audit follow-up UX69–UX79 (2026-10-18)
+
+Covered behavior: scoped inbox snooze/expiry/new-generation isolation, documented
+token creation scopes, nearest helper declarations and immutable pins, encrypted
+OAuth clients with no SMTP override, versioned saved fixtures and bounded workerd
+assertions, organization passkey enrollment and last-key protection. These tests
+were generally added with implementation; no invented initial Red is claimed.
+UX76 was run red for missing shared identity-pool reuse and passed after correction.
+UX75 was strengthened red for code-only custom grants (`Missing expected
+rejection`), then passed with the corrected protection predicate and concurrent
+key-removal checks. Browser findings corrected saved-test control placement and
+native hidden-input locators. Current detailed commands/results are in
+`docs/review-2026-10-18.md`; published-release gates remain independent.
+
+U3 now follows the approved single-source OAuth decision: environment values
+cannot enable clients. The older env-completeness Red above remains historical;
+current configuration validation requires complete database-managed clients and
+preserves SMTP's deployment-only validation. Unit30 and config4 pass. UX80
+compares actual editor bindings with server import pins across customer scopes.

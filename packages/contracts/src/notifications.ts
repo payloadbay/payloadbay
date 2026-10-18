@@ -54,3 +54,5 @@ export const notificationRuleUpdateInput = notificationRuleInput
 		cooldownSeconds: z.number().int().min(0).max(86400).optional(),
 	})
 	.strict();
+
+export const snoozeNotificationInput = z.object({ minutes: z.union([z.literal(15), z.literal(60), z.literal(1440)]) }).strict();

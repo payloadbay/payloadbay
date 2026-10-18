@@ -2,7 +2,7 @@ import { z } from "zod";
 import { apiRequestSchemas, versionedOperations } from "./api-request-schemas.ts";
 import { errorEnvelope } from "./api.ts";
 import { apiOperations } from "./api-operations.ts";
-import { installationSettingsSchema, installationHealthSchema } from "./installation.ts";
+import { configuredInstallationSettingsSchema, installationHealthSchema } from "./installation.ts";
 import { auditPageSchema } from "./audit.ts";
 import { jobAdministrationSchema } from "./jobs.ts";
 import { apiQuerySchemas } from "./api-query-schemas.ts";
@@ -122,7 +122,7 @@ export function openApiDocument() {
 				},
 			});
 
-		if (method === "get" && path === "/api/v1/installation/settings") operation.responses["200"] = { description: "Instance settings.manage required. Read-only configuration projection; credentials and private addresses are excluded.", content: { "application/json": { schema: z.toJSONSchema(installationSettingsSchema, { target: "draft-2020-12" }) } } };
+		if (method === "get" && path === "/api/v1/installation/settings") operation.responses["200"] = { description: "Instance settings.manage required. Configuration projection with editable OAuth client metadata; stored client secrets are excluded. SMTP remains deployment-managed.", content: { "application/json": { schema: z.toJSONSchema(configuredInstallationSettingsSchema, { target: "draft-2020-12" }) } } };
 		if (method === "get" && path === "/api/v1/health") operation.responses["200"] = { description: "Instance settings.manage required. Database/schema and bounded executor probe; worker/SMTP delivery and host isolation are not attested.", content: { "application/json": { schema: z.toJSONSchema(installationHealthSchema, { target: "draft-2020-12" }) } } };
 		if (method === "get" && path === "/api/v1/audit") operation.responses["200"] = { description: "audit.read required on the requested scope. Instance audit contains only platform actions; customer scope audit includes its descendants. Stored diffs are excluded.", content: { "application/json": { schema: z.toJSONSchema(auditPageSchema, { target: "draft-2020-12" }) } } };
 		if (method === "get" && path === "/api/v1/jobs") operation.responses["200"] = { description: "Instance jobs.read required. Bounded platform-job metadata and currently due, unpaused processing backlog by priority. Queue ages are not provider acknowledgement latency.", content: { "application/json": { schema: z.toJSONSchema(jobAdministrationSchema, { target: "draft-2020-12" }) } } };

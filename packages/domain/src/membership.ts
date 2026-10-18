@@ -1,3 +1,4 @@
+import { requiresPasskey } from "./organization-security.ts";
 import { transaction } from "./db.ts";
 import type { Pool, PoolClient } from "pg";
 import { previewReviewerEmail } from "./preview.ts";
@@ -56,6 +57,9 @@ export async function actorPermissions(db: Pool | PoolClient, actor: Actor, scop
 		if (token.workspace_ids !== null && !ancestry.some((s) => s.type === "workspace" && token.workspace_ids.includes(s.id))) return new Set<Permission>();
 		result = new Set([...result].filter((permission) => token.permissions.includes(permission)));
 	}
+
+	const organization = ancestry.find((parent) => parent.type === "organization");
+	if (organization && (await requiresPasskey(db, actor.userId, organization.id))) return new Set<Permission>();
 
 	return result;
 }

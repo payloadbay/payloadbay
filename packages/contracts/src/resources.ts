@@ -26,3 +26,6 @@ export const grantInput = z
 		permissions: z.array(z.enum(permissions)).max(permissions.length),
 	})
 	.strict();
+
+/** Creation documentation excludes the instance scope rejected by the HTTP handler. */
+export const tokenCreationInput = tokenInput.safeExtend({ scope: z.union([z.object({ type: z.enum(["organization", "workspace", "project"]), id: z.uuid() }).strict(), z.object({ type: z.literal("personal") }).strict()]) });

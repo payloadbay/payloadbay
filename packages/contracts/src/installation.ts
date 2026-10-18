@@ -37,3 +37,21 @@ export const installationHealthSchema = z.object({
 export type InstallationSettings = z.infer<typeof installationSettingsSchema>;
 
 export type InstallationHealth = z.infer<typeof installationHealthSchema>;
+
+export const editableInstallationSettings = z
+	.object({
+		oauth: z.partialRecord(z.enum(["google", "github"]), z.object({ clientId: z.string().min(1).max(1024), clientSecret: z.string().min(1).max(4096).optional() }).strict()),
+	})
+	.strict();
+
+export const installationUpdateInput = z.object({ version: z.number().int().min(0), settings: editableInstallationSettings }).strict();
+
+export type EditableInstallationSettings = z.infer<typeof editableInstallationSettings>;
+
+export const installationConfigurationView = z.object({ version: z.number().int().min(0), settings: z.object({ oauth: z.partialRecord(z.enum(["google", "github"]), z.object({ clientId: z.string(), secretConfigured: z.boolean() })) }), locked: z.array(z.string()) });
+
+export const configuredInstallationSettingsSchema = installationSettingsSchema.extend({ configuration: installationConfigurationView });
+
+export type ConfiguredInstallationSettings = z.infer<typeof configuredInstallationSettingsSchema>;
+
+export type InstallationConfigurationView = z.infer<typeof installationConfigurationView>;

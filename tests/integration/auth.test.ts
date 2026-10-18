@@ -755,3 +755,20 @@ test("RC10 recovery terminates expired and exhausted mail without reviving their
 		assert.deepEqual(await recoverPlatformJobs(fixture.pool), [], "Repeated recovery must not resurrect terminal work");
 	});
 });
+
+test("UX76 OAuth configuration revisions reuse one identity connection pool", async () => {
+	const { createAuth } = await import("../../packages/domain/src/auth-runtime.ts");
+	await authFixture(async (fixture) => {
+		const config = fixtureConfig(fixture);
+		const first = createAuth(fixture.pool, config);
+		try {
+			assert.ok(first.databasePool, "Identity factory must expose its server-only connection pool for safe configuration reloads");
+			const updated = createAuth(fixture.pool, { ...config, oauth: { google: { clientId: "synthetic-client", clientSecret: "synthetic-secret" } } }, first.databasePool);
+			assert.equal(updated.databasePool, first.databasePool, "Changing OAuth clients must not allocate or close a different pool");
+			const session = await updated.api.getSession({ headers: new Headers() });
+			assert.equal(session, null);
+		} finally {
+			await first.close();
+		}
+	});
+});
