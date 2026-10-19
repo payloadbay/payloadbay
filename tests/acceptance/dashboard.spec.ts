@@ -1606,7 +1606,7 @@ test("RT15 live retention removes expired rows and closes an open inspector with
 		await inspect.click();
 		const dialog = page.getByRole("dialog", { name: "Event inspection", exact: true });
 		await expect(dialog).toBeVisible();
-		const config = readServerConfig({ ...process.env, PAYLOADBAY_EVENT_RETENTION_DAYS: "30" });
+		const config = { ...readServerConfig(process.env), eventRetentionDays: 30 };
 		const job = (await pool.query("INSERT INTO payloadbay.platform_job(kind,encrypted_payload,job_key) VALUES('event_retention',$1,gen_random_uuid()::text) RETURNING id,generation", [encryptPrivate({}, config.encryptionKey)])).rows[0];
 		await platformJobTask(pool, config)({ jobId: job.id, generation: job.generation });
 		await expect(inspect).toHaveCount(0);

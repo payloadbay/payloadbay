@@ -50,7 +50,7 @@ Implementation status: inherited authorization, membership demotion protection, 
 
 ## Customer onboarding and invitations
 
-`PAYLOADBAY_REGISTRATION_POLICY=invite_only` is the default. Public email login
+Installation registration defaults to invitation-only and is managed in the dashboard. Public email login
 does not provision unknown identities in that mode. An operator can explicitly
 select `organization` to allow verified customers to create their first
 organization/default workspace. Before provisioning, their verified session can

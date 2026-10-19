@@ -37,8 +37,8 @@ One-time secret-protected owner setup creates an instance owner, a default
 organization and a default workspace in one transaction. Admission alone is not
 an instance role. Organization/workspace/project grants inherit downward.
 
-`PAYLOADBAY_REGISTRATION_POLICY` defaults to `invite_only`. An operator can select
-`organization` to test verified-customer registration: email code → organization
+Registration defaults to invitation-only. An instance administrator can enable
+organization onboarding in Installation → Configuration to test verified-customer registration: email code → organization
 setup → default workspace → first project/route. Provisioning is idempotent and
 does not grant instance administration. Existing invitees enter their assigned
 scope; inactive instance admission must be restored by an operator.

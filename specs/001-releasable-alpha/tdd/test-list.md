@@ -489,7 +489,7 @@ Standard mode is runc, optional gVisor is runsc. Missing explicitly selected run
 | id | behavior | traces | kind | state | test |
 |---|---|---|---|---|---|
 | U204 | Complete server configuration receives bounded alpha defaults | FR-011, FR-022 | example | DONE | `tests/unit/contracts.test.ts::U204 complete server configuration receives bounded defaults` |
-| U205 | Invalid execution limits are rejected without exposing configuration secrets | FR-011 | example | DONE | `tests/unit/contracts.test.ts::U205 invalid limits expose no configuration secrets` |
+| U205 | Invalid deployment settings are rejected without exposing configuration secrets | FR-011 | example | DONE | `tests/unit/contracts.test.ts::U205 invalid deployment settings expose no configuration secrets` |
 
 ### Shared HTTP handler envelope
 

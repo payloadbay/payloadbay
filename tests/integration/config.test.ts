@@ -126,13 +126,57 @@ test("UX73 installation OAuth secrets are encrypted, redacted, versioned and den
 		assert.equal(JSON.stringify(saved).includes("synthetic-oauth-secret"), false);
 		const bytes = (await db.query("SELECT encrypted_settings FROM payloadbay.installation_configuration")).rows[0].encrypted_settings;
 		assert.equal(bytes.toString().includes("synthetic-oauth-secret"), false);
-		assert.equal((await resolveInstallationConfiguration(pool, config)).config.oauth.google.clientSecret, "synthetic-oauth-secret");
+		assert.equal((await resolveInstallationConfiguration(pool, config)).config.oauth.google?.clientSecret, "synthetic-oauth-secret");
 		assert.deepEqual((await resolveInstallationConfiguration(pool, config)).config.smtp, config.smtp);
 		await assert.rejects(saveInstallationConfiguration(pool, actor, scope.installation, config, { version: 0, settings }), { code: "version_conflict" });
 		await saveInstallationConfiguration(pool, actor, scope.installation, config, { version: 1, settings: { oauth: { google: { clientId: "synthetic-client" } } } });
-		assert.equal((await resolveInstallationConfiguration(pool, config)).config.oauth.google.clientSecret, "synthetic-oauth-secret");
+		assert.equal((await resolveInstallationConfiguration(pool, config)).config.oauth.google?.clientSecret, "synthetic-oauth-secret");
 		assert.equal(JSON.stringify((await db.query("SELECT redacted_diff FROM payloadbay.audit WHERE operation='installation.settings_updated'")).rows).includes("synthetic-oauth-secret"), false);
 		await saveInstallationConfiguration(pool, actor, scope.installation, config, { version: 2, settings: { oauth: {} } });
 		assert.deepEqual((await resolveInstallationConfiguration(pool, config)).config.oauth, {});
+	});
+});
+
+test("UX83 installation policy has one versioned database source across web and worker readers", async () => {
+	const { authFixture, fixtureConfig } = await import("../helpers/auth-fixtures.ts");
+	const { seedScope } = await import("../helpers/domain-fixtures.ts");
+	const { saveInstallationConfiguration, resolveInstallationConfiguration } = await import("../../packages/domain/src/installation-configuration.ts");
+	await authFixture(async (fixture) => {
+		const scope = await seedScope(fixture.db);
+		await fixture.db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await fixture.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'custom',ARRAY['settings.manage'])", [scope.installation]);
+		const config = fixtureConfig(fixture);
+		const actor = { userId: "fixture-owner" };
+		const policy = {
+			registrationPolicy: "organization",
+			eventRetentionDays: 30,
+			bodyLimit: 512,
+			headerLimit: 1024,
+			ingressDeadlineMs: 500,
+			processingDeadlineMs: 1500,
+			httpTimeoutMs: 1000,
+			maxAttempts: 2,
+			otpRequestLimit: 3,
+		};
+		await assert.rejects(saveInstallationConfiguration(fixture.pool, { userId: "outsider" }, scope.installation, config, { version: 0, settings: policy }));
+		const saved = await saveInstallationConfiguration(fixture.pool, actor, scope.installation, config, { version: 0, settings: policy });
+		assert.equal(saved.settings.bodyLimit, 512);
+		const web = await resolveInstallationConfiguration(fixture.pool, config);
+		const worker = await resolveInstallationConfiguration(fixture.pool, { ...config, bodyLimit: 999, eventRetentionDays: 0 });
+		for (const [key, value] of Object.entries(policy)) {
+			assert.equal(web.config[key as keyof typeof web.config], value);
+			assert.equal(worker.config[key as keyof typeof worker.config], value);
+		}
+
+		assert.deepEqual(worker.config.smtp, config.smtp);
+		await assert.rejects(saveInstallationConfiguration(fixture.pool, actor, scope.installation, config, { version: 0, settings: { bodyLimit: 700 } }), { code: "version_conflict" });
+		await assert.rejects(saveInstallationConfiguration(fixture.pool, actor, scope.installation, config, { version: 1, settings: { bodyLimit: 1048577 } }), { code: "invalid_input" });
+		await saveInstallationConfiguration(fixture.pool, actor, scope.installation, config, { version: 1, settings: { oauth: { google: { clientId: "synthetic", clientSecret: "synthetic-secret" } } } });
+		assert.equal((await resolveInstallationConfiguration(fixture.pool, config)).config.eventRetentionDays, 30);
+		await saveInstallationConfiguration(fixture.pool, actor, scope.installation, config, { version: 2, settings: { bodyLimit: 256 } });
+		assert.equal((await resolveInstallationConfiguration(fixture.pool, config)).config.oauth.google?.clientSecret, "synthetic-secret");
+		const audit = (await fixture.db.query("SELECT redacted_diff FROM payloadbay.audit WHERE operation='installation.settings_updated' ORDER BY created_at DESC LIMIT 1")).rows[0].redacted_diff;
+		assert.deepEqual(audit.fields, ["bodyLimit"]);
+		assert.equal(JSON.stringify(audit).includes("synthetic-secret"), false);
 	});
 });

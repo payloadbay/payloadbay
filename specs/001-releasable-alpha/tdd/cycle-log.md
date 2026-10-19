@@ -3563,3 +3563,35 @@ cannot enable clients. The older env-completeness Red above remains historical;
 current configuration validation requires complete database-managed clients and
 preserves SMTP's deployment-only validation. Unit30 and config4 pass. UX80
 compares actual editor bindings with server import pins across customer scopes.
+
+
+### 2026-10-19: finish database-backed installation policy
+
+UX83 RED: the new versioned policy update test failed because the existing update
+contract accepted OAuth only. Added nine bounded policy fields and partial-update
+merging, preserving existing encrypted OAuth secrets and deployment-only SMTP.
+UX83 GREEN is included in the five passing configuration integration tests.
+RT01/U310 retain validation of deletion windows and body/header ceilings through
+the shared policy schema; they also prove obsolete policy environment values do
+not override the database/default source. U205 keeps its public-error redaction
+assertion on an invalid deployment setting. No threshold or denial was relaxed.
+
+The retention integration suite passes all 14 tests, including the actual worker
+entrypoint using saved configuration and UX84 enabling a running producer without
+a restart. UX85/UX77 pass policy save/reload, retention confirmation/back, public
+onboarding and a real oversized ingress request after a live body-limit edit.
+Mobile/desktop editor screenshots were inspected and a duplicate summary was
+removed. The new-customer onboarding and final notification regressions are
+recorded in the final validation checkpoint.
+
+Previous CI UX72 sampled the button and icon at separate times. The downloaded
+trace shows 388076–388109 ms and 388110–388171 ms calls, while installed HeroUI
+uses a 150 ms zoom-in entrance animation. Automatic review initially rejected a
+test edit as potentially weakening the assertion, then accepted synchronized
+same-frame reads after that evidence. The original strict two-pixel assertion
+and all snooze/persistence/expiry assertions remain intact.
+
+Final local checkpoint: FT06b passes against the database-enabled onboarding
+policy; UX77/UX85 pass against the frozen build; U180/U181/UX72 pass with the
+same-frame geometry measurement. Typecheck, lint, format and inventory pass.
+No timeout, coverage threshold or permission denial was weakened.

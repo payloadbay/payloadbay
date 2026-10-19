@@ -261,3 +261,18 @@ resource counts must not be presented as organization-wide quota consumption.
   the customer hierarchy. Enabling requires their own enrollment; existing
   unenrolled members can enroll through account settings. Last-required-key
   deletion is prevented. Enrollment is not described as per-session MFA.
+
+
+### Approved installation-policy completion (2026-10-19)
+
+Instance administrators manage registration, completed-event retention, incoming
+body/header limits, ingress/processing deadlines, outgoing HTTP timeout, default
+attempt count and email-code request limits in Installation → Configuration.
+These policies share a bounded, versioned database source with OAuth configuration;
+partial updates preserve unrelated settings and saved secrets. SMTP, database and
+internal service credentials, encryption/signing keys, service addresses and
+container runtime remain deployment configuration. Old policy environment values
+cannot shadow saved settings. Public onboarding/ingress and new worker attempts
+use the current database policy without a restart. Running work keeps its snapshot;
+existing executions/replays retain their pinned retry count. Enabling/shortening
+retention requires confirmation; scheduled cleanup preserves pending obligations.

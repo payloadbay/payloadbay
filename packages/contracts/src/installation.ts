@@ -39,17 +39,50 @@ export type InstallationSettings = z.infer<typeof installationSettingsSchema>;
 
 export type InstallationHealth = z.infer<typeof installationHealthSchema>;
 
-export const editableInstallationSettings = z
+/** Operator-editable policy, bounded by executor and transport safety ceilings. */
+export const installationPolicyInput = z
 	.object({
-		oauth: oauthClients,
+		bodyLimit: z.number().int().min(1).max(1048576),
+		headerLimit: z.number().int().min(1).max(16384),
+		ingressDeadlineMs: z.number().int().min(100).max(10000),
+		processingDeadlineMs: z.number().int().min(100).max(60000),
+		httpTimeoutMs: z.number().int().min(100).max(30000),
+		maxAttempts: z.number().int().min(1).max(20),
+		otpRequestLimit: z.number().int().min(1).max(100),
+		registrationPolicy: z.enum(["invite_only", "organization"]),
+		eventRetentionDays: z.number().int().min(0).max(36500),
 	})
 	.strict();
 
-export const installationUpdateInput = z.object({ version: z.number().int().min(0), settings: editableInstallationSettings }).strict();
+export const installationPolicySettings = installationPolicyInput.extend({
+	bodyLimit: installationPolicyInput.shape.bodyLimit.default(1048576),
+	headerLimit: installationPolicyInput.shape.headerLimit.default(16384),
+	ingressDeadlineMs: installationPolicyInput.shape.ingressDeadlineMs.default(2000),
+	processingDeadlineMs: installationPolicyInput.shape.processingDeadlineMs.default(30000),
+	httpTimeoutMs: installationPolicyInput.shape.httpTimeoutMs.default(10000),
+	maxAttempts: installationPolicyInput.shape.maxAttempts.default(5),
+	otpRequestLimit: installationPolicyInput.shape.otpRequestLimit.default(5),
+	registrationPolicy: installationPolicyInput.shape.registrationPolicy.default("invite_only"),
+	eventRetentionDays: installationPolicyInput.shape.eventRetentionDays.default(0),
+});
+
+export type InstallationPolicy = z.infer<typeof installationPolicySettings>;
+
+export const editableInstallationSettings = installationPolicySettings.extend({ oauth: oauthClients.default({}) });
+
+export const installationUpdateInput = z
+	.object({
+		version: z.number().int().min(0),
+		settings: installationPolicyInput
+			.extend({ oauth: oauthClients })
+			.partial()
+			.refine((value) => Object.keys(value).length > 0, "Choose settings to update"),
+	})
+	.strict();
 
 export type EditableInstallationSettings = z.infer<typeof editableInstallationSettings>;
 
-export const installationConfigurationView = z.object({ version: z.number().int().min(0), settings: z.object({ oauth: z.partialRecord(oauthProvider, oauthClient.omit({ clientSecret: true }).extend({ secretConfigured: z.boolean() })) }), locked: z.array(z.string()) });
+export const installationConfigurationView = z.object({ version: z.number().int().min(0), settings: installationPolicySettings.extend({ oauth: z.partialRecord(oauthProvider, oauthClient.omit({ clientSecret: true }).extend({ secretConfigured: z.boolean() })) }), locked: z.array(z.string()) });
 
 export const configuredInstallationSettingsSchema = installationSettingsSchema.extend({ configuration: installationConfigurationView });
 

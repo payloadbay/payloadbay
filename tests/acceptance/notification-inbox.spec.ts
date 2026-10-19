@@ -59,9 +59,14 @@ test("UX72 notification snooze persists after navigation and returns after expir
 	const subject = "Scripts use ordinary Docker containment";
 	await expect(dialog.getByRole("button", { name: subject, exact: true })).toBeVisible();
 	const snooze = dialog.getByRole("button", { name: "Snooze notification " + subject });
-	const buttonBox = await snooze.boundingBox();
-	const iconBox = await snooze.locator("svg").boundingBox();
-	expect(Math.abs(buttonBox!.x + buttonBox!.width / 2 - (iconBox!.x + iconBox!.width / 2))).toBeLessThan(2);
+	// Read both rectangles in the same frame: the popover scales while entering.
+	const iconOffset = await snooze.evaluate((button) => {
+		const control = button.getBoundingClientRect();
+		const icon = button.querySelector("svg")!.getBoundingClientRect();
+
+		return Math.abs(control.x + control.width / 2 - icon.x - icon.width / 2);
+	});
+	expect(iconOffset).toBeLessThan(2);
 	await page.screenshot({ path: "/tmp/pab-mobile-review-notifications.png", animations: "disabled" });
 	await dialog.getByRole("button", { name: subject, exact: true }).click();
 	await expect(dialog).toContainText("Configured mode:");

@@ -13,7 +13,6 @@ export async function nextFixture(
 	options: {
 		preview?: boolean;
 		loginHint?: string;
-		registrationPolicy?: "invite_only" | "organization";
 		runtimePasswords?: { app: string; worker: string };
 	} = {},
 ) {
@@ -45,7 +44,6 @@ export async function nextFixture(
 				PGPASSWORD: options.runtimePasswords?.app,
 				IS_PREVIEW: options.preview ? "true" : "false",
 				PAYLOADBAY_LOGIN_HINT: options.loginHint ?? "",
-				PAYLOADBAY_REGISTRATION_POLICY: options.registrationPolicy ?? "invite_only",
 				PORT: String(port),
 				HOSTNAME: "127.0.0.1",
 				EXECUTOR_URL: executor.url,

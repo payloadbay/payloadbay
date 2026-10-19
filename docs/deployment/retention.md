@@ -1,11 +1,13 @@
 # Event retention
 
-Event retention is disabled by default. Operators may set
-`PAYLOADBAY_EVENT_RETENTION_DAYS` to an integer from 1 to 36500 in the web and trusted worker
-configuration; 0 disables automatic pruning. Keep this setting consistent across
-services and worker replicas. The current preview does not enable retention.
+Event retention defaults to keeping history indefinitely. Instance administrators
+configure it in Installation → Configuration, using 0 to disable automatic pruning
+or 1–36500 days to retain completed history. Enabling or shortening the window
+requires explicit confirmation. The saved database setting is shared by web and
+workers; no environment override or replica-by-replica configuration is needed.
 
-The existing worker checks on startup and once per minute. PostgreSQL deduplicates
+The existing worker checks on startup and once per minute. Changes apply at the
+next task boundary; a batch already running may finish. PostgreSQL deduplicates
 one scheduled maintenance job per installation, configured window and UTC hour.
 Cleanup uses a reserved maintenance slot, separate from email and event-delivery
 capacity. Each transaction removes at most 100 events and queues a durable

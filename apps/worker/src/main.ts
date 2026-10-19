@@ -1,3 +1,4 @@
+import { resolveInstallationConfiguration } from "@payloadbay/domain/installation-configuration";
 import { startWorkerHealth } from "./health.ts";
 import { probeExecutor } from "@payloadbay/domain/installation";
 import { workerLanes } from "./runner-lanes.ts";
@@ -15,7 +16,10 @@ const config = readServerConfig(process.env);
 const pool = database(config.databaseUrl);
 const runners: Runner[] = [];
 let recovery: ReturnType<typeof startRecovery> | undefined;
-const broker = createBroker(pool, config);
+
+const currentConfig = async () => (await resolveInstallationConfiguration(pool, config)).config;
+
+const broker = createBroker(pool, config, currentConfig);
 let notificationProducer: ReturnType<typeof startNotificationProducer> | undefined;
 let retentionProducer: ReturnType<typeof startRetentionProducer> | undefined;
 let closing = false;
@@ -43,8 +47,10 @@ try {
 	const executor = await probeExecutor(config);
 	if (executor.state !== "ready") throw Error("Executor compatibility/readiness unavailable");
 	recovery = startRecovery(pool);
-	const event = processEventTask(pool, config);
-	const platform = platformJobTask(pool, config);
+
+	const event = async (input: unknown) => processEventTask(pool, await currentConfig())(input);
+
+	const platform = async (input: unknown) => platformJobTask(pool, await currentConfig())(input);
 	// Independent reserved pools prevent bulk work from consuming the critical delivery/mail slots.
 	for (const lane of workerLanes(pool, { process_event: event, platform_job: platform })) {
 		const runner = await run({
@@ -63,7 +69,7 @@ try {
 
 	health = startWorkerHealth(pool);
 	notificationProducer = startNotificationProducer(pool, { encryptionKey: config.encryptionKey, publicUrl: config.publicUrl });
-	retentionProducer = startRetentionProducer(pool, config);
+	retentionProducer = startRetentionProducer(pool, config, { resolveConfig: currentConfig });
 	broker.listen(Number(process.env.PORT ?? 8081), "0.0.0.0");
 	process.on("SIGTERM", () => void shutdown(0));
 	process.on("SIGINT", () => void shutdown(0));

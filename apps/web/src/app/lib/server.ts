@@ -20,7 +20,7 @@ export function getServices() {
 let configuredIdentity: { version: number; identity: ReturnType<typeof createAuth> } | undefined;
 let authenticationRefresh: Promise<ReturnType<typeof getServices>> | undefined;
 
-/** Refresh only OAuth identity configuration; deployment SMTP and execution settings stay unchanged. */
+/** Resolve the current database policy for every request; bootstrap credentials stay deployment-owned. */
 export async function getConfiguredServices() {
 	if (authenticationRefresh) return authenticationRefresh;
 	authenticationRefresh = (async () => {

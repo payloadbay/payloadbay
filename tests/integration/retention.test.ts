@@ -344,12 +344,13 @@ test("RT12 actual worker startup schedules and executes enabled retention withou
 		const brokerAddress = reservation.address();
 		assert.ok(brokerAddress && typeof brokerAddress !== "string");
 		await new Promise<void>((resolve) => reservation.close(() => resolve()));
+		const config = fixtureConfig(fixture);
+		await db.query("INSERT INTO payloadbay.installation_configuration(installation_id,encrypted_settings) SELECT id,$1 FROM payloadbay.installation WHERE singleton", [encryptPrivate({ eventRetentionDays: 30, oauth: {} }, config.encryptionKey)]);
 		const child = spawn(process.execPath, ["--import", "tsx", "apps/worker/src/main.ts"], {
 			env: {
 				...fixtureEnvironment(fixture, "http://localhost:3000"),
 				EXECUTOR_URL: `http://127.0.0.1:${address.port}`,
 				PORT: String(brokerAddress.port),
-				PAYLOADBAY_EVENT_RETENTION_DAYS: "30",
 			},
 			stdio: "ignore",
 		});
@@ -418,6 +419,32 @@ test("RT16 retention days are elapsed 24-hour windows across database daylight-s
 			);
 		} finally {
 			await workerPool.end();
+		}
+	});
+});
+
+test("UX84 a running retention producer adopts database enablement without restart", async () => {
+	const { startRetentionProducer } = await import("../../apps/worker/src/retention.ts");
+	const { resolveInstallationConfiguration, saveInstallationConfiguration } = await import("../../packages/domain/src/installation-configuration.ts");
+	await authFixture(async ({ db, pool, ...fixture }) => {
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'custom',ARRAY['settings.manage'])", [scope.installation]);
+		const config = fixtureConfig(fixture);
+		const producer = startRetentionProducer(pool, config, { intervalMs: 20, resolveConfig: async () => (await resolveInstallationConfiguration(pool, config)).config });
+		try {
+			await new Promise((resolve) => setTimeout(resolve, 60));
+			assert.equal((await db.query("SELECT count(*)::int AS count FROM payloadbay.platform_job WHERE kind='event_retention'")).rows[0].count, 0);
+			await saveInstallationConfiguration(pool, { userId: "fixture-owner" }, scope.installation, config, { version: 0, settings: { eventRetentionDays: 30 } });
+			let count = 0;
+			for (let i = 0; i < 50 && !count; i++) {
+				await new Promise((resolve) => setTimeout(resolve, 20));
+				count = (await db.query("SELECT count(*)::int AS count FROM payloadbay.platform_job WHERE kind='event_retention'")).rows[0].count;
+			}
+
+			assert.equal(count, 1);
+		} finally {
+			await producer.stop();
 		}
 	});
 });

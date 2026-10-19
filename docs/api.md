@@ -114,7 +114,7 @@ SMTP configured state, enabled OAuth provider names, registration policy,
 configured executor mode and request/deadline limits. Credentials, database and
 SMTP connection details are excluded. Instance customization (including future app-wide white-labeling) is hidden and
 branding writes are disabled until verified enterprise licensing is available.
-OAuth client editing is documented below; SMTP and execution settings remain deployment-managed. These endpoints do not rewrite deployment environment variables.
+Installation policy and OAuth editing are documented below; SMTP and infrastructure settings remain deployment-managed. These endpoints do not rewrite deployment environment variables.
 
 Health checks query the installation schema and probe the configured executor's
 `/health` with a three-second deadline, a 16KiB response limit and redirects
@@ -149,14 +149,27 @@ checks as endpoint access before returning exact route-filtered traffic buckets
 and recent executions. Omitting endpointId retains the authorized all-project
 view. The filter never broadens access through an instance role.
 
-## Installation sign-in providers
+## Installation configuration
 
 `GET /api/v1/installation/settings` returns public operational settings and a
 versioned `configuration` containing OAuth client IDs and `secretConfigured`
 flags. It never returns saved client secrets. Instance `settings.manage` is
 required for both reading and updating this configuration.
 
-`PUT /api/v1/installation/settings` accepts `{version, settings: {oauth}}`.
+`PUT /api/v1/installation/settings` accepts a versioned partial settings update.
+Supported policy keys are `registrationPolicy`, `eventRetentionDays`, `bodyLimit`,
+`headerLimit`, `ingressDeadlineMs`, `processingDeadlineMs`, `httpTimeoutMs`,
+`maxAttempts`, and `otpRequestLimit`; OAuth updates use `settings.oauth`.
+Omitted policy keys keep their current values. All values are validated against
+shared Zod bounds; unknown keys (including SMTP/infrastructure) are rejected.
+Default retry counts apply to newly received executions. Existing executions and
+replays retain their pinned retry count. Sign-in request limits apply per email
+in a five-minute window. Defaults are safe constants until saved; legacy policy
+environment variables do not override database values. Every web request and new
+worker task reads the saved policy; retention producers recheck it each minute.
+
+For example: `{version: 0, settings: {registrationPolicy: "organization"}}`.
+A provider update uses `{version, settings: {oauth}}`.
 Provider keys come from the shared `oauthProviderNames` catalog. Supply `clientId` and
 `clientSecret` when adding an application. For the same client ID, omitting the
 secret preserves its stored value. Omit a provider from `oauth` to disable it.

@@ -2,24 +2,24 @@ import type { OAuthProvider } from "../../contracts/src/oauth.ts";
 import type { Pool } from "pg";
 import type { ServerConfig } from "./config.ts";
 import type { Actor } from "./authorization.ts";
-import { editableInstallationSettings, installationUpdateInput } from "../../contracts/src/installation.ts";
+import { editableInstallationSettings, installationUpdateInput, installationPolicySettings } from "../../contracts/src/installation.ts";
 import { AppError } from "../../contracts/src/errors.ts";
 import { encryptPrivate, decryptPrivate } from "./private-crypto.ts";
 import { requirePermission } from "./membership.ts";
 import { transaction } from "./db.ts";
 
-/** OAuth clients have one source: encrypted installation configuration, never SMTP or env overrides. */
+/** Saved application policy is authoritative; SMTP and infrastructure stay deployment-owned. */
 export async function resolveInstallationConfiguration(pool: Pool, base: ServerConfig) {
 	const row = (await pool.query("SELECT version,encrypted_settings FROM payloadbay.installation_configuration LIMIT 1")).rows[0];
-	if (!row) return { config: { ...base, oauth: {} }, version: 0 };
+	if (!row) return { config: { ...base, ...installationPolicySettings.parse({}), oauth: {} }, version: 0 };
 	const saved = editableInstallationSettings.parse(decryptPrivate<unknown>(row.encrypted_settings, base.encryptionKey));
-	const config = { ...base, oauth: saved.oauth as ServerConfig["oauth"] };
+	const config = { ...base, ...saved };
 
 	return { config, version: Number(row.version) };
 }
 
 function selectedSettings(config: ServerConfig) {
-	return editableInstallationSettings.parse({ oauth: config.oauth });
+	return editableInstallationSettings.parse({ ...installationPolicySettings.parse(Object.fromEntries(Object.keys(installationPolicySettings.shape).map((key) => [key, config[key as keyof ServerConfig]]))), oauth: config.oauth });
 }
 
 export async function editableConfiguration(pool: Pool, actor: Actor, installationId: string, base: ServerConfig) {
@@ -46,7 +46,7 @@ export async function saveInstallationConfiguration(pool: Pool, actor: Actor, in
 		const row = (await db.query("SELECT version,encrypted_settings FROM payloadbay.installation_configuration WHERE installation_id=$1", [installationId])).rows[0];
 		if (Number(row?.version ?? 0) !== data.data.version) throw new AppError("version_conflict", 409, "Installation settings changed; reload before saving");
 		const old = row ? editableInstallationSettings.parse(decryptPrivate<unknown>(row.encrypted_settings, base.encryptionKey)) : selectedSettings({ ...base, oauth: {} });
-		const next = data.data.settings;
+		const next = editableInstallationSettings.parse({ ...old, ...data.data.settings });
 		for (const [name, value] of Object.entries(next.oauth)) {
 			const previous = old.oauth[name as OAuthProvider];
 			if (!value.clientSecret && value.clientId === previous?.clientId) value.clientSecret = previous?.clientSecret;
@@ -54,7 +54,7 @@ export async function saveInstallationConfiguration(pool: Pool, actor: Actor, in
 		}
 
 		await db.query("INSERT INTO payloadbay.installation_configuration(installation_id,version,encrypted_settings) VALUES($1,1,$2) ON CONFLICT(installation_id) DO UPDATE SET version=payloadbay.installation_configuration.version+1,encrypted_settings=EXCLUDED.encrypted_settings,updated_at=clock_timestamp()", [installationId, encryptPrivate(next, base.encryptionKey)]);
-		await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation,resource_id,redacted_diff) VALUES($1,'instance',$2::uuid,'installation.settings_updated',($2::uuid)::text,$3)", [actor.userId, installationId, JSON.stringify({ version: data.data.version + 1, resourceName: "Sign-in providers", fields: Object.keys(next) })]);
+		await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation,resource_id,redacted_diff) VALUES($1,'instance',$2::uuid,'installation.settings_updated',($2::uuid)::text,$3)", [actor.userId, installationId, JSON.stringify({ version: data.data.version + 1, resourceName: "Installation settings", fields: Object.keys(data.data.settings) })]);
 	});
 
 	return editableConfiguration(pool, actor, installationId, base);

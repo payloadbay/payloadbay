@@ -1,8 +1,10 @@
 "use client";
 
 import { oauthProviderNames, type OAuthProvider, type OAuthClient } from "@contracts/oauth";
+import { useUnsavedChanges } from "@components/unsaved-changes";
+import { installationPolicySettings, type InstallationPolicy } from "@contracts/installation";
 import { useEffect, useState } from "react";
-import { Button, Chip, Table, Modal, TextField, Input, Label, Select, ListBox } from "@heroui/react";
+import { Button, Chip, Table, Modal, TextField, Input, Label, Select, ListBox, NumberField, Description, FieldError } from "@heroui/react";
 import { IconPlus, IconPencil, IconTrash, IconRefresh } from "@tabler/icons-react";
 import { useDashboard } from "@components/dashboard-shell";
 import { LoadingState } from "@components/loading-state";
@@ -25,6 +27,11 @@ export default function InstallationPage() {
 
 	const authorized = me.permissions.includes("settings.manage");
 
+	const [policyDraft, setPolicyDraft] = useState<InstallationPolicy | null>(null);
+	const [policyVersion, setPolicyVersion] = useState(0);
+	const [confirmRetention, setConfirmRetention] = useState(false);
+	const [policySaving, setPolicySaving] = useState(false);
+
 	const [provider, setProvider] = useState<OAuthProvider>("google");
 	const [clientId, setClientId] = useState("");
 	const [clientSecret, setClientSecret] = useState("");
@@ -35,7 +42,7 @@ export default function InstallationPage() {
 	const [actionError, setActionError] = useState("");
 	const [notice, setNotice] = useState("");
 
-	useFeedbackToast(actionError, notice, { error: "OAuth configuration error", success: "OAuth configuration saved" });
+	useFeedbackToast(actionError, notice, { error: "Installation settings error", success: "Installation settings saved" });
 
 	const [revision, setRevision] = useState(0);
 	const [result, setResult] = useState<{ revision: number; settings: InstallationSettings; health: InstallationHealth } | null>(null);
@@ -61,6 +68,42 @@ export default function InstallationPage() {
 			active = false;
 		};
 	}, [authorized, revision]);
+
+	const policyChanged = Boolean(policyDraft && data && Object.entries(policyDraft).some(([key, value]) => value !== data.settings.configuration.settings[key as keyof InstallationPolicy]));
+
+	const { dialog: unsavedDialog } = useUnsavedChanges(policyChanged);
+
+	async function savePolicy() {
+		if (!data || !policyDraft) return;
+		const valid = installationPolicySettings.safeParse(policyDraft);
+		if (!valid.success) {
+			setActionError("Enter valid values for each setting.");
+
+			return;
+		}
+
+		const previous = data.settings.eventRetentionDays;
+		if (!confirmRetention && policyDraft.eventRetentionDays > 0 && (previous === 0 || policyDraft.eventRetentionDays < previous)) {
+			setConfirmRetention(true);
+
+			return;
+		}
+
+		setPolicySaving(true);
+		setActionError("");
+		setNotice("");
+		try {
+			await api("/installation/settings", { method: "PUT", json: { version: policyVersion, settings: valid.data } });
+			setPolicyDraft(null);
+			setConfirmRetention(false);
+			setRevision((value) => value + 1);
+			setNotice("Installation settings saved.");
+		} catch (cause) {
+			setActionError(cause instanceof Error ? cause.message : "Could not save installation settings");
+		} finally {
+			setPolicySaving(false);
+		}
+	}
 
 	async function saveProvider(remove = false) {
 		if (!data) return;
@@ -172,6 +215,114 @@ export default function InstallationPage() {
 						<p className='text-muted text-sm'>Worker heartbeats confirm recent runtime activity. SMTP checks verify connection and authentication; an actual email flow verifies mailbox delivery.</p>
 					</section>
 					<section className='flex flex-col gap-3'>
+						{unsavedDialog}
+						<Modal.Backdrop
+							isOpen={policyDraft !== null}
+							onOpenChange={(open) => {
+								if (!open && !policySaving) {
+									setPolicyDraft(null);
+									setConfirmRetention(false);
+								}
+							}}
+						>
+							<Modal.Container placement='center'>
+								<Modal.Dialog aria-label={confirmRetention ? "Delete old event history?" : "Edit installation settings"} className='sm:max-w-2xl'>
+									<Modal.CloseTrigger />
+									<Modal.Header>
+										<Modal.Heading>{confirmRetention ? "Delete old event history?" : "Edit installation settings"}</Modal.Heading>
+									</Modal.Header>
+									<Modal.Body className='flex flex-col gap-6'>
+										{policyDraft &&
+											(confirmRetention ? (
+												<p>Completed event history older than {policyDraft.eventRetentionDays} days will be permanently deleted by scheduled cleanup. Pending deliveries are preserved. Deleted history cannot be recovered from this instance.</p>
+											) : (
+												<>
+													<Select variant='secondary' aria-label='Registration policy' value={policyDraft.registrationPolicy} onChange={(key) => setPolicyDraft((old) => old && { ...old, registrationPolicy: String(key) as InstallationPolicy["registrationPolicy"] })}>
+														<Label>Registration</Label>
+														<Select.Trigger>
+															<Select.Value />
+															<Select.Indicator />
+														</Select.Trigger>
+														<Select.Popover>
+															<ListBox>
+																<ListBox.Item id='invite_only' textValue='Invitation only'>
+																	Invitation only
+																	<ListBox.ItemIndicator />
+																</ListBox.Item>
+																<ListBox.Item id='organization' textValue='Organization onboarding'>
+																	Organization onboarding
+																	<ListBox.ItemIndicator />
+																</ListBox.Item>
+															</ListBox>
+														</Select.Popover>
+														<Description>Organization onboarding lets new verified users create their own organization.</Description>
+													</Select>
+													{[
+														{
+															title: "Requests",
+															fields: [
+																["bodyLimit", "Incoming body limit (bytes)", 1, 1048576],
+																["headerLimit", "Incoming header limit (bytes)", 1, 16384],
+															],
+														},
+														{
+															title: "Execution",
+															fields: [
+																["ingressDeadlineMs", "Ingress deadline (ms)", 100, 10000],
+																["processingDeadlineMs", "Processing deadline (ms)", 100, 60000],
+																["httpTimeoutMs", "HTTP timeout (ms)", 100, 30000],
+																["maxAttempts", "Default delivery attempts", 1, 20],
+															],
+														},
+														{
+															title: "Retention and sign-in",
+															fields: [
+																["eventRetentionDays", "Keep completed events (days)", 0, 36500],
+																["otpRequestLimit", "Sign-in code requests per five minutes", 1, 100],
+															],
+														},
+													].map((group) => (
+														<section key={group.title} className='flex flex-col gap-3'>
+															<h3 className='font-semibold'>{group.title}</h3>
+															<div className='grid gap-4 sm:grid-cols-2'>
+																{group.fields.map(([key, label, min, max]) => (
+																	<NumberField key={key} variant='secondary' isRequired value={Number(policyDraft[key as keyof InstallationPolicy])} minValue={Number(min)} maxValue={Number(max)} step={1} onChange={(value) => setPolicyDraft((old) => old && { ...old, [key]: value })}>
+																		<Label>{label}</Label>
+																		<NumberField.Group>
+																			<NumberField.DecrementButton />
+																			<NumberField.Input />
+																			<NumberField.IncrementButton />
+																		</NumberField.Group>
+																		{key === "eventRetentionDays" && <Description>0 keeps history indefinitely.</Description>}
+																		{key === "maxAttempts" && <Description>New events only. Replays keep the original limit.</Description>}
+																		<FieldError />
+																	</NumberField>
+																))}
+															</div>
+														</section>
+													))}
+												</>
+											))}
+									</Modal.Body>
+									<Modal.Footer>
+										<Button
+											variant='secondary'
+											isDisabled={policySaving}
+											onPress={() => {
+												if (confirmRetention) setConfirmRetention(false);
+												else setPolicyDraft(null);
+											}}
+										>
+											{confirmRetention ? "Back to settings" : "Cancel"}
+										</Button>
+										<Button variant={confirmRetention ? "danger" : "primary"} isPending={policySaving} isDisabled={policySaving || !policyChanged} onPress={() => void savePolicy()}>
+											{confirmRetention ? "Confirm retention and save" : "Save settings"}
+										</Button>
+									</Modal.Footer>
+								</Modal.Dialog>
+							</Modal.Container>
+						</Modal.Backdrop>
+
 						<h2 className='text-xl font-semibold'>Script execution</h2>
 						<dl className='grid gap-4 sm:grid-cols-2'>
 							<div>
@@ -377,8 +528,23 @@ export default function InstallationPage() {
 						</Modal.Container>
 					</Modal.Backdrop>
 					<section className='flex flex-col gap-3'>
-						<h2 className='text-xl font-semibold'>Configuration</h2>
-						<p className='text-muted text-sm'>Deployment settings apply to this installation.</p>
+						<header className='flex items-center justify-between gap-3'>
+							<h2 className='text-xl font-semibold'>Configuration</h2>
+							<Button
+								variant='secondary'
+								onPress={() => {
+									if (data) {
+										setPolicyVersion(data.settings.configuration.version);
+										setPolicyDraft(installationPolicySettings.parse(Object.fromEntries(Object.keys(installationPolicySettings.shape).map((key) => [key, data.settings.configuration.settings[key as keyof InstallationPolicy]]))));
+										setConfirmRetention(false);
+									}
+								}}
+							>
+								<IconPencil size={16} />
+								Edit settings
+							</Button>
+						</header>
+						<p className='text-muted text-sm'>Settings apply to all workspaces and projects. SMTP is managed by your deployment.</p>
 						<dl className='grid gap-4 sm:grid-cols-2'>
 							<div>
 								<dt className='text-muted'>SMTP</dt>
@@ -392,10 +558,7 @@ export default function InstallationPage() {
 								<dt className='text-muted'>Registration</dt>
 								<dd>{data.settings.registrationPolicy === "invite_only" ? "Invitation only" : "Organization onboarding"}</dd>
 							</div>
-							<div>
-								<dt className='text-muted'>OAuth providers</dt>
-								<dd>{data.settings.oauthProviders.join(", ") || "None configured"}</dd>
-							</div>
+
 							<div>
 								<dt className='text-muted'>Incoming body limit</dt>
 								<dd>{data.settings.limits.body.toLocaleString()} bytes</dd>
@@ -415,6 +578,14 @@ export default function InstallationPage() {
 							<div>
 								<dt className='text-muted'>HTTP timeout</dt>
 								<dd>{data.settings.deadlines.httpMs.toLocaleString()} ms</dd>
+							</div>
+							<div>
+								<dt className='text-muted'>Default delivery attempts</dt>
+								<dd>{data.settings.configuration.settings.maxAttempts}</dd>
+							</div>
+							<div>
+								<dt className='text-muted'>Sign-in code requests per five minutes</dt>
+								<dd>{data.settings.configuration.settings.otpRequestLimit}</dd>
 							</div>
 						</dl>
 					</section>

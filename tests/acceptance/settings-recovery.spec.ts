@@ -609,3 +609,45 @@ test("UX79 organization owner can require passkeys after enrolling their device"
 	await page.getByRole("button", { name: "Save security policy", exact: true }).click();
 	await expect(page.getByRole("button", { name: "Save security policy", exact: true })).toBeDisabled();
 });
+
+test("UX85 installation editing persists policy, changes public onboarding and confirms retention", async ({ page }) => {
+	await ensureBrowserOwner(page);
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/admin/installation");
+	await page.getByRole("button", { name: "Edit settings", exact: true }).click();
+	let dialog = page.getByRole("dialog", { name: "Edit installation settings", exact: true });
+	await dialog.getByRole("button", { name: /Registration policy/ }).click();
+	await page.getByRole("option", { name: "Organization onboarding", exact: true }).click();
+	await dialog.getByRole("textbox", { name: "Incoming body limit (bytes)" }).fill("512");
+	await dialog.getByRole("textbox", { name: "Default delivery attempts" }).fill("2");
+	await dialog.getByRole("textbox", { name: "Keep completed events (days)" }).fill("30");
+	await page.screenshot({ path: "/tmp/pab-settings-mobile-edit.png", animations: "disabled" });
+	await dialog.getByRole("button", { name: "Save settings", exact: true }).click();
+	dialog = page.getByRole("dialog", { name: "Delete old event history?", exact: true });
+	await expect(dialog).toContainText("permanently deleted");
+	await dialog.getByRole("button", { name: "Back to settings", exact: true }).click();
+	await page.getByRole("dialog", { name: "Edit installation settings", exact: true }).getByRole("button", { name: "Save settings", exact: true }).click();
+	await page.getByRole("dialog", { name: "Delete old event history?", exact: true }).getByRole("button", { name: "Confirm retention and save", exact: true }).click();
+	await expect(page.getByRole("dialog", { name: "Delete old event history?", exact: true })).toHaveCount(0);
+	const saved = await (await page.request.get("/api/v1/installation/settings")).json();
+	expect(saved.configuration.settings.bodyLimit).toBe(512);
+	expect(saved.configuration.settings.maxAttempts).toBe(2);
+	expect((await (await page.request.get("/api/v1/onboarding")).json()).registrationEnabled).toBe(true);
+	const { commandHeaders } = await import("../helpers/browser-auth.ts");
+	const headers = commandHeaders();
+	const workspace = (await (await page.request.get("/api/v1/workspaces")).json())[0];
+	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Live settings", slug: "live-settings" } })).json();
+	const endpoint = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Bounded route", slug: "bounded-route" } })).json();
+	expect(endpoint.ingress_key).toBeTruthy();
+	const oversized = await page.request.post("/ingress/" + endpoint.ingress_key, { data: "x".repeat(600) });
+	expect(oversized.status()).toBe(413);
+
+	await page.reload();
+	await page.getByRole("button", { name: "Edit settings", exact: true }).click();
+	dialog = page.getByRole("dialog", { name: "Edit installation settings", exact: true });
+	await expect(dialog.getByRole("textbox", { name: "Incoming body limit (bytes)" })).toHaveValue("512");
+	await expect(dialog.getByText("SMTP", { exact: true })).toHaveCount(0);
+	await page.setViewportSize({ width: 1440, height: 1000 });
+	await page.screenshot({ path: "/tmp/pab-settings-desktop-edit.png", animations: "disabled" });
+	await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+});

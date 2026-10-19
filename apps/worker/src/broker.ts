@@ -6,7 +6,7 @@ import { managedSend } from "../../../packages/domain/src/delivery.ts";
 import { packWire, unpackWire } from "../../../packages/contracts/src/wire.ts";
 import type { DestinationTarget, SendInput } from "../../../packages/script-sdk/src/lifecycle.ts";
 
-export function createBroker(pool: Pool, config: ServerConfig) {
+export function createBroker(pool: Pool, config: ServerConfig, resolveConfig: () => Promise<ServerConfig> = async () => config) {
 	return createServer(async (request, response) => {
 		const abort = new AbortController();
 		response.on("close", () => {
@@ -43,7 +43,7 @@ export function createBroker(pool: Pool, config: ServerConfig) {
 			}
 
 			const input = unpackWire(JSON.parse(Buffer.concat(chunks).toString("utf8"))) as { target: DestinationTarget; input: SendInput };
-			const result = await managedSend(pool, authority, input.target, input.input, { timeoutMs: config.httpTimeoutMs, signal: abort.signal });
+			const result = await managedSend(pool, authority, input.target, input.input, { timeoutMs: (await resolveConfig()).httpTimeoutMs, signal: abort.signal });
 			response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(packWire(result)));
 		} catch {
 			if (!response.writableEnded) response.writeHead(403, { "content-type": "application/json" }).end(JSON.stringify({ error: { code: "broker_request_rejected" } }));

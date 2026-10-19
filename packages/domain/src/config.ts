@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { installationPolicySettings } from "../../contracts/src/installation.ts";
 import type { OAuthClient } from "../../contracts/src/oauth.ts";
 import { smtpSchema } from "../../contracts/src/config.ts";
 import { AppError } from "../../contracts/src/errors.ts";
@@ -27,32 +28,25 @@ const httpUrl = z.string().refine((value) => {
 		return false;
 	}
 });
-const serverSchema = z.object({
-	databaseUrl: z.string().refine((value) => {
-		try {
-			return ["postgres:", "postgresql:"].includes(new URL(value).protocol);
-		} catch {
-			return false;
-		}
-	}),
-	publicUrl: httpUrl,
-	authSecret: z.string().min(32),
-	encryptionKey: z.string().min(32),
-	bootstrapSecret: z.string().min(32),
-	executorToken: z.string().min(32),
-	brokerSecret: z.string().min(32),
-	executorUrl: httpUrl,
-	executorMode: z.enum(["runc", "runsc"]),
-	bodyLimit: z.coerce.number().int().min(1).max(1048576),
-	headerLimit: z.coerce.number().int().min(1).max(16384),
-	ingressDeadlineMs: z.coerce.number().int().min(100).max(10000),
-	processingDeadlineMs: z.coerce.number().int().min(100).max(60000),
-	httpTimeoutMs: z.coerce.number().int().min(100).max(30000),
-	maxAttempts: z.coerce.number().int().min(1).max(20),
-	otpRequestLimit: z.coerce.number().int().min(1).max(100),
-	registrationPolicy: z.enum(["invite_only", "organization"]),
-	eventRetentionDays: z.coerce.number().int().min(0).max(36500),
-});
+const serverSchema = z
+	.object({
+		databaseUrl: z.string().refine((value) => {
+			try {
+				return ["postgres:", "postgresql:"].includes(new URL(value).protocol);
+			} catch {
+				return false;
+			}
+		}),
+		publicUrl: httpUrl,
+		authSecret: z.string().min(32),
+		encryptionKey: z.string().min(32),
+		bootstrapSecret: z.string().min(32),
+		executorToken: z.string().min(32),
+		brokerSecret: z.string().min(32),
+		executorUrl: httpUrl,
+		executorMode: z.enum(["runc", "runsc"]),
+	})
+	.extend(installationPolicySettings.shape);
 
 export function readServerConfig(env: Record<string, string | undefined>) {
 	let publicUrl: string;
@@ -72,15 +66,6 @@ export function readServerConfig(env: Record<string, string | undefined>) {
 		brokerSecret: env.PAYLOADBAY_BROKER_SECRET,
 		executorUrl: env.EXECUTOR_URL ?? "http://executor:8080",
 		executorMode: env.PAYLOADBAY_EXECUTOR_RUNTIME || "runc",
-		bodyLimit: env.PAYLOADBAY_BODY_LIMIT ?? 1048576,
-		headerLimit: env.PAYLOADBAY_HEADER_LIMIT ?? 16384,
-		ingressDeadlineMs: env.PAYLOADBAY_INGRESS_DEADLINE_MS ?? 2000,
-		processingDeadlineMs: env.PAYLOADBAY_PROCESSING_DEADLINE_MS ?? 30000,
-		httpTimeoutMs: env.PAYLOADBAY_HTTP_TIMEOUT_MS ?? 10000,
-		maxAttempts: env.PAYLOADBAY_MAX_ATTEMPTS ?? 5,
-		otpRequestLimit: env.PAYLOADBAY_OTP_REQUEST_LIMIT ?? 5,
-		registrationPolicy: env.PAYLOADBAY_REGISTRATION_POLICY ?? "invite_only",
-		eventRetentionDays: env.PAYLOADBAY_EVENT_RETENTION_DAYS ?? 0,
 	});
 	if (!parsed.success) throw new AppError("configuration_required", 503, "Server configuration requires attention");
 

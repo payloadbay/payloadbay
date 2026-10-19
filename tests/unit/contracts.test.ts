@@ -1,3 +1,4 @@
+import { installationPolicyInput } from "../../packages/contracts/src/installation.ts";
 import { expect, test } from "bun:test";
 import { readConfig } from "../../packages/domain/src/config.ts";
 
@@ -135,9 +136,9 @@ test("U204 complete server configuration receives bounded defaults", () => {
 	});
 });
 
-test("U205 invalid limits expose no configuration secrets", () => {
+test("U205 invalid deployment settings expose no configuration secrets", () => {
 	try {
-		readServerConfig({ ...serverEnv, PAYLOADBAY_PROCESSING_DEADLINE_MS: "0" });
+		readServerConfig({ ...serverEnv, PAYLOADBAY_EXECUTOR_RUNTIME: "invalid" });
 		throw Error("Configuration should fail");
 	} catch (error) {
 		expect(publicError(error, "request-config")).toEqual({ error: { code: "configuration_required", message: "Server configuration requires attention", correlationId: "request-config" } });
@@ -233,9 +234,10 @@ test("U310 configuration cannot advertise unsupported alpha body or header limit
 	const defaults = readServerConfig(base);
 	expect(defaults.bodyLimit).toBe(1048576);
 	expect(defaults.headerLimit).toBe(16384);
-	expect(() => readServerConfig({ ...base, PAYLOADBAY_BODY_LIMIT: "1048577" })).toThrow("Server configuration requires attention");
-	expect(() => readServerConfig({ ...base, PAYLOADBAY_HEADER_LIMIT: "16385" })).toThrow("Server configuration requires attention");
-	expect(readServerConfig({ ...base, PAYLOADBAY_BODY_LIMIT: "512" }).bodyLimit).toBe(512);
+	expect(installationPolicyInput.partial().safeParse({ bodyLimit: 1048577 }).success).toBe(false);
+	expect(installationPolicyInput.partial().safeParse({ headerLimit: 16385 }).success).toBe(false);
+	expect(installationPolicyInput.partial().parse({ bodyLimit: 512 }).bodyLimit).toBe(512);
+	expect(readServerConfig({ ...base, PAYLOADBAY_BODY_LIMIT: "512" }).bodyLimit).toBe(1048576);
 });
 
 test("U312 accepted metadata stays within the processing metadata budget", () => {
@@ -284,8 +286,9 @@ export async function POST(ctx: IngressContext): Promise<IngressDecision> { retu
 test("RT01 event retention is opt-in and rejects invalid deletion windows", () => {
 	expect(readServerConfig(serverEnv).eventRetentionDays).toBe(0);
 	expect(readServerConfig({ ...serverEnv, PAYLOADBAY_EVENT_RETENTION_DAYS: "0" }).eventRetentionDays).toBe(0);
-	expect(readServerConfig({ ...serverEnv, PAYLOADBAY_EVENT_RETENTION_DAYS: "30" }).eventRetentionDays).toBe(30);
-	for (const value of ["-1", "0.5", "36501", "not-a-number"]) expect(() => readServerConfig({ ...serverEnv, PAYLOADBAY_EVENT_RETENTION_DAYS: value })).toThrow("Server configuration requires attention");
+	expect(readServerConfig({ ...serverEnv, PAYLOADBAY_EVENT_RETENTION_DAYS: "30" }).eventRetentionDays).toBe(0);
+	expect(installationPolicyInput.partial().parse({ eventRetentionDays: 30 }).eventRetentionDays).toBe(30);
+	for (const value of [-1, 0.5, 36501, "not-a-number"]) expect(installationPolicyInput.partial().safeParse({ eventRetentionDays: value }).success).toBe(false);
 });
 
 test("UX70 documented token creation excludes instance authority and preserves personal/customer scopes", async () => {

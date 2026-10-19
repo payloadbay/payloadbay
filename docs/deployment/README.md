@@ -37,11 +37,15 @@ the database administrator password for runtime credentials.
 `SMTP_SECURE=false` uses the SMTP transport's STARTTLS negotiation. Development
 Mailpit is intentionally absent from the operator stack.
 
-`PAYLOADBAY_REGISTRATION_POLICY` defaults to `invite_only`. The optional
-`organization` policy enables verified customer onboarding without granting
-instance administration. `PAYLOADBAY_EVENT_RETENTION_DAYS=0` keeps event retention
-disabled. `PAYLOADBAY_LOGIN_HINT` is optional plain sign-in information and grants
-no privileges or authentication bypass.
+Application policy is managed in Installation → Configuration and saved in the
+database. Registration defaults to invitation-only; organization onboarding allows
+verified customers to create their own organization without instance administration.
+Retention defaults to keeping history indefinitely. Request limits, deadlines,
+default retries and sign-in request limits use the same database source. Changes
+apply to new requests and worker attempts; retention is checked every minute.
+SMTP, database connections, encryption/signing keys, service credentials and
+runtime selection remain deployment environment settings. `PAYLOADBAY_LOGIN_HINT`
+is optional plain sign-in information and grants no privileges or bypass.
 
 ## Startup and access
 

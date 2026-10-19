@@ -1,6 +1,5 @@
-import { resolveInstallationConfiguration } from "@domain/installation-configuration";
 import { onboardingInput } from "@contracts/http-inputs";
-import { getServices } from "@lib/server";
+import { getConfiguredServices } from "@lib/server";
 import { handle, readJson } from "@api/handler";
 import { provisionCustomerOrganization } from "@domain/onboarding";
 import { AppError, publicError } from "@contracts/errors";
@@ -11,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
 	try {
-		const { pool, identity, config } = getServices();
+		const { pool, identity, config } = await getConfiguredServices();
 		const result = await identity.api.getSession({ headers: request.headers, returnHeaders: true });
 		const session = result.response;
 		const admission = session ? (await pool.query("SELECT active FROM payloadbay.admission WHERE user_id=$1", [session.user.id])).rows[0] : undefined;
@@ -21,7 +20,7 @@ export async function GET(request: Request) {
 		return Response.json(
 			{
 				registrationEnabled: config.registrationPolicy === "organization",
-				oauthProviders: Object.keys((await resolveInstallationConfiguration(pool, config)).config.oauth),
+				oauthProviders: Object.keys(config.oauth),
 				authenticated: Boolean(session?.user.emailVerified),
 				needsOrganization: Boolean(session?.user.emailVerified && !admission && config.registrationPolicy === "organization"),
 				blocked: admission?.active === false,
@@ -35,7 +34,7 @@ export async function GET(request: Request) {
 
 /** Only this route accepts a verified, never-admitted session; domain APIs still require admission. */
 export async function POST(request: Request) {
-	const { pool, identity, config } = getServices();
+	const { pool, identity, config } = await getConfiguredServices();
 
 	return handle(
 		request,
