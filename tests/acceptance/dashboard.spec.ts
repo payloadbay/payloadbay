@@ -1870,6 +1870,35 @@ test("UX67 desktop resource actions, command shortcut and anchored notifications
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Desktop review", slug: "desktop-review" } })).json();
 	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Unused route", slug: "unused-route" } })).json();
 	const destination = await (await page.request.post("/api/v1/projects/" + project.id + "/destinations", { headers, data: { name: "Unused target", url: "https://example.test/receiver" } })).json();
+	for (const width of [390, 1440]) {
+		await page.setViewportSize({ width, height: 1000 });
+		await page.goto("/workspaces/" + workspace.id);
+		for (const name of ["Workspace members", "Shared code and middleware", "Notification rules for Desktop review"]) {
+			const action = page.getByRole("link", { name, exact: true });
+			await expect(action).toBeVisible();
+			const offset = await action.evaluate((element) => {
+				const button = element.getBoundingClientRect();
+				const icon = element.querySelector("svg")!.getBoundingClientRect();
+
+				return { x: Math.abs(button.x + button.width / 2 - icon.x - icon.width / 2), y: Math.abs(button.y + button.height / 2 - icon.y - icon.height / 2) };
+			});
+			expect(offset.x).toBeLessThan(2);
+			expect(offset.y).toBeLessThan(2);
+		}
+
+		if (width === 1440) {
+			await page.getByRole("link", { name: "Workspace members", exact: true }).focus();
+			await expect(page.getByRole("tooltip", { name: "Workspace members", exact: true })).toBeVisible();
+		}
+
+		await page.screenshot({ path: test.info().outputPath(`workspace-actions-${width}.png`) });
+		await page.getByRole("link", { name: "Workspace members", exact: true }).click();
+		await expect(page).toHaveURL(new RegExp(`/workspaces/${workspace.id}/members$`));
+		await page.goto("/workspaces/" + workspace.id);
+		await page.getByRole("link", { name: "Shared code and middleware", exact: true }).click();
+		await expect(page).toHaveURL(new RegExp(`/code/workspace/${workspace.id}$`));
+	}
+
 	await page.goto("/projects/" + project.id);
 	await expect(page.getByRole("heading", { name: "Desktop review", exact: true })).toBeVisible();
 	await page.keyboard.press("ControlOrMeta+k");

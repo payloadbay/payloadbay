@@ -3595,3 +3595,18 @@ Final local checkpoint: FT06b passes against the database-enabled onboarding
 policy; UX77/UX85 pass against the frozen build; U180/U181/UX72 pass with the
 same-frame geometry measurement. Typecheck, lint, format and inventory pass.
 No timeout, coverage threshold or permission denial was weakened.
+
+### 2026-10-19 workspace icon alignment regression
+
+Reproduced on the deployed preview before editing: workspace members/code
+actions computed to block layout, with 12px horizontal and 8px vertical icon
+offsets at390px, and 12px/6px at1440px. Installed HeroUI3.2.6's
+`tooltip__trigger` applies inline-block after the button's inline-flex style.
+The three combined tooltip/button links now explicitly retain inline-flex via
+the utility layer; hrefs, accessible labels and focus behavior are preserved.
+
+Extended existing UX67 with same-frame, both-axis centering assertions for all
+three links at390px/1440px, actual members/code navigation and keyboard-focus
+tooltip checks. The test passes; both screenshots were visually inspected.
+TypeScript, scoped ESLint and Prettier pass. This was reproduction-first, not a
+claimed failing automated Red cycle. No threshold or timeout was weakened.

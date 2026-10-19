@@ -56,7 +56,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
 				<div className='ml-auto flex shrink-0 gap-2'>
 					{workspace.permissions.includes("members.manage") && (
 						<Tooltip delay={0}>
-							<Tooltip.Trigger<"a"> role='link' aria-label='Workspace members' className='button button--secondary button--icon-only' render={(props) => <Link {...props} href={"/workspaces/" + workspaceId + "/members"} />}>
+							<Tooltip.Trigger<"a"> role='link' aria-label='Workspace members' className='button button--secondary button--icon-only inline-flex' render={(props) => <Link {...props} href={"/workspaces/" + workspaceId + "/members"} />}>
 								<IconUsers size={18} aria-hidden='true' />
 							</Tooltip.Trigger>
 							<Tooltip.Content>Workspace members</Tooltip.Content>
@@ -64,7 +64,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
 					)}
 					{workspace.permissions.includes("code.read") && (
 						<Tooltip delay={0}>
-							<Tooltip.Trigger<"a"> role='link' aria-label='Shared code and middleware' className='button button--secondary button--icon-only' render={(props) => <Link {...props} href={"/code/workspace/" + workspaceId} />}>
+							<Tooltip.Trigger<"a"> role='link' aria-label='Shared code and middleware' className='button button--secondary button--icon-only inline-flex' render={(props) => <Link {...props} href={"/code/workspace/" + workspaceId} />}>
 								<IconCode size={18} aria-hidden='true' />
 							</Tooltip.Trigger>
 							<Tooltip.Content>Shared code and middleware</Tooltip.Content>
@@ -93,7 +93,7 @@ export default function WorkspacePage({ params }: { params: Promise<{ workspaceI
 											<div className='flex flex-wrap gap-2'>
 												{project.permissions.includes("notifications.rules.manage") && (
 													<Tooltip delay={0}>
-														<Tooltip.Trigger<"a"> role='link' aria-label={"Notification rules for " + project.name} className='button button--ghost button--icon-only button--sm' render={(props) => <Link {...props} href={"/projects/" + project.id + "/notifications"} />}>
+														<Tooltip.Trigger<"a"> role='link' aria-label={"Notification rules for " + project.name} className='button button--ghost button--icon-only button--sm inline-flex' render={(props) => <Link {...props} href={"/projects/" + project.id + "/notifications"} />}>
 															<IconBell size={18} aria-hidden='true' />
 														</Tooltip.Trigger>
 														<Tooltip.Content>Notification rules</Tooltip.Content>

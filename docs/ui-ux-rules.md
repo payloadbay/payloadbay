@@ -205,3 +205,9 @@ When upstream examples differ from the installed component, inspect the pinned
 implementation's slots and semantics before composing it. Confirm the final
 geometry visually; a clickable label or passing interaction assertion alone does
 not establish that the control is laid out correctly.
+
+When one DOM element combines styles from multiple primitives (for example, an
+icon-only link and a tooltip trigger), verify the final computed layout. A
+trigger's display rule can override button centering even when both primitives
+are used correctly in isolation. Check both icon axes at mobile and desktop
+widths, together with focus, tooltip and navigation behavior.
