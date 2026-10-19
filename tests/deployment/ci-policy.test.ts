@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 
 type Workflow = { jobs: Record<string, { needs?: string | string[]; environment?: string; steps?: { run?: string; uses?: string }[] }> };
 
-const workflow: Workflow = JSON.parse(execFileSync("bun", ["-e", 'console.log(JSON.stringify(Bun.YAML.parse(await Bun.file(".github/workflows/alpha-ci.yml").text())))'], { encoding: "utf8" }));
+const workflow: Workflow = JSON.parse(execFileSync("bun", ["-e", 'console.log(JSON.stringify(Bun.YAML.parse(await Bun.file(".github/workflows/ci.yml").text())))'], { encoding: "utf8" }));
 const policy = workflow.jobs.policy.steps?.find((step) => step.run)?.run;
 assert.ok(policy);
 

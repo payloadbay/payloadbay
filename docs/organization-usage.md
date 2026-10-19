@@ -76,7 +76,7 @@ Graphile for a job. Current execution leases still enforce capacity atomically
 at claim time, so concurrent workers cannot use a scheduling turn as authority.
 Idle selection uses the worker's bounded polling cadence. The selector uses the
 supported public job view and flags API; local job batching remains disabled by
-the pinned Graphile default. The alpha selector reads the organization flag set
+the pinned Graphile default. The policy selector reads the organization flag set
 per turn; large hosted fleets need separate load validation.
 
 Existing unflagged offers remain eligible without rewriting job IDs, payloads or

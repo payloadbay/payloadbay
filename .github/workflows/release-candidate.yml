@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       source_sha:
-        description: Full master SHA with passing alpha CI and CI-generated release SQL
+        description: Full master SHA with passing CI and CI-generated release SQL
         required: true
         type: string
 
@@ -61,9 +61,9 @@ jobs:
             echo 'Database source changed after the latest release migration. Run the master migration workflow first.' >&2
             exit 1
           fi
-          passed=$(gh api "repos/$REPOSITORY/actions/workflows/alpha-ci.yml/runs?head_sha=$SOURCE_SHA&event=push&status=completed&per_page=100" --jq 'any(.workflow_runs[]; .conclusion == "success")') || exit 1
+          passed=$(gh api "repos/$REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$SOURCE_SHA&event=push&status=completed&per_page=100" --jq 'any(.workflow_runs[]; .conclusion == "success")') || exit 1
           if [[ "$passed" != 'true' ]]; then
-            echo 'This exact master source requires complete passing alpha CI, including merged coverage.' >&2
+            echo 'This exact master source requires complete passing CI, including merged coverage.' >&2
             exit 1
           fi
           echo "ref=$SOURCE_SHA" >> "$GITHUB_OUTPUT"

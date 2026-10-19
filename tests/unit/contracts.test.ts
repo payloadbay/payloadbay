@@ -216,7 +216,7 @@ test("U291 middleware patch does not invent omitted configuration defaults", () 
 	expect(middlewareUpdateInput.parse({ secretBindings: {}, requiredAction: "fail" })).toEqual({ secretBindings: {}, requiredAction: "fail" });
 });
 
-test("U310 configuration cannot advertise unsupported alpha body or header limits", () => {
+test("U310 configuration cannot advertise unsupported body or header limits", () => {
 	const base = {
 		PUBLIC_URL: "http://localhost:3000",
 		DATABASE_URL: "postgres://fixture:fixture@localhost/fixture",

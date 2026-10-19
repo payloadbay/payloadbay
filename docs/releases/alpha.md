@@ -44,7 +44,7 @@ The manual **Build Release Candidate** workflow is prepared for use after the
 alpha is approved and merged. Select the master workflow and provide the full
 master commit SHA. It rejects unmerged source, absent release SQL/journal,
 database-source changes after migration generation, and any SHA without a
-complete successful master Alpha Validation run. The branch preview remains
+complete successful master CI run. The branch preview remains
 separate; no candidate workflow has been executed yet.
 
 The workflow builds app, worker, executor and migrator together on Linux amd64.

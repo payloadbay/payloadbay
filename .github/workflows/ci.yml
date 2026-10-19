@@ -1,4 +1,4 @@
-name: Alpha Validation
+name: CI
 
 on:
   pull_request:
@@ -18,7 +18,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: alpha-${{ github.event_name }}-${{ github.event.pull_request.number || inputs.reviewed_sha || github.ref }}
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || inputs.reviewed_sha || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -75,7 +75,7 @@ jobs:
         run: echo "Authorized validation of $TEST_REF" >> "$GITHUB_STEP_SUMMARY"
 
   checks:
-    name: Alpha / ${{ matrix.lane }}
+    name: CI / ${{ matrix.lane }}
     needs: [policy, authorize]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -169,13 +169,13 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: alpha-${{ matrix.lane }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: ci-${{ matrix.lane }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: test-results/
           if-no-files-found: warn
           retention-days: 7
 
   coverage:
-    name: Alpha / merged source coverage
+    name: CI / merged source coverage
     needs: [policy, authorize, checks]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -197,7 +197,7 @@ jobs:
       - name: Download this run's owning reports
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          pattern: alpha-*-${{ github.run_id }}-${{ github.run_attempt }}
+          pattern: ci-*-${{ github.run_id }}-${{ github.run_attempt }}
           path: test-results/owners
 
       - name: Require source-mapped per-file line and function coverage
@@ -207,13 +207,13 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: alpha-coverage-${{ github.run_id }}-${{ github.run_attempt }}
+          name: ci-coverage-${{ github.run_id }}-${{ github.run_attempt }}
           path: test-results/owners/coverage-summary.json
           if-no-files-found: warn
           retention-days: 7
 
   result:
-    name: ${{ ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) || (github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name == github.repository)) && 'CI delegation' || 'Alpha validation' }}
+    name: ${{ ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) || (github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name == github.repository)) && 'CI delegation' || 'CI validation' }}
     if: always() && needs.policy.result != 'skipped'
     needs: [policy, authorize, checks, coverage]
     runs-on: ubuntu-24.04
@@ -226,6 +226,6 @@ jobs:
           AUTHORIZATION_RESULT: ${{ needs.authorize.result }}
         run: |
           if [[ "$CHECK_RESULT" != 'success' || "$COVERAGE_RESULT" != 'success' || "$POLICY_RESULT" != 'success' || "$AUTHORIZATION_RESULT" != 'success' ]]; then
-            echo 'Alpha validation is incomplete or requires maintainer review.' >&2
+            echo 'CI validation is incomplete or requires maintainer review.' >&2
             exit 1
           fi

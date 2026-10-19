@@ -79,7 +79,7 @@ Donations and sponsorship are optional ways to support the project.
 
 ## Project status
 
-Payload Bay has an implemented, unreleased alpha in [draft PR #13](https://github.com/payloadbay/payloadbay/pull/13).
+Payload Bay has an implemented, unreleased foundation, reviewed in [PR #13](https://github.com/payloadbay/payloadbay/pull/13).
 The dashboard and API support organization/workspace/project setup, passwordless
 sign-in, editable ingress/processing, helpers, middleware, secrets, publication,
 queued HTTP delivery, retries/replay, live inspection and opt-in notifications.

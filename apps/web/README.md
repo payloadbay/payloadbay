@@ -2,7 +2,7 @@
 
 Integrated Next.js App Router/TypeScript dashboard and HTTP API, running on Node.js
 with Bun workspace tooling. HeroUI Pro owns native controls, navigation overlays
-and charts. The app is implemented on the unreleased alpha branch.
+and charts. The application is implemented; published operator release verification remains separate.
 
 From the repository root, use `bun run web:dev`, `bun run web:typecheck`,
 `bun run web:lint` and `bun run web:build`. Page-specific state lives in the route's

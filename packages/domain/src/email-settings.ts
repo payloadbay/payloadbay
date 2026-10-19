@@ -30,7 +30,7 @@ export async function saveEmailSettings(pool: Pool, actor: Actor, input: unknown
 	await requirePermission(pool, actor, scope, "settings.manage");
 	if (!emailSettingsInput.safeParse(input).success) throw new AppError("invalid_email_settings", 400, "Provide valid instance branding");
 
-	throw new AppError("feature_unavailable", 403, "Instance customization requires enterprise licensing, which is not available in this alpha");
+	throw new AppError("feature_unavailable", 403, "Instance customization requires enterprise licensing, which is not yet available");
 }
 
 /** Queue-time configuration: code revisions and presentation cannot drift during retries. */

@@ -1,7 +1,7 @@
 # Development bootstrap and verification
 
-The alpha branch contains the Next.js dashboard/API, Better Auth, PostgreSQL,
-Graphile Worker and a workerd executor. It is still an unreleased alpha; a working
+The repository contains the Next.js dashboard/API, Better Auth, PostgreSQL,
+Graphile Worker and a workerd executor. It is still unreleased; a working
 preview and scoped tests do not complete the published-image/upgrade gates.
 
 Use Bun from the repository root:
@@ -84,9 +84,9 @@ Event retention defaults to disabled. See [event retention](retention.md) for
 opt-in configuration, preserved unfinished work, irreversible deletion and the
 remaining alpha verification limits.
 
-## Alpha CI and external contribution review
+## CI and external contribution review
 
-The Alpha Validation workflow checks an immutable source SHA on fresh GitHub-hosted
+The CI workflow checks an immutable source SHA on fresh GitHub-hosted
 runners, with separate static, unit, backend, executor, browser, performance and
 deployment owners. The unit coverage command deliberately fails if a loaded file
 misses the configured minimum; passing unit tests alone are not a coverage pass.

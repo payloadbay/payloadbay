@@ -112,7 +112,7 @@ test("RC04 schema changes after the last migration block candidate images before
 	assert.equal(result.called, false);
 });
 
-test("RC05 failed or unavailable alpha CI cannot authorize publication, including partial true responses", async () => {
+test("RC05 failed or unavailable CI cannot authorize publication, including partial true responses", async () => {
 	for (const options of [{ api: "false" }, { api: "true", apiStatus: 1 }, { api: "" }]) {
 		const result = await candidatePolicy(options);
 		assert.equal(result.status, 1);
