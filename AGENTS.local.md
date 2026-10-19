@@ -158,3 +158,15 @@ than a success toast. Do not render inline success/error boxes. Keep field valid
 inputs; loading/empty/unavailable views and the durable notification inbox are
 separate product states. Test-only SQL under tests/fixtures/schema-history is not
 release migration history; CI owns packages/domain/drizzle artifacts.
+
+## Ponytail development guidance
+
+For coding work, use the loaded Ponytail plugin skill when available; otherwise
+read `.agents/skills/ponytail/SKILL.md`. Use its full mode by
+default unless the user selects another level or turns it off. Finish the whole
+authorized task; reduce unnecessary implementation, not requested behavior.
+Existing architecture, security, accessibility, HeroUI and validation requirements
+remain in force. Run the review/audit/debt skills when requested; their reports
+do not authorize unrelated rewrites. Installation provenance and the distinction
+between repo skills and local plugin hooks are in
+`.agents/skills/ponytail/README.md`.
