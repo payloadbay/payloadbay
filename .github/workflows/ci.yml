@@ -49,34 +49,55 @@ jobs:
             exit 1
           fi
           if [[ "$EXTERNAL_REQUEST" == 'true' ]]; then
-            reviewer_protection=$(gh api "repos/$REPOSITORY/environments/alpha-ci-external" --jq 'any(.protection_rules[]; .type == "required_reviewers" and (.reviewers | length) > 0)') || {
+            reviewer_protection=$(gh api "repos/$REPOSITORY/environments/ci-external-review" --jq 'any(.protection_rules[]; .type == "required_reviewers" and (.reviewers | length) > 0)') || {
               echo 'External review protection could not be verified.' >&2
               exit 1
             }
             if [[ "$reviewer_protection" != 'true' ]]; then
-              echo 'Declare alpha-ci-external with maintainer required reviewers in the repository baseline before external licensed checks can run.' >&2
+              echo 'Configure ci-external-review with required maintainer reviewers before external licensed checks can run.' >&2
               exit 1
             fi
-            echo 'environment=alpha-ci-external' >> "$GITHUB_OUTPUT"
+            echo 'environment=ci-external-review' >> "$GITHUB_OUTPUT"
           else
-            echo 'environment=alpha-ci' >> "$GITHUB_OUTPUT"
+            echo 'environment=none' >> "$GITHUB_OUTPUT"
           fi
           echo "ref=$TEST_REF" >> "$GITHUB_OUTPUT"
 
+  review:
+    name: Approve external source
+    needs: policy
+    if: needs.policy.outputs.environment == 'ci-external-review'
+    runs-on: ubuntu-24.04
+    environment:
+      name: ci-external-review
+      deployment: false
+    steps:
+      - name: Record external approval
+        run: echo 'External source review approved.' >> "$GITHUB_STEP_SUMMARY"
+
   authorize:
     name: Authorize source ${{ needs.policy.outputs.ref }}
-    needs: policy
+    needs: [policy, review]
+    if: always() && needs.policy.result == 'success'
     runs-on: ubuntu-24.04
-    environment: ${{ needs.policy.outputs.environment }}
     steps:
       - name: Record authorized build source
         env:
           TEST_REF: ${{ needs.policy.outputs.ref }}
-        run: echo "Authorized validation of $TEST_REF" >> "$GITHUB_STEP_SUMMARY"
+          REVIEW_ENVIRONMENT: ${{ needs.policy.outputs.environment }}
+          REVIEW_RESULT: ${{ needs.review.result }}
+        run: |
+          if [[ "$REVIEW_ENVIRONMENT" == 'none' && "$REVIEW_RESULT" == 'skipped' ]] || [[ "$REVIEW_ENVIRONMENT" == 'ci-external-review' && "$REVIEW_RESULT" == 'success' ]]; then
+            echo "Authorized validation of $TEST_REF" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Source authorization is incomplete or requires maintainer review.' >&2
+            exit 1
+          fi
 
   checks:
     name: CI / ${{ matrix.lane }}
     needs: [policy, authorize]
+    if: ${{ !cancelled() && needs.policy.result == 'success' && needs.authorize.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
@@ -177,6 +198,7 @@ jobs:
   coverage:
     name: CI / merged source coverage
     needs: [policy, authorize, checks]
+    if: ${{ !cancelled() && needs.policy.result == 'success' && needs.authorize.result == 'success' && needs.checks.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:

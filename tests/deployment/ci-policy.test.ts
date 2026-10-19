@@ -5,7 +5,7 @@ import { mkdtemp, writeFile, readFile, access, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-type Workflow = { jobs: Record<string, { needs?: string | string[]; environment?: string; steps?: { run?: string; uses?: string }[] }> };
+type Workflow = { jobs: Record<string, { needs?: string | string[]; environment?: string | { name: string; deployment: boolean }; steps?: { run?: string; uses?: string }[] }> };
 
 const workflow: Workflow = JSON.parse(execFileSync("bun", ["-e", 'console.log(JSON.stringify(Bun.YAML.parse(await Bun.file(".github/workflows/ci.yml").text())))'], { encoding: "utf8" }));
 const policy = workflow.jobs.policy.steps?.find((step) => step.run)?.run;
@@ -69,14 +69,14 @@ test("CI02 external protection lookup failures cannot authorize code even with p
 test("CI03 protected external builds select native review and pin the exact source", async () => {
 	const result = await evaluatePolicy({ external: true });
 	assert.equal(result.status, 0);
-	assert.equal(result.output, "environment=alpha-ci-external\nref=" + "a".repeat(40) + "\n");
+	assert.equal(result.output, "environment=ci-external-review\nref=" + "a".repeat(40) + "\n");
 });
 
 test("CI04 maintainer builds pin source without an external protection lookup", async () => {
 	const result = await evaluatePolicy({ external: false, status: 1 });
 	assert.equal(result.status, 0);
 	assert.equal(result.called, false);
-	assert.equal(result.output, "environment=alpha-ci\nref=" + "a".repeat(40) + "\n");
+	assert.equal(result.output, "environment=none\nref=" + "a".repeat(40) + "\n");
 });
 
 test("CI05 invalid mutable source references fail before any authorization lookup", async () => {
@@ -88,9 +88,11 @@ test("CI05 invalid mutable source references fail before any authorization looku
 
 test("CI06 checkout and licensed steps depend on completed native authorization", () => {
 	assert.deepEqual(workflow.jobs.checks.needs, ["policy", "authorize"]);
-	assert.equal(workflow.jobs.authorize.needs, "policy");
-	assert.equal(workflow.jobs.authorize.environment, "${{ needs.policy.outputs.environment }}");
-	for (const job of [workflow.jobs.policy, workflow.jobs.authorize])
+	assert.deepEqual(workflow.jobs.authorize.needs, ["policy", "review"]);
+	assert.equal(workflow.jobs.review.needs, "policy");
+	assert.deepEqual(workflow.jobs.review.environment, { name: "ci-external-review", deployment: false });
+	assert.equal(workflow.jobs.authorize.environment, undefined);
+	for (const job of [workflow.jobs.policy, workflow.jobs.review, workflow.jobs.authorize])
 		assert.equal(
 			job.steps?.some((step) => step.uses?.startsWith("actions/checkout@")),
 			false,
@@ -116,5 +118,27 @@ test("CI07 final validation cannot pass without the mandatory merged coverage ow
 		});
 		assert.equal(result.error, undefined);
 		assert.equal(result.status, state === "success" ? 0 : 1);
+	}
+});
+
+test("CI08 skipped or failed external approval cannot authorize licensed source checks", () => {
+	const gate = workflow.jobs.authorize.steps?.find((step) => step.run)?.run;
+	assert.ok(gate);
+	for (const environment of ["none", "ci-external-review", "unexpected", ""]) {
+		for (const state of ["success", "failure", "skipped", "cancelled", ""]) {
+			const result: import("node:child_process").SpawnSyncReturns<string> = spawnSync("bash", ["--noprofile", "--norc", "-e", "-c", gate], {
+				encoding: "utf8",
+				timeout: 3000,
+				env: {
+					PATH: process.env.PATH,
+					REVIEW_ENVIRONMENT: environment,
+					REVIEW_RESULT: state,
+					TEST_REF: "a".repeat(40),
+					GITHUB_STEP_SUMMARY: "/dev/null",
+				},
+			});
+			assert.equal(result.error, undefined);
+			assert.equal(result.status, (environment === "none" && state === "skipped") || (environment === "ci-external-review" && state === "success") ? 0 : 1);
+		}
 	}
 });

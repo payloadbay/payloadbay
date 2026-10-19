@@ -95,7 +95,7 @@ release gates rather than being waived by this workflow.
 
 Same-repository maintainer branches run automatically. External pull requests use
 the trusted base `pull_request_target` workflow, which first verifies that
-`alpha-ci-external` has required reviewers, without checking out the contribution.
+`ci-external-review` has required reviewers, without checking out the contribution.
 A native GitHub environment review then authorizes the exact source SHA before
 any check runner starts. That review authorizes running the whole contribution
 with the installer credential; BuildKit and secret masking do not make malicious
@@ -129,3 +129,25 @@ historical fixture directory. It proves packaging, auth/queue initialization and
 idempotence, not installation of a published release. The production Compose and
 published coordinated image gates remain open. See [database recovery](backup.md)
 for the data, role, encryption-key and rollback boundaries.
+
+### CI approval environment
+
+Trusted CI and candidate-image builds do not reference a GitHub environment.
+The repository-level `HEROUI_AUTH_TOKEN` remains their only configured secret.
+External-source approval uses `ci-external-review` with `deployment: false`,
+which preserves required reviewers without creating a deployment record.
+Its repository-specific settings are declared in
+`.github/ci-external-review.json`; the organization baseline does not manage
+GitHub environments. Apply that file with:
+
+```sh
+gh api --method PUT repos/payloadbay/payloadbay/environments/ci-external-review --input .github/ci-external-review.json
+```
+
+The authorization gate rejects missing, failed, cancelled or skipped external
+approval before any contribution checkout or licensed execution.
+The legacy `alpha-ci-external` environment must remain until this PR is merged
+and old default-branch workflows no longer reference it. Removing it earlier
+could remove protection from those workflows. The empty `alpha-ci` environment
+is obsolete; if an old default-branch workflow recreates it before merge, it can
+be removed again afterward. Existing historical timeline entries are not rewritten.

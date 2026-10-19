@@ -73,7 +73,6 @@ jobs:
     needs: policy
     runs-on: ubuntu-24.04
     timeout-minutes: 40
-    environment: alpha-ci
     permissions:
       contents: read
       packages: write

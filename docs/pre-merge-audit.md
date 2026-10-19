@@ -15,11 +15,12 @@ The repository's live baseline ruleset requires Anti-Slop, Branch Name,
 Conventional Commits and Conventional PR Title. It does not require an
 Alpha-named status, so no ruleset/baseline change is needed for this rename.
 
-Protected environment identifiers `alpha-ci` and `alpha-ci-external` remain
-intact. They are existing GitHub resources, not display labels: renaming YAML
-alone would select new environments without the existing secrets/reviewer rules.
-The policy still verifies required external reviewers and pins the exact source.
-Environment-resource migration is deliberately not part of a cosmetic rename.
+Ordinary CI and candidate builds no longer reference an environment. External
+approval uses `ci-external-review` with its previous reviewer settings and
+`deployment: false`, so approval is not presented as application deployment.
+Configuration lives in `.github/ci-external-review.json`. The old external
+environment is retained only until old default-branch references disappear
+after merge; required-reviewer protection must not be removed prematurely.
 
 ## Remaining alpha references
 
@@ -30,7 +31,7 @@ deployment, documentation and planning files. Remaining references describe:
 - Unpublished release status and incomplete operator release verification.
   Merging is not publishing. Public API metadata uses `0.1.0`; the manifest
   records an unpublished candidate without an alpha nickname.
-- Protected GitHub environments, unchanged for the reason above.
+- Legacy external-review environment references needed during the merge transition.
 - Dependency versions in the locked vendor graph, historical schema fixtures,
   test-only example domains and the pre-organization compatibility SQL comment.
 

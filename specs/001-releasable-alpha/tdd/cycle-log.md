@@ -3622,3 +3622,18 @@ U116 passes automatic latest-response selection, switching to an older503
 response and preserving it across tabs. U157b passes automatic pending-attempt
 selection followed by live response completion without manual selection. Both
 scoped browser tests pass; TypeScript, scoped ESLint and Prettier pass.
+
+### 2026-10-19 CI approval without deployment records
+
+Removed the empty environment from trusted CI authorization and candidate-image
+jobs. External approval moves to ci-external-review, retaining required user
+reviewer66677362, prevent_self_review=false and administrator bypass=true.
+The repository-specific API configuration is checked in; live creation confirmed
+the required reviewer. The approval job sets deployment:false per GitHub's
+documented environment semantics. Legacy external protection remains until
+default-branch workflow references change after merge.
+
+Authorization joins policy and review with an explicit fail-closed shell gate:
+trusted requests require review skipped; external requests require review
+success; other combinations fail. CI08 exercises all20 environment/result
+combinations. CI policy8/8 and release policy5/5 pass.
