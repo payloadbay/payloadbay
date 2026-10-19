@@ -28,7 +28,7 @@ export function createAuth(pool: Pool, config: ServerConfig, sharedIdentityPool?
 		basePath: "/api/auth",
 		trustedOrigins: [new URL(config.publicUrl).origin],
 		session: { expiresIn: 30 * 24 * 60 * 60, updateAge: 24 * 60 * 60, cookieCache: { enabled: false } },
-		socialProviders: config.oauth,
+		socialProviders: Object.fromEntries(Object.entries(config.oauth).map(([name, client]) => [name, name === "tiktok" ? { ...client, clientId: undefined, clientKey: client.clientId } : client])),
 		account: { accountLinking: { enabled: true, requireLocalEmailVerified: true, allowDifferentEmails: false } },
 		databaseHooks: {
 			session: {

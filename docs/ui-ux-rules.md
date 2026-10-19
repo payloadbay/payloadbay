@@ -192,3 +192,16 @@ replacement fields with explicit preservation behavior, never secret read-back.
 Security policies must describe exactly what they enforce (for example,
 enrollment versus a fresh authentication challenge) and keep enrollment/recovery
 actions reachable when resource access is restricted.
+
+Persistent chrome needs an opaque backing surface, including tinted notices.
+Verify it while real page content scrolls behind it. Action menus (such as
+snoozing) use action-menu controls, not value selectors that imply a saved form
+value. Align icon-only actions at the same size and test the open, nested,
+busy and completed states. Security settings should put the concise outcome
+beside the control, provide a reachable prerequisite action, and keep the save
+action visually separate from explanatory text.
+
+When upstream examples differ from the installed component, inspect the pinned
+implementation's slots and semantics before composing it. Confirm the final
+geometry visually; a clickable label or passing interaction assertion alone does
+not establish that the control is laid out correctly.

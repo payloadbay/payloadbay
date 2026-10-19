@@ -776,7 +776,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 					}
 					navigate={navigate}
 					navbar={
-						<div>
+						<div className='bg-background'>
 							{preview && <PreviewNotice />}
 							<div className='bg-background border-border flex min-h-16 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b px-4 py-3 sm:px-6'>
 								<div className='flex min-w-0 items-center gap-2'>

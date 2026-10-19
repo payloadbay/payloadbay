@@ -1,5 +1,6 @@
 "use client";
 
+import { oauthProviderNames, type OAuthProvider, type OAuthClient } from "@contracts/oauth";
 import { useEffect, useState } from "react";
 import { Button, Chip, Table, Modal, TextField, Input, Label, Select, ListBox } from "@heroui/react";
 import { IconPlus, IconPencil, IconTrash, IconRefresh } from "@tabler/icons-react";
@@ -9,16 +10,27 @@ import { api } from "@lib/api-client";
 import { useFeedbackToast } from "@lib/feedback";
 import type { ConfiguredInstallationSettings as InstallationSettings, InstallationHealth } from "@contracts/installation";
 
+function providerOptions(client?: Partial<OAuthClient>) {
+	return {
+		domain: client?.domain,
+		region: client?.region,
+		userPoolId: client?.userPoolId,
+		tenantId: client?.tenantId,
+		environment: client?.environment,
+	};
+}
+
 export default function InstallationPage() {
 	const { me } = useDashboard();
 
 	const authorized = me.permissions.includes("settings.manage");
 
-	const [provider, setProvider] = useState<"google" | "github">("google");
+	const [provider, setProvider] = useState<OAuthProvider>("google");
 	const [clientId, setClientId] = useState("");
 	const [clientSecret, setClientSecret] = useState("");
+	const [options, setOptions] = useState<Partial<OAuthClient>>({});
 	const [editing, setEditing] = useState(false);
-	const [removing, setRemoving] = useState<"google" | "github" | null>(null);
+	const [removing, setRemoving] = useState<OAuthProvider | null>(null);
 	const [saving, setSaving] = useState(false);
 	const [actionError, setActionError] = useState("");
 	const [notice, setNotice] = useState("");
@@ -56,9 +68,9 @@ export default function InstallationPage() {
 		setActionError("");
 		setNotice("");
 		try {
-			const oauth: Record<string, { clientId: string; clientSecret?: string }> = Object.fromEntries(Object.entries(data.settings.configuration.settings.oauth).map(([name, value]) => [name, { clientId: value!.clientId }]));
+			const oauth: Record<string, OAuthClient> = Object.fromEntries(Object.entries(data.settings.configuration.settings.oauth).map(([name, value]) => [name, { clientId: value!.clientId, ...providerOptions(value) }]));
 			if (remove && removing) delete oauth[removing];
-			else oauth[provider] = { clientId, ...(clientSecret ? { clientSecret } : {}) };
+			else oauth[provider] = { ...options, clientId, ...(clientSecret ? { clientSecret } : {}) };
 			await api("/installation/settings", { method: "PUT", json: { version: data.settings.configuration.version, settings: { oauth } } });
 			setEditing(false);
 			setRemoving(null);
@@ -183,6 +195,7 @@ export default function InstallationPage() {
 								variant='secondary'
 								onPress={() => {
 									setProvider("google");
+									setOptions({});
 									setClientId("");
 									setClientSecret("");
 									setEditing(true);
@@ -203,7 +216,7 @@ export default function InstallationPage() {
 									<Table.Body>
 										{Object.entries(data.settings.configuration.settings.oauth).map(([name, value]) => (
 											<Table.Row key={name} id={name}>
-												<Table.Cell>{name === "google" ? "Google" : "GitHub"}</Table.Cell>
+												<Table.Cell>{oauthProviderNames[name as OAuthProvider]}</Table.Cell>
 												<Table.Cell className='max-w-64 truncate'>{value?.clientId}</Table.Cell>
 												<Table.Cell>
 													<div className='flex justify-end gap-2'>
@@ -212,7 +225,8 @@ export default function InstallationPage() {
 															variant='ghost'
 															aria-label={"Edit " + name}
 															onPress={() => {
-																setProvider(name as "google" | "github");
+																setProvider(name as OAuthProvider);
+																setOptions(providerOptions(value));
 																setClientId(value?.clientId ?? "");
 																setClientSecret("");
 																setEditing(true);
@@ -220,7 +234,7 @@ export default function InstallationPage() {
 														>
 															<IconPencil size={16} />
 														</Button>
-														<Button isIconOnly variant='danger-soft' aria-label={"Remove " + name} onPress={() => setRemoving(name as "google" | "github")}>
+														<Button isIconOnly variant='danger-soft' aria-label={"Remove " + name} onPress={() => setRemoving(name as OAuthProvider)}>
 															<IconTrash size={16} />
 														</Button>
 													</div>
@@ -255,8 +269,9 @@ export default function InstallationPage() {
 										aria-label='OAuth provider'
 										value={provider}
 										onChange={(key) => {
-											const name = String(key) as "google" | "github";
+											const name = String(key) as OAuthProvider;
 											setProvider(name);
+											setOptions(providerOptions(data.settings.configuration.settings.oauth[name]));
 											setClientId(data.settings.configuration.settings.oauth[name]?.clientId ?? "");
 											setClientSecret("");
 										}}
@@ -268,21 +283,53 @@ export default function InstallationPage() {
 										</Select.Trigger>
 										<Select.Popover>
 											<ListBox>
-												<ListBox.Item id='google'>
-													Google
-													<ListBox.ItemIndicator />
-												</ListBox.Item>
-												<ListBox.Item id='github'>
-													GitHub
-													<ListBox.ItemIndicator />
-												</ListBox.Item>
+												{Object.entries(oauthProviderNames).map(([id, name]) => (
+													<ListBox.Item key={id} id={id} textValue={name}>
+														{name}
+														<ListBox.ItemIndicator />
+													</ListBox.Item>
+												))}
 											</ListBox>
 										</Select.Popover>
 									</Select>
 									<TextField value={clientId} onChange={setClientId} isRequired>
-										<Label>Client ID</Label>
+										<Label>{provider === "tiktok" ? "Client key" : "Client ID"}</Label>
 										<Input variant='secondary' />
 									</TextField>
+									{(provider === "cognito"
+										? [
+												["domain", "Cognito domain"],
+												["region", "AWS region"],
+												["userPoolId", "User pool ID"],
+											]
+										: provider === "microsoft"
+											? [["tenantId", "Tenant ID"]]
+											: []
+									).map(([key, label]) => (
+										<TextField key={key} value={String(options[key as keyof OAuthClient] ?? "")} onChange={(value) => setOptions((old) => ({ ...old, [key]: value || undefined }))} isRequired={provider === "cognito"}>
+											<Label>{label}</Label>
+											<Input variant='secondary' />
+										</TextField>
+									))}
+									{(provider === "paypal" || provider === "salesforce") && (
+										<Select variant='secondary' aria-label='Provider environment' value={options.environment ?? (provider === "paypal" ? "sandbox" : "production")} onChange={(key) => setOptions((old) => ({ ...old, environment: String(key) as OAuthClient["environment"] }))}>
+											<Label>Environment</Label>
+											<Select.Trigger>
+												<Select.Value />
+												<Select.Indicator />
+											</Select.Trigger>
+											<Select.Popover>
+												<ListBox>
+													{["sandbox", provider === "paypal" ? "live" : "production"].map((name) => (
+														<ListBox.Item key={name} id={name}>
+															{name}
+															<ListBox.ItemIndicator />
+														</ListBox.Item>
+													))}
+												</ListBox>
+											</Select.Popover>
+										</Select>
+									)}
 									<TextField value={clientSecret} onChange={setClientSecret}>
 										<Label>Client secret</Label>
 										<Input type='password' variant='secondary' autoComplete='new-password' placeholder={data.settings.configuration.settings.oauth[provider]?.secretConfigured ? "Leave blank to keep the saved secret" : "Enter the application secret"} />

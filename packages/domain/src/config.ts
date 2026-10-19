@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { OAuthClient } from "../../contracts/src/oauth.ts";
 import { smtpSchema } from "../../contracts/src/config.ts";
 import { AppError } from "../../contracts/src/errors.ts";
 import { resolveBaseUrl } from "./base-url.ts";
@@ -14,7 +15,7 @@ export function readConfig(env: Record<string, string | undefined>) {
 		from: env.SMTP_FROM,
 	});
 	if (!smtp.success) throw new Error("SMTP configuration is incomplete or invalid");
-	const oauth: Record<string, { clientId: string; clientSecret: string }> = {};
+	const oauth: Record<string, OAuthClient> = {};
 
 	return { smtp: smtp.data, oauth };
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { oauthProviderNames, type OAuthProvider } from "@contracts/oauth";
 import { authClient } from "@lib/auth-client";
 import { useFeedbackToast } from "@lib/feedback";
 import Link from "next/link";
@@ -292,7 +293,7 @@ export function AuthPanel({ setup = false, preview = false, loginHint, initialEm
 												}
 											}}
 										>
-											Continue with {provider === "google" ? "Google" : "GitHub"}
+											Continue with {oauthProviderNames[provider as OAuthProvider] ?? provider}
 										</Button>
 									))}
 									<Button variant='secondary' fullWidth onPress={() => void signInWithPasskey()} isDisabled={busy}>

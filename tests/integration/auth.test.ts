@@ -772,3 +772,30 @@ test("UX76 OAuth configuration revisions reuse one identity connection pool", as
 		}
 	});
 });
+
+test("UX81 configured catalog covers Better Auth built-ins and initializes their redirect handlers", async () => {
+	const { createAuth } = await import("../../packages/domain/src/auth-runtime.ts");
+	const { oauthProviderNames, oauthClients } = await import("../../packages/contracts/src/oauth.ts");
+	const { createRequire } = await import("node:module");
+	const require = createRequire(new URL("../../packages/domain/package.json", import.meta.url));
+	const { socialProviders } = await import(require.resolve("better-auth/social-providers"));
+	assert.deepEqual(Object.keys(oauthProviderNames).sort(), Object.keys(socialProviders).sort());
+	await authFixture(async (fixture) => {
+		const oauth = Object.fromEntries(Object.keys(oauthProviderNames).map((name) => [name, { clientId: "synthetic-client", clientSecret: "synthetic-secret", ...(name === "cognito" ? { domain: "fixture.auth.us-east-1.amazoncognito.com", region: "us-east-1", userPoolId: "us-east-1_Fixture" } : {}) }]));
+		const validated = oauthClients.parse(oauth);
+		const auth = createAuth(fixture.pool, { ...fixtureConfig(fixture), oauth: validated });
+		try {
+			for (const provider of Object.keys(oauthProviderNames)) {
+				// Independent provider scenarios; production rate-limit policy is tested separately.
+				await fixture.db.query('DELETE FROM auth."rateLimit"');
+				const response = await auth.handler(new Request("http://localhost:3000/api/auth/sign-in/social", { method: "POST", headers: { origin: "http://localhost:3000", "content-type": "application/json" }, body: JSON.stringify({ provider, callbackURL: "http://localhost:3000/" }) }));
+				assert.equal(response.status, 200, provider);
+				const url = new URL((await response.json()).url);
+				assert.equal(url.protocol, "https:", provider);
+				assert.equal(url.searchParams.get(provider === "tiktok" ? "client_key" : provider === "wechat" ? "appid" : "client_id"), "synthetic-client", provider);
+			}
+		} finally {
+			await auth.close();
+		}
+	});
+});

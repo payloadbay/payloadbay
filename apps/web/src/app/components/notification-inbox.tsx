@@ -4,7 +4,7 @@ import { useLiveSubscription } from "@components/live-subscription";
 import { LoadingState } from "@components/loading-state";
 import { useFeedbackToast } from "@lib/feedback";
 import { useEffect, useState, useCallback, useId } from "react";
-import { Button, Popover, Chip, Select, Label, ListBox } from "@heroui/react";
+import { Button, Popover, Chip, Dropdown, Label, Tooltip } from "@heroui/react";
 
 import { IconBell, IconAlertTriangle, IconAlertOctagon, IconCheck, IconX, IconClockPause } from "@tabler/icons-react";
 import { api } from "@lib/api-client";
@@ -52,7 +52,6 @@ export function NotificationInbox({ scope, label = "Notifications" }: { scope?: 
 	}, []);
 
 	const load = useCallback(async () => {
-		setLoading(true);
 		try {
 			receive(await fetchData());
 		} catch (cause) {
@@ -136,12 +135,11 @@ export function NotificationInbox({ scope, label = "Notifications" }: { scope?: 
 
 			<Popover.Content placement='bottom end' className='w-[calc(100vw-2rem)] max-w-md'>
 				<Popover.Dialog aria-label={label} className='flex max-h-[min(36rem,calc(100dvh-8rem))] flex-col'>
-					<Button id={closeControlId} isIconOnly variant='ghost' aria-label='Close notifications' className='self-end' onPress={() => setOpen(false)}>
-						<IconX size={18} />
-					</Button>
-					<header className='mb-4'>
+					<header className='mb-3 flex items-center justify-between gap-3'>
 						<Popover.Heading>{label}</Popover.Heading>
-						<p className='text-muted text-sm'>All notices you can access. Dismissal applies to your account.</p>
+						<Button id={closeControlId} isIconOnly size='sm' variant='ghost' aria-label='Close notifications' onPress={() => setOpen(false)}>
+							<IconX size={18} />
+						</Button>
 					</header>
 					<div className='flex min-h-0 flex-col gap-4 overflow-y-auto'>
 						{loading ? (
@@ -157,8 +155,8 @@ export function NotificationInbox({ scope, label = "Notifications" }: { scope?: 
 							items.length === 0 && <p className='text-muted'>No active notifications.</p>
 						)}
 						{items.map((item) => (
-							<article key={item.id} className='border-border rounded-lg border p-4'>
-								<Button aria-label={item.subject} variant='ghost' className='h-auto w-full justify-start whitespace-normal text-left' onPress={() => setSelected(selected === item.id ? null : item.id)} aria-expanded={selected === item.id}>
+							<article key={item.id} className='border-border border-b pb-4 last:border-b-0 last:pb-0'>
+								<Button aria-label={item.subject} variant='ghost' className='h-auto w-full justify-start whitespace-normal px-0 py-2 text-left' onPress={() => setSelected(selected === item.id ? null : item.id)} aria-expanded={selected === item.id}>
 									<span className='flex min-w-0 flex-col gap-2'>
 										<span>{item.subject}</span>
 										<span className='flex flex-wrap items-center gap-2'>
@@ -176,40 +174,31 @@ export function NotificationInbox({ scope, label = "Notifications" }: { scope?: 
 									</>
 								)}
 								{selected === item.id && item.kind !== "executor.containment-advice" && <p className='text-muted mt-2 text-sm'>{typeof item.data.observedCount === "number" ? `${item.data.observedCount} failed operations in ${item.data.windowSeconds} seconds. Your configured threshold is ${item.data.threshold}.` : typeof item.data.message === "string" ? item.data.message : "A configured notification condition needs attention."}</p>}
-								<div className='mt-4 flex items-end gap-2'>
-									<Select
-										variant='secondary'
-										aria-label={"Snooze notification " + item.subject}
-										placeholder='Snooze'
-										isDisabled={busy !== null}
-										onChange={(key) => {
-											if (key) void snooze(item.id, Number(key));
-										}}
-									>
-										<Label className='sr-only'>Snooze notification {item.subject}</Label>
-										<Select.Trigger>
-											<IconClockPause size={16} />
-											<Select.Value />
-											<Select.Indicator />
-										</Select.Trigger>
-										<Select.Popover>
-											<ListBox>
-												{[
-													[15, "15 minutes"],
-													[60, "One hour"],
-													[1440, "One day"],
-												].map(([minutes, label]) => (
-													<ListBox.Item key={minutes} id={String(minutes)} textValue={String(label)}>
-														{label}
-														<ListBox.ItemIndicator />
-													</ListBox.Item>
-												))}
-											</ListBox>
-										</Select.Popover>
-									</Select>
-									<Button isIconOnly size='sm' variant='secondary' isDisabled={busy !== null} aria-label={"Dismiss notification " + item.subject} onPress={() => void dismiss(item.id)}>
-										<IconCheck size={16} />
-									</Button>
+								<div className='mt-3 flex items-center justify-end gap-2'>
+									<Dropdown>
+										<Button isIconOnly size='sm' variant='secondary' aria-label={"Snooze notification " + item.subject} isDisabled={busy !== null}>
+											<IconClockPause size={18} aria-hidden='true' />
+										</Button>
+										<Dropdown.Popover placement='bottom end'>
+											<Dropdown.Menu aria-label='Snooze duration' onAction={(key) => void snooze(item.id, Number(key))}>
+												<Dropdown.Item id='15' textValue='15 minutes'>
+													<Label>15 minutes</Label>
+												</Dropdown.Item>
+												<Dropdown.Item id='60' textValue='One hour'>
+													<Label>One hour</Label>
+												</Dropdown.Item>
+												<Dropdown.Item id='1440' textValue='One day'>
+													<Label>One day</Label>
+												</Dropdown.Item>
+											</Dropdown.Menu>
+										</Dropdown.Popover>
+									</Dropdown>
+									<Tooltip>
+										<Button isIconOnly size='sm' variant='secondary' isDisabled={busy !== null} aria-label={"Dismiss notification " + item.subject} onPress={() => void dismiss(item.id)}>
+											<IconCheck size={18} aria-hidden='true' />
+										</Button>
+										<Tooltip.Content>Dismiss</Tooltip.Content>
+									</Tooltip>
 								</div>
 							</article>
 						))}

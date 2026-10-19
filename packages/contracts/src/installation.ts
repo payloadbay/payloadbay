@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { oauthClients, oauthClient, oauthProvider } from "./oauth.ts";
 import { executorCompatibility } from "./compatibility.ts";
 
 export const installationSettingsSchema = z.object({
@@ -40,7 +41,7 @@ export type InstallationHealth = z.infer<typeof installationHealthSchema>;
 
 export const editableInstallationSettings = z
 	.object({
-		oauth: z.partialRecord(z.enum(["google", "github"]), z.object({ clientId: z.string().min(1).max(1024), clientSecret: z.string().min(1).max(4096).optional() }).strict()),
+		oauth: oauthClients,
 	})
 	.strict();
 
@@ -48,7 +49,7 @@ export const installationUpdateInput = z.object({ version: z.number().int().min(
 
 export type EditableInstallationSettings = z.infer<typeof editableInstallationSettings>;
 
-export const installationConfigurationView = z.object({ version: z.number().int().min(0), settings: z.object({ oauth: z.partialRecord(z.enum(["google", "github"]), z.object({ clientId: z.string(), secretConfigured: z.boolean() })) }), locked: z.array(z.string()) });
+export const installationConfigurationView = z.object({ version: z.number().int().min(0), settings: z.object({ oauth: z.partialRecord(oauthProvider, oauthClient.omit({ clientSecret: true }).extend({ secretConfigured: z.boolean() })) }), locked: z.array(z.string()) });
 
 export const configuredInstallationSettingsSchema = installationSettingsSchema.extend({ configuration: installationConfigurationView });
 

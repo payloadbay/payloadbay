@@ -58,8 +58,19 @@ test("UX72 notification snooze persists after navigation and returns after expir
 	const dialog = page.getByRole("dialog", { name: "Notifications", exact: true });
 	const subject = "Scripts use ordinary Docker containment";
 	await expect(dialog.getByRole("button", { name: subject, exact: true })).toBeVisible();
-	await dialog.getByRole("button", { name: "Snooze notification " + subject }).click();
-	await page.getByRole("listbox").last().getByRole("option", { name: "One hour", exact: true }).click();
+	const snooze = dialog.getByRole("button", { name: "Snooze notification " + subject });
+	const buttonBox = await snooze.boundingBox();
+	const iconBox = await snooze.locator("svg").boundingBox();
+	expect(Math.abs(buttonBox!.x + buttonBox!.width / 2 - (iconBox!.x + iconBox!.width / 2))).toBeLessThan(2);
+	await page.screenshot({ path: "/tmp/pab-mobile-review-notifications.png", animations: "disabled" });
+	await dialog.getByRole("button", { name: subject, exact: true }).click();
+	await expect(dialog).toContainText("Configured mode:");
+	await snooze.click();
+	await page.screenshot({ path: "/tmp/pab-mobile-review-snooze.png", animations: "disabled" });
+	await page
+		.getByRole("menu", { name: "Snooze notification " + subject })
+		.getByRole("menuitem", { name: "One hour", exact: true })
+		.click();
 	await expect(dialog.getByRole("button", { name: subject, exact: true })).toHaveCount(0);
 	await page.reload();
 	await page.getByRole("button", { name: "Notifications", exact: true }).click();

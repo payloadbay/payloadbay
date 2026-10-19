@@ -310,3 +310,21 @@ test("UX71 helper declarations choose nearest scope and preserve explicit revisi
 	expect(helperModuleBindings([...helpers, { id: "project", name: "Helper", scope: { type: "project" } }]).get("Helper")).toBe("project");
 	expect(helperModuleBindings(helpers, { Helper: "pinned" }).get("Helper")).toBe("pinned");
 });
+
+test("UX82 provider requirements reject incomplete Cognito and unrecognized configuration", async () => {
+	const { oauthClients } = await import("../../packages/contracts/src/oauth.ts");
+	expect(oauthClients.safeParse({ discord: { clientId: "client", clientSecret: "secret" }, microsoft: { clientId: "client", tenantId: "organizations" }, tiktok: { clientId: "key", clientSecret: "secret" } }).success).toBe(true);
+	expect(oauthClients.safeParse({ cognito: { clientId: "client" } }).success).toBe(false);
+	expect(
+		oauthClients.safeParse({
+			cognito: {
+				clientId: "client",
+				domain: "127.0.0.1",
+				region: "us-east-1",
+				userPoolId: "us-east-1_Fixture",
+			},
+		}).success,
+	).toBe(false);
+	expect(oauthClients.safeParse({ unknown: { clientId: "client" } }).success).toBe(false);
+	expect(oauthClients.safeParse({ discord: { clientId: "client", domain: "fixture.auth.us-east-1.amazoncognito.com" } }).success).toBe(false);
+});

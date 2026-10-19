@@ -157,7 +157,7 @@ flags. It never returns saved client secrets. Instance `settings.manage` is
 required for both reading and updating this configuration.
 
 `PUT /api/v1/installation/settings` accepts `{version, settings: {oauth}}`.
-The supported provider keys are `google` and `github`. Supply `clientId` and
+Provider keys come from the shared `oauthProviderNames` catalog. Supply `clientId` and
 `clientSecret` when adding an application. For the same client ID, omitting the
 secret preserves its stored value. Omit a provider from `oauth` to disable it.
 A stale version returns 409. OAuth configuration is encrypted with the existing
@@ -206,3 +206,13 @@ passkey challenge after each email login. Passkey registration requires HTTPS
 outside local development. It depends on the relying-party hostname and the
 server-side credential record. Disposable previews reset those records on clean
 rebuild, so an authenticator's saved credential cannot sign in after that reset.
+
+
+The dashboard provider catalog matches all 36 built-in providers in the pinned
+Better Auth version. Provider labels are shared with sign-in. Cognito requires
+its AWS hosted domain, region and user-pool ID; Microsoft optionally accepts a
+tenant ID; PayPal and Salesforce expose their environment selection. TikTok's
+client key maps to the runtime's clientKey option. Custom OIDC issuers and
+provider-specific advanced options are not implicitly accepted as arbitrary
+JSON. Actual provider sign-in still requires a valid provider application and
+callback registration. SMTP remains environment-only.

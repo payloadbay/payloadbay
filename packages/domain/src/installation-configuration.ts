@@ -1,3 +1,4 @@
+import type { OAuthProvider } from "../../contracts/src/oauth.ts";
 import type { Pool } from "pg";
 import type { ServerConfig } from "./config.ts";
 import type { Actor } from "./authorization.ts";
@@ -25,7 +26,13 @@ export async function editableConfiguration(pool: Pool, actor: Actor, installati
 	await requirePermission(pool, actor, { type: "instance", id: installationId }, "settings.manage");
 	const { config, version } = await resolveInstallationConfiguration(pool, base);
 	const settings = selectedSettings(config);
-	const oauth = Object.fromEntries(Object.entries(settings.oauth).map(([name, value]) => [name, { clientId: value.clientId, secretConfigured: Boolean(value.clientSecret) }]));
+	const oauth = Object.fromEntries(
+		Object.entries(settings.oauth).map(([name, value]) => {
+			const { clientSecret, ...client } = value;
+
+			return [name, { ...client, secretConfigured: Boolean(clientSecret) }];
+		}),
+	);
 
 	return { version, settings: { ...settings, oauth }, locked: [] as string[] };
 }
@@ -41,7 +48,7 @@ export async function saveInstallationConfiguration(pool: Pool, actor: Actor, in
 		const old = row ? editableInstallationSettings.parse(decryptPrivate<unknown>(row.encrypted_settings, base.encryptionKey)) : selectedSettings({ ...base, oauth: {} });
 		const next = data.data.settings;
 		for (const [name, value] of Object.entries(next.oauth)) {
-			const previous = old.oauth[name as "google" | "github"];
+			const previous = old.oauth[name as OAuthProvider];
 			if (!value.clientSecret && value.clientId === previous?.clientId) value.clientSecret = previous?.clientSecret;
 			if (!value.clientSecret) throw new AppError("invalid_input", 400, "A new OAuth application requires its client secret");
 		}
