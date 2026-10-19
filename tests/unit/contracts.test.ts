@@ -331,3 +331,17 @@ test("UX82 provider requirements reject incomplete Cognito and unrecognized conf
 	expect(oauthClients.safeParse({ unknown: { clientId: "client" } }).success).toBe(false);
 	expect(oauthClients.safeParse({ discord: { clientId: "client", domain: "fixture.auth.us-east-1.amazoncognito.com" } }).success).toBe(false);
 });
+
+test("UX89 result inspection renders bytes as JSON, text or lossless base64 without mutating them", async () => {
+	const { formatJsonResult } = await import("../../apps/web/src/app/lib/format-json-result.ts");
+	const body = new TextEncoder().encode('{"type":"purchase.completed","data":{"amount":4900}}');
+	const original = body.slice();
+	const decision = { kind: "accept", event: { body, contentType: "application/json" } };
+	expect(JSON.parse(formatJsonResult(decision)!)).toEqual({ kind: "accept", event: { body: { type: "purchase.completed", data: { amount: 4900 } }, contentType: "application/json" } });
+	expect(body).toEqual(original);
+	expect(JSON.parse(formatJsonResult({ body: new TextEncoder().encode("{broken-json"), contentType: "application/json" })!).body).toBe("{broken-json");
+	expect(JSON.parse(formatJsonResult({ body: new TextEncoder().encode("123"), contentType: "text/plain" })!).body).toBe("123");
+	expect(JSON.parse(formatJsonResult({ body: new TextEncoder().encode("Hello \u{1f44b}") })!)).toEqual({ body: "Hello \u{1f44b}" });
+	expect(JSON.parse(formatJsonResult({ body: new Uint8Array([0, 255, 128]) })!).body).toEqual({ encoding: "base64", data: "AP+A" });
+	expect(JSON.parse(formatJsonResult({ body: { 0: 123, 1: 34 } })!).body).toEqual({ 0: 123, 1: 34 });
+});

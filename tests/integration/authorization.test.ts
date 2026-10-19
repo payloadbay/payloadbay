@@ -623,6 +623,13 @@ test("environment secret imports are scoped, encrypted and atomic without changi
 		await assert.rejects(importSecrets(pool, actor, { scope: target, source: "A_OK=value\nZ_FAIL=value" }, key));
 		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.secret_version")).rows[0].n, 2);
 		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.audit WHERE operation='secret.version_created'")).rows[0].n, 2);
+		const many = Array.from({ length: 64 }, (_, index) => `BULK_${index}=synthetic-${index}`).join("\n");
+		const bulk = await importSecrets(pool, actor, { scope: target, source: many }, key);
+		assert.equal(bulk.length, 64);
+		assert.equal(JSON.stringify(bulk).includes("synthetic-"), false);
+		await assert.rejects(importSecrets(pool, actor, { scope: target, source: "OVERSIZED=value\n#" + "x".repeat(262144) }, key), { status: 400 });
+		await assert.rejects(importSecrets(pool, actor, { scope: target, source: "OVERSIZED=value\n#" + "€".repeat(87382) }, key), { status: 400 });
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.secret_version")).rows[0].n, 66);
 	});
 });
 

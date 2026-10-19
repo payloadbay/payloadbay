@@ -172,7 +172,7 @@ export async function snoozeNotification(pool: Pool, actor: Actor, id: string, m
 		const incident = (await db.query("SELECT scope_type,scope_id,kind FROM payloadbay.notification_incident WHERE id=$1 AND status='active'", [id])).rows[0];
 		if (!incident) throw new AppError("not_found", 404, "Notification unavailable");
 		await incidentAccess(db, actor, incident);
-		const row = (await db.query("INSERT INTO payloadbay.notification_recipient_state(incident_id,user_id,read_at,snoozed_until) VALUES($1,$2,clock_timestamp(),clock_timestamp()+$3*interval '1 minute') ON CONFLICT(incident_id,user_id) DO UPDATE SET snoozed_until=EXCLUDED.snoozed_until RETURNING snoozed_until", [id, actor.userId, minutes])).rows[0];
+		const row = (await db.query("INSERT INTO payloadbay.notification_recipient_state(incident_id,user_id,read_at,snoozed_until) VALUES($1,$2,NULL,clock_timestamp()+$3*interval '1 minute') ON CONFLICT(incident_id,user_id) DO UPDATE SET read_at=NULL,dismissed_at=NULL,snoozed_until=EXCLUDED.snoozed_until RETURNING snoozed_until", [id, actor.userId, minutes])).rows[0];
 		await appendChange(db, {
 			scope: { type: incident.scope_type, id: incident.scope_id },
 			kind: "notification.changed",

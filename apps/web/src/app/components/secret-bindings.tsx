@@ -469,7 +469,7 @@ export function SecretBindings({ availability, projectId, scope, bindings, onCha
 										<Form onSubmit={importEnvironment} autoComplete='off' className='flex flex-col gap-4'>
 											<Label htmlFor='environment-secret-import'>Environment text</Label>
 											<TextArea id='environment-secret-import' aria-label='Environment text' variant='secondary' value={environmentText} onChange={(event) => setEnvironmentText(event.target.value)} autoComplete='off' data-1p-ignore='true' data-lpignore='true' data-bwignore='true' spellCheck={false} className='min-h-48 font-mono' />
-											<p className='text-muted text-sm'>Paste up to 32 KEY=value entries. Quoted values and comments are supported. Existing keys receive new immutable versions; stored values cannot be read back.</p>
+											<p className='text-muted text-sm'>Paste KEY=value entries, up to 256 KiB in total and 8 KiB per value. Quoted values and comments are supported. Existing keys receive new immutable versions; stored values cannot be read back.</p>
 											{availability && (
 												<fieldset className='flex flex-wrap gap-4'>
 													<legend className='mb-2 text-sm'>Available in</legend>

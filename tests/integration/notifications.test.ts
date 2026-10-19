@@ -926,6 +926,7 @@ test("UX69 personal snooze expires without resolving or hiding another recipient
 		const actor = { userId: "fixture-owner" };
 		await assert.rejects(snoozeNotification(pool, { userId: "outsider" }, incident.id, 60));
 		await assert.rejects(snoozeNotification(pool, actor, incident.id, 5));
+		await db.query("INSERT INTO payloadbay.notification_recipient_state(incident_id,user_id,read_at) VALUES($1,$2,clock_timestamp()),($1,'snooze-peer',clock_timestamp())", [incident.id, actor.userId]);
 		await snoozeNotification(pool, actor, incident.id, 60);
 		assert.equal((await listNotifications(pool, actor, parent)).length, 0);
 		assert.equal((await listAccountNotifications(pool, actor)).length, 0);
@@ -933,6 +934,9 @@ test("UX69 personal snooze expires without resolving or hiding another recipient
 		assert.equal((await db.query("SELECT status FROM payloadbay.notification_incident WHERE id=$1", [incident.id])).rows[0].status, "active");
 		await db.query("UPDATE payloadbay.notification_recipient_state SET snoozed_until=clock_timestamp()-interval '1 second' WHERE incident_id=$1 AND user_id=$2", [incident.id, actor.userId]);
 		assert.equal((await listNotifications(pool, actor, parent)).length, 1);
+		assert.equal((await listNotifications(pool, actor, parent))[0].readAt, null);
+		assert.equal((await listAccountNotifications(pool, actor))[0].readAt, null);
+		assert.ok((await listNotifications(pool, { userId: "snooze-peer" }, parent))[0].readAt);
 		assert.equal((await listAccountNotifications(pool, actor)).length, 1);
 		await snoozeNotification(pool, actor, incident.id, 60);
 		await reconcileRuntimeNotice(pool, scope.installation, "runsc");

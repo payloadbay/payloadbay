@@ -3669,3 +3669,26 @@ UX88 passes the original viewer@preview.payloadbay.test sample as one line at
 390px, a126-character address without page overflow, and existing cooldown
 persistence/expiry. Both mobile screenshots were visually inspected. TypeScript,
 scoped ESLint and Prettier pass.
+
+### 2026-10-19 notification snooze, synthetic results and secret imports
+
+Snoozing now clears the recipient's read and dismissal markers while preserving
+the incident and other recipients. An active incident returns unread after expiry.
+UX69 verifies expiry in scoped and account inboxes and preserves another
+recipient's read state; UX72 passes navigation and snooze expiry in the browser.
+
+Synthetic results decode UTF-8 bodies for display and parse JSON content types.
+Invalid UTF-8 has an explicit base64 representation. The API wire format and
+original bytes remain unchanged. UX89 covers JSON, malformed JSON, plain text,
+Unicode, binary data and ordinary numeric-key objects. UX90 checks byte-safe
+transport and readable JSON in the browser; its mobile screenshot was inspected.
+
+Environment imports no longer impose a key-count cap. The 256 KiB source and
+8 KiB per-value bounds, authorization, encryption and transaction remain. The
+existing integration case passes a 64-key import and rejects oversized ASCII
+and multibyte sources without writes. UX62 passes a 42-key browser import and
+draft save/reload.
+
+All 32 unit tests, both focused integration cases and all three browser flows
+pass. TypeScript, test inventory, scoped ESLint, Prettier and git diff --check
+pass. These are scoped checks, not a claim that every release gate is complete.

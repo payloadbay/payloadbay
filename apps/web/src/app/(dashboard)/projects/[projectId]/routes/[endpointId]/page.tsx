@@ -20,6 +20,7 @@ import { HelperImportPicker } from "@components/helper-import-picker";
 import { HttpRequestEditor, validateHttpBody, bodyContentTypes, type BodyFormat } from "@components/http-request-editor";
 import { CodeEditor } from "@components/code-editor";
 import { SecretBindings } from "@components/secret-bindings";
+import { formatJsonResult } from "@lib/format-json-result";
 import { unpackWire } from "@contracts/wire";
 import { api, ApiFailure } from "@lib/api-client";
 import { hmacHttpTemplate } from "@sdk/templates/hmac";
@@ -1180,7 +1181,9 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 								)}
 
 								<h3 className='font-semibold'>Handler decision</h3>
-								<pre className='bg-field max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-lg p-4 font-mono text-sm'>{JSON.stringify(testResult.decision, null, 2)}</pre>
+								<pre aria-label='Handler decision' className='bg-field max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-lg p-4 font-mono text-sm'>
+									{formatJsonResult(testResult.decision)}
+								</pre>
 								<h3 className='font-semibold'>Execution logs</h3>
 								<div className='flex flex-wrap items-end gap-3'>
 									<Select variant='secondary' aria-label='Log level' value={logLevel} onChange={(key) => setLogLevel(String(key ?? ""))}>

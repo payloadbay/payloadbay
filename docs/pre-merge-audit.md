@@ -52,11 +52,12 @@ Six older local Docker/cache drafts remain uncommitted: `.dockerignore`,
 draft changes the licensed installer path; it must be deliberately validated
 before inclusion, not swept into this commit.
 
-Recent discussion also contains unfinished behavior: snooze expiry preserves
-records but does not reset read state; accepted synthetic request bytes are
-displayed as numbered properties; the32-key import cap is still implemented
-(the recommendation to remove it has not been implemented). These are explicit
-follow-ups, not completed changes.
+The three behavior follow-ups are implemented in this PR: snoozing clears only
+that recipient's read/dismissed state, so expiry returns an active notice unread;
+synthetic decisions render JSON/text bodies readably and invalid UTF-8 as
+explicit base64 without mutating their original bytes; secret imports have no
+key-count cap while retaining256 KiB source and8 KiB value limits. These items
+are no longer unfinished work. The six Docker/cache drafts above remain separate.
 
 Full CI coverage and published-image install/upgrade/restore gates remain
 independent. See `docs/releases/readiness.md` and the current CI run for actual status.

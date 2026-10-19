@@ -46,7 +46,7 @@ export async function importSecrets(pool: Pool, actor: Actor, input: { scope: Sc
 			return [name, value] as const;
 		})
 		.sort(([left], [right]) => left.localeCompare(right));
-	if (!entries.length || entries.length > 32) throw new AppError("invalid_input", 400, "Import between 1 and 32 secret keys");
+	if (!entries.length) throw new AppError("invalid_input", 400, "Provide at least one secret key");
 	for (const [name, value] of entries) {
 		if (!/^[A-Za-z_][A-Za-z0-9_]{0,99}$/.test(name)) throw new AppError("invalid_input", 400, "Use valid script identifiers for secret keys");
 		validateSecret({ scope: input.scope, name, value });

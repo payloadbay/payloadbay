@@ -1808,7 +1808,8 @@ test("UX62 one secret inventory manages both stages and imports environment text
 	await expect(page.getByLabel("Receiving URL", { exact: true })).toHaveCount(0);
 	await page.getByRole("button", { name: "Import .env", exact: true }).click();
 	const dialog = page.getByRole("dialog", { name: "Import environment secrets", exact: true });
-	await dialog.getByRole("textbox", { name: "Environment text", exact: true }).fill('FIRST_KEY="synthetic first"\nSECOND_KEY=synthetic-second\n');
+	await expect(dialog).toContainText("256 KiB");
+	await dialog.getByRole("textbox", { name: "Environment text", exact: true }).fill('FIRST_KEY="synthetic first"\nSECOND_KEY=synthetic-second\n' + Array.from({ length: 40 }, (_, index) => `BULK_${index}=synthetic-${index}`).join("\n"));
 	await dialog.getByRole("button", { name: "Import secrets", exact: true }).click();
 	await expect(dialog).toHaveCount(0);
 	const inventory = page.getByRole("grid", { name: "Secret inventory", exact: true });
@@ -2051,4 +2052,32 @@ test("UX88 sign-in cooldown disables resend and survives reload until its deadli
 	await expect(page.getByText(longEmail, { exact: true })).toBeVisible();
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 	await page.screenshot({ path: test.info().outputPath("login-long-address-mobile.png") });
+});
+
+test("UX90 synthetic accepted JSON is readable while its wire payload remains byte-safe", async ({ page }) => {
+	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
+	const { unverifiedHttpTemplate } = await import("../../packages/script-sdk/src/templates/unverified.ts");
+	await ensureBrowserOwner(page);
+	await page.setViewportSize({ width: 390, height: 844 });
+	const headers = commandHeaders();
+	const workspace = (await (await page.request.get("/api/v1/workspaces")).json())[0];
+	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Readable results", slug: "readable-results" } })).json();
+	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Readable route", slug: "readable-route" } })).json();
+	const saved = await page.request.patch("/api/v1/endpoints/" + route.id + "/drafts/ingress", { headers: { ...headers, "if-match": '\"1\"' }, data: { body: unverifiedHttpTemplate.source } });
+	expect(saved.status()).toBe(200);
+	await page.goto("/projects/" + project.id + "/routes/" + route.id + "?section=test");
+	const response = page.waitForResponse((result) => result.url().endsWith("/endpoints/" + route.id + "/test") && result.request().method() === "POST");
+	await page.getByRole("button", { name: "Test ingress (dry)", exact: true }).click();
+	const wire = await response;
+	expect(wire.status()).toBe(200);
+	const { unpackWire } = await import("../../packages/contracts/src/wire.ts");
+	const transported = unpackWire(await wire.json()) as { decision: { event: { body: Uint8Array } } };
+	expect(transported.decision.event.body).toBeInstanceOf(Uint8Array);
+	const result = page.getByLabel("Handler decision", { exact: true });
+	await expect(result).toContainText("purchase.completed", { timeout: 20000 });
+	const decision = JSON.parse((await result.textContent())!);
+	expect(decision.kind).toBe("accept");
+	expect(decision.event.body).toEqual({ type: "purchase.completed", data: { orderId: "demo-001", amount: 4900, currency: "EUR" } });
+	await result.scrollIntoViewIfNeeded();
+	await page.screenshot({ path: test.info().outputPath("readable-script-result-mobile.png") });
 });
