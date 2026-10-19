@@ -129,7 +129,7 @@ published-release acceptance remain pending until separately verified.
 roles/grantor identity, external encryption keys and replay/rollback limits.
 Historical migration fixtures, fresh-cluster mechanism tests and compatibility
 startup checks do not certify published release upgrades. See the
-[release checklist](../../docs/releases/alpha.md) for the remaining gates.
+[release checklist](../../docs/releases/readiness.md) for the remaining gates.
 
 Organization foundation scenarios F01–F12 are implemented and recorded in
 preflight: verified customer onboarding, two-organization isolation, scoped tokens,

@@ -1,6 +1,6 @@
 # Route request tools
 
-The alpha uses one HeroUI/Monaco request composer for the published route playground
+Payload Bay uses one HeroUI/Monaco request composer for the published route playground
 and synthetic draft tests. Both offer method selection, headers and body tabs,
 JSON/XML/text formats, and validation before execution. The route is already the
 working context; receiving URL and operational controls belong to its overview.
@@ -29,7 +29,7 @@ engineering inference from the documented lifecycle, not a reported Scalar flaw.
 A route-specific editor also needs to represent dry worker inputs and sample
 secrets, which differ from an ordinary HTTP request.
 
-For this alpha, retain the small shared HeroUI composer and the existing Scalar
+For this version, retain the small shared HeroUI composer and the existing Scalar
 API documentation. Hoppscotch remains a UX reference; no unsupported React embed
 package is assumed or installed. A larger embedded client remains possible if the
 product later needs request collections, OAuth helpers or a general API workspace.

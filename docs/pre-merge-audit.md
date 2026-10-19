@@ -27,8 +27,9 @@ Audited tracked text across application, packages, workflows, scripts, tests,
 deployment, documentation and planning files. Remaining references describe:
 
 - The historical `specs/001-releasable-alpha` feature and review/test evidence.
-- Actual prerelease API version `0.1.0-alpha`, unpublished release-manifest status
-  and incomplete operator release verification. Merging is not publishing.
+- Unpublished release status and incomplete operator release verification.
+  Merging is not publishing. Public API metadata uses `0.1.0`; the manifest
+  records an unpublished candidate without an alpha nickname.
 - Protected GitHub environments, unchanged for the reason above.
 - Dependency versions in the locked vendor graph, historical schema fixtures,
   test-only example domains and the pre-organization compatibility SQL comment.
@@ -57,7 +58,7 @@ displayed as numbered properties; the32-key import cap is still implemented
 follow-ups, not completed changes.
 
 Full CI coverage and published-image install/upgrade/restore gates remain
-independent. See `docs/releases/alpha.md` and the current CI run for actual status.
+independent. See `docs/releases/readiness.md` and the current CI run for actual status.
 
 ## Validation
 

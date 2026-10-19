@@ -82,7 +82,7 @@ parallel Node execution. Keep separate Next-consuming commands sequential.
 
 Event retention defaults to disabled. See [event retention](retention.md) for
 opt-in configuration, preserved unfinished work, irreversible deletion and the
-remaining alpha verification limits.
+remaining release verification limits.
 
 ## CI and external contribution review
 
@@ -126,6 +126,6 @@ release SQL fails safely; it never substitutes development schema push.
 
 The registered migration-container test uses an explicitly mounted synthetic
 historical fixture directory. It proves packaging, auth/queue initialization and
-idempotence, not installation of a published alpha. The production Compose and
+idempotence, not installation of a published release. The production Compose and
 published coordinated image gates remain open. See [database recovery](backup.md)
 for the data, role, encryption-key and rollback boundaries.

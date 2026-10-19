@@ -137,7 +137,7 @@ export function openApiDocument() {
 
 	return {
 		openapi: "3.1.0",
-		info: { title: "Payload Bay API", version: "0.1.0-alpha", description: "Installation-local API. Tokens retain their scope and intersect the user's current permissions. Cookie-authenticated commands require the same-origin Origin and x-payloadbay-csrf: 1 headers. Webhook ingress uses the separately configured receiving URL; the published script decides its HTTP behavior. Identity/passkey routes are provided by Better Auth under /api/auth." },
+		info: { title: "Payload Bay API", version: "0.1.0", description: "Installation-local API. Tokens retain their scope and intersect the user's current permissions. Cookie-authenticated commands require the same-origin Origin and x-payloadbay-csrf: 1 headers. Webhook ingress uses the separately configured receiving URL; the published script decides its HTTP behavior. Identity/passkey routes are provided by Better Auth under /api/auth." },
 		servers: [{ url: "/" }],
 		components: {
 			securitySchemes: {

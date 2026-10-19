@@ -1,4 +1,4 @@
-# Alpha delivery latency fixture
+# Delivery latency fixture
 
 Run `bun run test:performance` separately from other owning test lanes. It builds
 committed Dockerfile snapshots without modifying local Docker drafts, starts

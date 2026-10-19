@@ -57,7 +57,7 @@ not a sandbox guarantee: configured code currently assumes trusted publishers.
 The goal is an openly usable browser demo for contributors and reviewers, without
 GitHub maintainer requirements. Before privileged demo access is made public, verify
 the executor sandbox, preview outbound network restrictions and resource limits.
-No anonymous hostile-tenant security claim is made by the current alpha.
+No anonymous hostile-tenant security claim is made by the current version.
 
 For deployment details and the observed verification limits, see
 [Coolify previews](docs/coolify-previews.md).

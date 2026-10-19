@@ -5,7 +5,7 @@ Core product guidance.
 
 ## Current repository state
 
-Payload Bay has an implemented but unreleased alpha. The README distinguishes
+Payload Bay is implemented but has not been released. The README distinguishes
 product direction from current behavior; use the preflight and test ledger for
 verified evidence. Published operator installation, upgrade/restore and complete
 coverage remain independent release gates.
@@ -87,8 +87,8 @@ use `rg` for exact searches or missing/stale graph coverage.
 The TDD extension has a root runner/profile and registered domain, executor,
 integration, browser and deployment suites in `tests/config/inventory.json`.
 Use scoped tests for local work and the feature's release gates for completion;
-a green preview or infrastructure smoke does not certify the full alpha.
-The current application and delivery flow exist on the alpha branch. Coolify
+a green preview or infrastructure smoke does not certify the full release.
+The current application and delivery flow are implemented. Coolify
 preview builds and scoped product tests have passed; optional host runsc and
 complete published-release installation/upgrade evidence remain separate gates.
 Keep new test files registered and record actual evidence without inventing Red

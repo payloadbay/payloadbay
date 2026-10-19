@@ -1,6 +1,6 @@
-# Alpha release readiness
+# Release readiness
 
-The alpha remains in draft PR #13 and has not been released. A working preview is
+The initial implementation is reviewed in PR #13 and has not been released. A working preview is
 not a published installation or a completed coverage gate.
 
 Verified mechanisms include real SMTP owner/login flows, tenant/permission
@@ -41,7 +41,7 @@ commercial plan integration remain separate future work.
 ## Coordinated candidate images
 
 The manual **Build Release Candidate** workflow is prepared for use after the
-alpha is approved and merged. Select the master workflow and provide the full
+implementation is approved and merged. Select the master workflow and provide the full
 master commit SHA. It rejects unmerged source, absent release SQL/journal,
 database-source changes after migration generation, and any SHA without a
 complete successful master CI run. The branch preview remains
@@ -52,7 +52,7 @@ The licensed UI credential is available only as the app build's BuildKit secret.
 All four final images must use the non-root node identity. The packaged real
 release SQL must install and repeat successfully on disposable PostgreSQL17
 before any images are pushed. This cannot run against the current unmerged
-alpha, which deliberately has no CI-generated release SQL.
+implementation, which deliberately has no CI-generated release SQL.
 
 Successful runs push unique candidate tags and export `candidate/images.env`
 with the exact source SHA and immutable image digest for each service, together

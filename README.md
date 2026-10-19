@@ -150,7 +150,7 @@ scripts/                   Product build and release tooling
 ```
 
 The future pulling Runner remains a separate repository and release boundary;
-this alpha does not ship that product or claim tested server compatibility.
+this version does not ship that product or claim tested server compatibility.
 
 ## Related resources
 

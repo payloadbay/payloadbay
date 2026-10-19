@@ -8,6 +8,6 @@ metadata after a merged source change, then commits them here. Agents do not run
 release generation locally. Production applies these artifacts through
 `bun run db:migrate` (inside the published migration image for operators).
 
-No alpha release migration has been generated yet. An image without generated
+No release migration has been generated yet. An image without generated
 release migrations must fail migration readiness; it must not bootstrap from
 development source or the test-only history fixtures.

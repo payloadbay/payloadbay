@@ -185,7 +185,7 @@ which optional live effects were tested, and which host controls were verified.
 Verify browser login through Mailpit, editing/publishing/test flows allowed by the
 mode, durable ingest, worker processing, retry, replay, notifications, cleanup on
 PR closure and automatic rebuilds. Attach sanitized evidence to PR #13 and update
-this document with completed checks; do not label the alpha released prematurely.
+this document with completed checks; do not label the product released prematurely.
 
 ## Production parity
 

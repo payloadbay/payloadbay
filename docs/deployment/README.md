@@ -8,7 +8,7 @@ mount the Docker socket or require gVisor for the default mode.
 This branch is an unreleased candidate. Published coordinated image digests and
 the master-CI-generated migration are not available yet. Do not substitute the
 preview schema-push service for the release migrator. The release checklist in
-[alpha readiness](../releases/alpha.md) distinguishes tested mechanisms from
+[release readiness](../releases/readiness.md) distinguishes tested mechanisms from
 published installation evidence.
 
 ## Configuration

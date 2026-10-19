@@ -65,7 +65,7 @@ management operation has passed end-to-end browser acceptance.
   admission when creating sessions, including passkey sessions.
 
 Verification is recorded with the implementing PR. Unit/integration checks and
-actual browser flows are required; this list does not declare the entire alpha
+actual browser flows are required; this list does not declare the entire release
 release complete. Update/version alerts and endpoint health checks remain
 explicitly deferred product features, as agreed with the maintainer.
 

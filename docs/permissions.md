@@ -38,7 +38,7 @@ Preset selection supplies initial permissions; saved permissions are authoritati
 
 A member administrator can grant only rights they currently hold at the selected scope. Ownership changes also require `ownership.transfer`. Membership writes serialize per scope and use the current membership version. The last active local owner cannot be demoted. Changing an organization, workspace or project owner updates its owner reference and writes append-only audit history in the same transaction.
 
-Creating an organization, workspace or project establishes full local ownership. The current alpha service therefore requires both the corresponding create permission and ownership-transfer authority on its parent. This is separate from inviting an already admitted user into a project.
+Creating an organization, workspace or project establishes full local ownership. The current service therefore requires both the corresponding create permission and ownership-transfer authority on its parent. This is separate from inviting an already admitted user into a project.
 
 API tokens have an explicit scope, selected permissions, and expiry. The secret is returned once; the database stores only its SHA-256 hash. Authorization intersects the stored token permissions with the user's current inherited rights. Token scope applies downward only. Revocation, expiry, or inactive admission invalidates access immediately. A supplied invalid bearer token does not fall back to a browser cookie. Token listing never returns the secret or hash.
 

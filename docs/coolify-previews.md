@@ -72,7 +72,7 @@ a disposable source-schema database. These do not prove the remote preview works
 
 Verify a clean licensed build on Coolify, service domain mapping, PR webhook
 handling, isolated state, login/event delivery and close/merge cleanup. Operator
-release images, CI migration artifacts and full alpha release gates remain separate
+release images, CI migration artifacts and full release release gates remain separate
 unfinished work.
 
 ## Preview base URL
