@@ -27,7 +27,14 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
+      - name: Cache Bun package downloads
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ${{ runner.temp }}/bun-public-cache
+          key: bun-public-${{ runner.os }}-1.3.14-${{ hashFiles('bun.lock') }}
       - name: Install dependency graph
+        env:
+          BUN_INSTALL_CACHE_DIR: ${{ runner.temp }}/bun-public-cache
         run: bun install --frozen-lockfile --ignore-scripts
       - name: Generate the single merged-change migration
         run: bun run db:generate:ci

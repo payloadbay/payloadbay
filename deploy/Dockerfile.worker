@@ -8,7 +8,8 @@ COPY apps/executor/package.json ./apps/executor/package.json
 COPY packages/domain/package.json ./packages/domain/package.json
 COPY packages/contracts/package.json ./packages/contracts/package.json
 COPY packages/script-sdk/package.json ./packages/script-sdk/package.json
-RUN bun install --frozen-lockfile --production --filter @payloadbay/worker
+RUN --mount=type=cache,id=payloadbay-bun-public-1.3.14,target=/root/.bun/install/cache,sharing=locked \
+    bun install --frozen-lockfile --production --filter @payloadbay/worker
 COPY apps/worker/src ./apps/worker/src
 COPY packages/contracts/src ./packages/contracts/src
 COPY packages/domain/src ./packages/domain/src

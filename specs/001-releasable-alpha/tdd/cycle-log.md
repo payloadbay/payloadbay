@@ -3692,3 +3692,22 @@ draft save/reload.
 All 32 unit tests, both focused integration cases and all three browser flows
 pass. TypeScript, test inventory, scoped ESLint, Prettier and git diff --check
 pass. These are scoped checks, not a claim that every release gate is complete.
+
+### 2026-10-19 Docker/cache draft validation
+
+Corrected the app draft to preserve the explicit licensed installer command and
+keep its secret out of public download caching. Added locked public Bun caches
+to app/worker/executor and the public Actions cache to migration generation. Both
+ignore files exclude local database state. The app context now excludes local
+Next.js cache while retaining the standalone smoke target; actual transfer fell
+from several gigabytes to approximately 137 MB. A context build verifies those
+exclusions and the retained standalone server.
+
+The clean app build, worker build and executor runner build pass. The clean-built
+app starts as node, read-only with all capabilities dropped. Its exported image
+layers, config and history contain no installer credential. Image tests pass
+2/2, including real restricted worker delivery through the isolated executor;
+preview Compose passes 1/1, CI policy 8/8 and release policy 5/5. Inventory and
+diff checks pass. An initial offline --no-cache probe failed; a controlled
+warm-cache install with an invalidated layer and network disabled succeeds.
+No test threshold changed and no release migration was generated locally.

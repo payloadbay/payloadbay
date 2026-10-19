@@ -9,6 +9,10 @@
 .codex
 graphify-out
 specs
-node_modules
-apps/*/node_modules
+**/node_modules
+**/.next/**
+!apps/web/.next/standalone
 !apps/web/.next/standalone/**
+
+# Local database state is never part of an image build.
+deploy/supabase/volumes

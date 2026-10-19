@@ -45,19 +45,28 @@ The icon fix48448fa and latest-attempt fix97b3234 are committed, pushed and
 verified in the deployed preview. Installation-policy work439293c is also
 committed/deployed. This audit did not find those changes stranded locally.
 
-Six older local Docker/cache drafts remain uncommitted: `.dockerignore`,
-`.github/workflows/database-migrations.yml`, `deploy/Dockerfile.app`,
-`deploy/Dockerfile.app.dockerignore`, `deploy/Dockerfile.executor` and
-`deploy/Dockerfile.worker`. They are outside the CI rename. In particular the app
-draft changes the licensed installer path; it must be deliberately validated
-before inclusion, not swept into this commit.
+The six Docker/cache drafts have now been validated and included. Public Bun
+package downloads use a locked BuildKit cache in app, worker and executor builds;
+licensed installation retains its separate secret-mounted command. Migration CI
+uses the same explicitly public download-cache namespace as ordinary CI. Both
+ignore files exclude local database state; the app-specific file also excludes
+local Next.js caches while retaining standalone smoke-test output.
+
+A clean app build completed with the installer secret, and the final non-root
+image started read-only. Its saved image layers, metadata and history did not
+contain the credential. Worker and executor builds, both image startup/delivery
+tests, preview Compose validation, eight CI policy tests, five release-policy
+tests and inventory pass. A warmed worker dependency install was forced to rerun
+with network disabled and succeeded. An earlier --no-cache offline probe failed;
+the controlled warm-cache check invalidated the layer with a build argument
+instead. No migration SQL was generated locally.
 
 The three behavior follow-ups are implemented in this PR: snoozing clears only
 that recipient's read/dismissed state, so expiry returns an active notice unread;
 synthetic decisions render JSON/text bodies readably and invalid UTF-8 as
 explicit base64 without mutating their original bytes; secret imports have no
 key-count cap while retaining256 KiB source and8 KiB value limits. These items
-are no longer unfinished work. The six Docker/cache drafts above remain separate.
+are no longer unfinished work. There are no remaining local Docker/cache drafts.
 
 Full CI coverage and published-image install/upgrade/restore gates remain
 independent. See `docs/releases/readiness.md` and the current CI run for actual status.

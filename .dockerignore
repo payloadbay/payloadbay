@@ -11,3 +11,6 @@
 .codex
 graphify-out
 specs
+
+# Local database state is never part of an image build.
+deploy/supabase/volumes
