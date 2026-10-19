@@ -3659,3 +3659,13 @@ screenshot was inspected. TypeScript, scoped ESLint and Prettier pass. Native
 Better Auth routes retain database throttling and OTP verification keeps its
 five-attempt bound. This is not a claim of a new application-wide rate-limit
 audit for every business endpoint.
+
+### 2026-10-19 sign-in email wrapping
+
+Removed break-all from the address inside the OTP instruction sentence. The
+address now has its own line, with a separate expiry line; overflow-wrap:anywhere
+only provides the fallback for addresses too long for their available width.
+UX88 passes the original viewer@preview.payloadbay.test sample as one line at
+390px, a126-character address without page overflow, and existing cooldown
+persistence/expiry. Both mobile screenshots were visually inspected. TypeScript,
+scoped ESLint and Prettier pass.

@@ -231,7 +231,9 @@ export function AuthPanel({ setup = false, preview = false, loginHint, initialEm
 					<Card.Description>
 						{sent ? (
 							<>
-								Enter the six-digit code sent to <strong className='text-foreground break-all font-medium'>{email}</strong>. It expires in five minutes.
+								Enter the six-digit code sent to
+								<strong className='text-foreground mt-1 block font-medium [overflow-wrap:anywhere]'>{email}</strong>
+								<span className='mt-1 block'>The code expires in five minutes.</span>
 							</>
 						) : setup ? (
 							"Create the first instance owner with your installation setup secret."
