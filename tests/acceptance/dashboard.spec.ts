@@ -22,6 +22,7 @@ test("U60 setup explains service errors and retry recovers", async ({ page }) =>
 });
 
 test("U61 setup and login use real SMTP codes", async ({ page, request }) => {
+	await page.clock.install();
 	const mailUrl = process.env.PAB_TEST_MAIL_URL;
 	expect(mailUrl).toBeTruthy();
 
@@ -47,12 +48,21 @@ test("U61 setup and login use real SMTP codes", async ({ page, request }) => {
 	await page.getByLabel("Setup secret").fill(process.env.PAYLOADBAY_BOOTSTRAP_SECRET!);
 	await page.getByLabel("Email address").fill("browser@example.test");
 	await page.getByRole("button", { name: "Send sign-in code", exact: true }).click();
+	await expect(page.getByRole("button", { name: /Resend in \d+s/ })).toBeDisabled();
 	await page.getByLabel("Sign-in code").fill(await code());
 	await page.getByRole("button", { name: "Create owner and continue" }).click();
 	await expect(page).toHaveURL(/\/$/);
 	const me = await page.request.get("/api/v1/me");
 	expect(me.status()).toBe(200);
 	expect((await me.json()).user.email).toBe("browser@example.test");
+	const pool = (await import("../../packages/domain/src/db.ts")).database(process.env.DATABASE_URL!);
+	try {
+		await pool.query("UPDATE payloadbay.auth_request_window SET window_started_at=clock_timestamp()-interval '31 seconds' WHERE key LIKE 'otp-cooldown:%'");
+	} finally {
+		await pool.end();
+	}
+
+	await page.clock.fastForward(31_000);
 	await page.goto("/login");
 	await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
 	await page.getByLabel("Email address").fill("browser@example.test");
@@ -2016,4 +2026,20 @@ test("UX78 saved assertion scripts can be restored and run against the current h
 	await page.getByLabel("Test name", { exact: true }).fill("New browser-created test");
 	await page.getByRole("button", { name: "Save test", exact: true }).click();
 	await expect.poll(async () => (await (await page.request.get("/api/v1/endpoints/" + route.id + "/tests")).json())[0]?.name).toBe("New browser-created test");
+});
+
+test("UX88 sign-in cooldown disables resend and survives reload until its deadline", async ({ page }) => {
+	await page.clock.install();
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/login");
+	await page.getByLabel("Email address", { exact: true }).fill("cooldown@example.test");
+	await page.getByRole("button", { name: "Send sign-in code", exact: true }).click();
+	await expect(page.getByLabel("Sign-in code", { exact: true })).toBeVisible();
+	await expect(page.getByRole("button", { name: /Resend in \d+s/ })).toBeDisabled();
+	await page.screenshot({ path: test.info().outputPath("login-resend-cooldown-mobile.png") });
+	await page.reload();
+	await page.getByLabel("Email address", { exact: true }).fill("cooldown@example.test");
+	await expect(page.getByRole("button", { name: /Send code in \d+s/ })).toBeDisabled();
+	await page.clock.fastForward(31_000);
+	await expect(page.getByRole("button", { name: "Send sign-in code", exact: true })).toBeEnabled();
 });

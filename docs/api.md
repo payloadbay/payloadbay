@@ -229,3 +229,15 @@ client key maps to the runtime's clientKey option. Custom OIDC issuers and
 provider-specific advanced options are not implicitly accepted as arbitrary
 JSON. Actual provider sign-in still requires a valid provider application and
 callback registration. SMTP remains environment-only.
+
+### Sign-in code throttling
+
+`POST /api/auth/email-otp/send-verification-otp` has a durable per-email
+30-second cooldown in addition to the configured request limit per five minutes
+(default5). Concurrent requests across web instances share the same PostgreSQL
+reservation. A blocked request returns HTTP429 with `Retry-After` in seconds and
+a generic `rate_limited` error. Known and unknown addresses follow the same
+response policy. Initial owner-code requests share the quota and cooldown.
+The login UI disables code requests/resends until the deadline, retains the
+countdown across same-tab reloads, and still allows verification of a received
+code. Browser countdowns are feedback; server enforcement is authoritative.

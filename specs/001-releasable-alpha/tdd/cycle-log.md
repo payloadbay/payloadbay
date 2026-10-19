@@ -3637,3 +3637,25 @@ Authorization joins policy and review with an explicit fail-closed shell gate:
 trusted requests require review skipped; external requests require review
 success; other combinations fail. CI08 exercises all20 environment/result
 combinations. CI policy8/8 and release policy5/5 pass.
+
+### 2026-10-19 sign-in code cooldown and explicit throttling
+
+The custom sign-in send endpoint already used a per-email five-minute quota,
+but requests could send consecutively and the button had no cooldown. Added a
+shared30-second minimum interval, reserved atomically with the existing durable
+quota in PostgreSQL. Concurrent normalized-email requests share one reservation
+across auth instances. No new schema or release migration was generated. Blocked
+HTTP requests return429/Retry-After with the same public response for admitted
+and unknown accounts. The configured five-minute quota remains authoritative.
+
+The HeroUI resend action shows a countdown, disables repeat sends, survives a
+same-tab reload using session storage and does not block code verification.
+The same owner-code request path also consumes the server quota/cooldown.
+
+Authentication integration39/39 passes, including concurrent sends, separate
+auth instances, cooldown expiry and membership-neutral HTTP responses. U61 and
+UX88 pass real SMTP setup/login and mobile countdown/reload/expiry. The mobile
+screenshot was inspected. TypeScript, scoped ESLint and Prettier pass. Native
+Better Auth routes retain database throttling and OTP verification keeps its
+five-attempt bound. This is not a claim of a new application-wide rate-limit
+audit for every business endpoint.

@@ -1,12 +1,13 @@
 "use client";
 
+import { LOGIN_CODE_COOLDOWN_SECONDS } from "@contracts/auth";
 import { oauthProviderNames, type OAuthProvider } from "@contracts/oauth";
 import { authClient } from "@lib/auth-client";
 import { useFeedbackToast } from "@lib/feedback";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
 import { Button, Card, Form, TextField, Label, Input, InputOTP, REGEXP_ONLY_DIGITS, Spinner, FieldError } from "@heroui/react";
 import { Stepper } from "@heroui-pro/react";
 import { IconMail, IconRefresh, IconFingerprint } from "@tabler/icons-react";
@@ -19,6 +20,31 @@ type AuthPanelProps = {
 	initialEmail?: string;
 	returnTo?: string;
 };
+
+const loginCooldowns = new Map<string, number>();
+
+function remainingLoginCooldown(key: string) {
+	let until = loginCooldowns.get(key) ?? 0;
+	try {
+		until = Math.max(until, Number(sessionStorage.getItem(key)) || 0);
+	} catch {
+		// Browser storage can be unavailable in a restricted browsing context.
+	}
+
+	return Math.max(0, Math.ceil((until - Date.now()) / 1000));
+}
+
+function subscribeLoginCooldown(onChange: () => void) {
+	const timer = setInterval(onChange, 1000);
+	window.addEventListener("storage", onChange);
+	window.addEventListener("payloadbay:login-code-cooldown", onChange);
+
+	return () => {
+		clearInterval(timer);
+		window.removeEventListener("storage", onChange);
+		window.removeEventListener("payloadbay:login-code-cooldown", onChange);
+	};
+}
 
 export function AuthPanel({ setup = false, preview = false, loginHint, initialEmail, returnTo = "/" }: AuthPanelProps) {
 	const router = useRouter();
@@ -34,6 +60,26 @@ export function AuthPanel({ setup = false, preview = false, loginHint, initialEm
 	const [configured, setConfigured] = useState(false);
 	const [oauthProviders, setOauthProviders] = useState<string[]>([]);
 	const [registrationEnabled, setRegistrationEnabled] = useState(false);
+
+	const cooldownKey = "payloadbay:login-code-cooldown:" + email.trim().toLowerCase();
+
+	const cooldownSeconds = useSyncExternalStore(
+		subscribeLoginCooldown,
+		() => remainingLoginCooldown(cooldownKey),
+		() => 0,
+	);
+
+	function startCooldown(seconds: number) {
+		const until = Date.now() + seconds * 1000;
+		loginCooldowns.set(cooldownKey, until);
+		try {
+			sessionStorage.setItem(cooldownKey, String(until));
+		} catch {
+			// The in-memory countdown still works; the server enforces the limit.
+		}
+
+		window.dispatchEvent(new Event("payloadbay:login-code-cooldown"));
+	}
 
 	useFeedbackToast(error, "", { error: setup ? "Setup unavailable" : "Could not sign in" });
 
@@ -104,6 +150,9 @@ export function AuthPanel({ setup = false, preview = false, loginHint, initialEm
 					email,
 					name,
 				},
+			}).catch((cause) => {
+				if (cause instanceof ApiFailure && cause.status === 429) startCooldown(LOGIN_CODE_COOLDOWN_SECONDS);
+				throw cause;
 			});
 		else {
 			const response = await fetch("/api/auth/email-otp/send-verification-otp", {
@@ -112,9 +161,16 @@ export function AuthPanel({ setup = false, preview = false, loginHint, initialEm
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({ email, type: "sign-in" }),
 			});
+			if (response.status === 429) {
+				const seconds = Number(response.headers.get("Retry-After"));
+				startCooldown(Number.isFinite(seconds) && seconds > 0 ? seconds : LOGIN_CODE_COOLDOWN_SECONDS);
+				throw Error("Please wait before requesting another sign-in code.");
+			}
+
 			if (!response.ok) throw Error("Could not request a code. Please retry.");
 		}
 
+		startCooldown(LOGIN_CODE_COOLDOWN_SECONDS);
 		setSent(true);
 		setOtp("");
 	}
@@ -269,8 +325,8 @@ export function AuthPanel({ setup = false, preview = false, loginHint, initialEm
 								</div>
 							)}
 
-							<Button type='submit' fullWidth className='w-full justify-center' isDisabled={busy || (sent && otp.length !== 6)} isPending={busy}>
-								{busy ? "Please wait…" : sent ? (setup ? "Create owner and continue" : "Sign in") : "Send sign-in code"}
+							<Button type='submit' fullWidth className='w-full justify-center' isDisabled={busy || (sent ? otp.length !== 6 : cooldownSeconds > 0)} isPending={busy}>
+								{busy ? "Please wait…" : sent ? (setup ? "Create owner and continue" : "Sign in") : cooldownSeconds > 0 ? `Send code in ${cooldownSeconds}s` : "Send sign-in code"}
 								{busy ? <Spinner size='sm' color='current' /> : !sent && <IconMail aria-hidden='true' size={18} />}
 							</Button>
 							{!setup && !sent && (
@@ -319,7 +375,7 @@ export function AuthPanel({ setup = false, preview = false, loginHint, initialEm
 									<Button
 										size='sm'
 										variant='ghost'
-										isDisabled={busy}
+										isDisabled={busy || cooldownSeconds > 0}
 										onPress={async () => {
 											setBusy(true);
 											setError("");
@@ -332,7 +388,7 @@ export function AuthPanel({ setup = false, preview = false, loginHint, initialEm
 											}
 										}}
 									>
-										Resend code
+										{cooldownSeconds > 0 ? `Resend in ${cooldownSeconds}s` : "Resend code"}
 									</Button>
 								</div>
 							)}

@@ -7,7 +7,7 @@ import { Pool } from "pg";
 import { createHmac, randomUUID } from "node:crypto";
 import { authSchemaOptions } from "./auth-schema.ts";
 import { queueMail } from "./mail-queue.ts";
-import { requestLoginCode } from "./auth.ts";
+import { requestLoginCode, LoginCodeRateLimitError } from "./auth.ts";
 import type { ServerConfig } from "./config.ts";
 
 export function createAuth(pool: Pool, config: ServerConfig, sharedIdentityPool?: Pool) {
@@ -126,29 +126,34 @@ export function createAuth(pool: Pool, config: ServerConfig, sharedIdentityPool?
 				const body = await request.json().catch(() => null);
 				if (!body || typeof body.email !== "string" || body.email.length > 254 || body.type !== "sign-in") return Response.json({ error: { code: "invalid_input", message: "Check the submitted values" } }, { status: 400 });
 
-				return Response.json(
-					await requestLoginCode(
-						pool,
-						auth,
-						body.email,
-						config.otpRequestLimit,
-						config.registrationPolicy === "organization"
-							? async (email) => {
-									let user = (await pool.query('SELECT id FROM auth."user" WHERE lower(email)=$1', [email])).rows[0];
-									if (!user) {
-										try {
-											user = (await auth.api.createUser({ body: { email, name: email.split("@")[0] } })).user;
-										} catch (error) {
-											user = (await pool.query('SELECT id FROM auth."user" WHERE lower(email)=$1', [email])).rows[0];
-											if (!user) throw error;
+				try {
+					return Response.json(
+						await requestLoginCode(
+							pool,
+							auth,
+							body.email,
+							config.otpRequestLimit,
+							config.registrationPolicy === "organization"
+								? async (email) => {
+										let user = (await pool.query('SELECT id FROM auth."user" WHERE lower(email)=$1', [email])).rows[0];
+										if (!user) {
+											try {
+												user = (await auth.api.createUser({ body: { email, name: email.split("@")[0] } })).user;
+											} catch (error) {
+												user = (await pool.query('SELECT id FROM auth."user" WHERE lower(email)=$1', [email])).rows[0];
+												if (!user) throw error;
+											}
 										}
-									}
 
-									return !(await pool.query("SELECT 1 FROM payloadbay.admission WHERE user_id=$1", [user.id])).rowCount;
-								}
-							: undefined,
-					),
-				);
+										return !(await pool.query("SELECT 1 FROM payloadbay.admission WHERE user_id=$1", [user.id])).rowCount;
+									}
+								: undefined,
+						),
+					);
+				} catch (error) {
+					if (error instanceof LoginCodeRateLimitError) return Response.json({ error: { code: error.code, message: error.publicMessage } }, { status: 429, headers: { "Retry-After": String(error.retryAfterSeconds) } });
+					throw error;
+				}
 			}
 
 			return auth.handler(request);

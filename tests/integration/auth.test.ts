@@ -37,7 +37,7 @@ test("U213 auth migration supports provisioning and durable rate policy", async 
 	});
 });
 
-import { requestLoginCode } from "../../packages/domain/src/auth.ts";
+import { requestLoginCode, LoginCodeRateLimitError } from "../../packages/domain/src/auth.ts";
 
 test("U43 code request responses do not disclose membership", async () => {
 	await authFixture(async (f) => {
@@ -88,9 +88,12 @@ test("U215 per email request quota is durable", async () => {
 			},
 		};
 		await requestLoginCode(f.pool, auth, "operator@example.test", 1);
-		await requestLoginCode(f.pool, auth, "operator@example.test", 1);
+		await assert.rejects(requestLoginCode(f.pool, auth, "operator@example.test", 1), (error: unknown) => error instanceof LoginCodeRateLimitError && error.status === 429 && error.retryAfterSeconds > 30 && error.retryAfterSeconds <= 300);
 		assert.equal(sends, 1);
-		assert.equal((await f.db.query("SELECT count FROM payloadbay.auth_request_window")).rows[0].count, 2);
+		assert.equal((await f.db.query("SELECT count FROM payloadbay.auth_request_window WHERE key NOT LIKE 'otp-cooldown:%'")).rows[0].count, 2);
+		await f.db.query("UPDATE payloadbay.auth_request_window SET window_started_at=clock_timestamp()-interval '301 seconds'");
+		await requestLoginCode(f.pool, auth, "operator@example.test", 1);
+		assert.equal(sends, 2);
 	});
 });
 
@@ -796,6 +799,54 @@ test("UX81 configured catalog covers Better Auth built-ins and initializes their
 			}
 		} finally {
 			await auth.close();
+		}
+	});
+});
+
+test("UX86 concurrent resend requests share a durable cooldown and resume after expiry", async () => {
+	await authFixture(async (f) => {
+		await identity(f.db, "operator");
+		await bootstrapOwner(f.pool, { userId: "operator", providedSecret: setupSecret, expectedSecret: setupSecret });
+		let sends = 0;
+		const auth = {
+			api: {
+				sendVerificationOTP: async () => {
+					sends++;
+				},
+			},
+		};
+		const results = await Promise.allSettled(Array.from({ length: 8 }, () => requestLoginCode(f.pool, auth, " OPERATOR@example.test ", 20)));
+		assert.equal(results.filter((item) => item.status === "fulfilled").length, 1);
+		assert.equal(sends, 1);
+		for (const item of results) if (item.status === "rejected") assert.equal(item.reason.status, 429);
+		await f.db.query("UPDATE payloadbay.auth_request_window SET window_started_at=clock_timestamp()-interval '31 seconds' WHERE key LIKE 'otp-cooldown:%'");
+		await requestLoginCode(f.pool, auth, "operator@example.test", 20);
+		assert.equal(sends, 2);
+	});
+});
+
+test("UX87 HTTP resend throttling persists across auth instances and does not disclose membership", async () => {
+	const { createAuth } = await import("../../packages/domain/src/auth-runtime.ts");
+	await authFixture(async (f) => {
+		await identity(f.db, "operator");
+		await bootstrapOwner(f.pool, { userId: "operator", providedSecret: setupSecret, expectedSecret: setupSecret });
+		const config = fixtureConfig(f);
+		const first = createAuth(f.pool, config);
+		const second = createAuth(f.pool, config);
+
+		const request = (email: string) => new Request(config.publicUrl + "/api/auth/email-otp/send-verification-otp", { method: "POST", headers: { origin: config.publicUrl, "content-type": "application/json" }, body: JSON.stringify({ email, type: "sign-in" }) });
+
+		try {
+			for (const email of ["operator@example.test", "unknown@example.test"]) {
+				assert.equal((await first.handler(request(email))).status, 200);
+				const blocked = await second.handler(request(email));
+				assert.equal(blocked.status, 429);
+				assert.equal(blocked.headers.get("Retry-After"), "30");
+				assert.deepEqual(await blocked.json(), { error: { code: "rate_limited", message: "Wait before requesting another sign-in code" } });
+			}
+		} finally {
+			await first.close();
+			await second.close();
 		}
 	});
 });
