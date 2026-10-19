@@ -325,9 +325,14 @@ test("U116 event inspector displays HTML payload as escaped text", async ({ page
 	await page.getByRole("tab", { name: "Processing", exact: true }).click();
 	await expect(page.getByText("Handler completed", { exact: true }).last()).toBeVisible();
 	await page.getByRole("tab", { name: "Outgoing", exact: true }).click();
+	await expect(page.getByLabel("Selected delivery attempt")).toContainText("HTTP 204");
+	await expect(page.getByRole("button", { name: /Delivery attempt/ })).toContainText("HTTP 204");
 	await page.getByRole("button", { name: /Delivery attempt/ }).click();
 	await page.getByRole("option", { name: /HTTP 503/ }).click();
 	await expect(page.getByLabel("Delivery response body")).toHaveText("Receiver is offline");
+	await page.getByRole("tab", { name: "Ingress", exact: true }).click();
+	await page.getByRole("tab", { name: "Outgoing", exact: true }).click();
+	await expect(page.getByLabel("Selected delivery attempt")).toContainText("HTTP 503");
 	await page.getByRole("button", { name: /Delivery attempt/ }).click();
 	await page.getByRole("option", { name: /HTTP 204/ }).click();
 	await expect(page.getByLabel("Selected delivery attempt")).toContainText("HTTP 204");
@@ -1447,8 +1452,7 @@ test("U157b open attempt inspector refreshes when delivery completes", async ({ 
 		await page.getByRole("button", { name: "Inspect event " + event.id.slice(0, 8), exact: true }).click();
 		const dialog = page.getByRole("dialog", { name: "Event inspection", exact: true });
 		await dialog.getByRole("tab", { name: "Outgoing", exact: true }).click();
-		await dialog.getByRole("button", { name: /Delivery attempt/ }).click();
-		await page.getByRole("option", { name: /Pending/ }).click();
+		await expect(dialog.getByRole("button", { name: /Delivery attempt/ })).toContainText("Pending");
 		await expect(dialog.getByRole("heading", { name: "Destination response", exact: true })).toBeVisible();
 		await transaction(pool, async (db) => {
 			await db.query("UPDATE payloadbay.delivery_attempt SET ended_at=clock_timestamp(),status_code=503,response_body=$2 WHERE id=$1", [attempt.id, Buffer.from("Try again later")]);

@@ -221,6 +221,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 				const body = canRead ? await api<Payload>("/events/" + selected + "/payload") : null;
 				if (active) {
 					setDetail(next);
+					setSelectedAttempt((previous) => (next.attempts.some((item) => item.id === previous) ? previous : (next.attempts[0]?.id ?? null)));
 					setPayload(body);
 					setReplayVersion((previous) => previous || next.publicationId);
 				}

@@ -3610,3 +3610,15 @@ three links at390px/1440px, actual members/code navigation and keyboard-focus
 tooltip checks. The test passes; both screenshots were visually inspected.
 TypeScript, scoped ESLint and Prettier pass. This was reproduction-first, not a
 claimed failing automated Red cycle. No threshold or timeout was weakened.
+
+### 2026-10-19 default delivery-attempt selection
+
+Event inspection now selects the newest attempt from the API's descending
+started_at/id order when no valid choice exists. An explicitly selected older
+attempt survives refreshes and tab changes; opening another event clears the
+previous selection as before. Empty histories remain empty.
+
+U116 passes automatic latest-response selection, switching to an older503
+response and preserving it across tabs. U157b passes automatic pending-attempt
+selection followed by live response completion without manual selection. Both
+scoped browser tests pass; TypeScript, scoped ESLint and Prettier pass.
