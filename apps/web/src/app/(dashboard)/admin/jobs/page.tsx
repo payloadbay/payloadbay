@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Button, Card, Chip, Table } from "@heroui/react";
-import { LineChart } from "@heroui-pro/react/line-chart";
+import { LineChart } from "@components/ui/charts";
 import { IconRefresh } from "@tabler/icons-react";
 import { useDashboard } from "@components/dashboard-shell";
 import { LoadingState } from "@components/loading-state";
@@ -102,13 +102,13 @@ export default function JobsPage() {
 							<Card.Description>Completed HTTP attempts over the last 24 hours, including retries.</Card.Description>
 						</Card.Header>
 						<Card.Content className='min-w-0'>
-							<LineChart data={data.series.map((point) => ({ ...point, hour: point.hour.slice(11, 16) }))} height={220} role='img' aria-label='Aggregate delivery outcomes over 24 hours' className='min-w-0'>
+							<LineChart data={data.series.map((point) => ({ ...point, hour: point.hour.slice(11, 16) }))} height={220} label='Aggregate delivery outcomes over 24 hours' className='min-w-0'>
 								<LineChart.Grid vertical={false} />
 								<LineChart.XAxis dataKey='hour' minTickGap={32} interval='preserveStartEnd' />
 								<LineChart.YAxis allowDecimals={false} width={32} />
 								<LineChart.Line dataKey='succeeded' name='Successful' stroke='var(--color-success)' dot={false} isAnimationActive={false} />
 								<LineChart.Line dataKey='failed' name='Failed' stroke='var(--color-danger)' dot={false} isAnimationActive={false} />
-								<LineChart.Tooltip content={<LineChart.TooltipContent valueFormatter={(value) => Number(value).toLocaleString()} />} />
+								<LineChart.Tooltip />
 							</LineChart>
 						</Card.Content>
 					</Card>

@@ -2,7 +2,7 @@
 
 import type { TrafficSnapshot } from "@types";
 import { Card } from "@heroui/react";
-import { LineChart } from "@heroui-pro/react/line-chart";
+import { LineChart } from "@components/ui/charts";
 
 const metrics = [
 	{ key: "ingress", label: "Ingress", color: "var(--accent)" },
@@ -27,14 +27,14 @@ export function TrafficChart({ overview }: { overview: TrafficSnapshot }) {
 						</span>
 					))}
 				</div>
-				<LineChart data={overview.series.map((point) => ({ ...point, hour: point.hour.slice(11, 16) }))} height={220} role='img' aria-label={`24-hour traffic: ${overview.totals.ingress} incoming requests, ${overview.totals.accepted} accepted, ${overview.totals.rejected} rejected, ${overview.totals.deliveries} outgoing attempts`} className='min-w-0 [&_.recharts-cartesian-axis-tick-value]:text-xs'>
+				<LineChart data={overview.series.map((point) => ({ ...point, hour: point.hour.slice(11, 16) }))} height={220} label={`24-hour traffic: ${overview.totals.ingress} incoming requests, ${overview.totals.accepted} accepted, ${overview.totals.rejected} rejected, ${overview.totals.deliveries} outgoing attempts`} className='min-w-0 [&_.recharts-cartesian-axis-tick-value]:text-xs'>
 					<LineChart.Grid vertical={false} />
 					<LineChart.XAxis dataKey='hour' tickMargin={8} minTickGap={32} interval='preserveStartEnd' />
 					<LineChart.YAxis allowDecimals={false} width={32} tickCount={4} tickFormatter={(value: number) => new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(value)} />
 					{metrics.map((metric) => (
 						<LineChart.Line key={metric.key} dataKey={metric.key} name={metric.label} stroke={metric.color} strokeWidth={2} dot={false} type='linear' isAnimationActive={false} />
 					))}
-					<LineChart.Tooltip content={<LineChart.TooltipContent valueFormatter={(value) => Number(value).toLocaleString()} />} />
+					<LineChart.Tooltip />
 				</LineChart>
 			</Card.Content>
 		</Card>

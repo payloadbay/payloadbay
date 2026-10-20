@@ -57,9 +57,5 @@
 		"v8-to-istanbul": "9.3.0",
 		"workerd": "1.20261013.1"
 	},
-	"trustedDependencies": [
-		"heroui-pro",
-		"@heroui-pro/react"
-	],
 	"type": "module"
 }

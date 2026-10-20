@@ -77,7 +77,7 @@ keyboard/browser-toolbar behavior are not certified by these source tests.
 ## Implemented and verified foundation
 
 The app uses Next.js/React/Node, PostgreSQL/Drizzle, Graphile Worker, Better Auth,
-HeroUI Pro and a separate workerd executor. Bun owns package management and unit
+public HeroUI with project-owned UI components and a separate workerd executor. Bun owns package management and unit
 feedback. Standard restricted Docker/runc is the default; optional runsc needs
 operator host setup. No Docker socket is mounted into the app.
 

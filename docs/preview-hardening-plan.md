@@ -1,5 +1,9 @@
 # Public PR preview hardening plan
 
+Current status: the UI dependency-image proposal below is historical. Pro has been
+removed; source builds use public dependencies without a UI installer secret.
+External-source approval and runtime-isolation requirements still apply.
+
 Confirmed direction, 2026-10-14. This is an implementation plan, not evidence
 that the current preview is hardened or that its remote deployment is healthy.
 

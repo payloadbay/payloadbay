@@ -1,15 +1,24 @@
-# HeroUI replacement review
+# Payload Bay component gallery
 
-A local, synthetic-data comparison. It does not change the product or remove Pro.
+Run `bun apps/web/design-review/serve.mjs` from the repository root and open
+http://localhost:4173. Public dependencies are sufficient. Built output stays in
+`/tmp`; no commercial UI credential is needed.
 
-Run from the repository root: `bun apps/web/design-review/serve.mjs`
-Open http://localhost:4173. Requires the existing installed dependencies (including
-licensed Pro for the reference column). Built output stays in `/tmp`.
+The gallery exercises the independent reusable components used by Payload Bay.
+A local licensed comparison snapshot can optionally be supplied with
+`REVIEW_REFERENCE_DIR=/absolute/path/to/local-snapshot`. Snapshots are not
+committed, downloaded or distributed. Without one, the reference column explains
+that no licensed snapshot is available; the independent gallery still runs.
 
-The reference imports the licensed package normally. The replacement uses public HeroUI and open-source engines listed below;
-no Pro source or styles are copied. Separate
-iframe documents and dependency builds prevent Pro CSS from influencing the
-replacement. This is a visual/interaction prototype, not vendor legal approval.
+The existing review server keeps the operator's previously built reference in a
+local temporary directory. That snapshot is frozen; source changes rebuild only
+the independent implementation. Paired comparison scripts need such a snapshot;
+independent callback, styling and interaction checks do not.
+
+## Historical comparison iterations
+
+The notes below describe the pre-removal comparison work. Current app integration
+uses the shared components and has no Pro dependency.
 
 Revision 4 includes comparison controls for motion, accent, navigation surface
 and side. Use **Open full layout** in either column to compare navigation outside

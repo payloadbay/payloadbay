@@ -24,7 +24,7 @@ Before release:
 - Produce the master-CI-owned release SQL after approved merge; never generate an
   ordinary release migration locally or replace it with development push.
 - Publish coordinated app, worker, executor and migrator image digests without
-  installer credentials or raw licensed sources in final artifacts.
+  credentials or proprietary UI sources in final artifacts.
 - Prove clean installation, one-time bootstrap and first delivery using those
   published digests and restricted runtime database logins.
 - Prove pending-job/code-revision upgrade and complete backup/restore against the
@@ -37,7 +37,6 @@ runsc remains a separate operator-host validation; no hostile-tenant sandbox or
 physical Android keyboard certification is claimed. Hosted billing/licensing and
 commercial plan integration remain separate future work.
 
-
 ## Coordinated candidate images
 
 The manual **Build Release Candidate** workflow is prepared for use after the
@@ -48,7 +47,7 @@ complete successful master CI run. The branch preview remains
 separate; no candidate workflow has been executed yet.
 
 The workflow builds app, worker, executor and migrator together on Linux amd64.
-The licensed UI credential is available only as the app build's BuildKit secret.
+All UI dependencies are public; no UI installer credential is used.
 All four final images must use the non-root node identity. The packaged real
 release SQL must install and repeat successfully on disposable PostgreSQL17
 before any images are pushed. This cannot run against the current unmerged

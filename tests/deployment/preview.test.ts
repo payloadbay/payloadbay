@@ -54,7 +54,7 @@ test("U318 PR preview builds branch services and initializes its own database", 
 
 	assert.equal(config.services.executor.runtime, "runc");
 	assert.equal(config.services.executor.read_only, true);
-	assert.equal(config.secrets.heroui_auth_token.environment, "HEROUI_AUTH_TOKEN");
+	assert.equal(config.secrets?.heroui_auth_token, undefined);
 	for (const service of Object.values(config.services) as Record<string, unknown>[]) {
 		assert.equal(service.container_name, undefined, "Compose projects must isolate PR container names");
 		assert.equal(service.ports, undefined, "Coolify routes the app without publishing internal services");

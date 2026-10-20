@@ -4,7 +4,7 @@ import { LoadingState } from "@components/loading-state";
 import { useFeedbackToast } from "@lib/feedback";
 import { useEffect, useState, useCallback, type FormEvent } from "react";
 import { Button, Form, Checkbox, Table, TextField, Label, Input, FieldError, Modal, Select, ListBox } from "@heroui/react";
-import { EmptyState } from "@heroui-pro/react";
+import { ResourceEmptyState } from "@components/ui/resource-empty-state";
 import { IconUsers, IconPencil, IconUserPlus, IconX } from "@tabler/icons-react";
 import { useDashboard } from "@components/dashboard-shell";
 import { api } from "@lib/api-client";
@@ -209,15 +209,17 @@ export function MemberManager({ scope: chosen, held: chosenHeld }: { scope?: Sco
 			{loading ? (
 				<LoadingState label='Loading members…' />
 			) : error && members.length === 0 ? (
-				<EmptyState>
-					<EmptyState.Header>
-						<EmptyState.Title>Members unavailable</EmptyState.Title>
-						<EmptyState.Description>Membership information could not be loaded.</EmptyState.Description>
-					</EmptyState.Header>
-					<Button variant='secondary' onPress={() => void retry()}>
-						Retry loading members
-					</Button>
-				</EmptyState>
+				<ResourceEmptyState
+					title={<>Members unavailable</>}
+					description={<>Membership information could not be loaded.</>}
+					action={
+						<>
+							<Button variant='secondary' onPress={() => void retry()}>
+								Retry loading members
+							</Button>
+						</>
+					}
+				/>
 			) : members.length ? (
 				<Table>
 					<Table.ScrollContainer>
@@ -251,15 +253,15 @@ export function MemberManager({ scope: chosen, held: chosenHeld }: { scope?: Sco
 					</Table.ScrollContainer>
 				</Table>
 			) : (
-				<EmptyState>
-					<EmptyState.Header>
-						<EmptyState.Media variant='icon'>
+				<ResourceEmptyState
+					title={<>No local members</>}
+					description={<>Users may still have inherited access from a parent scope.</>}
+					icon={
+						<>
 							<IconUsers aria-hidden='true' />
-						</EmptyState.Media>
-						<EmptyState.Title>No local members</EmptyState.Title>
-						<EmptyState.Description>Users may still have inherited access from a parent scope.</EmptyState.Description>
-					</EmptyState.Header>
-				</EmptyState>
+						</>
+					}
+				/>
 			)}
 			{invitations.length > 0 && (
 				<section className='flex flex-col gap-3'>

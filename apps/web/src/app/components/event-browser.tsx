@@ -4,7 +4,7 @@ import { useLiveSubscription } from "@components/live-subscription";
 import { LoadingState } from "@components/loading-state";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button, Table, Label, Chip, Select, ListBox, Checkbox, Tabs, Modal, Dropdown } from "@heroui/react";
-import { EmptyState } from "@heroui-pro/react";
+import { ResourceEmptyState } from "@components/ui/resource-empty-state";
 import { IconInbox, IconEye, IconRefresh, IconPlayerPlay } from "@tabler/icons-react";
 import { useFeedbackToast } from "@lib/feedback";
 import { useDashboard } from "@components/dashboard-shell";
@@ -341,15 +341,17 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 	if (loading) return <LoadingState label='Loading events…' size={embedded ? "panel" : "page"} />;
 	if (error && !page.items.length)
 		return (
-			<EmptyState>
-				<EmptyState.Header>
-					<EmptyState.Title>Events unavailable</EmptyState.Title>
-					<EmptyState.Description>Your events could not be loaded. Retry to reconnect.</EmptyState.Description>
-				</EmptyState.Header>
-				<Button variant='secondary' onPress={() => void load()}>
-					Retry loading events
-				</Button>
-			</EmptyState>
+			<ResourceEmptyState
+				title={<>Events unavailable</>}
+				description={<>Your events could not be loaded. Retry to reconnect.</>}
+				action={
+					<>
+						<Button variant='secondary' onPress={() => void load()}>
+							Retry loading events
+						</Button>
+					</>
+				}
+			/>
 		);
 	const visible = page.items.filter(replayable);
 	const canReplay = projects.some((project) => project.permissions.includes("events.replay"));
@@ -624,15 +626,15 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 					</Table.ScrollContainer>
 				</Table>
 			) : (
-				<EmptyState>
-					<EmptyState.Header>
-						<EmptyState.Media variant='icon'>
+				<ResourceEmptyState
+					title={<>{states.length || versionFilter ? "No matching entries" : "No events yet"}</>}
+					description={<>Change the filters or send a webhook to a published ingress route.</>}
+					icon={
+						<>
 							<IconInbox />
-						</EmptyState.Media>
-						<EmptyState.Title>{states.length || versionFilter ? "No matching entries" : "No events yet"}</EmptyState.Title>
-						<EmptyState.Description>Change the filters or send a webhook to a published ingress route.</EmptyState.Description>
-					</EmptyState.Header>
-				</EmptyState>
+						</>
+					}
+				/>
 			)}
 			{page.nextCursor && (
 				<Button variant='secondary' onPress={() => void load(page.nextCursor!)}>

@@ -9,8 +9,9 @@ components. Do not import Pro implementations into this directory.
 ## Available local components
 
 These are independent public-HeroUI/React-Aria/Recharts compositions. They are
-consumed by the design review, not yet wired into production screens. Their status
-is **local implementation, integration pending**, not a claim of drop-in Pro parity.
+used by the app for layout, navigation, search, setup, empty states and charts,
+and by the review gallery for the remaining reusable patterns. This is not a claim
+of complete upstream API equivalence.
 
 | Component           | Import                                 | Contract                                                                                                                                          |
 | ------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -2,7 +2,6 @@
 
 @import "tailwindcss";
 @import "@heroui/styles";
-@import "@heroui-pro/react/css";
 @import "./brand-theme.css";
 
 @theme inline {
@@ -16,19 +15,41 @@ body {
 	font-family: var(--font-sans);
 }
 
-/* Vaul's keyboard inline height must not outlive the visual viewport resize. */
-.sidebar__mobile-sheet {
-	top: var(--dashboard-viewport-top, 0px) !important;
-	bottom: auto !important;
-	height: var(--dashboard-viewport-height, 100dvh) !important;
-	max-height: var(--dashboard-viewport-height, 100dvh) !important;
+/* Keep the header sticky while preserving page scrolling and mobile pull-to-refresh. */
+.pb-layout.dashboard-app-layout {
+	height: auto;
+	min-height: 100dvh;
+	overflow: visible;
+	grid-template-rows: auto minmax(0, 1fr);
+}
+.dashboard-app-layout > .pb-layout-header {
+	position: sticky;
+	top: 0;
+	z-index: 40;
+	height: auto;
+	padding: 0;
+	border: 0;
+}
+.dashboard-app-layout > .pb-layout-header > div {
+	width: 100%;
+}
+.dashboard-app-layout .pb-layout-page {
+	padding: 0;
+	overflow: visible;
+}
+.dashboard-app-layout > .pb-desktop-sidebar {
+	position: sticky;
+	top: 0;
+	height: 100dvh;
+	align-self: start;
+}
+.pb-navigation-sheet {
+	top: var(--dashboard-viewport-top, 0px);
+	bottom: auto;
+	height: var(--dashboard-viewport-height, 100dvh);
+	max-height: var(--dashboard-viewport-height, 100dvh);
 }
 
-.sidebar__mobile-dialog {
-	min-height: 0;
-}
-
-[data-slot="sidebar-menu-label-text"] {
-	white-space: normal;
-	overflow-wrap: anywhere;
+.pb-navigation-body .dashboard-navigation-header {
+	padding-top: 3.5rem;
 }

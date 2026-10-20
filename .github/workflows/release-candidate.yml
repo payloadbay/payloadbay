@@ -83,11 +83,9 @@ jobs:
           persist-credentials: false
       - name: Build all four non-root images before publishing any
         env:
-          HEROUI_AUTH_TOKEN: ${{ secrets.HEROUI_AUTH_TOKEN }}
           SOURCE_SHA: ${{ needs.policy.outputs.ref }}
         run: |
           set -euo pipefail
-          test -n "$HEROUI_AUTH_TOKEN"
           mkdir -p candidate
           docker buildx create --name payloadbay-candidate --driver docker-container --use
           trap 'docker buildx rm payloadbay-candidate >/dev/null 2>&1 || true' EXIT
@@ -95,10 +93,8 @@ jobs:
           for service in app worker executor migrator; do
             target="$service"
             if [[ "$service" == 'executor' ]]; then target=runner; fi
-            options=()
-            if [[ "$service" == 'app' ]]; then options+=(--secret id=heroui_auth_token,env=HEROUI_AUTH_TOKEN); fi
             image="ghcr.io/$GITHUB_REPOSITORY-$service:$tag"
-            docker buildx build --load --platform linux/amd64 --target "$target" --file "deploy/Dockerfile.$service" --label "org.opencontainers.image.revision=$SOURCE_SHA" --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" --tag "$image" "${options[@]}" .
+            docker buildx build --load --platform linux/amd64 --target "$target" --file "deploy/Dockerfile.$service" --label "org.opencontainers.image.revision=$SOURCE_SHA" --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" --tag "$image" .
             user=$(docker image inspect --format '{{.Config.User}}' "$image")
             if [[ "$user" != 'node' ]]; then echo 'Candidate runtime must use the non-root node identity.' >&2; exit 1; fi
           done

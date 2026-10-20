@@ -4,7 +4,7 @@ import { LoadingState } from "@components/loading-state";
 import { useFeedbackToast } from "@lib/feedback";
 import { use, useState, useEffect, useCallback, type FormEvent } from "react";
 import { Button, Table, Form, TextField, Label, Input, FieldError, Modal, Tooltip, Chip } from "@heroui/react";
-import { EmptyState } from "@heroui-pro/react";
+import { ResourceEmptyState } from "@components/ui/resource-empty-state";
 import { IconRoute, IconPlus, IconPlugConnected, IconPencil, IconChevronRight, IconTrash } from "@tabler/icons-react";
 import { api } from "@lib/api-client";
 import type { getDestination } from "@domain/destinations";
@@ -316,15 +316,16 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 						</Table.ScrollContainer>
 					</Table>
 				) : (
-					<EmptyState className='border-border rounded-xl border border-dashed py-8'>
-						<EmptyState.Header>
-							<EmptyState.Media variant='icon'>
+					<ResourceEmptyState
+						className='border-border rounded-xl border border-dashed py-8'
+						title={<>No destinations yet</>}
+						description={<>Add the application that should receive your events.</>}
+						icon={
+							<>
 								<IconPlugConnected />
-							</EmptyState.Media>
-							<EmptyState.Title>No destinations yet</EmptyState.Title>
-							<EmptyState.Description>Add the application that should receive your events.</EmptyState.Description>
-						</EmptyState.Header>
-					</EmptyState>
+							</>
+						}
+					/>
 				)}
 			</section>
 			<section className='flex flex-col gap-4' aria-labelledby='ingress-heading'>
@@ -398,15 +399,16 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 						</Table.ScrollContainer>
 					</Table>
 				) : (
-					<EmptyState className='border-border rounded-xl border border-dashed py-8'>
-						<EmptyState.Header>
-							<EmptyState.Media variant='icon'>
+					<ResourceEmptyState
+						className='border-border rounded-xl border border-dashed py-8'
+						title={<>No ingress routes yet</>}
+						description={<>Create a route for your webhook provider, then configure and publish its scripts.</>}
+						icon={
+							<>
 								<IconRoute />
-							</EmptyState.Media>
-							<EmptyState.Title>No ingress routes yet</EmptyState.Title>
-							<EmptyState.Description>Create a route for your webhook provider, then configure and publish its scripts.</EmptyState.Description>
-						</EmptyState.Header>
-					</EmptyState>
+							</>
+						}
+					/>
 				)}
 			</section>
 			<Modal

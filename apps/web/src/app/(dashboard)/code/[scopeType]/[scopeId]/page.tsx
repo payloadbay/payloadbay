@@ -6,7 +6,7 @@ import { use, useEffect, useCallback, useState, useRef, type PointerEvent, type 
 import Link from "next/link";
 import { useDragAndDrop } from "react-aria-components";
 import { Button, Form, TextField, Label, Input, FieldError, Tabs, NumberField, Checkbox, Table, Modal, Select, ListBox } from "@heroui/react";
-import { EmptyState } from "@heroui-pro/react";
+import { ResourceEmptyState } from "@components/ui/resource-empty-state";
 import { IconCode, IconPlus, IconCopy, IconLock, IconArrowLeft, IconCheck, IconGripVertical, IconArrowUp, IconArrowDown, IconPencil, IconInfoCircle } from "@tabler/icons-react";
 import { formatScript, formatScriptForDisplay, scriptDocument } from "@lib/script-document";
 import { useUnsavedChanges } from "@components/unsaved-changes";
@@ -510,15 +510,16 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 						</Table.ScrollContainer>
 					</Table>
 				) : (
-					<EmptyState className='border-border rounded-xl border border-dashed py-12'>
-						<EmptyState.Header>
-							<EmptyState.Media variant='icon'>
+					<ResourceEmptyState
+						className='border-border rounded-xl border border-dashed py-12'
+						title={<>No shared helpers yet</>}
+						description={<>Create reusable exports, then bind their versions to ingress or processing scripts.</>}
+						icon={
+							<>
 								<IconCode />
-							</EmptyState.Media>
-							<EmptyState.Title>No shared helpers yet</EmptyState.Title>
-							<EmptyState.Description>Create reusable exports, then bind their versions to ingress or processing scripts.</EmptyState.Description>
-						</EmptyState.Header>
-					</EmptyState>
+							</>
+						}
+					/>
 				)
 			) : (
 				<div className='flex flex-col gap-3'>
@@ -631,12 +632,7 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 							</div>
 						</Table>
 					) : (
-						<EmptyState className='border-border rounded-xl border border-dashed py-12'>
-							<EmptyState.Header>
-								<EmptyState.Title>No middleware yet</EmptyState.Title>
-								<EmptyState.Description>Add lifecycle code at this scope. Routes pin the effective chain when published.</EmptyState.Description>
-							</EmptyState.Header>
-						</EmptyState>
+						<ResourceEmptyState className='border-border rounded-xl border border-dashed py-12' title={<>No middleware yet</>} description={<>Add lifecycle code at this scope. Routes pin the effective chain when published.</>} />
 					)}
 				</div>
 			)}

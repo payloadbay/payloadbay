@@ -3,7 +3,7 @@
 import { useFeedbackToast } from "@lib/feedback";
 import { useState, type FormEvent } from "react";
 import { Button, Form, TextField, Label, Input, FieldError, Table, Modal, Select, ListBox } from "@heroui/react";
-import { EmptyState } from "@heroui-pro/react";
+import { ResourceEmptyState } from "@components/ui/resource-empty-state";
 import { IconFolderPlus, IconChevronRight } from "@tabler/icons-react";
 import { useDashboard } from "@components/dashboard-shell";
 import { api } from "@lib/api-client";
@@ -222,15 +222,16 @@ export default function DashboardPage() {
 					</Table.ScrollContainer>
 				</Table>
 			) : (
-				<EmptyState className='border-border rounded-xl border border-dashed py-12'>
-					<EmptyState.Header>
-						<EmptyState.Media variant='icon'>
+				<ResourceEmptyState
+					className='border-border rounded-xl border border-dashed py-12'
+					title={<>No projects here yet</>}
+					description={<>{owned.length ? "Create a project to configure your first ingress route." : "Ask your administrator to give you access to a project."}</>}
+					icon={
+						<>
 							<IconFolderPlus aria-hidden='true' />
-						</EmptyState.Media>
-						<EmptyState.Title>No projects here yet</EmptyState.Title>
-						<EmptyState.Description>{owned.length ? "Create a project to configure your first ingress route." : "Ask your administrator to give you access to a project."}</EmptyState.Description>
-					</EmptyState.Header>
-				</EmptyState>
+						</>
+					}
+				/>
 			)}
 		</section>
 	);

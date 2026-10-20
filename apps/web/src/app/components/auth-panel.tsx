@@ -9,7 +9,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
 import { Button, Card, Form, TextField, Label, Input, InputOTP, REGEXP_ONLY_DIGITS, Spinner, FieldError } from "@heroui/react";
-import { Stepper } from "@heroui-pro/react";
+import { SetupSteps } from "@components/ui/setup-steps";
 import { IconMail, IconRefresh, IconFingerprint } from "@tabler/icons-react";
 import { api, ApiFailure } from "@lib/api-client";
 
@@ -245,19 +245,7 @@ export function AuthPanel({ setup = false, preview = false, loginHint, initialEm
 					</Card.Description>
 				</Card.Header>
 				<Card.Content className='flex flex-col gap-6'>
-					{setup && (
-						<Stepper currentStep={sent ? 1 : 0}>
-							{["Owner identity", "Verify email"].map((title) => (
-								<Stepper.Step key={title}>
-									<Stepper.Indicator />
-									<Stepper.Content>
-										<Stepper.Title>{title}</Stepper.Title>
-									</Stepper.Content>
-									<Stepper.Separator />
-								</Stepper.Step>
-							))}
-						</Stepper>
-					)}
+					{setup && <SetupSteps currentStep={sent ? 1 : 0} items={["Owner identity", "Verify email"]} />}
 
 					{configured ? (
 						<p>

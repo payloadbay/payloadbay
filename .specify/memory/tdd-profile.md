@@ -127,7 +127,7 @@ The root TypeScript entrypoint dispatches each file to its explicit owning runne
 
 - Unit: bun:test test/expect, tests/unit/*.test.ts. tooling.test.ts pins inventory, selection and coverage safety.
 - Integration/executor/deployment: node:test and node:assert/strict through tsx. fixtures.test.ts uses actual PostgreSQL, Graphile migrations/job execution, Drizzle, SMTP and byte-exact HTTP. feasibility.test.ts is a temporary workerd process, not sandbox proof. images.test.ts checks non-root container startup.
-- Browser: Playwright test/expect against accessible roles. bootstrap.spec.ts characterizes the existing HeroUI Pro sheet, not login/delivery. Build the standalone web app first; browser fixtures use production, not dev HMR.
+- Browser: Playwright test/expect against accessible roles. bootstrap.spec.ts exercises sign-in, contextual dashboard navigation and editor flows. Build the standalone web app first; browser fixtures use production, not dev HMR.
 - Reuse scripts/tests/fixtures.ts withFixtures: unique Compose project, ephemeral data, synthetic SMTP credentials, random loopback ports and finally teardown. No production/shared database allowed.
 - Register every new file in tests/config/inventory.json before starting its Red cycle. Missing/unowned files are setup errors, never Red. Keep the planned product inventory until its real suites are implemented. Use tests/config/playwright.config.ts for unique browser ports/artifacts, scripts/tests/run.ts for verified selection.
 
@@ -139,7 +139,7 @@ Coverage currently measures scripts/tests/policy.ts and scripts/tests/runtime.ts
 
 Mutation/property/approval/dedicated contract tools are absent and null; use boundary examples and later deliberate-mutant samples. Watch unverified/null. No DOM unit harness claimed; UI tests currently use a real browser. This is one unified root test stack, not a claim of implemented tests in every workspace.
 
-Docker access/local-bind permissions required in this restricted workspace. gVisor/runsc absent: default sandbox:check passes; explicit runsc fails deployment with no fallback. This does not block the approved trusted-publisher standard Docker mode. Clean CI licensed build needs heroui_auth_token BuildKit secret/CI HEROUI_AUTH_TOKEN, currently absent; local CLI login is never copied. Standalone app smoke/runtime-only executor images pass; trusted worker image awaits implementation.
+Docker access/local-bind permissions required in this restricted workspace. gVisor/runsc absent: default sandbox:check passes; explicit runsc fails deployment with no fallback. This does not block the approved trusted-publisher standard Docker mode. Clean CI source builds use public dependencies without a HeroUI installer credential. Standalone app smoke/runtime-only executor images pass; trusted worker image awaits implementation.
 
 Constitution2.2.0 already mandates test-first behavior; no amendment or hook disablement applied. See docs/deployment/bootstrap.md and executor.md for actual scope and limitations.
 

@@ -99,7 +99,7 @@ with Python helpers, Codex skills and the TDD extension. The
 verification ledger remain project-owned. Shared presets arrive through Repository
 Baseline CI; local SpecKit initialization/refresh is a separate step.
 
-The stack is Next.js/React on Node.js, HeroUI Pro, Better Auth, PostgreSQL/Drizzle,
+The stack is Next.js/React on Node.js, public HeroUI with project-owned components, Better Auth, PostgreSQL/Drizzle,
 Graphile Worker and a separate workerd executor. Bun manages packages and unit
 feedback. Restricted Docker/runc is the default executor mode; optional runsc
 requires host setup and has not been attested on this installation.

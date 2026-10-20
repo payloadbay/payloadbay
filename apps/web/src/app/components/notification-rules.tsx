@@ -4,7 +4,7 @@ import { LoadingState } from "@components/loading-state";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { Button, Card, Switch, Label, NumberField, FieldError, Modal, Select, ListBox } from "@heroui/react";
-import { EmptyState } from "@heroui-pro/react";
+import { ResourceEmptyState } from "@components/ui/resource-empty-state";
 import { IconBell, IconPlus, IconPencil, IconArrowLeft } from "@tabler/icons-react";
 import { api } from "@lib/api-client";
 import { useFeedbackToast } from "@lib/feedback";
@@ -322,15 +322,16 @@ export function NotificationRules({ projectId, workspaceId }: { projectId?: stri
 					))}
 				</div>
 			) : (
-				<EmptyState className='border-border rounded-xl border border-dashed py-12'>
-					<EmptyState.Header>
-						<EmptyState.Media variant='icon'>
+				<ResourceEmptyState
+					className='border-border rounded-xl border border-dashed py-12'
+					title={<>No failure notification rules</>}
+					description={<>Failures stay visible in event history. Enable a threshold only where notifications matter to this project.</>}
+					icon={
+						<>
 							<IconBell />
-						</EmptyState.Media>
-						<EmptyState.Title>No failure notification rules</EmptyState.Title>
-						<EmptyState.Description>Failures stay visible in event history. Enable a threshold only where notifications matter to this project.</EmptyState.Description>
-					</EmptyState.Header>
-				</EmptyState>
+						</>
+					}
+				/>
 			)}
 		</section>
 	);

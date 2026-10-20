@@ -115,4 +115,4 @@ content and callbacks. Synthetic context, routes, permission fixtures and the de
 unsaved-edit prompt remain in the gallery. CSS uses a scoped `pb-` namespace.
 Mobile drawer width and background are passed to the actual panel rather than
 mutating document-wide variables. The mobile menu receives expanded navigation
-even when the desktop rail was collapsed. Product screens still use Pro.
+even when the desktop rail was collapsed. Product screens now use the shared library; Pro and its installer have been removed.

@@ -3711,3 +3711,40 @@ preview Compose passes 1/1, CI policy 8/8 and release policy 5/5. Inventory and
 diff checks pass. An initial offline --no-cache probe failed; a controlled
 warm-cache install with an invalidated layer and network disabled succeeds.
 No test threshold changed and no release migration was generated locally.
+
+## 2026-10-20: Reviewed reusable UI and public-dependency migration
+
+Maintainer approved the 52 displayed component presets, with emoji categories an
+optional follow-up. Agenda now emits separate caller-owned create, move, resize,
+selection and delete callbacks; it does not open a title editor on selection.
+The library and gallery are committed separately from product integration.
+
+Product integration replaces Pro layout/navigation/search, setup steps, empty
+states and traffic/job charts. Pro CSS/package/installer and UI build-secret
+requirements are removed from the app, lockfile, CI, candidate builds and preview
+Compose. Optional licensed comparison output remains operator-local in /tmp,
+never a distributed source/package dependency.
+
+Verification:
+
+- Locked public-dependency install, production Next build and TypeScript pass.
+- Full repository lint/format checks, tooling types and test inventory pass.
+- Bootstrap owner: final complete run 9 passed; the additional drawer/search
+  keyboard/filter/clear regression passed separately. An earlier attempt timed
+  out rebuilding after a source edit; the frozen-source rerun passed.
+- Dashboard owner: initial broad run 51 passed, 2 failed on removed vendor test
+  selectors. Updated semantic selectors and restored the main landmark. The
+  focused rerun also caught a real stylesheet-order scroll regression; fixed the
+  page-mode override without weakening the document-scroll assertion. Final
+  hierarchy and UX67 rerun: 2 passed, including sticky header, all scope layers,
+  search navigation and page actions.
+- UX52 graph recovery/tooltip and UX77 opaque header/provider flow: 2 passed.
+- CI authorization/public-build policy: 9 passed; preview Compose owner: 1 passed.
+- Independent gallery interaction checks pass. Dedicated agenda callback checks
+  pass with zoned timestamps; caller class/style checks pass at 390px and 1024px.
+- No Pro package appears in the production standalone trace or lockfile. The
+  review server remains on port 4173 with the independent gallery rebuilding.
+
+Not certified here: physical mobile keyboards, a new Coolify deployment, candidate
+Docker images, or complete cross-owner release coverage. Existing release gates
+and thresholds are unchanged; no ordinary release migration was generated.

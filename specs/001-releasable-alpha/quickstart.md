@@ -41,12 +41,11 @@ bun run test:file tests/integration/organizations.test.ts
 bun run test:affected packages/domain/src/ingress.ts
 ```
 
-A licensed source build requires the official HeroUI Pro installer, using local
-CLI login or an environment-provided CI credential. Never put its value in source,
-build arguments or application runtime configuration. Run the pinned installer
-from `apps/web` as documented in the CI workflow, then return to the root for
-`bun run web:build` or `bun run web:dev` with the operator-owned development
-configuration. Build prepares the standalone CSS, fonts and public assets.
+Source builds use public HeroUI and the project-owned component catalog. After
+`bun install --frozen-lockfile`, run `bun run web:build` or `bun run web:dev`
+with the operator-owned development configuration. No commercial UI license,
+installer login or HeroUI token is required. Build prepares standalone CSS, fonts
+and public assets.
 
 Use disposable PostgreSQL/SMTP/HTTP fixtures for tests; the registered runner
 creates them with Docker and synthetic data. `bun run db:push` is for an explicitly

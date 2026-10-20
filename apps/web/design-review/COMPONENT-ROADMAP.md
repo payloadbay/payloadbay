@@ -2,10 +2,10 @@
 
 This is the maintainer's selected component set. The local implementations and
 52 live comparison entries now exist; this document records scope and acceptance.
-Production keeps HeroUI Pro until its used replacements have been reviewed and
-approved. Local shared implementations are now in `src/app/components/ui/`; the comparison
+The maintainer approved the replacement presets. Production now uses the shared
+components instead of Pro. Local shared implementations are now in `src/app/components/ui/`; the comparison
 imports them directly. See the [component catalog](../src/app/components/ui/README.md)
-for available components and contracts. Product integration remains pending.
+for available components and contracts. The gallery remains available for future changes.
 Kanban is excluded. Do not represent an advanced unsupported capability as
 implemented merely because a component of the same name exists.
 
@@ -59,4 +59,9 @@ the official catalog names. Chart tooltip and public Tooltip are separate entrie
 Use **Component library · 52** and the component selector on port 4173. Desktop and
 mobile viewport presets still apply to both columns. File watching rebuilds on
 UI/gallery changes; a failed rebuild keeps the last working output. Frames refresh
-after a successful rebuild. Product screens still retain Pro.
+after a successful rebuild. Product screens now use the independent library.
+
+## Optional follow-up
+
+The maintainer approved the emoji picker baseline and suggested category
+navigation as a later convenience. It is not part of the Pro-removal acceptance.

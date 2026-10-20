@@ -530,7 +530,7 @@ test("UX77 OAuth providers are edited in the dashboard while SMTP stays deployme
 	await expect(page.getByRole("grid", { name: "OAuth sign-in providers" })).toContainText("synthetic-review-client");
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.evaluate(() => window.scrollTo(0, 700));
-	const chrome = page.locator(".app-layout__header");
+	const chrome = page.locator(".dashboard-app-layout > .pb-layout-header");
 	await expect(chrome).toBeInViewport();
 	const background = await chrome.locator(":scope > div").evaluate((element) => getComputedStyle(element).backgroundColor);
 	expect(background).not.toBe("rgba(0, 0, 0, 0)");

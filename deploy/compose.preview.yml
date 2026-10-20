@@ -50,7 +50,6 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile.app
       target: preview-schema
-      secrets: [heroui_auth_token]
     environment:
       <<: *runtime
       NODE_ENV: development
@@ -90,7 +89,6 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile.app
       target: app
-      secrets: [heroui_auth_token]
     environment:
       <<: *runtime
       PAYLOADBAY_LOGIN_HINT: |-
@@ -110,7 +108,3 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
-
-secrets:
-  heroui_auth_token:
-    environment: HEROUI_AUTH_TOKEN

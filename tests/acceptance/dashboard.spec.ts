@@ -277,7 +277,7 @@ test("U265 route editor binds an encrypted signing secret version", async ({ pag
 	const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Signed route", slug: "signed" } })).json();
 	await page.goto("/projects/" + project.id + "/routes/" + route.id + "?section=code");
 	await chooseOption(page.getByRole("button", { name: new RegExp("Ingress template") }), "hmac");
-	await page.getByRole("row", { name: "Secrets", exact: true }).click();
+	await page.getByRole("link", { name: "Secrets", exact: true }).click();
 	await expect(page.getByRole("button", { name: "Create secret version", exact: true }), "Secret version controls must be available").toBeVisible();
 	await page.getByRole("button", { name: "Create secret version", exact: true }).click();
 	await expect(page.getByLabel("Secret key")).toHaveValue("");
@@ -571,7 +571,7 @@ test("U83 route editor binds helper version and supports editable file imports",
 	expect(created.status()).toBe(200);
 	const helper = await created.json();
 	await page.goto("/projects/" + project.id + "/routes/" + route.id + "?section=code");
-	await expect(page.getByRole("row", { name: "Helper imports", exact: true })).toHaveCount(0);
+	await expect(page.getByRole("link", { name: "Helper imports", exact: true })).toHaveCount(0);
 	const code = page.getByRole("textbox", { name: "Ingress code", exact: true });
 	await page.getByRole("button", { name: "Import helper", exact: true }).click();
 	const picker = page.getByRole("dialog", { name: "Import helper", exact: true });
@@ -612,7 +612,7 @@ test("U83 route editor binds helper version and supports editable file imports",
 	expect(response.status()).toBe(200);
 	expect(await response.text()).toBe("from shared helper");
 	await expect.poll(async () => (await (await page.request.get("/api/v1/endpoints/" + route.id + "/drafts/ingress")).json()).shared_bindings.Messages).toBe(helper.id);
-	await page.getByRole("row", { name: "Playground", exact: true }).click();
+	await page.getByRole("link", { name: "Playground", exact: true }).click();
 	await chooseOption(page.getByRole("button", { name: new RegExp("HTTP method") }), "GET");
 	await page.getByRole("button", { name: "Send request", exact: true }).click();
 	await expect(page.getByText("HTTP 200", { exact: true })).toBeVisible();
@@ -626,7 +626,7 @@ test("U293 project navigation opens scoped code management", async ({ page }) =>
 	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: await browserOrganization(page), name: "Navigation workspace", slug: "navigation-workspace" } })).json();
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Navigation project", slug: "navigation-project" } })).json();
 	await page.goto("/projects/" + project.id);
-	await page.getByRole("row", { name: "Code and middleware", exact: true }).click();
+	await page.getByRole("link", { name: "Code and middleware", exact: true }).click();
 	await expect(page).toHaveURL(new RegExp("/code/project/" + project.id + "$"));
 	await expect(page.getByRole("heading", { name: "Code and middleware", exact: true })).toBeVisible();
 });
@@ -638,7 +638,7 @@ test("U296 project member navigation uses project scope", async ({ page }) => {
 	const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: await browserOrganization(page), name: "Member workspace", slug: "member-workspace" } })).json();
 	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Member project", slug: "member-project" } })).json();
 	await page.goto("/projects/" + project.id);
-	await page.getByRole("row", { name: "Project members", exact: true }).click();
+	await page.getByRole("link", { name: "Project members", exact: true }).click();
 	await expect(page.getByRole("heading", { name: "Project members", exact: true }), "Project member page must exist").toBeVisible();
 	await expect(page.getByRole("rowheader", { name: /Browser owner/ })).toBeVisible();
 	await expect(page.getByRole("heading", { name: "Instance members", exact: true })).toHaveCount(0);
@@ -674,7 +674,7 @@ test("U300 route editor tests unsaved ingress with synthetic fixture", async ({ 
 	await code.focus();
 	await page.keyboard.press("ControlOrMeta+A");
 	await page.keyboard.insertText('export async function PATCH(ctx: IngressContext): Promise<IngressDecision> { ctx.log.info("Fixture processed"); ctx.log.warn("Review warning"); return ctx.respondOnly({status:200,body:"synthetic:"+new TextDecoder().decode(ctx.request.body)+":"+ctx.request.headers["x-review"]+":"+(ctx.secrets.MODE === "synthetic" ? "configured" : "missing")}); }');
-	await page.getByRole("row", { name: "Script test", exact: true }).click();
+	await page.getByRole("link", { name: "Script test", exact: true }).click();
 	await chooseOption(page.getByRole("button", { name: new RegExp("Synthetic HTTP method") }), "PATCH");
 	await chooseOption(page.getByRole("button", { name: new RegExp("Body format") }), "plaintext");
 	for (const [tab, label, value] of [
@@ -837,13 +837,13 @@ test("U305 project dashboard configures explicit route failure notifications", a
 	expect(destinationResponse.status()).toBe(200);
 	const destination = await destinationResponse.json();
 	await page.goto("/projects/" + project.id);
-	await expect(page.getByRole("row", { name: "Notification rules", exact: true }), "Project notification configuration must be discoverable").toBeVisible();
+	await expect(page.getByRole("link", { name: "Notification rules", exact: true }), "Project notification configuration must be discoverable").toBeVisible();
 	await page.getByRole("button", { name: "Notifications", exact: true }).click();
 	await expect(page.getByRole("heading", { name: "Notifications", exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "Dismiss notification Scripts use ordinary Docker containment", exact: true }).click();
 	await expect(page.getByRole("dialog", { name: "Notifications", exact: true }).getByText("No active notifications.", { exact: true })).toBeVisible();
 	await page.keyboard.press("Escape");
-	await page.getByRole("row", { name: "Notification rules", exact: true }).click();
+	await page.getByRole("link", { name: "Notification rules", exact: true }).click();
 	await expect(page.getByRole("heading", { name: "No failure notification rules", exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "Create notification rule", exact: true }).click();
 	const enabled = page.getByRole("switch", { name: "Enable failure notifications", exact: true });
@@ -1011,7 +1011,10 @@ test("overview and mobile hierarchy preserve context while search opens resource
 	await expect(page.getByRole("img", { name: /24-hour traffic/ })).toBeVisible();
 	await expect(page.getByText("Incoming requests", { exact: true })).toBeVisible();
 	await page.setViewportSize({ width: 320, height: 740 });
-	const tick = page.locator(".line-chart .recharts-cartesian-axis-tick-value").first();
+	const tick = page
+		.getByRole("img", { name: /24-hour traffic/ })
+		.locator(".recharts-cartesian-axis-tick-value")
+		.first();
 	await expect(tick).toBeVisible();
 	await expect(tick).toHaveCSS("font-size", "12px");
 	expect((await tick.boundingBox())!.height).toBeGreaterThanOrEqual(10);
@@ -1040,15 +1043,15 @@ test("overview and mobile hierarchy preserve context while search opens resource
 	await page.getByRole("button", { name: "Toggle navigation" }).click();
 	const drawer = page.getByRole("dialog");
 	await expect(drawer).toBeVisible();
-	const globalRows = drawer.getByRole("treegrid", { name: "Instance navigation" }).getByRole("row");
+	const globalRows = drawer.getByRole("navigation", { name: "Instance navigation", exact: true }).getByRole("link");
 	await expect(globalRows.nth(0)).toContainText("Overview");
 	await expect(globalRows.nth(1)).toContainText("Organizations");
 	await expect(globalRows.nth(2)).toContainText("Workspaces");
-	await expect(drawer.getByRole("row", { name: "Event log", exact: true })).toBeVisible();
-	await expect(drawer.getByRole("treegrid", { name: "Instance access" }).getByRole("row", { name: "Instance members", exact: true })).toBeVisible();
+	await expect(drawer.getByRole("link", { name: "Event log", exact: true })).toBeVisible();
+	await expect(drawer.getByRole("navigation", { name: "Access", exact: true }).getByRole("link", { name: "Instance members", exact: true })).toBeVisible();
 
 	await expect(drawer.getByText("Browse hierarchy", { exact: true })).toHaveCount(0);
-	await expect(drawer.getByRole("row", { name: "Search pages and resources", exact: true })).toHaveCount(0);
+	await expect(drawer.getByRole("link", { name: "Search pages and resources", exact: true })).toHaveCount(0);
 	await page.keyboard.press("Escape");
 	await expect(drawer).toHaveCount(0);
 	await page.getByRole("button", { name: "Toggle navigation", exact: true }).click();
@@ -1059,7 +1062,7 @@ test("overview and mobile hierarchy preserve context while search opens resource
 	await command.getByRole("button", { name: "Clear search", exact: true }).click();
 	await expect(command.getByPlaceholder("Search pages and resources…")).toHaveValue("");
 	await command.getByPlaceholder("Search pages and resources…").fill("Design project");
-	await command.getByRole("menuitem", { name: "Jump to Design project / Project", exact: true }).click();
+	await command.getByRole("menuitem", { name: "Design project / Project Jump to", exact: true }).click();
 	await expect(page).toHaveURL(new RegExp("/projects/" + project.id + "$"));
 	const breadcrumbs = page.getByRole("navigation", { name: "Breadcrumbs", exact: true });
 	await expect(breadcrumbs.getByRole("link", { name: "Overview", exact: true })).toBeVisible();
@@ -1075,24 +1078,24 @@ test("overview and mobile hierarchy preserve context while search opens resource
 	await page.keyboard.press("Escape");
 	await page.screenshot({ path: test.info().outputPath("project-mobile.png"), fullPage: true, animations: "disabled" });
 	await page.getByRole("button", { name: "Toggle navigation" }).click();
-	await expect(drawer.getByRole("treegrid", { name: "Instance navigation" })).toHaveCount(0);
-	await expect(drawer.getByRole("row", { name: "Project members", exact: true })).toBeVisible();
+	await expect(drawer.getByRole("navigation", { name: "Instance navigation", exact: true })).toHaveCount(0);
+	await expect(drawer.getByRole("link", { name: "Project members", exact: true })).toBeVisible();
 	await page.setViewportSize({ width: 390, height: 460 });
 	await expect.poll(async () => (await drawer.boundingBox())!.height).toBeLessThanOrEqual(460);
 	await page.setViewportSize({ width: 390, height: 844 });
 	await expect.poll(async () => (await drawer.boundingBox())!.height).toBeGreaterThan(700);
 	await page.screenshot({ path: test.info().outputPath("project-navigation-mobile.png") });
 
-	await expect(drawer.getByRole("row", { name: "Notification rules", exact: true })).toBeVisible();
+	await expect(drawer.getByRole("link", { name: "Notification rules", exact: true })).toBeVisible();
 	await drawer.getByRole("button", { name: "Back to workspace", exact: true }).click();
 	await expect(page).toHaveURL(new RegExp("/projects/" + project.id + "$"));
-	await expect(drawer.getByRole("row", { name: "Workspace members", exact: true })).toBeVisible();
+	await expect(drawer.getByRole("link", { name: "Workspace members", exact: true })).toBeVisible();
 	await drawer.getByRole("button", { name: "Back to organization", exact: true }).click();
 	await expect(page).toHaveURL(new RegExp("/projects/" + project.id + "$"));
-	await expect(drawer.getByRole("row", { name: "Organization members", exact: true })).toBeVisible();
+	await expect(drawer.getByRole("link", { name: "Organization members", exact: true })).toBeVisible();
 	await drawer.getByRole("button", { name: "Back to instance", exact: true }).click();
 	await expect(page).toHaveURL(new RegExp("/projects/" + project.id + "$"));
-	await expect(drawer.getByRole("row", { name: "Overview", exact: true })).toBeVisible();
+	await expect(drawer.getByRole("link", { name: "Overview", exact: true })).toBeVisible();
 	await page.keyboard.press("Escape");
 	await expect(page.getByRole("dialog")).toHaveCount(0);
 	await page.setViewportSize({ width: 1440, height: 900 });
@@ -1310,7 +1313,7 @@ test("U159 job administration exposes safe metadata and denies lower rights", as
 		expect(JSON.stringify(data)).not.toContain("synthetic-private");
 		expect(data.acknowledgmentLatency).toBeNull();
 		await page.goto("/");
-		await page.getByRole("row", { name: "Jobs and queues", exact: true }).click();
+		await page.getByRole("link", { name: "Jobs and queues", exact: true }).click();
 		await expect(page.getByRole("heading", { name: "Jobs and queues", exact: true })).toBeVisible();
 		await expect(page.getByRole("grid", { name: "Platform jobs" }).getByRole("row").filter({ hasText: job.id })).toContainText("Queued");
 		const chart = page.getByRole("img", { name: "Aggregate delivery outcomes over 24 hours" });
@@ -1328,7 +1331,7 @@ test("U159 job administration exposes safe metadata and denies lower rights", as
 		await expect(page.getByRole("grid", { name: "Platform jobs" })).toHaveCount(0);
 		await page.goto("/");
 		await page.getByRole("button", { name: "Toggle navigation", exact: true }).click();
-		await expect(page.getByRole("row", { name: "Jobs and queues", exact: true })).toHaveCount(0);
+		await expect(page.getByRole("link", { name: "Jobs and queues", exact: true })).toHaveCount(0);
 	} finally {
 		await pool.end();
 	}
@@ -1501,7 +1504,7 @@ test("AD01 instance audit log paginates safe metadata and enforces current right
 		expect((await page.request.get("/api/v1/audit?limit=0")).status()).toBe(400);
 		expect((await page.request.get("/api/v1/audit?cursor=invalid-cursor")).status()).toBe(400);
 		await page.goto("/");
-		await page.getByRole("row", { name: "Audit log", exact: true }).click();
+		await page.getByRole("link", { name: "Audit log", exact: true }).click();
 		await expect(page.getByRole("heading", { name: "Audit log", exact: true })).toBeVisible();
 		await expect(page.getByRole("grid", { name: "Audit log" })).toContainText("fixture.private-diff");
 		await page.setViewportSize({ width: 390, height: 844 });
@@ -1889,7 +1892,7 @@ test("UX67 desktop resource actions, command shortcut and anchored notifications
 		await page.setViewportSize({ width, height: 1000 });
 		await page.goto("/workspaces/" + workspace.id);
 		for (const name of ["Workspace members", "Shared code and middleware", "Notification rules for Desktop review"]) {
-			const action = page.getByRole("link", { name, exact: true });
+			const action = page.getByRole("main").getByRole("link", { name, exact: true });
 			await expect(action).toBeVisible();
 			const offset = await action.evaluate((element) => {
 				const button = element.getBoundingClientRect();
@@ -1902,15 +1905,15 @@ test("UX67 desktop resource actions, command shortcut and anchored notifications
 		}
 
 		if (width === 1440) {
-			await page.getByRole("link", { name: "Workspace members", exact: true }).focus();
+			await page.getByRole("main").getByRole("link", { name: "Workspace members", exact: true }).focus();
 			await expect(page.getByRole("tooltip", { name: "Workspace members", exact: true })).toBeVisible();
 		}
 
 		await page.screenshot({ path: test.info().outputPath(`workspace-actions-${width}.png`) });
-		await page.getByRole("link", { name: "Workspace members", exact: true }).click();
+		await page.getByRole("main").getByRole("link", { name: "Workspace members", exact: true }).click();
 		await expect(page).toHaveURL(new RegExp(`/workspaces/${workspace.id}/members$`));
 		await page.goto("/workspaces/" + workspace.id);
-		await page.getByRole("link", { name: "Shared code and middleware", exact: true }).click();
+		await page.getByRole("main").getByRole("link", { name: "Shared code and middleware", exact: true }).click();
 		await expect(page).toHaveURL(new RegExp(`/code/workspace/${workspace.id}$`));
 	}
 

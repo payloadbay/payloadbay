@@ -1,6 +1,10 @@
 # Reference composition audit, 2026-10-20
 
-The reference uses installed Pro 1.0.0-beta.10, with its stylesheet imported.
+Current status: the approved components are integrated into the app. Pro and its
+installer are removed; the optional local reference is a frozen built snapshot.
+The following records the earlier comparison investigation.
+
+The reference used installed Pro 1.0.0-beta.10, with its stylesheet imported.
 The official live documentation was also opened in Chromium: 50 Pro component
 pages, including their iframe demos. The gallery has 52 entries because Tooltip
 is public HeroUI and the generic Chart entry uses the chart composition.
@@ -196,3 +200,14 @@ the explicit Add event example remains caller-owned. The dedicated callback
 fixture verifies zoned payloads, selection, independent resize and delete
 requests. Current time also has a thin cross-calendar rule and a leading marker
 on today's thicker segment.
+
+### Product integration checks
+
+Replacing the high-level layout also requires its nonvisual contracts: public
+React Aria RouterProvider retains guarded routing, and the product page retains
+its main landmark. The header/banner remain sticky with document scrolling. A
+mobile table exposed the grid's intrinsic minimum width; the layout now uses a
+zero-minimum mobile track rather than hiding oversized content with overflow.
+The app check asserts that the account control is fully inside a 320px viewport.
+Navigation is now a collection of real links, so action tests distinguish page
+links from navigation links and avoid the removed vendor's private classes.

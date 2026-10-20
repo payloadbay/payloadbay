@@ -50,9 +50,9 @@ Usage facts are local operational measurements, not a selected pricing model.
 ## Runtime and UI packages
 
 Published images are the intended operator installation interface. Source builds
-use HeroUI Pro's official installer credential as a BuildKit secret; a local CLI
-login is not a remote build credential. Do not place licensed installer tokens in
-source, Docker build arguments or runtime application configuration.
+install locked public dependencies with Bun. They do not require HeroUI Pro,
+a commercial UI license, or an installer token. The shared UI catalog is under
+`apps/web/src/app/components/ui/`; its local gallery runs independently on port 4173.
 
 The executor defaults to ordinary restricted Docker (`runc`). Optional
 `PAYLOADBAY_EXECUTOR_RUNTIME=runsc` requires host-installed/configured gVisor; an
@@ -97,9 +97,8 @@ Same-repository maintainer branches run automatically. External pull requests us
 the trusted base `pull_request_target` workflow, which first verifies that
 `ci-external-review` has required reviewers, without checking out the contribution.
 A native GitHub environment review then authorizes the exact source SHA before
-any check runner starts. That review authorizes running the whole contribution
-with the installer credential; BuildKit and secret masking do not make malicious
-approved code safe. New head commits require a new workflow authorization.
+any check runner starts. The UI installer credential has been removed; the
+approval gate still protects execution of external contribution code. New head commits require a new workflow authorization.
 The external path becomes available once this workflow exists on master.
 
 The source-controlled environment declaration lives in the central repository
@@ -109,11 +108,8 @@ protection fails closed. No new required branch-protection check is enabled unti
 the workflow has been validated. Coolify still owns PR previews separately;
 this does not introduce a replacement deployment pipeline.
 
-Configure `HEROUI_AUTH_TOKEN` as an encrypted repository Actions secret. Only the
-licensed installer step receives it. Public dependency downloads are cached before
-licensed installation; the licensed CLI uses a separate uncached directory.
-Neither cache nor uploaded test evidence should contain the installer credential
-or licensed dependency archives. Test runners receive no production credentials.
+CI caches public dependency downloads. No licensed installation step or UI
+credential is used. Test runners receive no production credentials.
 
 ## Release migration container
 
@@ -133,7 +129,7 @@ for the data, role, encryption-key and rollback boundaries.
 ### CI approval environment
 
 Trusted CI and candidate-image builds do not reference a GitHub environment.
-The repository-level `HEROUI_AUTH_TOKEN` remains their only configured secret.
+Neither requires a UI installer secret.
 External-source approval uses `ci-external-review` with `deployment: false`,
 which preserves required reviewers without creating a deployment record.
 Its repository-specific settings are declared in
@@ -145,7 +141,7 @@ gh api --method PUT repos/payloadbay/payloadbay/environments/ci-external-review 
 ```
 
 The authorization gate rejects missing, failed, cancelled or skipped external
-approval before any contribution checkout or licensed execution.
+approval before any contribution checkout or build execution.
 The legacy `alpha-ci-external` environment must remain until this PR is merged
 and old default-branch workflows no longer reference it. Removing it earlier
 could remove protection from those workflows. The empty `alpha-ci` environment

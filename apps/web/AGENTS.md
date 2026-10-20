@@ -26,9 +26,9 @@ Read these guides before UI implementation or audit:
 - [Styling](https://heroui.com/en/docs/react/getting-started/styling)
 - [Composition](https://heroui.com/en/docs/react/getting-started/composition)
 
-Discover suitable controls in the unified HeroUI Pro MCP catalog before coding;
-use its component docs for both `@heroui/react` and `@heroui-pro/react`. The
-vendored skill covers base HeroUI, so use Pro MCP for Pro-specific components.
+Discover suitable public controls in the HeroUI MCP catalog before coding;
+use its component docs for `@heroui/react`. The vendored skill covers public HeroUI. Reuse the project UI catalog for composed
+patterns; do not reintroduce a commercial UI dependency for ordinary contributors.
 Check installed TypeScript declarations when documentation differs. Prefer the
 library's default composition and semantic variants over recreating its styles.
 Use secondary inputs on cards/surfaces, InputOTP for verification codes, and
@@ -69,3 +69,9 @@ placement as well as markers or borders. Semantic control choice does not imply
 visual equivalence: inspect default, hover, selected and keyboard-focus surfaces.
 A demo must exercise exposed callbacks through a visible result, including edit
 and save flows; exported callback types alone are not integration evidence.
+
+When replacing a layout, preserve its routing provider, document landmarks, scroll
+ownership and navigation guards as well as its visible slots. Check controls at
+viewport edges: a document-width check alone can pass when overflow clips them.
+Scope action tests to the page or navigation landmark when both contain the same
+link; do not rely on a vendor's private classes or collection roles.

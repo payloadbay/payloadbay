@@ -52,11 +52,10 @@ startup does not generate or commit release migration files. PostgreSQL storage
 is scoped to the Compose project; no fixed container or volume names are used.
 Mailpit collects synthetic preview email internally and has no public port mapping.
 
-HeroUI Pro installation uses the `heroui_auth_token` BuildKit secret sourced from
-`HEROUI_AUTH_TOKEN`. Configure it for preview builds, not container runtime; never
-pass it as a Docker ARG or commit it. Runtime secrets are generated separately from
-production credentials in this dedicated preview application. Additional PRs use
-the application's preview settings; this is not a claim of a fresh key per PR.
+Source builds use public dependencies and need no HeroUI installer credential or
+UI build secret. Runtime secrets remain separate from production credentials in
+this dedicated preview application. Additional PRs use the application's preview
+settings; this is not a claim of a fresh key per PR.
 
 The intended app domain is `https://payloadbay-preview.cloud.thedannicraft.de:3000`,
 with the saved PR URL template. Both the base hostname and
@@ -70,7 +69,7 @@ The real Docker Compose parser validates the preview definition. Existing Docker
 image tests verify non-root startup and actual worker/executor HTTP delivery with
 a disposable source-schema database. These do not prove the remote preview works.
 
-Verify a clean licensed build on Coolify, service domain mapping, PR webhook
+Verify a clean public-dependency build on Coolify, service domain mapping, PR webhook
 handling, isolated state, login/event delivery and close/merge cleanup. Operator
 release images, CI migration artifacts and full release release gates remain separate
 unfinished work.
@@ -105,12 +104,12 @@ that definition is available to its loader.
 
 Available synthetic accounts:
 
-| Identity | Access |
-| --- | --- |
-| `reviewer@preview.payloadbay.test` | Instance owner, all organizations/projects |
+| Identity                                     | Access                                                      |
+| -------------------------------------------- | ----------------------------------------------------------- |
+| `reviewer@preview.payloadbay.test`           | Instance owner, all organizations/projects                  |
 | `organization-owner@preview.payloadbay.test` | Example customer organization and its own workspace/project |
-| `project-admin@preview.payloadbay.test` | Demo integrations project administrator |
-| `project-viewer@preview.payloadbay.test` | Demo integrations project viewer |
+| `project-admin@preview.payloadbay.test`      | Demo integrations project administrator                     |
+| `project-viewer@preview.payloadbay.test`     | Demo integrations project viewer                            |
 
 The seed provisions two unrelated organizations, two workspaces and three
 projects. Each organization has a configured synthetic receiver and a published
@@ -136,8 +135,6 @@ or production webhooks. Production SMTP configuration is unaffected.
 The application lives at `/`, with signed-out visitors redirected to `/login`.
 There is no separate `/dashboard` route.
 
-
-
 ## Compose build interpolation
 
 Coolify builds using `/artifacts/build-time.env`, then supplies the runtime
@@ -152,9 +149,10 @@ docker compose --project-directory deploy --env-file /artifacts/build-time.env -
 `deploy/preview.build.env` contains nonsecret parsing placeholders only; never use
 that file for `up`. Coolify injects the Compose file path itself. The explicit
 project directory preserves repository-root build contexts from this Compose
-file. HeroUI remains a separate BuildKit secret. App and Mailpit service domains
+file. No HeroUI build secret is required. App and Mailpit service domains
 are now configured; successful deployment and browser routing remain unverified.
 
+Historical build evidence, superseded by removal of Pro and its installer:
 The first remote source build reached image building: worker and executor images
 completed, while HeroUI Pro installation failed with an opaque vendor CLI error.
 The operator confirmed that `HEROUI_AUTH_TOKEN` contains the HeroUI dashboard

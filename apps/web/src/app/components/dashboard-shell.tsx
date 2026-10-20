@@ -7,13 +7,24 @@ import Image from "next/image";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import { Avatar, Button, Dropdown, Header, Label, Breadcrumbs, Accordion } from "@heroui/react";
-import { AppLayout, Sidebar, Command, useSidebar } from "@heroui-pro/react";
-import { IconHome, IconFolder, IconUsers, IconLogout, IconCode, IconSettings, IconInbox, IconBell, IconKey, IconFlask, IconHistory, IconRoute, IconBuilding, IconArrowLeft, IconChevronRight, IconSearch, IconBuildingCommunity, IconChartBar, IconBook, IconActivity, IconClipboardList, IconServer } from "@tabler/icons-react";
+import { DashboardLayout } from "@components/ui/dashboard-layout";
+import { SidebarNavigation } from "@components/ui/sidebar-navigation";
+import { CommandSearch } from "@components/ui/command-search";
+import { useNavigationSearch } from "@components/ui/use-navigation-search";
+import { RouterProvider } from "react-aria-components";
+import { IconHome, IconFolder, IconUsers, IconLogout, IconCode, IconSettings, IconInbox, IconBell, IconKey, IconFlask, IconHistory, IconRoute, IconBuilding, IconArrowLeft, IconChevronRight, IconSearch, IconBuildingCommunity, IconChartBar, IconBook, IconActivity, IconClipboardList, IconServer, IconMenu2 } from "@tabler/icons-react";
 import { PreviewNotice } from "@components/preview-notice";
 import { LiveSubscription } from "@components/live-subscription";
 import { NotificationInbox } from "@components/notification-inbox";
 import { api, ApiFailure } from "@lib/api-client";
 import type { MeProfile, OrganizationSummary, WorkspaceSummary, ProjectSummary } from "@types";
+
+type NavigationLink = {
+	id: string;
+	href: string;
+	label: string;
+	icon: typeof IconHome;
+};
 
 type DashboardState = {
 	me: MeProfile;
@@ -33,34 +44,16 @@ export function useDashboard() {
 	return state;
 }
 
-function NavigationSearch({ onSearch }: { onSearch: () => void }) {
-	const sidebar = useSidebar();
-
-	useEffect(() => {
-		const open = () => {
-			sidebar.setMobileOpen(false);
-			onSearch();
-		};
-
-		document.addEventListener("payloadbay:open-search", open);
-
-		return () => document.removeEventListener("payloadbay:open-search", open);
-	}, [sidebar, onSearch]);
-
+function NavigationSearch({ onSearch, collapsed }: { onSearch: () => void; collapsed: boolean }) {
 	return (
-		<Button
-			variant='secondary'
-			aria-label='Search pages and resources'
-			aria-haspopup='dialog'
-			className='text-muted w-full justify-start font-normal'
-			onPress={() => {
-				sidebar.setMobileOpen(false);
-				onSearch();
-			}}
-		>
+		<Button variant='secondary' isIconOnly={collapsed} aria-label='Search pages and resources' aria-haspopup='dialog' className={collapsed ? "text-muted" : "text-muted w-full justify-start font-normal"} onPress={onSearch}>
 			<IconSearch size={18} aria-hidden='true' className='shrink-0' />
-			<span className='min-w-0 flex-1 truncate text-left'>Search…</span>
-			<kbd className='text-muted shrink-0 text-xs'>Ctrl K</kbd>
+			{!collapsed && (
+				<>
+					<span className='min-w-0 flex-1 truncate text-left'>Search…</span>
+					<kbd className='text-muted shrink-0 text-xs'>Ctrl K</kbd>
+				</>
+			)}
 		</Button>
 	);
 }
@@ -73,8 +66,8 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 
 	const [data, setData] = useState<Omit<DashboardState, "reload"> | null>(null);
 	const [error, setError] = useState("");
-	const [navigationQuery, setNavigationQuery] = useState("");
-	const [searchOpen, setSearchOpen] = useState(false);
+
+	const { searchOpen, navigationOpen, onSearchOpenChange: setSearchOpen, onNavigationOpenChange, onNavigationClosed } = useNavigationSearch();
 
 	const rawRouteId = pathname.match(/^\/projects\/[^/]+\/routes\/([^/]+)/)?.[1] ?? pathname.match(/^\/code\/endpoint\/([^/]+)/)?.[1];
 
@@ -97,7 +90,6 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 	const receive = useCallback((next: Omit<DashboardState, "reload">) => {
 		setData(next);
 		setBrowse(null);
-		setNavigationQuery("");
 		setError("");
 	}, []);
 
@@ -173,17 +165,12 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 	}, []);
 
 	useEffect(() => {
-		const openSearch = (event: KeyboardEvent) => {
-			if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
-				event.preventDefault();
-				document.dispatchEvent(new CustomEvent("payloadbay:open-search"));
-			}
-		};
+		const openSearch = () => setSearchOpen(true);
 
-		window.addEventListener("keydown", openSearch);
+		document.addEventListener("payloadbay:open-search", openSearch);
 
-		return () => window.removeEventListener("keydown", openSearch);
-	}, []);
+		return () => document.removeEventListener("payloadbay:open-search", openSearch);
+	}, [setSearchOpen]);
 
 	if (!data)
 		return (
@@ -626,297 +613,240 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 	function navigate(href: string) {
 		setSearchOpen(false);
 		if (!window.dispatchEvent(new CustomEvent("payloadbay:before-navigate", { detail: { href }, cancelable: true }))) return;
+		onNavigationOpenChange(false);
 		router.push(href);
 		setBrowse(null);
 		setSearchOpen(false);
-		setNavigationQuery("");
 	}
 
-	const navigationContent = (
-		<>
-			<Sidebar.Header>
-				<div className='flex flex-col gap-3 px-3 py-4'>
-					<NavigationSearch onSearch={() => setSearchOpen(true)} />
+	function renderLinks(label: string, items: NavigationLink[], collapsed: boolean) {
+		return (
+			<SidebarNavigation
+				label={label}
+				title=''
+				collapsed={collapsed}
+				groups={[{ label: "", items: items.map((item) => ({ ...item, icon: <item.icon size={18} /> })) }]}
+				activeId={items.find((item) => item.href === pathname || item.href === pathname + "?section=" + routeSection || (item.id === "middleware" && pathname.startsWith("/code/endpoint/")))?.id}
+				onNavigate={(event, item) => {
+					if (event.button !== 0 || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+					event.preventDefault();
+					navigate(item.href);
+				}}
+			/>
+		);
+	}
+
+	function renderNavigation(collapsed: boolean) {
+		const operations = searchItems.filter((item) => ["instance-audit", "instance-jobs"].includes(item.id));
+		const access = searchItems.filter((item) => item.id === "instance-members");
+		const configuration = searchItems.filter((item) => ["installation", "notification-modules"].includes(item.id));
+
+		return (
+			<div className='flex h-full min-h-0 flex-col'>
+				<div className='dashboard-navigation-header flex flex-col gap-3 px-3 py-4'>
+					<NavigationSearch collapsed={collapsed} onSearch={() => setSearchOpen(true)} />
 					{scoped && (
-						<Button variant='ghost' size='sm' onPress={() => setBrowse(parentScope)}>
+						<Button variant='ghost' size='sm' isIconOnly={collapsed} aria-label={"Back to " + parentScope.type} onPress={() => setBrowse(parentScope)}>
 							<IconArrowLeft size={16} />
-							Back to {parentScope.type}
+							{!collapsed && <>Back to {parentScope.type}</>}
 						</Button>
 					)}
-					{scoped && <p className='break-words text-lg font-semibold'>{scopeTitle}</p>}
+					{scoped && !collapsed && <p className='break-words text-lg font-semibold'>{scopeTitle}</p>}
 				</div>
-			</Sidebar.Header>
-			<Sidebar.Content className='min-h-0 overflow-y-auto overscroll-contain pb-6'>
-				{!scoped && (
-					<Sidebar.Group>
-						<Sidebar.Menu aria-label='Instance navigation'>
-							{globalLinks
-								.filter((item) => item.visible && item.id !== "instance-members")
-								.map((item) => (
-									<Sidebar.MenuItem key={item.id} id={item.id} href={item.href} textValue={item.label} isCurrent={pathname === item.href}>
-										<Sidebar.MenuIcon>
-											<item.icon size={18} />
-										</Sidebar.MenuIcon>
-										<Sidebar.MenuLabel>{item.label}</Sidebar.MenuLabel>
-									</Sidebar.MenuItem>
-								))}
-						</Sidebar.Menu>
-					</Sidebar.Group>
+				<div className='min-h-0 flex-1 overflow-y-auto overscroll-contain pb-6'>
+					{!scoped &&
+						renderLinks(
+							"Instance navigation",
+							globalLinks.filter((item) => item.visible && item.id !== "instance-members"),
+							collapsed,
+						)}
+					{scoped &&
+						groups
+							.filter((group) => group.items.some((item) => item.visible))
+							.map((group) =>
+								collapsed ? (
+									<div key={group.label}>
+										{renderLinks(
+											group.label,
+											group.items.filter((item) => item.visible),
+											true,
+										)}
+									</div>
+								) : (
+									<Accordion key={scopeTitle + group.label + pathname + routeSection} defaultExpandedKeys={[group.label]} hideSeparator className='px-2'>
+										<Accordion.Item id={group.label}>
+											<Accordion.Heading>
+												<Accordion.Trigger className='text-muted px-2 py-3 text-xs font-semibold whitespace-normal'>
+													{group.label}
+													<Accordion.Indicator />
+												</Accordion.Trigger>
+											</Accordion.Heading>
+											<Accordion.Panel>
+												{renderLinks(
+													group.label,
+													group.items.filter((item) => item.visible),
+													false,
+												)}
+											</Accordion.Panel>
+										</Accordion.Item>
+									</Accordion>
+								),
+							)}
+				</div>
+				{!scoped && operations.length + access.length + configuration.length > 0 && (
+					<footer className='shrink-0 border-t border-border py-3'>
+						{[
+							{ label: "Operations", links: operations },
+							{ label: "Access", links: access },
+							{ label: "Configuration", links: configuration },
+						].map(({ label, links }) => {
+							if (!links.length) return null;
+
+							return (
+								<section key={String(label)}>
+									{!collapsed && <p className='px-5 py-2 text-xs font-semibold text-muted'>{String(label)}</p>}
+									{renderLinks(String(label), links, collapsed)}
+								</section>
+							);
+						})}
+					</footer>
 				)}
-				{scoped &&
-					groups
-						.filter((group) => group.items.some((item) => item.visible))
-						.map((group) => (
-							<Accordion key={scopeTitle + group.label + pathname + routeSection} defaultExpandedKeys={[group.label]} hideSeparator className='px-2'>
-								<Accordion.Item id={group.label}>
-									<Accordion.Heading>
-										<Accordion.Trigger className='text-muted px-2 py-3 text-xs font-semibold whitespace-normal'>
-											{group.label}
-											<Accordion.Indicator />
-										</Accordion.Trigger>
-									</Accordion.Heading>
-									<Accordion.Panel>
-										<Sidebar.Group>
-											<Sidebar.Menu aria-label={group.label}>
-												{group.items
-													.filter((item) => item.visible)
-													.map((item) => (
-														<Sidebar.MenuItem key={item.id} id={item.id} href={item.href} textValue={item.label} isCurrent={item.href === pathname || item.href === pathname + "?section=" + routeSection || (item.id === "middleware" && pathname.startsWith("/code/endpoint/"))}>
-															<Sidebar.MenuIcon>
-																<item.icon size={18} />
-															</Sidebar.MenuIcon>
-															<Sidebar.MenuLabel className='whitespace-normal'>{item.label}</Sidebar.MenuLabel>
-														</Sidebar.MenuItem>
-													))}
-											</Sidebar.Menu>
-										</Sidebar.Group>
-									</Accordion.Panel>
-								</Accordion.Item>
-							</Accordion>
-						))}
-			</Sidebar.Content>
-			{(admin || data.me.permissions.includes("settings.manage") || data.me.permissions.includes("jobs.read") || data.me.permissions.includes("audit.read")) && !scoped && (
-				<Sidebar.Footer>
-					{(data.me.permissions.includes("audit.read") || data.me.permissions.includes("jobs.read")) && (
-						<Sidebar.Group>
-							<Sidebar.GroupLabel>Operations</Sidebar.GroupLabel>
-							<Sidebar.Menu aria-label='Instance operations'>
-								{data.me.permissions.includes("audit.read") && (
-									<Sidebar.MenuItem id='instance-audit' href='/admin/audit' textValue='Audit log' isCurrent={pathname === "/admin/audit"}>
-										<Sidebar.MenuIcon>
-											<IconClipboardList size={18} />
-										</Sidebar.MenuIcon>
-										<Sidebar.MenuLabel>Audit log</Sidebar.MenuLabel>
-									</Sidebar.MenuItem>
-								)}
-								{data.me.permissions.includes("jobs.read") && (
-									<Sidebar.MenuItem id='instance-jobs' href='/admin/jobs' textValue='Jobs and queues' isCurrent={pathname === "/admin/jobs"}>
-										<Sidebar.MenuIcon>
-											<IconActivity size={18} />
-										</Sidebar.MenuIcon>
-										<Sidebar.MenuLabel>Jobs and queues</Sidebar.MenuLabel>
-									</Sidebar.MenuItem>
-								)}
-							</Sidebar.Menu>
-						</Sidebar.Group>
-					)}
-					{admin && (
-						<Sidebar.Group>
-							<Sidebar.GroupLabel>Access</Sidebar.GroupLabel>
-							<Sidebar.Menu aria-label='Instance access'>
-								{admin && (
-									<Sidebar.MenuItem id='instance-members' href='/admin/members' textValue='Instance members' isCurrent={pathname === "/admin/members"}>
-										<Sidebar.MenuIcon>
-											<IconUsers size={18} />
-										</Sidebar.MenuIcon>
-										<Sidebar.MenuLabel>Instance members</Sidebar.MenuLabel>
-									</Sidebar.MenuItem>
-								)}
-							</Sidebar.Menu>
-						</Sidebar.Group>
-					)}
-					{data.me.permissions.includes("settings.manage") && (
-						<Sidebar.Group>
-							<Sidebar.GroupLabel>Configuration</Sidebar.GroupLabel>
-							<Sidebar.Menu aria-label='Instance configuration'>
-								{data.me.permissions.includes("settings.manage") && (
-									<>
-										<Sidebar.MenuItem id='installation' href='/admin/installation' textValue='Installation' isCurrent={pathname === "/admin/installation"}>
-											<Sidebar.MenuIcon>
-												<IconServer size={18} />
-											</Sidebar.MenuIcon>
-											<Sidebar.MenuLabel>Installation</Sidebar.MenuLabel>
-										</Sidebar.MenuItem>
-										<Sidebar.MenuItem id='notification-modules' href='/admin/notification-channels' textValue='Notification modules' isCurrent={pathname.startsWith("/admin/notification-channels")}>
-											<Sidebar.MenuIcon>
-												<IconBell size={18} />
-											</Sidebar.MenuIcon>
-											<Sidebar.MenuLabel>Notification modules</Sidebar.MenuLabel>
-										</Sidebar.MenuItem>
-									</>
-								)}
-							</Sidebar.Menu>
-						</Sidebar.Group>
-					)}
-				</Sidebar.Footer>
-			)}
-		</>
-	);
+			</div>
+		);
+	}
 
 	return (
 		<Context.Provider value={{ ...data, reload: load }}>
-			<LiveSubscription instanceId={data.me.instanceId} onReconnect={load}>
-				<AppLayout
-					scrollMode='page'
-					sidebar={
-						<>
-							<Sidebar>{navigationContent}</Sidebar>
-							<Sidebar.Mobile aria-label='Dashboard navigation'>{navigationContent}</Sidebar.Mobile>
-						</>
-					}
-					navigate={navigate}
-					navbar={
-						<div className='bg-background'>
-							{preview && <PreviewNotice />}
-							<div className='bg-background border-border flex min-h-16 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b px-4 py-3 sm:px-6'>
-								<div className='flex min-w-0 items-center gap-2'>
-									<AppLayout.MenuToggle aria-label='Toggle navigation' />
-									<Link href='/' aria-label='Payload Bay home' className='shrink-0'>
-										<Image src='/brand/payloadbay-logo-dark-transparent.svg' alt='Payload Bay' width={160} height={35} priority className='hidden min-[360px]:block' />
-										<Image src='/brand/payloadbay-icon-dark-transparent.svg' alt='Payload Bay' width={32} height={32} priority className='min-[360px]:hidden' />
-									</Link>
-								</div>
-
-								<div className='flex shrink-0 items-center gap-2'>
-									{data.me.passkeyEnrollmentRequired && (
-										<Link href='/account' className='button button--secondary button--sm'>
-											Add required passkey
+			<RouterProvider navigate={navigate}>
+				<LiveSubscription instanceId={data.me.instanceId} onReconnect={load}>
+					<DashboardLayout
+						className='dashboard-app-layout'
+						brand='Payload Bay'
+						navigationLabel='Dashboard navigation'
+						width={256}
+						open={navigationOpen}
+						onOpenChange={onNavigationOpenChange}
+						onClosed={onNavigationClosed}
+						navigation={renderNavigation}
+						header={(toggleNavigation) => (
+							<div className='bg-background'>
+								{preview && <PreviewNotice />}
+								<div className='bg-background border-border flex min-h-16 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b px-4 py-3 sm:px-6'>
+									<div className='flex min-w-0 items-center gap-2'>
+										<Button isIconOnly variant='ghost' aria-label='Toggle navigation' onPress={toggleNavigation}>
+											<IconMenu2 size={18} />
+										</Button>
+										<Link href='/' aria-label='Payload Bay home' className='shrink-0'>
+											<Image src='/brand/payloadbay-logo-dark-transparent.svg' alt='Payload Bay' width={160} height={35} priority className='hidden min-[360px]:block' />
+											<Image src='/brand/payloadbay-icon-dark-transparent.svg' alt='Payload Bay' width={32} height={32} priority className='min-[360px]:hidden' />
 										</Link>
-									)}
-									<NotificationInbox />
-									<Dropdown>
-										<Dropdown.Trigger aria-label='Account menu' className='rounded-full outline-offset-4'>
-											<Avatar size='sm'>
-												<Avatar.Fallback>{initials}</Avatar.Fallback>
-											</Avatar>
-										</Dropdown.Trigger>
-										<Dropdown.Popover placement='bottom end' className='w-64 max-w-[calc(100vw-2rem)]'>
-											<Dropdown.Menu aria-label='Account actions'>
-												<Dropdown.Section>
-													<Header className='flex flex-col gap-1 px-2 py-2'>
-														<span className='truncate font-medium'>{data.me.user.name}</span>
-														<span className='text-muted truncate text-xs'>{data.me.user.email}</span>
-													</Header>
-													<Dropdown.Item id='notification-preferences' textValue='Notification settings' href='/account/notifications'>
-														<IconBell size={18} aria-hidden='true' />
-														<Label>Notification settings</Label>
-													</Dropdown.Item>
-													<Dropdown.Item id='account' textValue='Account settings' href='/account'>
-														<IconSettings size={18} aria-hidden='true' />
-														<Label>Account settings</Label>
-													</Dropdown.Item>
+									</div>
 
-													<Dropdown.Item id='api-keys' textValue='Personal API keys' href='/account/api-keys'>
-														<IconKey size={18} aria-hidden='true' />
-														<Label>Personal API keys</Label>
-													</Dropdown.Item>
-													<Dropdown.Item id='api-docs' textValue='API documentation' href='/docs/api'>
-														<IconBook size={18} aria-hidden='true' />
-														<Label>API documentation</Label>
-													</Dropdown.Item>
+									<div className='flex shrink-0 items-center gap-2'>
+										{data.me.passkeyEnrollmentRequired && (
+											<Link href='/account' className='button button--secondary button--sm'>
+												Add required passkey
+											</Link>
+										)}
+										<NotificationInbox />
+										<Dropdown>
+											<Dropdown.Trigger aria-label='Account menu' className='rounded-full outline-offset-4'>
+												<Avatar size='sm'>
+													<Avatar.Fallback>{initials}</Avatar.Fallback>
+												</Avatar>
+											</Dropdown.Trigger>
+											<Dropdown.Popover placement='bottom end' className='w-64 max-w-[calc(100vw-2rem)]'>
+												<Dropdown.Menu aria-label='Account actions'>
+													<Dropdown.Section>
+														<Header className='flex flex-col gap-1 px-2 py-2'>
+															<span className='truncate font-medium'>{data.me.user.name}</span>
+															<span className='text-muted truncate text-xs'>{data.me.user.email}</span>
+														</Header>
+														<Dropdown.Item id='notification-preferences' textValue='Notification settings' href='/account/notifications'>
+															<IconBell size={18} aria-hidden='true' />
+															<Label>Notification settings</Label>
+														</Dropdown.Item>
+														<Dropdown.Item id='account' textValue='Account settings' href='/account'>
+															<IconSettings size={18} aria-hidden='true' />
+															<Label>Account settings</Label>
+														</Dropdown.Item>
 
-													<Dropdown.Item className='text-danger' id='sign-out' textValue='Sign out' onAction={() => void signOut()}>
-														<IconLogout size={18} aria-hidden='true' />
-														<Label>Sign out</Label>
-													</Dropdown.Item>
-												</Dropdown.Section>
-											</Dropdown.Menu>
-										</Dropdown.Popover>
-									</Dropdown>
+														<Dropdown.Item id='api-keys' textValue='Personal API keys' href='/account/api-keys'>
+															<IconKey size={18} aria-hidden='true' />
+															<Label>Personal API keys</Label>
+														</Dropdown.Item>
+														<Dropdown.Item id='api-docs' textValue='API documentation' href='/docs/api'>
+															<IconBook size={18} aria-hidden='true' />
+															<Label>API documentation</Label>
+														</Dropdown.Item>
+
+														<Dropdown.Item className='text-danger' id='sign-out' textValue='Sign out' onAction={() => void signOut()}>
+															<IconLogout size={18} aria-hidden='true' />
+															<Label>Sign out</Label>
+														</Dropdown.Item>
+													</Dropdown.Section>
+												</Dropdown.Menu>
+											</Dropdown.Popover>
+										</Dropdown>
+									</div>
 								</div>
 							</div>
-						</div>
-					}
-				>
-					<div className='mx-auto w-full min-w-0 max-w-6xl p-4 sm:p-6 lg:p-10'>
-						<nav aria-label='Breadcrumbs' className='mb-6 w-full min-w-0'>
-							<Breadcrumbs className='w-full min-w-0 flex-nowrap [&_[data-slot=breadcrumbs-item]]:min-w-0 [&_[data-slot=link]]:block [&_[data-slot=link]]:min-w-0 [&_[data-slot=link]]:max-w-full [&_[data-slot=link]]:truncate [&_[data-slot=breadcrumbs-separator]]:shrink-0'>
-								{breadcrumbItems.flatMap((item, index) => {
-									const collapsed = breadcrumbItems.length > 3 && index > 0 && index < breadcrumbItems.length - 2;
-									const crumb = (
-										<Breadcrumbs.Item key={item.href ?? item.label} href={item.href} className={collapsed ? "hidden min-w-0 shrink sm:flex" : index === 0 ? "shrink-0" : "min-w-0 shrink"}>
-											{item.label}
-										</Breadcrumbs.Item>
-									);
-									if (index !== 1 || breadcrumbItems.length <= 3) return [crumb];
-
-									return [
-										<Breadcrumbs.Item key='collapsed-parents' className='shrink-0 sm:hidden'>
-											{() => (
-												<>
-													<Dropdown>
-														<Dropdown.Trigger aria-label='Parent pages' className='button button--ghost size-8'>
-															…
-														</Dropdown.Trigger>
-														<Dropdown.Popover className='max-w-[calc(100vw-2rem)]'>
-															<Dropdown.Menu aria-label='Parent pages'>
-																{breadcrumbItems.slice(1, -2).map((parent) => (
-																	<Dropdown.Item key={parent.href ?? parent.label} id={parent.href ?? parent.label} href={parent.href}>
-																		{parent.label}
-																	</Dropdown.Item>
-																))}
-															</Dropdown.Menu>
-														</Dropdown.Popover>
-													</Dropdown>
-													<IconChevronRight aria-hidden='true' className='breadcrumbs__separator shrink-0' />
-												</>
-											)}
-										</Breadcrumbs.Item>,
-										crumb,
-									];
-								})}
-							</Breadcrumbs>
-						</nav>
-						{children}
-					</div>
-				</AppLayout>
-				<Command>
-					<Command.Backdrop
-						isOpen={searchOpen}
-						onOpenChange={(open) => {
-							setSearchOpen(open);
-							if (!open) setNavigationQuery("");
-						}}
+						)}
 					>
-						<Command.Container size='lg'>
-							<Command.Dialog aria-label='Search pages and resources' inputValue={navigationQuery} onInputChange={setNavigationQuery}>
-								<Command.Header>All accessible pages and resources</Command.Header>
-								<Command.InputGroup>
-									<Command.InputGroup.Input placeholder='Search pages and resources…' />
-									<Command.InputGroup.ClearButton aria-label='Clear search' />
-								</Command.InputGroup>
-								<Command.List
-									onAction={(key) => {
-										const item = searchItems.find((item) => item.id === key);
-										if (item) navigate(item.href);
-									}}
-									renderEmptyState={() => <p className='p-4 text-muted'>No matching pages or resources.</p>}
-								>
-									<Command.Group heading='Jump to'>
-										{searchItems.map((item) => (
-											<Command.Item key={item.id} id={item.id} textValue={item.label} aria-label={"Jump to " + item.label}>
-												<item.icon size={18} />
-												<span className='min-w-0 whitespace-normal'>{item.label}</span>
-												<span className='ml-auto text-xs text-muted'>Jump to</span>
-											</Command.Item>
-										))}
-									</Command.Group>
-								</Command.List>
-							</Command.Dialog>
-						</Command.Container>
-					</Command.Backdrop>
-				</Command>
-			</LiveSubscription>
+						<main className='mx-auto w-full min-w-0 max-w-6xl p-4 sm:p-6 lg:p-10'>
+							<nav aria-label='Breadcrumbs' className='mb-6 w-full min-w-0'>
+								<Breadcrumbs className='w-full min-w-0 flex-nowrap [&_[data-slot=breadcrumbs-item]]:min-w-0 [&_[data-slot=link]]:block [&_[data-slot=link]]:min-w-0 [&_[data-slot=link]]:max-w-full [&_[data-slot=link]]:truncate [&_[data-slot=breadcrumbs-separator]]:shrink-0'>
+									{breadcrumbItems.flatMap((item, index) => {
+										const collapsed = breadcrumbItems.length > 3 && index > 0 && index < breadcrumbItems.length - 2;
+										const crumb = (
+											<Breadcrumbs.Item key={item.href ?? item.label} href={item.href} className={collapsed ? "hidden min-w-0 shrink sm:flex" : index === 0 ? "shrink-0" : "min-w-0 shrink"}>
+												{item.label}
+											</Breadcrumbs.Item>
+										);
+										if (index !== 1 || breadcrumbItems.length <= 3) return [crumb];
+
+										return [
+											<Breadcrumbs.Item key='collapsed-parents' className='shrink-0 sm:hidden'>
+												{() => (
+													<>
+														<Dropdown>
+															<Dropdown.Trigger aria-label='Parent pages' className='button button--ghost size-8'>
+																…
+															</Dropdown.Trigger>
+															<Dropdown.Popover className='max-w-[calc(100vw-2rem)]'>
+																<Dropdown.Menu aria-label='Parent pages'>
+																	{breadcrumbItems.slice(1, -2).map((parent) => (
+																		<Dropdown.Item key={parent.href ?? parent.label} id={parent.href ?? parent.label} href={parent.href}>
+																			{parent.label}
+																		</Dropdown.Item>
+																	))}
+																</Dropdown.Menu>
+															</Dropdown.Popover>
+														</Dropdown>
+														<IconChevronRight aria-hidden='true' className='breadcrumbs__separator shrink-0' />
+													</>
+												)}
+											</Breadcrumbs.Item>,
+											crumb,
+										];
+									})}
+								</Breadcrumbs>
+							</nav>
+							{children}
+						</main>
+					</DashboardLayout>
+					<CommandSearch
+						open={searchOpen}
+						onOpenChange={setSearchOpen}
+						hideLauncher
+						items={searchItems.map((item) => ({ id: item.id, label: item.label, icon: <item.icon size={18} /> }))}
+						onAction={(id) => {
+							const item = searchItems.find((entry) => entry.id === id);
+							if (item) navigate(item.href);
+						}}
+					/>
+				</LiveSubscription>
+			</RouterProvider>
 		</Context.Provider>
 	);
 }

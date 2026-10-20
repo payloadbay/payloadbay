@@ -15,8 +15,6 @@ WORKDIR /app
 COPY . .
 RUN --mount=type=cache,id=payloadbay-bun-public-1.3.14,target=/root/.bun/install/cache,sharing=locked \
     bun install --frozen-lockfile
-RUN --mount=type=secret,id=heroui_auth_token,required=true \
-    cd apps/web && HEROUI_AUTH_TOKEN="$(cat /run/secrets/heroui_auth_token)" bun x heroui-pro@1.0.0-beta.14 install react --yes --skip-peers --no-trust-patch
 RUN bun run web:build
 # Disposable PR schema initialization uses source push, not release migrations.
 FROM build AS preview-schema

@@ -86,7 +86,7 @@ test("CI05 invalid mutable source references fail before any authorization looku
 	assert.equal(result.output, "");
 });
 
-test("CI06 checkout and licensed steps depend on completed native authorization", () => {
+test("CI06 checkout and build steps depend on completed native authorization", () => {
 	assert.deepEqual(workflow.jobs.checks.needs, ["policy", "authorize"]);
 	assert.deepEqual(workflow.jobs.authorize.needs, ["policy", "review"]);
 	assert.equal(workflow.jobs.review.needs, "policy");
@@ -121,7 +121,7 @@ test("CI07 final validation cannot pass without the mandatory merged coverage ow
 	}
 });
 
-test("CI08 skipped or failed external approval cannot authorize licensed source checks", () => {
+test("CI08 skipped or failed external approval cannot authorize source checks", () => {
 	const gate = workflow.jobs.authorize.steps?.find((step) => step.run)?.run;
 	assert.ok(gate);
 	for (const environment of ["none", "ci-external-review", "unexpected", ""]) {
@@ -141,4 +141,11 @@ test("CI08 skipped or failed external approval cannot authorize licensed source 
 			assert.equal(result.status, (environment === "none" && state === "skipped") || (environment === "ci-external-review" && state === "success") ? 0 : 1);
 		}
 	}
+});
+
+test("CI09 source builds use public dependencies without a UI installer credential", async () => {
+	const paths = [".github/workflows/ci.yml", ".github/workflows/release-candidate.yml", "deploy/Dockerfile.app", "deploy/compose.preview.yml"];
+	for (const path of paths) assert.doesNotMatch(await readFile(path, "utf8"), /HEROUI_AUTH_TOKEN|heroui_auth_token|bun x heroui-pro/);
+	const web = JSON.parse(await readFile("apps/web/package.json", "utf8"));
+	assert.equal(web.dependencies["@heroui-pro/react"], undefined);
 });
