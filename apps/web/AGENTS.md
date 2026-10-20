@@ -40,3 +40,32 @@ with a destination reminder and change-email action. Do not leave irrelevant
 fields on screen or toast a normal step transition. Actual action failures use
 toasts; field validation stays associated with the control. Test real task flows,
 keyboard/paste behavior, and desktop/mobile layout before calling a page ready.
+
+## Shared UI catalog
+
+Before designing UI or adding a composition, read the
+[local component catalog](src/app/components/ui/README.md). Reuse an available
+component or public HeroUI control. Consult its roadmap for planned patterns;
+if a planned pattern is needed, implement it in the shared UI folder with review
+fixtures instead of creating a competing page-local implementation. Distinguish
+implemented components from proposals and retain the documented motion policy.
+
+A component comparison needs a valid reference: inspect the official live demo,
+installed composition, styles and interaction behavior before changing the local
+implementation. Pair the same data, dimensions and selected variant in both
+columns. Test the state that reveals the behavior (hover, keyboard, touch, open
+menu, drag), not only the initial render. Check emitted DOM classes before writing
+CSS selectors; a documented slot is not necessarily a public `data-slot` attribute.
+Viewport width alone does not emulate touch-platform behavior.
+
+Turn reference inspection into acceptance checks for the actual input gesture,
+resulting state and computed layout. A callback firing is not proof that the
+intended gesture works. Compare resolved theme tokens and responsive dimensions;
+check minimum sizes and later overrides before adding another CSS correction.
+Keep approved visual presets distinct from unverified component API coverage.
+
+For dense and multi-column variants, compare row dimensions, spacing and content
+placement as well as markers or borders. Semantic control choice does not imply
+visual equivalence: inspect default, hover, selected and keyboard-focus surfaces.
+A demo must exercise exposed callbacks through a visible result, including edit
+and save flows; exported callback types alone are not integration evidence.
