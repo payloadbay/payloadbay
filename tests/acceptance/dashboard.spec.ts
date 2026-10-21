@@ -2234,7 +2234,10 @@ test.describe("mobile request protection", () => {
 		await page.getByRole("textbox", { name: "Window in seconds", exact: true }).fill("60");
 		await page.getByRole("heading", { name: "Request protection", exact: true }).click();
 		await page.getByRole("button", { name: "Save request protection", exact: true }).click();
-		await expect(page.getByRole("alertdialog", { name: "Request failed", exact: true })).toContainText("Synthetic concurrent edit");
+		const saveError = page.getByRole("alertdialog", { name: "Request failed", exact: true });
+		await expect(saveError).toContainText("Synthetic concurrent edit");
+		await saveError.getByRole("button", { name: "Close", exact: true }).click();
+		await expect(saveError).toHaveCount(0);
 		await page.getByRole("button", { name: "Save request protection", exact: true }).click();
 		await expect(page.getByRole("button", { name: "Save request protection", exact: true })).toBeDisabled();
 		await page.setViewportSize({ width: 390, height: 844 });
