@@ -252,6 +252,30 @@ test("U193 reused HTTP fixtures expose no earlier receipts", async () => {
 
 test("U278 Drizzle source recreates complete usable domain schema", async () => {
 	const { execFileSync } = await import("node:child_process");
+	const { createRequire } = await import("node:module");
+	const require = createRequire(new URL("../../packages/domain/package.json", import.meta.url));
+	const { getTableConfig } = require("drizzle-orm/pg-core");
+	const schema = await import("../../packages/domain/src/schema.ts");
+	for (const [child, parent, column] of [
+		[schema.ingressPolicy, schema.endpoint, "endpoint_id"],
+		[schema.ingressRateBucket, schema.endpoint, "endpoint_id"],
+		[schema.processingAttempt, schema.execution, "execution_id"],
+	] as const) {
+		const foreignKeys = getTableConfig(child).foreignKeys;
+		assert.equal(foreignKeys.length, 1);
+		assert.equal(foreignKeys[0].onDelete, "cascade", "private route state must follow its owner's lifecycle");
+		const reference = foreignKeys[0].reference();
+		assert.equal(reference.foreignTable, parent);
+		assert.deepEqual(
+			reference.columns.map((value: { name: string }) => value.name),
+			[column],
+		);
+		assert.deepEqual(
+			reference.foreignColumns.map((value: { name: string }) => value.name),
+			["id"],
+		);
+	}
+
 	await withFixtures(async (f) => {
 		const sql = execFileSync(process.execPath, ["packages/domain/node_modules/drizzle-kit/bin.cjs", "export", "--dialect", "postgresql", "--schema", "packages/domain/src/schema.ts"], { encoding: "utf8" });
 		const db = new Client({ connectionString: f.databaseUrl });
