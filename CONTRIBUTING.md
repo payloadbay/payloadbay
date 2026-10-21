@@ -4,6 +4,20 @@ Follow the organization [contribution guidelines](https://github.com/payloadbay/
 for issues, branches, pull requests, review and AI disclosure. This repository
 adds the following preview testing guidance.
 
+## Local push checks
+
+Run `bun install --frozen-lockfile` after cloning. Its `prepare` lifecycle installs
+Husky's repository-local hooks. Commit or stash local changes before pushing so
+checks validate the committed source. Every push runs `bun run check:push`: test inventory,
+web/tooling type checks, lint, formatting and all registered test lanes. A failed
+check blocks the push; the hook does not rewrite files. The complete suite requires
+Docker, Node.js, Bun, ripgrep and Playwright Chromium (`bun x --no-install playwright
+install chromium`). Allow several minutes for builds and integration tests.
+
+Hook installation is skipped in CI, production and source archives without Git. CI remains the required merge
+gate, including coverage checks and clean dependency installation; local hooks
+cannot prevent deliberate bypasses or predict remote service failures.
+
 ## Preview deployment approval
 
 Maintainer/team PRs deploy automatically under Coolify's repository-members-only

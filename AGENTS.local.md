@@ -94,6 +94,13 @@ complete published-release installation/upgrade evidence remain separate gates.
 Keep new test files registered and record actual evidence without inventing Red
 cycles for work that was not implemented test-first.
 
+## Push validation
+
+Husky runs `bun run check:push` before a push. Commit or stash changes first so
+validation covers the committed source. Fix failing checks; do not disable the
+hook to get a push through. Scoped local tests do not establish that CI is green:
+check the results for the pushed commit before reporting CI completion.
+
 ## Task-specific context
 
 Read additional material only when the task requires it:

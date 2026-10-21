@@ -163,7 +163,7 @@ test("K02 organization settings automatically scopes a key to that organization"
 	const visible = await createProject(workspace.id, "Allowed integration", "allowed-integration");
 	await createProject(hidden.id, "Excluded integration", "excluded-integration");
 	await page.goto(`/organizations/${organization.id}`);
-	await page.getByRole("row", { name: "API keys", exact: true }).click();
+	await page.getByRole("link", { name: "API keys", exact: true }).click();
 	await expect(page.getByRole("heading", { name: "Organization API keys", exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "Create API key", exact: true }).click();
 	const dialog = page.getByRole("dialog", { name: "Create API key", exact: true });

@@ -342,7 +342,7 @@ test("UX53 route keyboard saves and publication rollback preserve already queued
 	const second = await secondResponse.json();
 	expect((await page.request.post(endpoint.ingressUrl, { data: "queued version fixture" })).status()).toBe(202);
 	await page.reload();
-	await page.getByRole("row", { name: "Publications", exact: true }).click();
+	await page.getByRole("link", { name: "Publications", exact: true }).click();
 	const publications = page.getByRole("grid", { name: "Publication history", exact: true });
 	await expect(publications.getByRole("row").filter({ hasText: "v2" })).toContainText("Active");
 	const firstRow = publications.getByRole("row").filter({ hasText: "v1" });
