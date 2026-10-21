@@ -7,7 +7,7 @@ These operational metrics are not a price list or a definition of billable work.
 ## Reading usage
 
 Organization navigation exposes **Usage and limits** under Observe and
-troubleshoot. It shows a selected UTC window, lifetime counts and the current
+troubleshoot. It shows the selected time window in the viewer’s browser timezone, lifetime counts and the current
 organization policy. A project-only member cannot inspect its parent
 organization's aggregate usage.
 
@@ -33,8 +33,8 @@ precision. Missing activity is represented by zero, not a missing metric.
 
 Retries do not create another logical execution. A cached successful managed
 operation does not create another HTTP attempt. A recorded attempt cannot prove
-remote receipt across a network or process crash. Direct script `fetch` is not
-invented as a managed delivery metric. Older event history is not automatically
+remote receipt across a network or process crash. Route scripts cannot use direct `fetch`; outgoing requests must use configured
+destinations and are tracked as managed delivery attempts. Older event history is not automatically
 backfilled into a verified usage ledger.
 
 ## Local limits

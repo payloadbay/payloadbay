@@ -466,7 +466,7 @@ test("U76 synthetic draft test performs no external effects", async () => {
 			pool,
 			{ userId: "fixture-owner" },
 			scope.endpoint,
-			{ stage: "processing", body: 'const sent=await ctx.destinations.send({url:"http://127.0.0.1:1/unreachable"},{operationId:"fixture",body:"synthetic"});try{await fetch("http://127.0.0.1:1/unreachable");return ctx.fail({reason:"Unexpected fetch"});}catch{}ctx.log.info("fixture",{value:ctx.secrets.VALUE});return sent.ok?ctx.complete():ctx.fail({reason:"simulation failed"});', fixture: { body: "fixture", secrets: { VALUE: "synthetic-secret" } } },
+			{ stage: "processing", body: 'const sent=await ctx.destinations.send("default",{operationId:"fixture",body:"synthetic"});try{await fetch("http://127.0.0.1:1/unreachable");return ctx.fail({reason:"Unexpected fetch"});}catch{}ctx.log.info("fixture",{value:ctx.secrets.VALUE});return sent.ok?ctx.complete():ctx.fail({reason:"simulation failed"});', fixture: { body: "fixture", secrets: { VALUE: "synthetic-secret" } } },
 			{ compile, run: execute },
 		);
 		assert.equal(result.mode, "dry");

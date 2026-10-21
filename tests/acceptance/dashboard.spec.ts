@@ -313,6 +313,8 @@ test("U116 event inspector displays HTML payload as escaped text", async ({ page
 	try {
 		const event = (await pool.query("INSERT INTO payloadbay.event(endpoint_id,publication_id,original_body,accepted_body,headers,content_type) VALUES($1,$2,$3,$3,'{}','text/html') RETURNING id", [route.id, publication.id, Buffer.from(body)])).rows[0].id;
 		const execution = (await pool.query("INSERT INTO payloadbay.execution(event_id,endpoint_id,publication_id,state,final_result) VALUES($1,$2,$3,'succeeded','{\"kind\":\"complete\"}') RETURNING id", [event, route.id, publication.id])).rows[0].id;
+		await pool.query("UPDATE payloadbay.execution SET attempt_number=2 WHERE id=$1", [execution]);
+		await pool.query("INSERT INTO payloadbay.processing_attempt(execution_id,attempt_number,generation,state,started_at,ended_at,result) VALUES($1,1,1,'retry_wait',now()-interval '2 seconds',now()-interval '1 second','{\"kind\":\"retry\",\"reason\":\"Synthetic processing failure\"}'),($1,2,2,'succeeded',now()-interval '1 second',now(),'{\"kind\":\"complete\"}')", [execution]);
 		await pool.query("INSERT INTO payloadbay.managed_operation(execution_id,operation_id,input_digest,destination_snapshot,generation) VALUES($1,'primary','fixture','{}',1)", [execution]);
 		await pool.query("INSERT INTO payloadbay.delivery_attempt(execution_id,operation_id,execution_attempt,generation,started_at,ended_at,status_code,response_body) VALUES($1,'primary',1,1,now()-interval '1 second',now(),503,$2),($1,'primary',2,1,now(),now(),204,''::bytea)", [execution, Buffer.from("Receiver is offline")]);
 	} finally {
@@ -333,7 +335,12 @@ test("U116 event inspector displays HTML payload as escaped text", async ({ page
 	await expect(page.locator('img[src="x"]')).toHaveCount(0);
 	expect(await page.evaluate(() => Boolean((globalThis as typeof globalThis & { PAYLOADBAY_ATTACKED?: boolean }).PAYLOADBAY_ATTACKED))).toBe(false);
 	await page.getByRole("tab", { name: "Processing", exact: true }).click();
-	await expect(page.getByText("Handler completed", { exact: true }).last()).toBeVisible();
+	await expect(page.getByLabel("Selected processing attempt")).toContainText("Handler completed");
+	await page.getByRole("button", { name: /Processing attempt/ }).click();
+	await page.getByRole("option", { name: /Attempt 1/ }).click();
+	await expect(page.getByLabel("Selected processing attempt")).toContainText("Synthetic processing failure");
+	await expect(page.getByRole("listbox")).toBeHidden();
+	await page.screenshot({ path: test.info().outputPath("processing-attempt-mobile.png"), animations: "disabled" });
 	await page.getByRole("tab", { name: "Outgoing", exact: true }).click();
 	await expect(page.getByLabel("Selected delivery attempt")).toContainText("HTTP 204");
 	await expect(page.getByRole("button", { name: /Delivery attempt/ })).toContainText("HTTP 204");
@@ -391,7 +398,7 @@ test("U116 event inspector displays HTML payload as escaped text", async ({ page
 	await page.getByRole("button", { name: "Inspect event " + entry.id.slice(0, 8), exact: true }).click();
 	const replayInspector = page.getByRole("dialog", { name: "Event inspection", exact: true });
 	await replayInspector.getByRole("tab", { name: "Processing", exact: true }).click();
-	await expect(replayInspector.getByText("Handler completed", { exact: true })).toBeVisible();
+	await expect(replayInspector.getByText("Handler completed", { exact: true }).last()).toBeVisible();
 	await expect(replayInspector.getByText("Accepted / queued", { exact: true })).toBeVisible();
 	await replayInspector.getByRole("button", { name: "Replay event", exact: true }).click();
 	await expect.poll(async () => (await (await page.request.get("/api/v1/events/" + entry.id)).json()).executions.length).toBe(before + 2);
@@ -605,7 +612,7 @@ test("U83 route editor binds helper version and supports editable file imports",
 	await code.focus();
 	await page.keyboard.press("ControlOrMeta+A");
 	await page.keyboard.insertText('import { message } from "@shared/Messages";\nexport async function POST(ctx: IngressContext): Promise<IngressDecision> { return ctx.respondOnly({status:200,body:message()}); }\nexport async function GET(ctx: IngressContext): Promise<IngressDecision> { return ctx.respondOnly({status:200,body:"ready"}); }');
-	await page.getByRole("button", { name: "Publish both stages", exact: true }).click();
+	await page.getByRole("button", { name: "Publish", exact: true }).click();
 	await expect(page.getByRole("alertdialog", { name: "Script status", exact: true })).toContainText("Published", { timeout: 20000 });
 	const endpoint = await (await page.request.get("/api/v1/endpoints/" + route.id)).json();
 	const response = await page.request.post(endpoint.ingressUrl, { data: "fixture" });
@@ -1129,7 +1136,51 @@ test("instance notification modules remain forkable while enterprise customizati
 	await expect(page.getByText("Built-in template", { exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "Fork module", exact: true }).click();
 	await page.getByLabel("Module name", { exact: true }).fill("Review email module");
-	const previewResponse = page.waitForResponse((response) => response.url().endsWith("/notification-channels/preview") && response.request().method() === "POST");
+	await expect(page.getByText("Loading code editor…", { exact: true })).toHaveCount(0, { timeout: 20000 });
+	const moduleEditor = page.getByRole("textbox", { name: "Notification module source", exact: true });
+	await moduleEditor.focus();
+	await page.keyboard.press("Control+Home");
+	await page.keyboard.insertText("// Forked email module\n");
+	await expect(page.locator(".monaco-editor .view-lines")).toContainText("Forked email module");
+	await expect(page.getByText(/Cannot find name 'Notification/)).toHaveCount(0);
+	await page.locator(".monaco-editor .view-lines").getByText("NotificationContext", { exact: true }).hover();
+	const typeHover = page.locator(".monaco-hover:visible").last();
+	await expect(typeHover).toContainText("NotificationContext");
+	const hoverBounds = await typeHover.boundingBox();
+	expect(hoverBounds).toBeTruthy();
+	expect(hoverBounds!.x).toBeGreaterThanOrEqual(0);
+	expect(hoverBounds!.y).toBeGreaterThanOrEqual(0);
+	expect(hoverBounds!.x + hoverBounds!.width).toBeLessThanOrEqual(390);
+	await page.screenshot({ path: test.info().outputPath("notification-type-hover-mobile.png") });
+	await page.keyboard.press("Escape");
+	await page.getByRole("list", { name: "Breadcrumbs" }).getByRole("link", { name: "Notification modules", exact: true }).click();
+	const discard = page.getByRole("dialog", { name: "Discard unsaved changes?" });
+	await expect(discard).toBeVisible();
+	await discard.getByRole("button", { name: "Keep editing" }).click();
+	await expect(discard).toHaveCount(0);
+	await moduleEditor.focus();
+	await page.keyboard.press("Control+End");
+	await page.keyboard.insertText("\nunknownNotificationSymbol;\n");
+	const invalidPreview = page.waitForResponse((response) => response.url().endsWith("/notification-channels/preview") && response.request().method() === "POST" && response.request().postDataJSON().source.includes("unknownNotificationSymbol"));
+	await page.getByRole("button", { name: "Preview output", exact: true }).click();
+	expect((await invalidPreview).status()).toBe(422);
+	await expect(page.getByRole("region", { name: "Code problems" })).toContainText("unknownNotificationSymbol");
+	await expect(page.getByText(/Cannot find name 'unknownNotificationSymbol'/).first()).toBeVisible();
+	await page.getByRole("button", { name: /Line [0-9]+: Cannot find name 'unknownNotificationSymbol'/ }).click();
+	await expect(moduleEditor).toBeFocused();
+	await page.screenshot({ path: test.info().outputPath("notification-compiler-problems-mobile.png") });
+	await moduleEditor.focus();
+	await page.keyboard.press("Control+End");
+	const { builtinEmailSource } = await import("../../packages/contracts/src/notification-templates.ts");
+	await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+	await page.evaluate((text) => navigator.clipboard.writeText(text), builtinEmailSource);
+	await moduleEditor.focus();
+	await expect(moduleEditor).toBeFocused();
+	await page.keyboard.press("Control+a");
+	await page.keyboard.press("Control+v");
+	await expect(page.locator(".monaco-editor .view-lines")).not.toContainText("unknownNotificationSymbol");
+
+	const previewResponse = page.waitForResponse((response) => response.url().endsWith("/notification-channels/preview") && response.request().method() === "POST" && !response.request().postDataJSON().source.includes("unknownNotificationSymbol"));
 	await page.getByRole("button", { name: "Preview output" }).click();
 	const previewReply = await previewResponse;
 	expect(await previewReply.json()).toMatchObject({ decision: { kind: "email" } });
@@ -2083,4 +2134,137 @@ test("UX90 synthetic accepted JSON is readable while its wire payload remains by
 	expect(decision.event.body).toEqual({ type: "purchase.completed", data: { orderId: "demo-001", amount: 4900, currency: "EUR" } });
 	await result.scrollIntoViewIfNeeded();
 	await page.screenshot({ path: test.info().outputPath("readable-script-result-mobile.png") });
+});
+
+test.describe("browser-local chart dates", () => {
+	test.use({ timezoneId: "Europe/Berlin", locale: "de-DE" });
+	test("traffic chart renders hourly instants in the viewer timezone", async ({ page }) => {
+		const { ensureBrowserOwner } = await import("../helpers/browser-auth.ts");
+		await ensureBrowserOwner(page);
+		await page.route("**/api/v1/overview", async (route) => {
+			const response = await route.fetch();
+			const data = await response.json();
+			data.series = [
+				{
+					hour: "2026-10-21T10:00:00.000Z",
+					ingress: 1,
+					accepted: 1,
+					rejected: 0,
+					deliveries: 1,
+				},
+				{
+					hour: "2026-10-21T11:00:00.000Z",
+					ingress: 2,
+					accepted: 2,
+					rejected: 0,
+					deliveries: 2,
+				},
+			];
+			await route.fulfill({ response, json: data });
+		});
+		await page.goto("/");
+		const chart = page.getByRole("img", { name: /24-hour traffic/ });
+		await expect(chart.getByText("12:00", { exact: true })).toBeVisible();
+		await expect(chart.getByText("13:00", { exact: true })).toBeVisible();
+		await expect(chart.getByText("10:00", { exact: true })).toHaveCount(0);
+	});
+});
+
+test.describe("mobile request protection", () => {
+	test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+	test("request protection supports ordered rules, a browser template and a real route quota", async ({ page }) => {
+		const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
+		await ensureBrowserOwner(page);
+		const headers = commandHeaders();
+		const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: await browserOrganization(page), name: "Protection workspace", slug: "protection-workspace" } })).json();
+		const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Protection project", slug: "protection-project" } })).json();
+		const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Protected endpoint", slug: "protected" } })).json();
+		const publication = await page.request.post("/api/v1/endpoints/" + route.id + "/publications", { headers, data: { expectedVersion: 1, draftVersions: { ingress: 1, processing: 1 } } });
+		expect(publication.status()).toBe(200);
+		const endpoint = await (await page.request.get("/api/v1/endpoints/" + route.id)).json();
+		const path = "/projects/" + project.id + "/routes/" + route.id + "/protection";
+		let failLoad = true;
+		let failSave = true;
+		await page.route("**/api/v1/endpoints/" + route.id + "/protection", async (intercepted) => {
+			if (intercepted.request().method() === "GET" && failLoad) {
+				failLoad = false;
+				await intercepted.fulfill({ status: 503, json: { error: { code: "unavailable", message: "Synthetic protection outage", correlationId: "fixture" } } });
+			} else if (intercepted.request().method() === "PUT" && failSave) {
+				failSave = false;
+				await intercepted.fulfill({ status: 409, json: { error: { code: "version_conflict", message: "Synthetic concurrent edit", correlationId: "fixture" } } });
+			} else await intercepted.continue();
+		});
+		await page.goto(path);
+		await expect(page.getByText("Request protection is unavailable.", { exact: true })).toBeVisible();
+		await page.getByRole("button", { name: "Retry", exact: true }).click();
+		await expect(page.getByRole("heading", { name: "Request protection", exact: true })).toBeVisible();
+		await page.getByText("Enable request filters", { exact: true }).tap();
+		await page.getByRole("button", { name: "Add rule", exact: true }).click();
+		let dialog = page.getByRole("dialog", { name: "Request filter rule", exact: true });
+		await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+		await page.getByRole("button", { name: "Add rule", exact: true }).click();
+		await page.keyboard.press("Escape");
+		await expect(dialog).toHaveCount(0);
+		await page.getByRole("button", { name: "Add rule", exact: true }).click();
+		dialog = page.getByRole("dialog", { name: "Request filter rule", exact: true });
+		await dialog.getByLabel("Rule name", { exact: true }).fill("Trusted sender");
+		await dialog.getByLabel("Header name", { exact: true }).fill("x-sender");
+		await chooseOption(dialog.getByRole("button", { name: /Match condition/ }), "equals");
+		await dialog.getByLabel("Header value", { exact: true }).fill("provider");
+		await chooseOption(dialog.getByRole("button", { name: /Rule action/ }), "skip");
+		await dialog.getByRole("button", { name: "Apply rule", exact: true }).click();
+		await page.getByRole("button", { name: "Add browser-request template", exact: true }).click();
+		await page.getByRole("button", { name: "Move Browser user agent up", exact: true }).click();
+		await page.getByRole("button", { name: "Move Browser user agent down", exact: true }).click();
+		await page.getByRole("button", { name: "Edit Browser navigation", exact: true }).click();
+		dialog = page.getByRole("dialog", { name: "Request filter rule", exact: true });
+		await chooseOption(dialog.getByRole("button", { name: /Match condition/ }), "present");
+		await expect(dialog.getByLabel("Header value", { exact: true })).toHaveCount(0);
+		await dialog.getByRole("switch", { name: "Enable rule", exact: true }).press("Space");
+		await dialog.getByRole("button", { name: "Apply rule", exact: true }).click();
+		await chooseOption(page.getByRole("button", { name: /When no rule matches/ }), "block");
+		await chooseOption(page.getByRole("button", { name: /When no rule matches/ }), "allow");
+		await page.getByRole("switch", { name: "Limit incoming requests", exact: true }).press("Space");
+		await page.getByRole("textbox", { name: "Requests per window", exact: true }).fill("1");
+		await page.getByRole("textbox", { name: "Window in seconds", exact: true }).fill("60");
+		await page.getByRole("heading", { name: "Request protection", exact: true }).click();
+		await page.getByRole("button", { name: "Save request protection", exact: true }).click();
+		await expect(page.getByRole("alertdialog", { name: "Request failed", exact: true })).toContainText("Synthetic concurrent edit");
+		await page.getByRole("button", { name: "Save request protection", exact: true }).click();
+		await expect(page.getByRole("button", { name: "Save request protection", exact: true })).toBeDisabled();
+		await page.setViewportSize({ width: 390, height: 844 });
+		await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+		const trustedRow = page.getByRole("row").filter({ hasText: "Trusted sender" });
+		await trustedRow.scrollIntoViewIfNeeded();
+		const ruleBounds = await trustedRow.getByText("Trusted sender", { exact: true }).boundingBox();
+		const deleteBounds = await trustedRow.getByRole("button", { name: "Delete Trusted sender", exact: true }).boundingBox();
+		expect(ruleBounds!.x).toBeGreaterThanOrEqual(0);
+		expect(deleteBounds!.x + deleteBounds!.width).toBeLessThanOrEqual(390);
+		await page.evaluate(() => window.scrollTo(0, 0));
+		await page.screenshot({ path: test.info().outputPath("request-protection-mobile.png"), fullPage: true, animations: "disabled" });
+		const blocked = await page.request.post(endpoint.ingressUrl, { headers: { "user-agent": "Mozilla/5.0" }, data: "fixture" });
+		expect(blocked.status()).toBe(403);
+		const allowed = await page.request.post(endpoint.ingressUrl, { headers: { "user-agent": "Mozilla/5.0", "x-sender": "provider" }, data: "fixture" });
+		expect(allowed.status()).toBe(503);
+		const limited = await page.request.post(endpoint.ingressUrl, { headers: { "user-agent": "Mozilla/5.0", "x-sender": "provider" }, data: "fixture" });
+		expect(limited.status()).toBe(429);
+		expect(Number(limited.headers()["retry-after"])).toBeGreaterThan(0);
+		await page.getByRole("button", { name: "Delete Browser navigation", exact: true }).click();
+		await page.getByRole("list", { name: "Breadcrumbs" }).getByRole("link", { name: "Protected endpoint", exact: true }).click();
+		await page.getByRole("dialog", { name: "Discard unsaved changes?" }).getByRole("button", { name: "Discard changes", exact: true }).click();
+		await expect(page).not.toHaveURL(/protection$/);
+		await page.goto(path);
+		await expect(page.getByRole("grid", { name: "Request filter rules", exact: true })).toContainText("Browser navigation");
+	});
+});
+
+test("instance shared-code pages are absent without weakening customer inheritance", async ({ page }) => {
+	const { ensureBrowserOwner } = await import("../helpers/browser-auth.ts");
+	await ensureBrowserOwner(page);
+	const me = await (await page.request.get("/api/v1/me")).json();
+	await page.goto("/");
+	await expect(page.getByRole("link", { name: "Shared code", exact: true })).toHaveCount(0);
+	await page.goto("/code/instance/" + me.instanceId);
+	await expect(page.getByRole("heading", { name: "This page could not be found.", exact: true })).toBeVisible();
 });

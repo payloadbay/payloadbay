@@ -18,6 +18,7 @@ test("RT02 maintenance prunes only provably old completed events and preserves o
 
 		const old = await event();
 		const original = await execution(old, "succeeded");
+		await db.query("INSERT INTO payloadbay.processing_attempt(execution_id,attempt_number,generation,state,ended_at,result) VALUES($1,1,1,'succeeded',statement_timestamp()-interval '40 days',$2)", [original, JSON.stringify({ kind: "complete" })]);
 		const replay = await execution(old, "succeeded", original);
 		const queued = await event();
 		const queuedExecution = await execution(queued, "queued");
@@ -52,6 +53,7 @@ test("RT02 maintenance prunes only provably old completed events and preserves o
 			[queued, justCompleted, legacyUnproven, missingWork].sort(),
 		);
 		assert.equal((await db.query("SELECT state FROM payloadbay.execution WHERE id=$1", [queuedExecution])).rows[0].state, "queued");
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.processing_attempt WHERE execution_id=$1", [original])).rows[0].n, 0);
 		assert.deepEqual((await db.query("SELECT id,metric,source_key,occurred_at FROM payloadbay.usage_fact ORDER BY id")).rows, beforeFacts);
 		assert.equal((await db.query("SELECT quantity FROM payloadbay.usage_counter WHERE organization_id=$1", [scope.organization])).rows[0].quantity, "3");
 		assert.deepEqual((await db.query("SELECT id FROM payloadbay.stage_revision ORDER BY id")).rows, beforeRevisions);

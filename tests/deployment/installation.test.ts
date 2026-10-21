@@ -429,7 +429,7 @@ test("U298 real API executes synthetic draft and denies missing test permission"
 			);
 
 		const token = await mint(["code.read", "code.test"]);
-		const body = JSON.stringify({ stage: "processing", body: 'const sent=await ctx.destinations.send({url:"http://127.0.0.1:1/unreachable"},{operationId:"test",body:ctx.event.body});return sent.ok?ctx.complete():ctx.fail({reason:"failed"});', fixture: { body: "synthetic" } });
+		const body = JSON.stringify({ stage: "processing", body: 'const sent=await ctx.destinations.send("default",{operationId:"test",body:ctx.event.body});return sent.ok?ctx.complete():ctx.fail({reason:"failed"});', fixture: { body: "synthetic" } });
 		const response = await fetch(f.url + "/api/v1/endpoints/" + scope.endpoint + "/test", { method: "POST", headers: { authorization: "Bearer " + token.secret, "content-type": "application/json" }, body });
 		assert.equal(response.status, 200, "Synthetic test API must be available");
 		const result = unpackWire(await response.json()) as { mode: string; decision: { kind: string } };

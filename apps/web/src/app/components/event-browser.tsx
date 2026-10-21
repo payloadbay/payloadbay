@@ -40,6 +40,14 @@ type Attempt = {
 	started_at: string;
 	duration_ms: number | null;
 };
+type ProcessingAttempt = {
+	execution_id: string;
+	attempt_number: number;
+	state: string;
+	started_at: string;
+	ended_at: string | null;
+	result: { kind: string; reason?: string } | null;
+};
 type Detail = {
 	id: string;
 	endpointId: string;
@@ -52,6 +60,7 @@ type Detail = {
 	contentType: string;
 	bodyBytes: number;
 	executions: Execution[];
+	processingAttempts: ProcessingAttempt[];
 	attempts: Attempt[];
 };
 type AttemptDetail = {
@@ -76,6 +85,7 @@ const labels: Record<string, string> = {
 	retry_wait: "Retry scheduled",
 	succeeded: "Handler completed",
 	failed_terminal: "Needs attention",
+	interrupted: "Interrupted",
 };
 
 function decode(value: string) {
@@ -106,6 +116,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 	const [detailRevision, setDetailRevision] = useState(0);
 	const [payload, setPayload] = useState<Payload | null>(null);
 	const [tab, setTab] = useState("ingress");
+	const [processingKey, setProcessingKey] = useState("");
 	const [selectedAttempt, setSelectedAttempt] = useState<string | null>(null);
 	const [attempt, setAttempt] = useState<AttemptDetail | null>(null);
 	const response = useRef<HTMLElement>(null);
@@ -119,6 +130,8 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 	const [busy, setBusy] = useState(false);
 	const bulkKey = useRef("");
 
+	const processingAttempt = detail?.processingAttempts?.find((item) => item.execution_id + ":" + item.attempt_number === processingKey) ?? detail?.processingAttempts?.[0];
+	const deliverySelection = detail?.attempts.find((item) => item.id === selectedAttempt);
 	const activeProject = projectId ?? projectFilter;
 	const activeRoute = endpointId ?? routeFilter;
 
@@ -270,6 +283,7 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 	}, [attempt]);
 
 	function inspect(id: string, section = "ingress") {
+		setProcessingKey("");
 		setSelected(id);
 		setReplayVersion("");
 		setDetail(null);
@@ -675,9 +689,21 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 										</Tabs.ListContainer>
 										<Tabs.Panel id='ingress' className='flex flex-col gap-4 pt-4'>
 											<h3 className='font-semibold'>{detail.endpointName}</h3>
-											<p>
-												{detail.method} / {labels[detail.ingressOutcome]} / HTTP {detail.responseStatus ?? "—"}
-											</p>
+											<div className='flex flex-wrap items-center gap-2'>
+												<Chip variant='soft'>{detail.method}</Chip>
+												<Chip color={statusColor(detail.ingressOutcome)}>{labels[detail.ingressOutcome]}</Chip>
+												<Chip color={detail.responseStatus && detail.responseStatus < 400 ? "success" : "danger"}>HTTP {detail.responseStatus ?? "Pending"}</Chip>
+											</div>
+											<dl className='grid grid-cols-2 gap-3 rounded-lg bg-field p-3 text-sm'>
+												<div>
+													<dt className='text-muted'>Content type</dt>
+													<dd className='break-all'>{detail.contentType}</dd>
+												</div>
+												<div>
+													<dt className='text-muted'>Request size</dt>
+													<dd>{detail.bodyBytes.toLocaleString()} bytes</dd>
+												</div>
+											</dl>
 											{payload ? (
 												<>
 													<h3>Original request body</h3>
@@ -702,6 +728,59 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 											)}
 										</Tabs.Panel>
 										<Tabs.Panel id='processing' className='flex flex-col gap-4 pt-4'>
+											{Boolean(detail.processingAttempts?.length) && (
+												<>
+													<Select variant='secondary' aria-label='Processing attempt' value={processingAttempt ? processingAttempt.execution_id + ":" + processingAttempt.attempt_number : null} onChange={(key) => setProcessingKey(String(key))}>
+														<Label>Processing attempt</Label>
+														<Select.Trigger>
+															<Select.Value>
+																{processingAttempt && (
+																	<span className='flex flex-wrap items-center gap-2'>
+																		<span>Attempt {processingAttempt.attempt_number}</span>
+																		<Chip size='sm' color={statusColor(processingAttempt.state)}>
+																			{labels[processingAttempt.state]}
+																		</Chip>
+																	</span>
+																)}
+															</Select.Value>
+															<Select.Indicator />
+														</Select.Trigger>
+														<Select.Popover>
+															<ListBox>
+																{detail.processingAttempts.map((item) => (
+																	<ListBox.Item key={item.execution_id + ":" + item.attempt_number} id={item.execution_id + ":" + item.attempt_number} textValue={"Attempt " + item.attempt_number + " / " + labels[item.state] + " / " + new Date(item.started_at).toLocaleString()}>
+																		<span>
+																			Attempt {item.attempt_number} / {new Date(item.started_at).toLocaleString()}
+																		</span>
+																		<Chip size='sm' color={statusColor(item.state)}>
+																			{labels[item.state]}
+																		</Chip>
+																		<ListBox.ItemIndicator />
+																	</ListBox.Item>
+																))}
+															</ListBox>
+														</Select.Popover>
+													</Select>
+													{processingAttempt && (
+														<section aria-label='Selected processing attempt' className='flex flex-col gap-3 rounded-lg bg-field p-4'>
+															<Chip className='w-fit' color={statusColor(processingAttempt.state)}>
+																{labels[processingAttempt.state]}
+															</Chip>
+															<dl className='grid grid-cols-2 gap-3 text-sm'>
+																<div>
+																	<dt className='text-muted'>Started</dt>
+																	<dd>{new Date(processingAttempt.started_at).toLocaleString()}</dd>
+																</div>
+																<div>
+																	<dt className='text-muted'>Finished</dt>
+																	<dd>{processingAttempt.ended_at ? new Date(processingAttempt.ended_at).toLocaleString() : "In progress"}</dd>
+																</div>
+															</dl>
+															{processingAttempt.result?.reason && <p className='whitespace-pre-wrap break-words'>{processingAttempt.result.reason}</p>}
+														</section>
+													)}
+												</>
+											)}
 											<h3 className='font-semibold'>Processing executions</h3>
 											{detail.executions.map((execution) => (
 												<div key={execution.id} className='border-border rounded-lg border p-3'>
@@ -729,7 +808,16 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 												>
 													<Label>Delivery attempt</Label>
 													<Select.Trigger>
-														<Select.Value />
+														<Select.Value>
+															{deliverySelection && (
+																<span className='flex flex-wrap items-center gap-2'>
+																	<span>Attempt {detail.attempts.length - detail.attempts.findIndex((item) => item.id === deliverySelection.id)}</span>
+																	<Chip size='sm' color={deliverySelection.status_code ? (deliverySelection.status_code >= 200 && deliverySelection.status_code < 300 ? "success" : "danger") : "default"}>
+																		{deliverySelection.status_code ? "HTTP " + deliverySelection.status_code : (deliverySelection.network_error ?? "Pending")}
+																	</Chip>
+																</span>
+															)}
+														</Select.Value>
 														<Select.Indicator />
 													</Select.Trigger>
 													<Select.Popover>
@@ -763,9 +851,14 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 														<LoadingState label='Loading attempt…' />
 													) : (
 														<>
-															<p>
-																{attempt.operationId} / {attempt.status ? "HTTP " + attempt.status : (attempt.networkError ?? "Pending")} / {attempt.durationMs ?? "—"} ms
-															</p>
+															<div className='flex flex-wrap items-center gap-2'>
+																<Chip color={attempt.status && attempt.status >= 200 && attempt.status < 300 ? "success" : attempt.status || attempt.networkError ? "danger" : "default"}>{attempt.status ? "HTTP " + attempt.status : (attempt.networkError ?? "Pending")}</Chip>
+																<span className='text-muted text-sm'>{attempt.durationMs ?? "—"} ms</span>
+															</div>
+															<dl className='rounded-lg bg-field p-3 text-sm'>
+																<dt className='text-muted'>Operation</dt>
+																<dd className='break-all'>{attempt.operationId}</dd>
+															</dl>
 															{attempt.responseBody !== undefined ? (
 																<>
 																	<p className='text-muted text-xs'>Captured response body, up to 64 KiB. Response headers are not recorded.</p>

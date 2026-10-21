@@ -7,11 +7,12 @@ import { Button, TextField, Label, Input, Chip, Card, Select, ListBox } from "@h
 
 import { useDashboard } from "@components/dashboard-shell";
 import { CodeEditor } from "@components/code-editor";
-import { HelperImportPicker } from "@components/helper-import-picker";
 import { SecretBindings } from "@components/secret-bindings";
 import { LoadingState } from "@components/loading-state";
 import { useUnsavedChanges } from "@components/unsaved-changes";
-import { api } from "@lib/api-client";
+import { IconGitFork } from "@tabler/icons-react";
+import type { CompilationDiagnostic } from "@contracts/compilation";
+import { api, ApiFailure } from "@lib/api-client";
 import { useFeedbackToast } from "@lib/feedback";
 import { formatScript } from "@lib/script-document";
 import { builtinEmailSource, webhookChannelSource } from "@contracts/notification-templates";
@@ -56,6 +57,7 @@ export default function NotificationModulePage({ params }: { params: Promise<{ c
 	const [loading, setLoading] = useState(channelId !== "new");
 	const [error, setError] = useState("");
 	const [notice, setNotice] = useState("");
+	const [diagnostics, setDiagnostics] = useState<CompilationDiagnostic[]>([]);
 	const [preview, setPreview] = useState<Preview | null>(null);
 	const [forking, setForking] = useState(false);
 
@@ -72,7 +74,7 @@ export default function NotificationModulePage({ params }: { params: Promise<{ c
 	const readOnly = channel?.builtin && !forking;
 	const canPublish = me.permissions.includes("code.publish") && me.permissions.includes("code.edit");
 
-	useUnsavedChanges(!loading && dirty);
+	const { dialog: unsavedDialog } = useUnsavedChanges(!loading && dirty);
 
 	useFeedbackToast(error, notice);
 
@@ -117,10 +119,12 @@ export default function NotificationModulePage({ params }: { params: Promise<{ c
 		setBusy(true);
 		setError("");
 		setNotice("");
+		setDiagnostics([]);
 		try {
 			await task();
 		} catch (cause) {
 			setError(cause instanceof Error ? cause.message : "Module operation failed");
+			if (cause instanceof ApiFailure) setDiagnostics(cause.diagnostics ?? []);
 		} finally {
 			setBusy(false);
 		}
@@ -170,6 +174,7 @@ export default function NotificationModulePage({ params }: { params: Promise<{ c
 
 	return (
 		<section className='flex min-w-0 flex-col gap-6'>
+			{unsavedDialog}
 			<header>
 				<Link className='button button--secondary w-fit' href='/admin/notification-channels'>
 					Notification modules
@@ -179,17 +184,6 @@ export default function NotificationModulePage({ params }: { params: Promise<{ c
 			</header>
 			<div className='flex flex-wrap items-center gap-3'>
 				{channel?.builtin && <Chip>{forking ? "Fork draft" : "Built-in template"}</Chip>}
-				{channel && canPublish && !forking && (
-					<Button
-						variant='secondary'
-						onPress={() => {
-							setForking(true);
-							setName(channel.name + " copy");
-						}}
-					>
-						Fork module
-					</Button>
-				)}
 				{channel && !channel.builtin && !forking && (
 					<Button
 						variant='secondary'
@@ -246,20 +240,15 @@ export default function NotificationModulePage({ params }: { params: Promise<{ c
 			)}
 			<div className='flex flex-wrap items-center justify-between gap-3'>
 				<h2 className='text-xl font-semibold'>Script</h2>
-				<HelperImportPicker
-					scope={scope}
-					body={source}
-					disabled={Boolean(readOnly) || busy || !canPublish}
-					onImport={(body, alias, revisionId) => {
-						setSource(body);
-						setSharedBindings((bindings) => ({ ...bindings, [alias]: revisionId }));
-					}}
-				/>
 			</div>
 			<CodeEditor
 				label='Notification module source'
+				diagnostics={diagnostics}
 				value={source}
-				onChange={setSource}
+				onChange={(next) => {
+					setSource(next);
+					setDiagnostics([]);
+				}}
 				readOnly={Boolean(readOnly) || !canPublish}
 				helperScope={scope}
 				onSave={() => {
@@ -268,6 +257,19 @@ export default function NotificationModulePage({ params }: { params: Promise<{ c
 			/>
 			{!readOnly && <SecretBindings scope={scope} bindings={secretBindings} onChange={setSecretBindings} canUse={me.permissions.includes("secrets.use")} canManage={me.permissions.includes("secrets.manage")} disabled={busy || !canPublish} />}
 			<div className='flex flex-wrap justify-center gap-3 sm:justify-start'>
+				{channel && canPublish && !forking && (
+					<Button
+						variant='secondary'
+						isIconOnly
+						aria-label='Fork module'
+						onPress={() => {
+							setForking(true);
+							setName(channel.name + " copy");
+						}}
+					>
+						<IconGitFork size={18} />
+					</Button>
+				)}
 				{!readOnly && canPublish && (
 					<Button isDisabled={busy || !name.trim()} onPress={() => void publish()}>
 						Publish version

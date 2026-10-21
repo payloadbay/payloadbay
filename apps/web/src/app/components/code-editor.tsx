@@ -1,5 +1,6 @@
 "use client";
 
+import type { CompilationDiagnostic } from "@contracts/compilation";
 import { scriptTestContextDeclaration } from "@contracts/script-test";
 import { helperModuleBindings } from "@lib/helper-resolution";
 import { LoadingState } from "@components/loading-state";
@@ -7,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { scriptFrame, formatScript, type ScriptStage } from "@lib/script-document";
 import { api } from "@lib/api-client";
 import { sdkDeclarations } from "@sdk/declarations.generated";
+import { Button } from "@heroui/react";
 import type { editor as MonacoEditor } from "monaco-editor";
 
 type CodeEditorProps = {
@@ -14,6 +16,7 @@ type CodeEditorProps = {
 	onChange: (value: string) => void;
 	label: string;
 	readOnly?: boolean;
+	diagnostics?: CompilationDiagnostic[];
 	language?: "typescript" | "json" | "xml" | "plaintext";
 	stage?: ScriptStage;
 	bindings?: Record<string, string>;
@@ -21,7 +24,7 @@ type CodeEditorProps = {
 	helperScope?: { type: "instance" | "organization" | "workspace" | "project"; id: string };
 };
 
-export function CodeEditor({ value, onChange, label, readOnly = false, language = "typescript", stage, bindings, onSave, helperScope }: CodeEditorProps) {
+export function CodeEditor({ value, onChange, label, readOnly = false, language = "typescript", stage, bindings, onSave, helperScope, diagnostics }: CodeEditorProps) {
 	const helperType = helperScope?.type;
 	const helperId = helperScope?.id;
 
@@ -38,6 +41,7 @@ export function CodeEditor({ value, onChange, label, readOnly = false, language 
 	const locked = useRef(readOnly);
 	const [error, setError] = useState("");
 	const [ready, setReady] = useState(false);
+	const [problems, setProblems] = useState<MonacoEditor.IMarker[]>([]);
 
 	useEffect(() => {
 		changed.current = onChange;
@@ -81,7 +85,8 @@ export function CodeEditor({ value, onChange, label, readOnly = false, language 
 				});
 				typescript.typescriptDefaults.setModeConfiguration({ ...typescript.typescriptDefaults.modeConfiguration, documentRangeFormattingEdits: false, onTypeFormattingEdits: false });
 				typescript.typescriptDefaults.setDiagnosticsOptions({ noSemanticValidation: false, noSyntaxValidation: false });
-				const contextTypes = ["IngressContext", "ProcessingContext", "IngressDecision", "ProcessingDecision", "IngressMiddlewareContext", "ProcessingMiddlewareContext", "IngressMiddlewareDecision", "ProcessingMiddlewareDecision"];
+				// Body already names the platform fetch-body interface; the SDK body remains available as PayloadBay.Body.
+				const contextTypes = [...sdkDeclarations.matchAll(/^export type (\w+)/gm)].map((match) => match[1]).filter((name) => name !== "Body");
 				const declarations = scriptTestContextDeclaration + `declare namespace PayloadBay {\n${sdkDeclarations}\n}\n` + contextTypes.map((name) => `type ${name} = PayloadBay.${name};`).join("\n");
 				const sdk = typescript.typescriptDefaults.addExtraLib(declarations, "file:///payloadbay-sdk.d.ts");
 				const available: { id: string; name: string; scope: { type: string } }[] = helperType && helperId ? await api("/shared-code?scopeType=" + helperType + "&scopeId=" + helperId) : [];
@@ -128,8 +133,17 @@ export function CodeEditor({ value, onChange, label, readOnly = false, language 
 					scrollBeyondLastLine: false,
 					scrollbar: { alwaysConsumeMouseWheel: false },
 					wordWrap: "off",
+					fixedOverflowWidgets: true,
+					padding: { top: 12, bottom: 12 },
 				});
 				editor.current = instance;
+				cleanups.push(
+					monaco.editor.onDidChangeMarkers((resources) => {
+						const model = instance.getModel();
+						if (!model || !resources.some((resource) => resource.toString() === model.uri.toString())) return;
+						setProblems(monaco.editor.getModelMarkers({ resource: model.uri }).filter((marker) => marker.severity >= monaco.MarkerSeverity.Warning));
+					}),
+				);
 				cleanups.push(
 					monaco.languages.registerDocumentFormattingEditProvider(
 						{ language, pattern: instance.getModel()!.uri.path },
@@ -231,6 +245,8 @@ export function CodeEditor({ value, onChange, label, readOnly = false, language 
 		};
 	}, [label, prefix, suffix, stage, bindings, helperType, helperId, language]);
 
+	const listedProblems = [...new Map([...problems.map((problem) => ({ line: problem.startLineNumber, column: problem.startColumn, message: problem.message })), ...(diagnostics ?? [])].map((problem) => [`${problem.line}:${problem.column}:${problem.message}`, problem])).values()];
+
 	return (
 		<div className='min-w-0 w-full'>
 			{error && (
@@ -247,6 +263,30 @@ export function CodeEditor({ value, onChange, label, readOnly = false, language 
 				)}
 				<div ref={container} className='border-border h-96 min-w-0 w-full overflow-hidden rounded-lg border' />
 			</div>
+			{listedProblems.length > 0 && (
+				<section aria-label='Code problems'>
+					<details className='mt-3 rounded-lg border border-border p-3' open>
+						<summary className='cursor-pointer font-medium'>Problems ({listedProblems.length})</summary>
+						<ul className='mt-2 flex flex-col gap-2'>
+							{listedProblems.map((problem, index) => (
+								<li key={index}>
+									<Button
+										variant='ghost'
+										className='h-auto w-full justify-start whitespace-normal text-left text-sm'
+										onPress={() => {
+											editor.current?.setPosition({ lineNumber: problem.line, column: problem.column });
+											editor.current?.revealLineInCenter(problem.line);
+											editor.current?.focus();
+										}}
+									>
+										Line {problem.line}: {problem.message}
+									</Button>
+								</li>
+							))}
+						</ul>
+					</details>
+				</section>
+			)}
 		</div>
 	);
 }

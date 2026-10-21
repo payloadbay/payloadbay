@@ -299,6 +299,23 @@ export const endpoint = domain.table(
 	(t) => [unique("endpoint_ingress_key").on(t.ingressKey), unique("endpoint_project_slug").on(t.projectId, t.slug), unique("endpoint_id_project").on(t.id, t.projectId), foreignKey({ name: "endpoint_active_publication", columns: [t.activePublicationId, t.id], foreignColumns: [publication.id as AnyPgColumn, publication.endpointId as AnyPgColumn] })],
 );
 
+export const ingressPolicy = domain.table("ingress_policy", {
+	endpointId: uuid("endpoint_id")
+		.primaryKey()
+		.references((): AnyPgColumn => endpoint.id, { onDelete: "cascade" }),
+	version: integer("version").notNull(),
+	encryptedPolicy: bytes("encrypted_policy").notNull(),
+});
+
+export const ingressRateBucket = domain.table("ingress_rate_bucket", {
+	endpointId: uuid("endpoint_id")
+		.primaryKey()
+		.references((): AnyPgColumn => endpoint.id, { onDelete: "cascade" }),
+	policyVersion: integer("policy_version").notNull(),
+	windowStart: time("window_start").notNull(),
+	hits: integer("hits").notNull(),
+});
+
 export const draft = domain.table(
 	"draft",
 	{
@@ -496,6 +513,22 @@ export const execution = domain.table(
 		index("execution_event_history").on(t.eventId, t.createdAt.desc(), t.id.desc()),
 		index("execution_replay_parent").on(t.replayOfId),
 	],
+);
+
+export const processingAttempt = domain.table(
+	"processing_attempt",
+	{
+		executionId: uuid("execution_id")
+			.notNull()
+			.references((): AnyPgColumn => execution.id, { onDelete: "cascade" }),
+		attemptNumber: integer("attempt_number").notNull(),
+		generation: integer("generation").notNull(),
+		state: text("state").notNull().default("running"),
+		startedAt: time("started_at").notNull().defaultNow(),
+		endedAt: time("ended_at"),
+		result: jsonb("result"),
+	},
+	(t) => [primaryKey({ columns: [t.executionId, t.attemptNumber] }), check("processing_attempt_state", sql`${t.state} IN ('running','succeeded','retry_wait','failed_terminal','interrupted')`)],
 );
 
 export const dispatch = domain.table(

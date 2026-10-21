@@ -27,9 +27,23 @@ export type IngressContext = {
 	respondOnly(response: ProviderResponse): IngressDecision;
 };
 
-export type DestinationTarget = string | { url: string; method?: string };
+export type DestinationTarget = string;
 
-export type SendInput = { operationId: string; body: Body; headers?: Record<string, string> };
+export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS";
+
+export type SendInput = {
+	operationId: string;
+	body: Body;
+	headers?: Record<string, string>;
+	method?: HttpMethod;
+};
+
+export type DefaultSendInput = Omit<SendInput, "operationId" | "body"> & { operationId?: string; body?: Body };
+
+export type DestinationClient = {
+	send(input: DefaultSendInput): Promise<SendResult>;
+	send(target: DestinationTarget, input: DefaultSendInput): Promise<SendResult>;
+} & { [Method in Lowercase<HttpMethod>]: { (input?: DefaultSendInput): Promise<SendResult>; (target: DestinationTarget, input?: DefaultSendInput): Promise<SendResult> } };
 
 export type SendResult = {
 	ok: boolean;
@@ -53,7 +67,7 @@ export type ProcessingContext = {
 	attempt: number;
 	secrets: Readonly<Record<string, string>>;
 	log: Log;
-	destinations: { send(target: DestinationTarget, input: SendInput): Promise<SendResult> };
+	destinations: DestinationClient;
 	complete(): ProcessingDecision;
 	retry(input: { reason: string; delayMs?: number }): ProcessingDecision;
 	fail(input: { reason: string }): ProcessingDecision;

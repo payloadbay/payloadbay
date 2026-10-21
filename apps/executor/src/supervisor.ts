@@ -84,12 +84,14 @@ export async function execute(options: ExecuteOptions): Promise<ExecutionResult>
 			};
 			if (req.url === "/managed") {
 				if (!options.broker) throw Error("managed_send_unavailable");
+				if (typeof payload.target !== "string" || !payload.target || payload.target.length > 100) throw Error("configured_destination_required");
 				res.setHeader("content-type", "application/json");
 				res.end(JSON.stringify(packWire(await options.broker(payload.target, payload.input))));
 
 				return;
 			}
 
+			if (options.stage !== "notification") throw Error("direct_fetch_disabled_use_destinations");
 			if (++fetches > (options.maxFetches ?? 8)) throw Error("fetch_quota");
 			const url = new URL(payload.url);
 			if (!["http:", "https:"].includes(url.protocol)) throw Error("invalid_target");
@@ -153,7 +155,8 @@ export async function execute(options: ExecuteOptions): Promise<ExecutionResult>
    input.continue=patch=>({kind:'continue',...(patch===undefined?{}:{patch})});
    input.email=message=>({kind:'email',message});
    input.complete=()=>({kind:'complete'});input.retry=value=>({kind:'retry',...value});input.fail=value=>({kind:'fail',...value});
-   input.destinations={send:(target,value)=>bridge('/managed',{target,input:value})};
+   input.destinations={send:(target,value)=>{if(typeof target!=='string'){if(value!==undefined)throw Error('configured_destination_required');value=target;target='default';}value=value??{};return bridge('/managed',{target,input:{...value,body:value.body??'',operationId:value.operationId??('destination:'+target+':'+(value.method??'configured'))}});}};
+   for(const method of ['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS'])input.destinations[method.toLowerCase()]=(target,value)=>typeof target==='string'?input.destinations.send(target,{...value,method}):input.destinations.send({...target,method});
    console.log=input.log.info;console.info=input.log.info;console.warn=input.log.warn;console.error=input.log.error;
    const decision=await handler(input);if(logExceeded)return Response.json({error:'log_limit_exceeded'});
    return Response.json(packWire({decision,logs}));

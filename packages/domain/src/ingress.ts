@@ -1,3 +1,4 @@
+import { checkIngressPolicy } from "./ingress-policy.ts";
 import { assertExecutionDependencies } from "./execution-dependencies.ts";
 import { validateProviderResponse } from "../../contracts/src/provider-response.ts";
 import { executePipeline } from "./pipeline.ts";
@@ -54,36 +55,41 @@ export async function receiveIngress(pool: Pool, input: IngressInput, options: I
 	if (!route) throw new AppError("ingress_unavailable", 404, "Ingress route unavailable");
 	let decision: ReturnType<typeof ingressDecision.parse>;
 	try {
-		await assertExecutionDependencies(pool, route.project_id, "ingress", route.shared_versions.ingress ?? {}, route.effective_bindings ?? []);
-		const secrets = await resolvePinnedSecrets(pool, route.project_id, route.shared_versions.ingress?.secrets ?? {}, options.encryptionKey);
-		const execution = await executePipeline({
-			bindings: route.effective_bindings ?? [],
-			run: options.run,
-			resolveSecrets: (refs) => resolvePinnedSecrets(pool, route.project_id, refs, options.encryptionKey),
-			stage: "ingress",
-			bundle: route.bundle,
-			deadlineMs: options.deadlineMs ?? 2000,
-			input: {
-				endpointId: route.id,
-				receivedAt: new Date().toISOString(),
-				secrets,
-				request: {
-					body: input.body,
-					headers,
-					contentType: headers["content-type"] ?? "application/octet-stream",
-					method: input.method,
-					url: input.url,
+		const protection = await checkIngressPolicy(pool, route.id, headers, options.encryptionKey);
+		if (protection) {
+			decision = { kind: "reject", response: { status: protection.status, body: protection.status === 429 ? "Too many requests" : "Request blocked", headers: { "content-type": "text/plain", ...(protection.retryAfter ? { "retry-after": String(protection.retryAfter) } : {}) } } };
+		} else {
+			await assertExecutionDependencies(pool, route.project_id, "ingress", route.shared_versions.ingress ?? {}, route.effective_bindings ?? []);
+			const secrets = await resolvePinnedSecrets(pool, route.project_id, route.shared_versions.ingress?.secrets ?? {}, options.encryptionKey);
+			const execution = await executePipeline({
+				bindings: route.effective_bindings ?? [],
+				run: options.run,
+				resolveSecrets: (refs) => resolvePinnedSecrets(pool, route.project_id, refs, options.encryptionKey),
+				stage: "ingress",
+				bundle: route.bundle,
+				deadlineMs: options.deadlineMs ?? 2000,
+				input: {
+					endpointId: route.id,
+					receivedAt: new Date().toISOString(),
+					secrets,
+					request: {
+						body: input.body,
+						headers,
+						contentType: headers["content-type"] ?? "application/octet-stream",
+						method: input.method,
+						url: input.url,
+					},
 				},
-			},
-		});
-		const parsed = ingressDecision.safeParse(execution.decision);
-		if (!parsed.success) throw new AppError("invalid_ingress_outcome", 502, "Ingress handler returned an invalid outcome");
-		decision = parsed.data;
-		if (decision.kind === "accept" && Buffer.from(decision.event.body).byteLength > (options.bodyLimit ?? 1048576)) throw new AppError("body_too_large", 413, "Accepted event exceeds the configured limit");
-		try {
-			validateProviderResponse(decision.response, { bodyBytes: options.bodyLimit ?? 1048576, headerBytes: options.headerLimit ?? 16384 });
-		} catch {
-			throw new AppError("invalid_ingress_outcome", 502, "Ingress handler returned an invalid HTTP response");
+			});
+			const parsed = ingressDecision.safeParse(execution.decision);
+			if (!parsed.success) throw new AppError("invalid_ingress_outcome", 502, "Ingress handler returned an invalid outcome");
+			decision = parsed.data;
+			if (decision.kind === "accept" && Buffer.from(decision.event.body).byteLength > (options.bodyLimit ?? 1048576)) throw new AppError("body_too_large", 413, "Accepted event exceeds the configured limit");
+			try {
+				validateProviderResponse(decision.response, { bodyBytes: options.bodyLimit ?? 1048576, headerBytes: options.headerLimit ?? 16384 });
+			} catch {
+				throw new AppError("invalid_ingress_outcome", 502, "Ingress handler returned an invalid HTTP response");
+			}
 		}
 	} catch (cause) {
 		await transaction(pool, async (db) => {

@@ -4,6 +4,7 @@ import { LoadingState } from "@components/loading-state";
 import { useFeedbackToast } from "@lib/feedback";
 import { use, useEffect, useCallback, useState, useRef, type PointerEvent, type FormEvent } from "react";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { useDragAndDrop } from "react-aria-components";
 import { Button, Form, TextField, Label, Input, FieldError, Tabs, NumberField, Checkbox, Table, Modal, Select, ListBox } from "@heroui/react";
 import { ResourceEmptyState } from "@components/ui/resource-empty-state";
@@ -55,25 +56,11 @@ function middlewareStarter(name = "", stage: "ingress" | "processing" = "process
 export default function CodePage({ params }: { params: Promise<{ scopeType: string; scopeId: string }> }) {
 	const { scopeType, scopeId } = use(params);
 
-	const { me, organizations, workspaces, projects } = useDashboard();
+	const { organizations, workspaces, projects } = useDashboard();
 
-	const scopes = [
-		...(me.permissions.includes("code.read")
-			? [
-					{
-						type: "instance",
-						id: me.instanceId,
-						name: "Instance",
-						permissions: me.permissions,
-					},
-				]
-			: []),
-		...organizations.filter((scope) => scope.permissions.includes("code.read")).map((scope) => ({ type: "organization", ...scope })),
-		...workspaces.filter((scope) => scope.permissions.includes("code.read")).map((scope) => ({ type: "workspace", ...scope })),
-		...projects.filter((scope) => scope.permissions.includes("code.read")).map((scope) => ({ type: "project", ...scope })),
-	];
+	const scopes = [...organizations.filter((scope) => scope.permissions.includes("code.read")).map((scope) => ({ type: "organization", ...scope })), ...workspaces.filter((scope) => scope.permissions.includes("code.read")).map((scope) => ({ type: "workspace", ...scope })), ...projects.filter((scope) => scope.permissions.includes("code.read")).map((scope) => ({ type: "project", ...scope }))];
 	const selectedScope = scopes.find((scope) => scope.type === scopeType && scope.id === scopeId);
-	const valid = ["instance", "organization", "workspace", "project", "endpoint"].includes(scopeType);
+	const valid = ["organization", "workspace", "project", "endpoint"].includes(scopeType);
 	const scope: Scope = { type: valid ? (scopeType as Scope["type"]) : "project", id: scopeId };
 
 	const [endpointScope, setEndpointScope] = useState<{ name: string; permissions: Permission[]; projectId: string } | null>(null);
@@ -426,7 +413,7 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 		}
 	}
 
-	if (!valid) return <p role='alert'>Choose a valid code scope.</p>;
+	if (!valid) notFound();
 	if (loading) return <LoadingState label='Loading code…' size='page' />;
 
 	return (
@@ -512,8 +499,8 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 				) : (
 					<ResourceEmptyState
 						className='border-border rounded-xl border border-dashed py-12'
-						title={<>No shared helpers yet</>}
-						description={<>Create reusable exports, then bind their versions to ingress or processing scripts.</>}
+						title={<>No helpers available here</>}
+						description={<>Helpers from this organization and its parent customer scopes appear here. Create a helper, then import its version in a script.</>}
 						icon={
 							<>
 								<IconCode />

@@ -34,6 +34,9 @@ The maintainer approved replacing the Supabase foundation on 2026-10-13.
 
 The request path runs bounded ingress code, commits event plus processing job
 atomically, then acknowledges. Destination delivery happens asynchronously.
+Route scripts send HTTP only through the managed configured-destination broker;
+direct fetch is disabled. Notification modules retain their separate restricted
+transport. Shared customer code inherits only within an organization.
 Do not add Supabase as a second supported backend or migrate experimental code
 into production without the revised SpecKit plan and scoped implementation work.
 

@@ -27,6 +27,7 @@ export async function recoverExpired(pool: Pool) {
 		const recovered: string[] = [];
 		const changes: { id: string; projectId: string }[] = [];
 		for (const candidate of candidates.rows) {
+			await client.query("UPDATE payloadbay.processing_attempt SET state='interrupted',ended_at=clock_timestamp() WHERE execution_id=$1 AND ended_at IS NULL", [candidate.id]);
 			if (candidate.attempt_number >= candidate.max_attempts) {
 				await client.query("UPDATE payloadbay.execution SET state='failed_terminal',dispatch_generation=dispatch_generation+1,lease_owner=NULL,lease_expiry=NULL,final_result=$2::jsonb WHERE id=$1", [candidate.id, JSON.stringify({ kind: "fail", reason: "processing_attempts_exhausted" })]);
 				await client.query("UPDATE payloadbay.managed_operation SET state='uncertain' WHERE execution_id=$1 AND state='sending'", [candidate.id]);
@@ -79,6 +80,7 @@ export async function finishExecution(pool: Pool, authority: Authority, result: 
 		const delay = result.delayMs ?? Math.min(60000, 1000 * 2 ** Math.max(0, execution.attempt_number - 1));
 		if (!Number.isInteger(delay) || delay < 0 || delay > 3600000) throw Error("Invalid retry delay");
 		const updated = (await client.query(`UPDATE payloadbay.execution SET state=$2,final_result=$3::jsonb,lease_owner=NULL,lease_expiry=NULL,dispatch_generation=dispatch_generation+$4,due_at=CASE WHEN $4=1 THEN clock_timestamp()+$5::int*interval '1 millisecond' ELSE due_at END WHERE id=$1 RETURNING *`, [execution.id, state, JSON.stringify(result), retry ? 1 : 0, delay])).rows[0];
+		await client.query("UPDATE payloadbay.processing_attempt SET state=$3,result=$4::jsonb,ended_at=clock_timestamp() WHERE execution_id=$1 AND attempt_number=$2 AND generation=$5 AND ended_at IS NULL", [execution.id, execution.attempt_number, state, JSON.stringify(result), authority.generation]);
 		if (retry) {
 			const endpoint = (await client.query("SELECT priority FROM payloadbay.endpoint WHERE id=$1", [execution.endpoint_id])).rows[0];
 			await scheduleDispatch(client, updated, endpoint.priority);
@@ -94,7 +96,7 @@ export async function finishExecution(pool: Pool, authority: Authority, result: 
 
 export async function claimExecution(pool: Pool, executionId: string, generation: number, owner: string) {
 	return transaction(pool, async (db) => {
-		const scope = (await db.query("SELECT w.organization_id FROM payloadbay.execution x JOIN payloadbay.endpoint e ON e.id=x.endpoint_id JOIN payloadbay.project p ON p.id=e.project_id JOIN payloadbay.workspace w ON w.id=p.workspace_id WHERE x.id=$1", [executionId])).rows[0];
+		const scope = (await db.query("SELECT w.organization_id,p.id AS project_id FROM payloadbay.execution x JOIN payloadbay.endpoint e ON e.id=x.endpoint_id JOIN payloadbay.project p ON p.id=e.project_id JOIN payloadbay.workspace w ON w.id=p.workspace_id WHERE x.id=$1", [executionId])).rows[0];
 		if (!scope) return null;
 		// Serialize claims across all worker processes, using database time for live capacity.
 		await db.query("SELECT id FROM payloadbay.organization WHERE id=$1 FOR UPDATE", [scope.organization_id]);
@@ -116,7 +118,11 @@ export async function claimExecution(pool: Pool, executionId: string, generation
 			[executionId, generation, owner],
 		);
 		const claimed = result.rows[0];
-		if (claimed) await recordEndpointUsage(db, claimed.endpoint_id, "processing.attempt.started", claimed.id + ":" + claimed.attempt_number);
+		if (claimed) {
+			await db.query("INSERT INTO payloadbay.processing_attempt(execution_id,attempt_number,generation) VALUES($1,$2,$3)", [claimed.id, claimed.attempt_number, claimed.dispatch_generation]);
+			await recordEndpointUsage(db, claimed.endpoint_id, "processing.attempt.started", claimed.id + ":" + claimed.attempt_number);
+			await appendChange(db, { scope: { type: "project", id: scope.project_id }, kind: "execution.changed", resourceId: claimed.id });
+		}
 
 		return claimed ?? null;
 	});

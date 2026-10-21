@@ -45,7 +45,8 @@ export function ScriptingGuide() {
 							<section>
 								<h3 className='font-semibold'>3. Process the stored event</h3>
 								<p className='text-muted mt-1 text-sm'>
-									The separate processing script runs from the queue. Use <code>ctx.destinations.send(&quot;default&quot;, ...)</code> for managed delivery, then return <code>ctx.complete()</code>, <code>ctx.retry(...)</code> or <code>ctx.fail(...)</code>. A response to the sender does not mean delivery has finished. Retried operations should use stable operation IDs.
+									The separate processing script runs from the queue. Use <code>ctx.destinations.send({"{ body: ctx.event.body }"})</code> for managed delivery, then return <code>ctx.complete()</code>, <code>ctx.retry(...)</code> or <code>ctx.fail(...)</code>. A response to the sender does not mean delivery has finished. Omitting the destination uses the configured default. Use ctx.destinations.get(), post(), put(), patch(), delete(), head() or options() to choose a method. Direct fetch is
+									disabled. The default send has a stable operation ID. For extra receivers, use <code>{'ctx.destinations.send("destination name", { operationId: "stable-name", body: ... })'}</code>.
 								</p>
 							</section>
 							<section>

@@ -48,8 +48,10 @@ test("U27 live unexpired lease cannot be reclaimed", async () => {
 
 test("U28 expired lease becomes recoverable using database time", async () => {
 	await recoveryFixture(async (f) => {
+		await f.db.query("INSERT INTO payloadbay.processing_attempt(execution_id,attempt_number,generation) VALUES($1,1,1)", [f.executionId]);
 		await f.db.query("UPDATE payloadbay.execution SET lease_expiry=clock_timestamp() WHERE id=$1", [f.executionId]);
 		assert.deepEqual(await recoverExpired(f.pool), [f.executionId]);
+		assert.deepEqual((await f.db.query("SELECT state,ended_at IS NOT NULL AS ended FROM payloadbay.processing_attempt WHERE execution_id=$1", [f.executionId])).rows, [{ state: "interrupted", ended: true }]);
 		const execution = (await f.db.query("SELECT state,dispatch_generation,lease_owner FROM payloadbay.execution WHERE id=$1", [f.executionId])).rows[0];
 		assert.deepEqual(execution, { state: "queued", dispatch_generation: 2, lease_owner: null });
 		assert.equal((await f.db.query("SELECT count(*)::int AS count FROM graphile_worker.jobs")).rows[0].count, 1);

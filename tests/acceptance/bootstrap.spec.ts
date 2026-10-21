@@ -335,7 +335,7 @@ test("route editor has nested navigation, a scripting guide, typed method handle
 	await page.keyboard.press("Control+Home");
 	await page.keyboard.press("Control+a");
 	await page.keyboard.insertText('export async function POST(ctx: IngressContext): Promise<IngressDecision> { return ctx.respondOnly({status:201,body:"formatted"}); }');
-	await expect(page.getByText("Unsaved changes", { exact: true })).toBeVisible();
+	await expect(page.getByText("Unsaved changes / Not published", { exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "Save draft", exact: true }).click();
 	await expect.poll(() => savedBody).toContain('status: 201, body: "formatted"');
 	expect(savedBody.startsWith("export async function POST")).toBe(true);

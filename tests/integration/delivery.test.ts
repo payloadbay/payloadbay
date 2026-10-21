@@ -24,6 +24,8 @@ async function deliveryFixture(run: (f: DeliveryFixtureData) => Promise<void>, o
 			const scope = await seedScope(db);
 			await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
 			const snapshot = {
+				unavailable: { id: "unavailable", name: "unavailable", httpConfig: { url: f.httpUrl + "/status/503" } },
+				redirect: { id: "redirect", name: "redirect", httpConfig: { url: f.httpUrl + "/redirect" } },
 				"fixture-target": {
 					id: "fixture-target",
 					name: "primary",
@@ -206,8 +208,8 @@ test("U256 stale destination editor cannot overwrite saved target", async () => 
 });
 
 test("U97 non-success HTTP response remains a failed recorded attempt", async () => {
-	await deliveryFixture(async ({ pool, db, authority, httpUrl }) => {
-		const result = await managedSend(pool, authority, { url: httpUrl + "/status/503" }, { operationId: "outage", body: "fixture" });
+	await deliveryFixture(async ({ pool, db, authority }) => {
+		const result = await managedSend(pool, authority, "unavailable", { operationId: "outage", body: "fixture" });
 		assert.equal(result.ok, false, "non-2xx must be a failed send");
 		assert.equal(result.status, 503);
 		assert.equal((await db.query("SELECT state FROM payloadbay.managed_operation")).rows[0].state, "failed");
@@ -217,7 +219,7 @@ test("U97 non-success HTTP response remains a failed recorded attempt", async ()
 
 test("U103 managed destination redirect is recorded without following it", async () => {
 	await deliveryFixture(async ({ pool, authority, httpUrl }) => {
-		const result = await managedSend(pool, authority, { url: httpUrl + "/redirect" }, { operationId: "redirect", body: "fixture" });
+		const result = await managedSend(pool, authority, "redirect", { operationId: "redirect", body: "fixture" });
 		assert.equal(result.status, 302, "managed redirects must not be followed");
 		assert.equal(result.ok, false);
 		const receipts = await (await fetch(httpUrl + "/receipts")).json();
@@ -227,8 +229,8 @@ test("U103 managed destination redirect is recorded without following it", async
 });
 
 test("U101 retrying failed operation creates another retained attempt", async () => {
-	await deliveryFixture(async ({ pool, db, authority, httpUrl }) => {
-		const target = { url: httpUrl + "/status/503" };
+	await deliveryFixture(async ({ pool, db, authority }) => {
+		const target = "unavailable";
 		const input = { operationId: "retryable", body: "fixture" };
 		const first = await managedSend(pool, authority, target, input);
 		const before = (await db.query("SELECT row_to_json(a) AS row FROM payloadbay.delivery_attempt a WHERE id=$1", [first.attemptId])).rows[0].row;
@@ -244,8 +246,8 @@ test("A10 optional destination failure does not override authored success policy
 	const { compile } = await import("../../apps/executor/src/compiler.ts");
 	const { execute } = await import("../../apps/executor/src/supervisor.ts");
 	const { finishExecution } = await import("../../packages/domain/src/execution-lease.ts");
-	await deliveryFixture(async ({ pool, db, authority, httpUrl }) => {
-		const script = await compile({ stage: "processing", body: `const required=await ctx.destinations.send("primary",{operationId:"app",body:ctx.event.body});await ctx.destinations.send({url:${JSON.stringify(httpUrl + "/status/503")}},{operationId:"optional-discord",body:"purchase notification"});return required.ok?ctx.complete():ctx.retry({reason:"app unavailable"});` });
+	await deliveryFixture(async ({ pool, db, authority }) => {
+		const script = await compile({ stage: "processing", body: `const required=await ctx.destinations.send("primary",{operationId:"app",body:ctx.event.body});await ctx.destinations.send("unavailable",{operationId:"optional-discord",body:"purchase notification"});return required.ok?ctx.complete():ctx.retry({reason:"app unavailable"});` });
 		const result = await execute({
 			stage: "processing",
 			bundle: script.bundle,
@@ -267,14 +269,19 @@ test("A10 optional destination failure does not override authored success policy
 test("U117 inspection distinguishes delivery attempt failure from handler completion", async () => {
 	const { eventDetails } = await import("../../packages/domain/src/events.ts");
 	const { finishExecution } = await import("../../packages/domain/src/execution-lease.ts");
-	await deliveryFixture(async ({ pool, db, authority, httpUrl }) => {
+	await deliveryFixture(async ({ pool, db, authority }) => {
 		const scope = (await db.query("SELECT e.event_id,ep.project_id FROM payloadbay.execution e JOIN payloadbay.endpoint ep ON ep.id=e.endpoint_id WHERE e.id=$1", [authority.executionId])).rows[0];
 		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','project',$1,'custom',ARRAY['metadata.read'])", [scope.project_id]);
-		await managedSend(pool, authority, { url: httpUrl + "/status/503" }, { operationId: "optional", body: "private event" });
+		await managedSend(pool, authority, "unavailable", { operationId: "optional", body: "private event" });
 		await finishExecution(pool, authority, { kind: "complete" });
 		const detail = await eventDetails(pool, { userId: "fixture-owner" }, scope.event_id);
 		assert.equal(detail.executions.length, 1, "inspection must include handler history");
 		assert.equal(detail.executions[0].state, "succeeded");
+		assert.equal(detail.processingAttempts.length, 1);
+		assert.equal(detail.processingAttempts[0].state, "succeeded");
+		assert.equal(detail.processingAttempts[0].result, null, "processing results require payload permission");
+		await db.query("UPDATE payloadbay.grant_record SET permissions=ARRAY['metadata.read','payload.read'] WHERE user_id='fixture-owner' AND scope_type='project' AND scope_id=$1", [scope.project_id]);
+		assert.deepEqual((await eventDetails(pool, { userId: "fixture-owner" }, scope.event_id)).processingAttempts[0].result, { kind: "complete" });
 		assert.equal(detail.attempts.length, 1);
 		assert.equal(detail.attempts[0].status_code, 503);
 		assert.equal(detail.attempts[0].response_body, undefined);
@@ -489,5 +496,45 @@ test("UX66 unused routes and targets delete without erasing history or crossing 
 		await db.query("INSERT INTO payloadbay.publication(endpoint_id,ingress_revision_id,processing_revision_id,destination_snapshot,dependency_digest,created_by) SELECT endpoint_id,ingress_revision_id,processing_revision_id,$1,'deletion-history','fixture-owner' FROM payloadbay.publication WHERE endpoint_id=$2 LIMIT 1", [JSON.stringify({ [pinned.id]: { id: pinned.id } }), authority.endpointId]);
 		await assert.rejects(deleteDestination(pool, actor, pinned.id, pinned.version), { code: "resource_in_use" });
 		assert.equal((await db.query("SELECT 1 FROM payloadbay.destination WHERE id=$1", [pinned.id])).rowCount, 1);
+	});
+});
+
+test("processing retries keep distinct inspection records and fenced completions", async () => {
+	const { finishExecution } = await import("../../packages/domain/src/execution-lease.ts");
+	await deliveryFixture(async ({ pool, db, authority }) => {
+		const retried = await finishExecution(pool, authority, { kind: "retry", reason: "Receiver unavailable", delayMs: 0 });
+		const next = await claimExecution(pool, authority.executionId, retried.dispatch_generation, "retry-worker");
+		assert.equal(next.attempt_number, 2);
+		await assert.rejects(finishExecution(pool, authority, { kind: "complete" }), { code: "stale_execution" });
+		await finishExecution(pool, { ...authority, generation: next.dispatch_generation, owner: "retry-worker" }, { kind: "complete" });
+		const history = (await db.query("SELECT attempt_number,state,result,ended_at IS NOT NULL AS ended FROM payloadbay.processing_attempt WHERE execution_id=$1 ORDER BY attempt_number", [authority.executionId])).rows;
+		assert.deepEqual(history, [
+			{
+				attempt_number: 1,
+				state: "retry_wait",
+				result: { kind: "retry", reason: "Receiver unavailable", delayMs: 0 },
+				ended: true,
+			},
+			{
+				attempt_number: 2,
+				state: "succeeded",
+				result: { kind: "complete" },
+				ended: true,
+			},
+		]);
+	});
+});
+
+test("configured destinations support tracked bodyless methods and reject arbitrary targets", async () => {
+	await deliveryFixture(async ({ pool, db, authority }) => {
+		for (const method of ["GET", "HEAD", "OPTIONS"] as const) {
+			const result = await managedSend(pool, authority, "primary", { operationId: method, body: "", method });
+			assert.equal(result.ok, true);
+		}
+
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.delivery_attempt")).rows[0].n, 3);
+		await assert.rejects(managedSend(pool, authority, "primary", { operationId: "bad-get", body: "not empty", method: "GET" }), { code: "invalid_body" });
+		await assert.rejects(managedSend(pool, authority, "https://unconfigured.example", { operationId: "not-configured", body: "" }), { code: "destination_unavailable" });
+		await assert.rejects(managedSend(pool, authority, { url: "https://unconfigured.example" } as never, { operationId: "raw-url", body: "" }), { code: "invalid_target" });
 	});
 });

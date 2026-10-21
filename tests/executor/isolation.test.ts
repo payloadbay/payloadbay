@@ -44,16 +44,17 @@ test("U20 configured code cannot read unrelated platform credentials", async () 
 
 import { withFixtures } from "../../scripts/tests/fixtures.ts";
 
-test("U21 bounded direct fetch is available to scripts", async () => {
+test("U21 route scripts cannot bypass tracked destinations with direct fetch", async () => {
 	await withFixtures(async (f) => {
-		const script = await compile({ stage: "processing", body: `const response=await fetch(${JSON.stringify(f.httpUrl + "/delivery")},{method:'POST',body:'fixture'});let limited=false;try{await fetch(${JSON.stringify(f.httpUrl + "/health")});}catch{limited=true;}return response.status===200&&limited?{kind:'complete'}:{kind:'fail',reason:'fetch availability or quota failed'};` });
+		const script = await compile({ stage: "processing", body: `try { await fetch(${JSON.stringify(f.httpUrl + "/delivery")},{method:'POST',body:'fixture'});return ctx.fail({reason:"direct HTTP escaped"}); } catch { return ctx.complete(); }` });
 		const result = await execute({
 			bundle: script.bundle,
 			stage: "processing",
 			input: {},
-			maxFetches: 1,
+			maxFetches: 8,
 		});
 		assert.deepEqual(result.decision, { kind: "complete" });
+		assert.deepEqual(await (await fetch(f.httpUrl + "/receipts")).json(), []);
 	});
 });
 
@@ -225,10 +226,22 @@ test("U249 script SDK helpers preserve bytes and invoke managed destination", as
 	assert.deepEqual(sent, [{ target: "default", input: { operationId: "primary", body: bytes } }]);
 });
 
-test("U252 direct fetch preserves a large binary request body", async () => {
+test("U252 tracked destination bridge preserves a large binary request body", async () => {
 	await withFixtures(async (f) => {
-		const script = await compile({ stage: "processing", body: `const bytes=new Uint8Array(140000);bytes.fill(255);bytes[0]=0;const reply=await fetch(${JSON.stringify(f.httpUrl + "/delivery")},{method:'POST',body:bytes});return reply.ok?ctx.complete():ctx.fail({reason:"HTTP failed"});` });
-		const result = await execute({ stage: "processing", bundle: script.bundle, input: {} });
+		const script = await compile({ stage: "processing", body: 'const bytes=new Uint8Array(140000);bytes.fill(255);bytes[0]=0;const reply=await ctx.destinations.post({body:bytes});return reply.ok?ctx.complete():ctx.fail({reason:"HTTP failed"});' });
+		const result = await execute({
+			stage: "processing",
+			bundle: script.bundle,
+			input: {},
+			broker: async (target, input) => {
+				assert.equal(target, "default");
+				const request = input as { body: Uint8Array; method: string };
+				assert.equal(request.method, "POST");
+				const response = await fetch(f.httpUrl + "/delivery", { method: request.method, body: Buffer.from(request.body) });
+
+				return { ok: response.ok, status: response.status, attemptId: "fixture" };
+			},
+		});
 		assert.deepEqual(result.decision, { kind: "complete" });
 		const receipts = await (await fetch(f.httpUrl + "/receipts")).json();
 		const body = Buffer.from(receipts[0].body, "base64");
@@ -379,4 +392,21 @@ test("CF12 notification transport pins DNS and bounds responses with operator-on
 	}
 
 	await assert.rejects(get("/"));
+});
+
+test("route code cannot use an arbitrary URL target even after bypassing TypeScript", async () => {
+	const script = await compile({ stage: "processing", body: 'try { await ctx.destinations.send({url:"https://unconfigured.example"} as any,{operationId:"probe",body:"private"}); return ctx.fail({reason:"unexpected target"}); } catch { return ctx.complete(); }' });
+	let called = false;
+	const result = await execute({
+		stage: "processing",
+		bundle: script.bundle,
+		input: {},
+		broker: async () => {
+			called = true;
+
+			return { ok: true, attemptId: "unexpected" };
+		},
+	});
+	assert.deepEqual(result.decision, { kind: "complete" });
+	assert.equal(called, false);
 });

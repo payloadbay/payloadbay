@@ -26,7 +26,7 @@ function configuration(input: DestinationInput) {
 
 	if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) throw new AppError("invalid_target", 400, "Provide an HTTP or HTTPS URL without embedded credentials");
 	const method = input.method ?? "POST";
-	if (!/^[A-Z]+$/.test(method) || ["GET", "HEAD", "CONNECT", "TRACE"].includes(method)) throw new AppError("invalid_method", 400, "Choose a supported body-bearing HTTP method");
+	if (!["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].includes(method)) throw new AppError("invalid_method", 400, "Choose a supported HTTP method");
 	if (!input.name.trim() || input.name.length > 100) throw new AppError("invalid_input", 400, "Provide a destination name");
 	const concurrency = input.concurrency ?? 4;
 	if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 64) throw new AppError("invalid_input", 400, "Choose concurrency from 1 to 64");

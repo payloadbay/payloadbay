@@ -17,6 +17,8 @@ export const apiOperations = [
 	["patch", "/api/v1/endpoints/{endpointId}/publications"],
 	["get", "/api/v1/endpoints/{endpointId}/publications"],
 	["post", "/api/v1/endpoints/{endpointId}/resume"],
+	["get", "/api/v1/endpoints/{endpointId}/protection"],
+	["put", "/api/v1/endpoints/{endpointId}/protection"],
 	["get", "/api/v1/endpoints/{endpointId}"],
 	["delete", "/api/v1/endpoints/{endpointId}"],
 	["post", "/api/v1/endpoints/{endpointId}/test"],

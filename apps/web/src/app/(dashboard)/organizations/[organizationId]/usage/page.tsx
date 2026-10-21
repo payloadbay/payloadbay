@@ -101,7 +101,7 @@ export default function OrganizationUsagePage({ params }: { params: Promise<{ or
 			) : (
 				<>
 					<p className='text-muted text-sm'>
-						UTC window: {new Date(data.usage.from).toLocaleString(undefined, { timeZone: "UTC" })} – {new Date(data.usage.to).toLocaleString(undefined, { timeZone: "UTC" })}. Window end is excluded.
+						Usage window: {new Date(data.usage.from).toLocaleString()} – {new Date(data.usage.to).toLocaleString()}. Window end is excluded.
 					</p>
 					<Table>
 						<Table.ScrollContainer>

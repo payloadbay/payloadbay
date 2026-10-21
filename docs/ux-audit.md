@@ -238,3 +238,26 @@ Final screenshot review also exposed wrapped breadcrumb labels. The added
 one-line bound failed at40px, and the native-slot selector correction passes
 both geometry checks. The final two-flow run and mobile screenshot confirm
 single-line ellipses with navigable middle ancestors and real clipboard paste.
+
+
+## Review follow-up — 2026-10-21
+
+- Event inspection now has consistent HTTP metadata and status chips. Processing
+  attempts are persisted separately from delivery attempts, selected newest-first,
+  and include interrupted leases. Result text requires payload-reading permission.
+- Notification-module forks expose compiler diagnostics and Monaco problems.
+  Notification SDK types are available in the editor; overflowing widgets use
+  viewport positioning. The module page renders its unsaved-change dialog.
+- Forking is an icon action beside module operations, separate from the built-in
+  status chip. Route activation uses Publish; the redundant header dirty chip is
+  removed while discard protection remains.
+- Graphs use the local component catalog and format hourly instants in the viewer's
+  timezone. Usage windows likewise display browser-local dates.
+- Instance shared-code UI is removed while organization boundaries remain intact.
+- Managed HTTP defaults and [request protection](request-protection.md) follow the
+  maintainer's clarified design. Project-wide script-triggered notifications and
+  stage-specific helper libraries remain proposals, not implemented features.
+
+Registered regression checks exercise these flows. Exact-commit pre-push and CI
+results establish branch validation; published-release and deployed acceptance
+remain separate gates.

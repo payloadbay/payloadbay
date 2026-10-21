@@ -127,9 +127,11 @@ export async function eventPayload(pool: Pool, actor: Actor, id: string) {
 export async function eventDetails(pool: Pool, actor: Actor, id: string) {
 	const row = (await pool.query("SELECT e.id,e.ingress_outcome,e.request_method,e.response_status,e.endpoint_id,e.publication_id,e.received_at,e.content_type,octet_length(e.original_body) AS body_bytes,ep.project_id,ep.name AS endpoint_name FROM payloadbay.event e JOIN payloadbay.endpoint ep ON ep.id=e.endpoint_id WHERE e.id=$1", [id])).rows[0];
 	if (!row) throw new AppError("not_found", 404, "Event unavailable");
-	await requirePermission(pool, actor, { type: "project", id: row.project_id }, "metadata.read");
+	const held = await requirePermission(pool, actor, { type: "project", id: row.project_id }, "metadata.read");
 	const executions = (await pool.query("SELECT id,publication_id,replay_of_id,state,attempt_number,max_attempts,due_at,created_at FROM payloadbay.execution WHERE event_id=$1 ORDER BY created_at DESC,id DESC LIMIT 200", [id])).rows;
 	const attempts = (await pool.query("SELECT a.id,a.execution_id,a.operation_id,a.execution_attempt,a.generation,a.started_at,a.ended_at,a.status_code,a.network_error,a.duration_ms FROM payloadbay.delivery_attempt a JOIN payloadbay.execution x ON x.id=a.execution_id WHERE x.event_id=$1 ORDER BY a.started_at DESC,a.id DESC LIMIT 200", [id])).rows;
+
+	const processingAttempts = (await pool.query("SELECT a.execution_id,a.attempt_number,a.state,a.started_at,a.ended_at,CASE WHEN $2 THEN a.result ELSE NULL END AS result FROM payloadbay.processing_attempt a JOIN payloadbay.execution x ON x.id=a.execution_id WHERE x.event_id=$1 ORDER BY a.started_at DESC,a.execution_id DESC,a.attempt_number DESC LIMIT 200", [id, held.has("payload.read")])).rows;
 
 	return {
 		id: row.id,
@@ -144,6 +146,7 @@ export async function eventDetails(pool: Pool, actor: Actor, id: string) {
 		method: row.request_method,
 		responseStatus: row.response_status,
 		executions,
+		processingAttempts,
 		attempts,
 	};
 }

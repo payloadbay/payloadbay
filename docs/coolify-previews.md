@@ -168,7 +168,7 @@ HTTP 204 without forwarding or retaining request bodies. The receiver returns
 
 The new Sample Webhook draft explicitly accepts unverified demo requests and
 uses the ordinary default-destination processing template. Open the route,
-review the pre-published code, or edit and **Publish both stages** to replace it.
+review the pre-published code, or edit and **Publish** to replace it.
 The Events view starts with two synthetic queued requests. Copy its receiving URL and POST
 a synthetic event to it; open Events through the contextual project navigation
 to inspect the real queued delivery. Only this fixed synthetic preview route is

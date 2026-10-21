@@ -211,3 +211,18 @@ icon-only link and a tooltip trigger), verify the final computed layout. A
 trigger's display rule can override button centering even when both primitives
 are used correctly in isolation. Check both icon axes at mobile and desktop
 widths, together with focus, tooltip and navigation behavior.
+
+An interaction guard is complete only when its confirmation surface is mounted
+and both recovery paths work. Test the interrupted navigation through the actual
+launcher, then verify that keeping edits and discarding edits both recover the
+flow. A prevented action without an explanation must never strand the user.
+
+Editors and execution must share their language contract. Keep diagnostics
+readable beside the source and let users jump to a problem. Verify first-line
+editing, read-only-to-editable transitions, and popups at the edges of the working
+surface; an overlay inside a clipped editor container is not usable feedback.
+
+Keep resource identity and state separate from actions. Place actions with their
+related controls, not beside status labels whose size and purpose differ. Format
+human-facing dates and chart labels from full timestamps using the viewer's
+locale and timezone; keep machine-facing timestamps unambiguous.

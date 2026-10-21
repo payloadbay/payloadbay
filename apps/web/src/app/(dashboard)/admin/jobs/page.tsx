@@ -102,7 +102,7 @@ export default function JobsPage() {
 							<Card.Description>Completed HTTP attempts over the last 24 hours, including retries.</Card.Description>
 						</Card.Header>
 						<Card.Content className='min-w-0'>
-							<LineChart data={data.series.map((point) => ({ ...point, hour: point.hour.slice(11, 16) }))} height={220} label='Aggregate delivery outcomes over 24 hours' className='min-w-0'>
+							<LineChart data={data.series.map((point) => ({ ...point, hour: new Date(point.hour).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) }))} height={220} label='Aggregate delivery outcomes over 24 hours' className='min-w-0'>
 								<LineChart.Grid vertical={false} />
 								<LineChart.XAxis dataKey='hour' minTickGap={32} interval='preserveStartEnd' />
 								<LineChart.YAxis allowDecimals={false} width={32} />

@@ -27,7 +27,7 @@ export function TrafficChart({ overview }: { overview: TrafficSnapshot }) {
 						</span>
 					))}
 				</div>
-				<LineChart data={overview.series.map((point) => ({ ...point, hour: point.hour.slice(11, 16) }))} height={220} label={`24-hour traffic: ${overview.totals.ingress} incoming requests, ${overview.totals.accepted} accepted, ${overview.totals.rejected} rejected, ${overview.totals.deliveries} outgoing attempts`} className='min-w-0 [&_.recharts-cartesian-axis-tick-value]:text-xs'>
+				<LineChart data={overview.series.map((point) => ({ ...point, hour: new Date(point.hour).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) }))} height={220} label={`24-hour traffic: ${overview.totals.ingress} incoming requests, ${overview.totals.accepted} accepted, ${overview.totals.rejected} rejected, ${overview.totals.deliveries} outgoing attempts`} className='min-w-0 [&_.recharts-cartesian-axis-tick-value]:text-xs'>
 					<LineChart.Grid vertical={false} />
 					<LineChart.XAxis dataKey='hour' tickMargin={8} minTickGap={32} interval='preserveStartEnd' />
 					<LineChart.YAxis allowDecimals={false} width={32} tickCount={4} tickFormatter={(value: number) => new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(value)} />

@@ -42,36 +42,26 @@ export async function managedSend(pool: Pool, authority: Authority, target: Dest
 	const prepared = await transaction(pool, async (db) => {
 		const execution = await assertAuthority(db, authority, true);
 		const publication = (await db.query("SELECT destination_snapshot FROM payloadbay.publication WHERE id=$1", [execution.publication_id])).rows[0];
-		let snapshot: Record<string, unknown>;
-		let method: string;
-		let url: string;
-		let configuredHeaders: Record<string, string> = {};
-		let destinationId: string | undefined;
-		let capacityLimit = 4;
-		if (typeof target === "string") {
-			const entries = Object.values(publication.destination_snapshot) as {
-				id: string;
-				name: string;
-				isDefault?: boolean;
-				concurrency?: number;
-				httpConfig: { url: string; method?: string; headers?: Record<string, string> };
-			}[];
-			const destination = target === "default" ? (entries.find((d) => d.isDefault) ?? entries.find((d) => d.name === "default")) : entries.find((d) => d.id === target || d.name === target);
-			if (!destination) throw new AppError("destination_unavailable", 409, "Destination is not in this publication");
-			snapshot = destination;
-			destinationId = destination.id;
-			capacityLimit = destination.concurrency ?? 4;
-			url = httpTarget(destination.httpConfig.url);
-			method = destination.httpConfig.method ?? "POST";
-			configuredHeaders = destination.httpConfig.headers ?? {};
-		} else {
-			if (!target || typeof target.url !== "string") throw new AppError("invalid_target", 400, "Provide an HTTP destination");
-			url = httpTarget(target.url);
-			method = target.method ?? "POST";
-			snapshot = { url, method };
-		}
+		if (typeof target !== "string") throw new AppError("invalid_target", 400, "Choose a configured destination");
 
-		if (!/^[A-Z]+$/.test(method) || ["CONNECT", "TRACE", "GET", "HEAD"].includes(method)) throw new AppError("invalid_method", 400, "Choose a supported body-bearing HTTP method");
+		const entries = Object.values(publication.destination_snapshot) as {
+			id: string;
+			name: string;
+			isDefault?: boolean;
+			concurrency?: number;
+			httpConfig: { url: string; method?: string; headers?: Record<string, string> };
+		}[];
+		const destination = target === "default" ? (entries.find((d) => d.isDefault) ?? entries.find((d) => d.name === "default")) : entries.find((d) => d.id === target || d.name === target);
+		if (!destination) throw new AppError("destination_unavailable", 409, "Destination is not in this publication");
+		const snapshot = destination;
+		const destinationId = destination.id;
+		let capacityLimit = destination.concurrency ?? 4;
+		const url = httpTarget(destination.httpConfig.url);
+		const method = input.method ?? destination.httpConfig.method ?? "POST";
+		const configuredHeaders = destination.httpConfig.headers ?? {};
+		if (!["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].includes(method)) throw new AppError("invalid_method", 400, "Choose a supported HTTP method");
+		if (["GET", "HEAD"].includes(method) && body.byteLength) throw new AppError("invalid_body", 400, "GET and HEAD requests cannot have a body");
+
 		const headers = new Headers(configuredHeaders);
 		for (const [key, value] of Object.entries(input.headers ?? {})) headers.set(key, value);
 		const normalized = Object.fromEntries(headers);
@@ -85,17 +75,15 @@ export async function managedSend(pool: Pool, authority: Authority, target: Dest
 		if (operation.state === "succeeded") return { cached: { ...operation.result, reused: true } as SendResult };
 		if (operation.state === "sending" && operation.generation === authority.generation) throw new AppError("operation_busy", 409, "This operation is already being sent");
 		const projectId = (await db.query("SELECT project_id FROM payloadbay.endpoint WHERE id=$1", [execution.endpoint_id])).rows[0].project_id as string;
-		if (destinationId) {
-			const current = (await db.query("SELECT concurrency FROM payloadbay.destination WHERE id::text=$1 AND project_id=$2", [destinationId, projectId])).rows[0];
-			if (current) capacityLimit = current.concurrency;
-		}
+		const current = (await db.query("SELECT concurrency FROM payloadbay.destination WHERE id::text=$1 AND project_id=$2", [destinationId, projectId])).rows[0];
+		if (current) capacityLimit = current.concurrency;
 
 		if (!Number.isInteger(capacityLimit) || capacityLimit < 1 || capacityLimit > 128) throw new AppError("destination_unavailable", 409, "Destination capacity requires operator attention");
 		const capacityKey =
 			projectId +
 			":" +
 			createHash("sha256")
-				.update(destinationId ? "configured:" + destinationId : "url:" + url)
+				.update("configured:" + destinationId)
 				.digest("hex");
 		await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", ["destination-capacity:" + capacityKey]);
 		const occupied = (
@@ -128,7 +116,7 @@ export async function managedSend(pool: Pool, authority: Authority, target: Dest
 		const response = await fetch(prepared.url!, {
 			method: prepared.method,
 			headers: prepared.headers,
-			body,
+			body: ["GET", "HEAD"].includes(prepared.method!) ? undefined : body,
 			redirect: "manual",
 			signal: options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(options.timeoutMs ?? 10000)]) : AbortSignal.timeout(options.timeoutMs ?? 10000),
 		});

@@ -144,7 +144,7 @@ test("U287 shared source cannot dynamically import an unregistered runtime modul
 	assert.equal(caught.diagnostics[0].sourceId, "Helper");
 });
 
-test("U294 executor RPC preserves zero direct-fetch budget", async () => {
+test("U294 route RPC denies direct fetch regardless of the supplied budget", async () => {
 	const { createServer } = await import("node:http");
 	const { executorFixture } = await import("../helpers/executor-fixture.ts");
 	const { executeSource } = await import("../../packages/domain/src/executor-client.ts");
@@ -161,8 +161,8 @@ test("U294 executor RPC preserves zero direct-fetch budget", async () => {
 		const config = { executorUrl: executor.url, executorToken: "fixture-executor-token-32-characters" };
 		const bundle = `export default async function(ctx){try{await fetch('http://host.docker.internal:${address.port}/fixture');return ctx.complete();}catch{return ctx.fail({reason:'fetch blocked'});}}`;
 		const allowed = await executeSource(config, { stage: "processing", bundle, input: {} });
-		assert.equal((allowed.decision as { kind: string }).kind, "complete");
-		assert.equal(calls, 1);
+		assert.equal((allowed.decision as { kind: string }).kind, "fail");
+		assert.equal(calls, 0);
 		const blocked = await executeSource(config, {
 			stage: "processing",
 			bundle,
@@ -170,7 +170,7 @@ test("U294 executor RPC preserves zero direct-fetch budget", async () => {
 			maxFetches: 0,
 		});
 		assert.equal((blocked.decision as { kind: string }).kind, "fail", "Zero fetch budget must reach the actual runtime");
-		assert.equal(calls, 1, "Dry execution must make no HTTP request");
+		assert.equal(calls, 0, "Route execution must make no direct HTTP request");
 	} finally {
 		await executor.stop();
 		await new Promise<void>((resolve) => http.close(() => resolve()));
@@ -186,7 +186,7 @@ test("U297 dry executor simulates managed delivery without network", async () =>
 			{ executorUrl: executor.url, executorToken: "fixture-executor-token-32-characters" },
 			{
 				stage: "processing",
-				bundle: 'export default async function(ctx){const result=await ctx.destinations.send({url:"http://127.0.0.1:1/unreachable"},{operationId:"main",body:"fixture"});if(!result.ok||result.attemptId!=="dry-run:main")return ctx.fail({reason:"simulation unavailable"});return ctx.complete();}',
+				bundle: 'export default async function(ctx){const result=await ctx.destinations.send("default",{operationId:"main",body:"fixture"});if(!result.ok||result.attemptId!=="dry-run:main")return ctx.fail({reason:"simulation unavailable"});return ctx.complete();}',
 				input: {},
 				dryRun: true,
 			},
@@ -321,4 +321,47 @@ test("RX02 publication rejects reserved bindings, invalid lifecycle exports and 
 
 	await assert.rejects(compile({ stage: "processing", sourceId: "route-processing", body: "export default function processEvent(ctx: ProcessingContext) { return ctx.complete(); }" }), (error) => error instanceof CompilationError && error.diagnostics.some((diagnostic) => diagnostic.code === "lifecycle_export"));
 	await assert.rejects(compile({ stage: "processing", body: "return ctx.complete();", sharedModules: { helper: { source: 'export { readFile } from "node:fs";', revisionId: "fixture" } } }), (error) => error instanceof CompilationError && error.diagnostics.some((diagnostic) => diagnostic.code === "unregistered_import" && diagnostic.sourceId === "helper"));
+});
+
+test("default send uses the managed broker with a stable operation identity", async () => {
+	const { compile } = await import("../../apps/executor/src/compiler.ts");
+	const { execute } = await import("../../apps/executor/src/supervisor.ts");
+	const compiled = await compile({ stage: "processing", body: 'const sent = await ctx.destinations.send({body:"payload"}); const extra = await ctx.destinations.send({body:"other",operationId:"extra"}); return sent.ok && extra.ok ? ctx.complete() : ctx.fail({reason:"delivery failed"});' });
+	const calls: unknown[] = [];
+	const result = await execute({
+		stage: "processing",
+		bundle: compiled.bundle,
+		input: {},
+		broker: async (target, input) => {
+			calls.push({ target, input });
+
+			return { ok: true, attemptId: "fixture" };
+		},
+	});
+	assert.equal((result.decision as { kind: string }).kind, "complete");
+	assert.deepEqual(calls, [
+		{ target: "default", input: { body: "payload", operationId: "destination:default:configured" } },
+		{ target: "default", input: { body: "other", operationId: "extra" } },
+	]);
+});
+
+test("destination HTTP method helpers use configured targets and the same broker", async () => {
+	const { compile } = await import("../../apps/executor/src/compiler.ts");
+	const { execute } = await import("../../apps/executor/src/supervisor.ts");
+	const compiled = await compile({ stage: "processing", body: 'await ctx.destinations.get();await ctx.destinations.post("second",{body:"test"});await ctx.destinations.options();await ctx.destinations.head();await ctx.destinations.delete({body:"delete"});await ctx.destinations.put({body:"put"});await ctx.destinations.patch({body:"patch"});await ctx.destinations.send("second",{body:"configured"});return ctx.complete();' });
+	const calls: { target: unknown; input: unknown }[] = [];
+	await execute({
+		stage: "processing",
+		bundle: compiled.bundle,
+		input: {},
+		broker: async (target, input) => {
+			calls.push({ target, input });
+
+			return { ok: true, attemptId: "fixture" };
+		},
+	});
+	assert.equal(calls.length, 8);
+	assert.deepEqual(calls[0], { target: "default", input: { method: "GET", body: "", operationId: "destination:default:GET" } });
+	assert.deepEqual(calls[1], { target: "second", input: { body: "test", method: "POST", operationId: "destination:second:POST" } });
+	assert.deepEqual(calls[7], { target: "second", input: { body: "configured", operationId: "destination:second:configured" } });
 });

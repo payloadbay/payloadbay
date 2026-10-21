@@ -44,7 +44,8 @@
 		"tests/integration/request-contracts.test.ts": "node",
 		"tests/acceptance/ui-catalog.spec.ts": "browser",
 		"tests/unit/ui-exports.test.ts": "unit",
-		"tests/unit/push-check.test.ts": "unit"
+		"tests/unit/push-check.test.ts": "unit",
+		"tests/unit/ingress-policy.test.ts": "unit"
 	},
 	"coverageSources": ["scripts/tests/policy.ts", "scripts/tests/runtime.ts", "packages/domain/src/config.ts", "apps/executor/src/compiler.ts", "packages/contracts/src/config.ts", "packages/contracts/src/api.ts", "packages/contracts/src/errors.ts", "packages/contracts/src/lifecycle.ts", "packages/domain/src/authorization.ts"],
 	"plannedProductSuites": [],

@@ -533,11 +533,6 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 			<header className='flex flex-wrap items-start justify-between gap-4'>
 				<div>
 					{section === "overview" && <p className='text-muted text-sm'>Ingress route</p>}
-					{drafts && savedDrafts && JSON.stringify(drafts) !== JSON.stringify(savedDrafts) && (
-						<Chip size='sm' color='warning'>
-							Unsaved changes
-						</Chip>
-					)}
 					<h1 className='text-3xl font-semibold'>
 						{section === "overview"
 							? route.name
@@ -778,7 +773,7 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 									{publishable && drafts && (
 										<Button onPress={() => void publish()} isDisabled={busy || !editable}>
 											<IconUpload size={18} />
-											{busy ? "Working…" : "Publish both stages"}
+											{busy ? "Working…" : "Publish"}
 										</Button>
 									)}
 									<span className='text-muted text-xs'>
@@ -810,7 +805,7 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 							</Button>
 							{publishable && (
 								<Button isDisabled={busy} onPress={() => void publish()}>
-									Publish both stages
+									Publish
 								</Button>
 							)}
 							<span className='text-muted text-xs'>{JSON.stringify(drafts) === JSON.stringify(savedDrafts) ? "Draft saved" : "Unsaved changes"}</span>

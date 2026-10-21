@@ -310,7 +310,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 		: [];
 
 	const routeId = pathname.match(/^\/projects\/[^/]+\/routes\/([^/]+)/)?.[1] ?? pathname.match(/^\/code\/endpoint\/([^/]+)/)?.[1];
-	const routeSection = pathname.startsWith("/code/endpoint/") ? "middleware" : (search.get("section") ?? "overview");
+	const routeSection = pathname.endsWith("/protection") ? "protection" : pathname.startsWith("/code/endpoint/") ? "middleware" : (search.get("section") ?? "overview");
 	const routeAddress = routeId && currentProject ? "/projects/" + currentProject.id + "/routes/" + routeId : "";
 	const routeLinks =
 		!browse && routeId && project
@@ -332,6 +332,12 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 						label: "Scripts",
 						icon: IconCode,
 						visible: project.permissions.includes("code.read"),
+					},
+					{
+						id: "protection",
+						label: "Request protection",
+						icon: IconSettings,
+						visible: project.permissions.includes("endpoints.configure"),
 					},
 					{
 						id: "secrets",
@@ -373,7 +379,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 	else if (pathname.endsWith("/usage")) breadcrumbItems.push({ label: "Usage and limits" });
 	else if (currentOrganization && pathname.endsWith("/security")) breadcrumbItems.push({ label: "Security" });
 	else if (pathname.endsWith("/api-keys")) breadcrumbItems.push({ label: currentOrganization ? "API keys" : "Personal API keys" });
-	else if (pathname.startsWith("/code/")) breadcrumbItems.push({ label: currentProject || currentWorkspace || currentOrganization ? "Code and middleware" : "Instance code and middleware" });
+	else if (pathname.startsWith("/code/")) breadcrumbItems.push({ label: currentProject || currentWorkspace || currentOrganization ? "Code and middleware" : "Shared code" });
 	else if (pathname.endsWith("/notifications")) breadcrumbItems.push({ label: currentProject || currentWorkspace || currentOrganization ? "Notification rules" : "Notification settings" });
 	else if (pathname.startsWith("/admin/notification-channels/")) {
 		breadcrumbItems.push({ label: "Notification modules", href: "/admin/notification-channels" });
@@ -416,13 +422,6 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 			href: "/events",
 			icon: IconInbox,
 			visible: true,
-		},
-		{
-			id: "instance-code",
-			label: "Shared code",
-			href: "/code/instance/" + data.me.instanceId,
-			icon: IconCode,
-			visible: data.me.permissions.includes("code.read"),
 		},
 		{
 			id: "instance-members",
@@ -481,7 +480,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 					visible: project.permissions.includes("code.read"),
 				}
 			: null;
-	const primaryContextualLinks = !browse && routeId ? [...routeLinks.map((item) => ({ ...item, href: routeAddress + "?section=" + item.id })), ...(middlewareLink ? [middlewareLink] : [])] : project ? projectLinks : workspace ? workspaceLinks : organization ? organizationLinks : [];
+	const primaryContextualLinks = !browse && routeId ? [...routeLinks.map((item) => ({ ...item, href: item.id === "protection" ? routeAddress + "/protection" : routeAddress + "?section=" + item.id })), ...(middlewareLink ? [middlewareLink] : [])] : project ? projectLinks : workspace ? workspaceLinks : organization ? organizationLinks : [];
 	const auditResource = project ?? workspace ?? organization;
 	const auditType = project ? "project" : workspace ? "workspace" : "organization";
 	const contextualLinks = [
@@ -500,7 +499,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 	];
 
 	const groups = [
-		{ label: "Settings", items: contextualLinks.filter((item) => ["organization-security", "overview", "code", "helpers", "secrets", "middleware", "project-overview", "project-code", "project-members", "workspace", "workspace-members", "workspace-code", "organization", "organization-members", "organization-code", "organization-api-keys", "workspace-api-keys", "project-api-keys"].includes(item.id)) },
+		{ label: "Settings", items: contextualLinks.filter((item) => ["organization-security", "overview", "protection", "code", "helpers", "secrets", "middleware", "project-overview", "project-code", "project-members", "workspace", "workspace-members", "workspace-code", "organization", "organization-members", "organization-code", "organization-api-keys", "workspace-api-keys", "project-api-keys"].includes(item.id)) },
 		{ label: "Observe and troubleshoot", items: contextualLinks.filter((item) => ["events", "project-events", "playground", "test", "organization-usage", "scoped-audit"].includes(item.id)) },
 		{ label: "Publish and history", items: contextualLinks.filter((item) => item.id === "history") },
 		{ label: "Automation", items: contextualLinks.filter((item) => ["project-notifications", "workspace-rules"].includes(item.id)) },
