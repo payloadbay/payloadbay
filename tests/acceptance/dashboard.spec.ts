@@ -2061,8 +2061,12 @@ test("UX78 saved assertion scripts can be restored and run against the current h
 	await expect(page.getByLabel("Test name", { exact: true })).toHaveValue("Saved response");
 	await expect(page.getByRole("region", { name: "TypeScript test assertions" }).locator(".view-lines")).toContainText("Returns a decision");
 	await page.getByRole("tab", { name: "Checks", exact: true }).click();
-	await page.getByRole("region", { name: "TypeScript test assertions" }).getByText("ScriptTestContext", { exact: true }).hover();
-	await expect(page.locator(".monaco-hover").filter({ hasText: "ScriptTestContext" }).last()).toContainText("response");
+	// Monaco can receive the first hover before its TypeScript worker is ready.
+	await expect(async () => {
+		await page.mouse.move(0, 0);
+		await page.getByRole("region", { name: "TypeScript test assertions" }).getByText("ScriptTestContext", { exact: true }).hover();
+		await expect(page.locator(".monaco-hover:visible").filter({ hasText: "ScriptTestContext" }).last()).toContainText("response", { timeout: 1500 });
+	}).toPass({ timeout: 15000 });
 	await page.mouse.move(0, 0);
 
 	await page.getByLabel("Test name", { exact: true }).fill("Updated response test");
