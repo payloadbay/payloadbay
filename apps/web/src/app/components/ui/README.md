@@ -177,3 +177,7 @@ open an editor; the caller chooses how to handle these actions. Move and resize
 are independently enabled by their callbacks. Delete/Backspace requests deletion
 of the selected event; Escape clears selection. The review fixture records callback
 payloads and leaves persistence to its caller.
+
+Emoji categories filter the grid using the bundled dataset. Search spans all
+categories; All also keeps caller-provided items reachable. Skin tones apply to
+both category browsing and search results.

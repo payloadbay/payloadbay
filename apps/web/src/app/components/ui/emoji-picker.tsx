@@ -21,13 +21,52 @@ export interface EmojiPickerProps {
 	items?: EmojiOption[];
 }
 
-const emojiData = Object.values((data as unknown as { emojis: Record<string, EmojiOption> }).emojis);
+const dataset = data as unknown as { emojis: Record<string, EmojiOption>; categories: Array<{ id: string; emojis: string[] }> };
+const emojiData = Object.values(dataset.emojis);
+const categoryLabels: Record<string, string> = {
+	people: "Smileys & people",
+	nature: "Animals & nature",
+	foods: "Food & drink",
+	activity: "Activities",
+	places: "Travel & places",
+	objects: "Objects",
+	symbols: "Symbols",
+	flags: "Flags",
+};
+const categoryGlyphs: Record<string, string> = {
+	people: "😀",
+	nature: "🌿",
+	foods: "🍎",
+	activity: "⚽",
+	places: "🚗",
+	objects: "💡",
+	symbols: "💟",
+	flags: "🏁",
+};
 const skinNames = ["Default", "Light", "Medium light", "Medium", "Medium dark", "Dark"];
 
 export function EmojiPicker({ value, onChange, label = "Choose emoji", items = emojiData }: EmojiPickerProps) {
 	const [open, setOpen] = useState(false);
 	const [tone, setTone] = useState(0);
 	const [toneOpen, setToneOpen] = useState(false);
+	const [category, setCategory] = useState("all");
+	const [query, setQuery] = useState("");
+
+	const categories = useMemo(() => {
+		const available = new Set(items.map((item) => item.id));
+
+		return dataset.categories.filter((entry) => entry.emojis.some((id) => available.has(id)));
+	}, [items]);
+
+	const activeCategory = categories.find((entry) => entry.id === category);
+
+	const visibleItems = useMemo(() => {
+		if (query.trim() || !activeCategory) return items;
+
+		const ids = new Set(activeCategory.emojis);
+
+		return items.filter((item) => ids.has(item.id));
+	}, [items, activeCategory, query]);
 
 	const { contains } = useFilter({ sensitivity: "base" });
 
@@ -48,13 +87,13 @@ export function EmojiPicker({ value, onChange, label = "Choose emoji", items = e
 				<span className='pb-emoji-glyph'>{value || "😀"}</span>
 			</Button>
 			<Popover className='pb-emoji-popover' placement='bottom' offset={4}>
-				<Autocomplete filter={contains}>
+				<Autocomplete filter={contains} inputValue={query} onInputChange={setQuery}>
 					<div className='pb-emoji-content'>
 						<SearchField aria-label='Search emoji' variant='secondary'>
 							<SearchField.Group className='pr-2'>
 								<SearchField.Input className='min-w-0' placeholder='Search emoji…' />
 								<TonePopover isOpen={toneOpen} onOpenChange={setToneOpen}>
-									<Button className='pb-emoji-tone' aria-label='Select skin tone'>
+									<Button slot={null} className='pb-emoji-tone' aria-label='Select skin tone'>
 										<span className='pb-emoji-glyph'>{["✋", "✋🏻", "✋🏼", "✋🏽", "✋🏾", "✋🏿"][tone]}</span>
 									</Button>
 									<TonePopover.Content placement='bottom end'>
@@ -84,6 +123,29 @@ export function EmojiPicker({ value, onChange, label = "Choose emoji", items = e
 								</TonePopover>
 							</SearchField.Group>
 						</SearchField>
+						<ToggleButtonGroup
+							aria-label='Emoji category'
+							selectionMode='single'
+							disallowEmptySelection
+							selectedKeys={new Set([query.trim() ? "all" : (activeCategory?.id ?? "all")])}
+							className='pb-emoji-categories'
+							onSelectionChange={(keys) => {
+								const next = [...keys][0];
+								if (next !== undefined) {
+									setCategory(String(next));
+									setQuery("");
+								}
+							}}
+						>
+							<ToggleButton id='all' variant='ghost' aria-label='All emoji'>
+								▦
+							</ToggleButton>
+							{categories.map((entry) => (
+								<ToggleButton key={entry.id} id={entry.id} variant='ghost' aria-label={categoryLabels[entry.id]}>
+									<span className='pb-emoji-glyph'>{categoryGlyphs[entry.id]}</span>
+								</ToggleButton>
+							))}
+						</ToggleButtonGroup>
 						<Label className='sr-only'>Emoji</Label>
 						<Virtualizer
 							layout={GridLayout}
@@ -94,7 +156,7 @@ export function EmojiPicker({ value, onChange, label = "Choose emoji", items = e
 								preserveAspectRatio: true,
 							}}
 						>
-							<ListBox aria-label='Emoji grid' layout='grid' className='pb-emoji-grid' items={items} renderEmptyState={() => <p className='p-4 text-sm text-muted'>No emoji found</p>}>
+							<ListBox aria-label='Emoji grid' layout='grid' className='pb-emoji-grid' dependencies={[tone]} items={visibleItems} renderEmptyState={() => <p className='p-4 text-sm text-muted'>No emoji found</p>}>
 								{(item) => (
 									<ListBoxItem id={item.id} textValue={`${item.name} ${item.keywords?.join(" ") ?? ""}`} aria-label={(item.skins[tone] ?? item.skins[0]).native} className='pb-emoji-option'>
 										<span className='pb-emoji-glyph'>{(item.skins[tone] ?? item.skins[0]).native}</span>

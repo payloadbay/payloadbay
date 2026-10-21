@@ -61,7 +61,7 @@ mobile viewport presets still apply to both columns. File watching rebuilds on
 UI/gallery changes; a failed rebuild keeps the last working output. Frames refresh
 after a successful rebuild. Product screens now use the independent library.
 
-## Optional follow-up
+## Emoji category navigation
 
-The maintainer approved the emoji picker baseline and suggested category
-navigation as a later convenience. It is not part of the Pro-removal acceptance.
+Implemented as an independent enhancement: bundled categories filter the grid,
+search spans every category, and All keeps caller-provided items reachable.

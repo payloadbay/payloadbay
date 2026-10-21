@@ -2167,3 +2167,22 @@
 .pb-timeline[data-size="lg"] li[data-status="success"] .pb-timeline-marker {
 	border-color: color-mix(in srgb, var(--success) 55%, var(--border));
 }
+
+.pb-emoji-categories {
+	display: flex;
+	flex-shrink: 0;
+	gap: 1px;
+	overflow-x: auto;
+}
+.pb-emoji-categories button {
+	flex: 1 0 28px;
+	min-width: 28px;
+	width: 28px;
+	height: 30px;
+	min-height: 30px;
+	padding: 0;
+	font-size: 16px;
+}
+.pb-emoji-categories button[data-selected] {
+	background: var(--default);
+}
