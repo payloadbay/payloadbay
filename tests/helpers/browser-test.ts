@@ -7,8 +7,9 @@ import { convertBrowserCoverage, mergeNodeCoverage } from "../../scripts/tests/c
 
 export { expect } from "@playwright/test";
 
-export const test = base.extend({
-	page: async ({ page, browserName }, use, info) => {
+export const test = base.extend<{ coverageAssets: { directory: string; prefix: string } | undefined }>({
+	coverageAssets: [undefined, { option: true }],
+	page: async ({ page, browserName, coverageAssets }, use, info) => {
 		if (process.env.PAB_TEST_SOURCE_COVERAGE !== "true") return await use(page);
 		if (browserName !== "chromium") throw Error("Browser source coverage requires Chromium");
 		const reports: CoverageMapData[] = [];
@@ -22,7 +23,7 @@ export const test = base.extend({
 			pending = pending.then(async () => {
 				if (page.isClosed()) return;
 				const snapshot = await profiler.send("Profiler.takePreciseCoverage");
-				const report = await convertBrowserCoverage(snapshot.result);
+				const report = await convertBrowserCoverage(snapshot.result, process.cwd(), coverageAssets);
 				if (Object.keys(report).length) reports.push(report);
 			});
 

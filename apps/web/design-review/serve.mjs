@@ -13,7 +13,8 @@ const require = createRequire(import.meta.resolve("@tailwindcss/postcss"));
 const postcss = require("postcss");
 const source = fileURLToPath(new URL(".", import.meta.url));
 const components = path.join(source, "../src/app/components/ui");
-const output = "/tmp/payloadbay-design-review";
+const output = process.env.REVIEW_OUTPUT_DIR ?? "/tmp/payloadbay-design-review";
+const port = Number(process.env.REVIEW_PORT ?? 4173);
 const reference = process.env.REVIEW_REFERENCE_DIR;
 let revision = 0;
 let buildError = "";
@@ -43,6 +44,7 @@ async function rebuild() {
 			minify: true,
 			define: { "process.env.NODE_ENV": '"production"' },
 			metafile: true,
+			sourcemap: process.env.REVIEW_SOURCE_COVERAGE === "true" ? "external" : false,
 		});
 		for (const entry of ["replacement.tsx", "catalog.tsx"]) {
 			const key = Object.keys(result.metafile.inputs).find((name) => path.resolve(name) === path.join(source, entry));
@@ -79,7 +81,7 @@ async function rebuild() {
 		await cp(staging, output, { recursive: true });
 		revision += 1;
 		buildError = "";
-		console.log(`Design review revision ${revision}: http://localhost:4173`);
+		console.log(`Design review revision ${revision}: http://localhost:${port}`);
 	} catch (error) {
 		buildError = error instanceof Error ? error.message : String(error);
 		console.error(buildError);
@@ -134,7 +136,7 @@ createServer(async (request, response) => {
 		response.writeHead(404);
 		response.end("Not found");
 	}
-}).listen(4173, "::");
+}).listen(port, process.env.REVIEW_HOST ?? "::");
 let timer;
 for (const directory of [source, components])
 	watch(directory, { recursive: true }, (_, filename) => {

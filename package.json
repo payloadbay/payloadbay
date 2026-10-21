@@ -33,7 +33,7 @@
 		"sdk:generate": "bun scripts/generate-sdk.ts",
 		"test:performance": "bun scripts/tests/run.ts performance",
 		"prepare": "node .husky/install.mjs",
-		"check:push": "bun run test:inventory && bun run typecheck && bun run lint && bun run format:check && bun run test"
+		"check:push": "bun run test:inventory && bun run typecheck && bun run lint && bun run format:check && bun scripts/tests/check-push.ts"
 	},
 	"workspaces": [
 		"apps/*",

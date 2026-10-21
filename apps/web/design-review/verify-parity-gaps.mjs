@@ -1,23 +1,20 @@
 import { chromium, expect } from "@playwright/test";
+import { pathToFileURL } from "node:url";
 
-const browser = await chromium.launch({ args: ["--no-sandbox"] });
-const width = Number(process.env.REVIEW_WIDTH ?? 1024);
-const context = await browser.newContext({ viewport: { width, height: width < 640 ? 844 : 768 } });
-const page = await context.newPage();
-const errors = [];
-page.on("pageerror", (error) => errors.push(error.message));
-page.setDefaultTimeout(8000);
+export async function verifyParityGaps(page, origin = "http://localhost:4173", width = 1024) {
+	const errors = [];
+	page.on("pageerror", (error) => errors.push(error.message));
+	page.setDefaultTimeout(8000);
 
-async function fixture(id) {
-	await page.goto(`http://localhost:4173/catalog.html?fixture=${id}`);
-	await page.getByText("Additional interaction cases", { exact: true }).click();
-	const target = page.locator(`[data-parity-fixture="${id}"]`);
-	await target.scrollIntoViewIfNeeded();
+	async function fixture(id) {
+		await page.goto(`${origin}/catalog.html?fixture=${id}`);
+		await page.getByText("Additional interaction cases", { exact: true }).click();
+		const target = page.locator(`[data-parity-fixture="${id}"]`);
+		await target.scrollIntoViewIfNeeded();
 
-	return target;
-}
+		return target;
+	}
 
-try {
 	let target = await fixture("carousel");
 	await target.getByRole("button", { name: "Preview slide 3" }).click();
 	await expect(target.getByRole("button", { name: "Preview slide 3" })).toHaveAttribute("aria-current", "true");
@@ -142,27 +139,36 @@ try {
 	await expect(parent).toHaveCount(0);
 	console.log("PASS nested sheet dismissal keeps parent open");
 
-	const touch = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
-	try {
-		const mobile = await touch.newPage();
-		await mobile.goto("http://localhost:4173/catalog.html?component=pressable-feedback");
-		const button = mobile.getByRole("button", { name: "Press me", exact: true });
-		const bounds = await button.boundingBox();
-		const session = await touch.newCDPSession(mobile);
-		await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }] });
-		await mobile.waitForTimeout(60);
-		await expect(button.locator(".pb-press-ripple")).toHaveCount(0);
-		await mobile.waitForTimeout(150);
-		await expect(button.locator(".pb-press-ripple")).toHaveCount(1);
-		await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-		await expect(button.locator(".pb-press-ripple")).toHaveCount(0);
-		console.log("PASS delayed touch ripple and release lifecycle");
-	} finally {
-		await touch.close();
-	}
-
 	expect(errors).toEqual([]);
 	console.log("PASS advanced parity fixtures without browser errors");
-} finally {
-	await browser.close();
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+	const browser = await chromium.launch({ args: ["--no-sandbox"] });
+	const width = Number(process.env.REVIEW_WIDTH ?? 1024);
+	try {
+		const context = await browser.newContext({ viewport: { width, height: width < 640 ? 844 : 768 } });
+		const page = await context.newPage();
+		await verifyParityGaps(page, "http://localhost:4173", width);
+		const touch = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
+		try {
+			const mobile = await touch.newPage();
+			await mobile.goto("http://localhost:4173/catalog.html?component=pressable-feedback");
+			const button = mobile.getByRole("button", { name: "Press me", exact: true });
+			const bounds = await button.boundingBox();
+			const session = await touch.newCDPSession(mobile);
+			await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }] });
+			await mobile.waitForTimeout(60);
+			await expect(button.locator(".pb-press-ripple")).toHaveCount(0);
+			await mobile.waitForTimeout(150);
+			await expect(button.locator(".pb-press-ripple")).toHaveCount(1);
+			await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+			await expect(button.locator(".pb-press-ripple")).toHaveCount(0);
+			console.log("PASS delayed touch ripple and release lifecycle");
+		} finally {
+			await touch.close();
+		}
+	} finally {
+		await browser.close();
+	}
 }

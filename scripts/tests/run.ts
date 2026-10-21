@@ -50,7 +50,6 @@ if (mode === "file") {
 } else if (mode !== "suite" && mode !== "coverage" && !testLanes.some((lane) => lane === mode)) throw Error("Unknown test mode");
 if (testLanes.some((lane) => lane === mode)) files = all.filter((f) => registry.owners[f] === mode);
 if (!files.length) throw Error("Empty test selection");
-if (collectCoverage && files.some((file) => !["unit", "node", "executor", "deployment", "browser"].includes(registry.owners[file]))) throw Error("Source-mapped collection supports unit, Node, executor, browser and deployment owners only");
 const grep = mode === "file" && args[0] === "--name" ? args[1] : undefined;
 if (mode === "file" && args.length && (!grep || args.length !== 2)) throw Error("Expected --name followed by test name");
 const runId = process.env.PAB_TEST_RUN_ID ?? randomUUID();
@@ -60,6 +59,8 @@ const lanes = testLanes;
 let passed = 0;
 for (const lane of lanes) {
 	const selected = files.filter((f) => registry.owners[f] === lane);
+	// Keep latency measurements outside profiler instrumentation.
+	const laneCoverage = collectCoverage && lane !== "performance";
 	if (!selected.length) continue;
 	if (mode === "coverage" && lane !== "unit") continue;
 	const env: NodeJS.ProcessEnv & { PAB_TEST_ARTIFACT_DIR: string } = {
@@ -84,7 +85,7 @@ for (const lane of lanes) {
 	let options: string[] = [];
 	if (lane === "unit") {
 		options = ["test", ...selected, ...(grep ? ["--test-name-pattern", grep] : [])];
-		if (mode === "coverage" || collectCoverage) {
+		if (mode === "coverage" || laneCoverage) {
 			// Pinned Bun favors bunfig reporting settings over CLI overrides. Collect
 			// fresh LCOV alone, then enforce our existing explicit line/function gate.
 			let configuration = readFileSync("bunfig.toml", "utf8");
@@ -111,7 +112,7 @@ for (const lane of lanes) {
 		options = ["--import", "tsx", "--test", lane === "performance" ? "--test-concurrency=1" : "--test-concurrency=2", ...(grep ? ["--test-name-pattern", grep] : []), ...selected];
 	}
 
-	const result = collectCoverage && lane !== "unit" ? runNodeCoverage(options, { directory: `${env.PAB_TEST_ARTIFACT_DIR}/coverage`, env, include: ["apps/**/src/**/*.ts", "apps/**/src/**/*.tsx", "packages/**/src/**/*.ts", "packages/**/src/**/*.tsx", "scripts/**/*.ts"] }) : spawnSync(command, options, { encoding: "utf8", env, maxBuffer: 16 * 1024 * 1024 });
+	const result = laneCoverage && lane !== "unit" ? runNodeCoverage(options, { directory: `${env.PAB_TEST_ARTIFACT_DIR}/coverage`, env, include: ["apps/**/src/**/*.ts", "apps/**/src/**/*.tsx", "packages/**/src/**/*.ts", "packages/**/src/**/*.tsx", "scripts/**/*.ts"] }) : spawnSync(command, options, { encoding: "utf8", env, maxBuffer: 16 * 1024 * 1024 });
 	writeFileSync(`${env.PAB_TEST_ARTIFACT_DIR}/console.txt`, (result.stdout ?? "") + (result.stderr ?? ""));
 	process.stdout.write(result.stdout ?? "");
 	process.stderr.write(result.stderr ?? "");
@@ -125,7 +126,7 @@ for (const lane of lanes) {
 		lanePassed = Number(match[1]);
 	} else lanePassed = assertNonemptyRun(lane === "unit" ? "bun" : "node", report);
 	passed += lanePassed;
-	if (collectCoverage) {
+	if (laneCoverage) {
 		const currentSha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 		if (currentSha !== sourceSha) throw Error("Source revision changed during coverage collection");
 		const ownerFiles = all.filter((file) => registry.owners[file] === lane);

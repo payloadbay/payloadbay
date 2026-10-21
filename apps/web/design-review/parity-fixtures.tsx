@@ -278,6 +278,7 @@ export function ParityFixtures({ id }: { id: string }) {
 			content = (
 				<DataGrid
 					label='Virtualized routes'
+					onRowAction={(id) => setMessage(`Opened ${id}`)}
 					rows={manyRows}
 					virtualized
 					height={240}

@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import coverage, { type CoverageMapData, type FileCoverageData } from "istanbul-lib-coverage";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, readdirSync, writeFileSync } from "node:fs";
-import { resolve, join, sep, isAbsolute } from "node:path";
+import { resolve, join, sep, isAbsolute, dirname } from "node:path";
 import { tmpdir } from "node:os";
 
 interface CoverageOptions {
@@ -70,8 +70,9 @@ export function browserSourcePath(source: string, root = process.cwd()) {
 }
 
 /** Export only first-party counters/locations, never source-map contents. */
-export async function convertBrowserCoverage(entries: JSCoverageEntry[], root = process.cwd()): Promise<CoverageMapData> {
-	const staticRoot = resolve(root, "apps/web/.next/static");
+export async function convertBrowserCoverage(entries: JSCoverageEntry[], root = process.cwd(), assets?: { directory: string; prefix: string }): Promise<CoverageMapData> {
+	const staticRoot = assets ? resolve(assets.directory) : resolve(root, "apps/web/.next/static");
+	const prefix = assets?.prefix ?? "/_next/static/";
 	const ownedRoots = ["apps/web/src", "packages/contracts/src", "packages/domain/src", "packages/script-sdk/src"].map((directory) => resolve(root, directory) + sep);
 
 	const owned = (source: string) => ownedRoots.some((directory) => source.startsWith(directory)) && /\.[cm]?[jt]sx?$/.test(source);
@@ -85,8 +86,8 @@ export async function convertBrowserCoverage(entries: JSCoverageEntry[], root = 
 			continue;
 		}
 
-		if (!pathname.startsWith("/_next/static/")) continue;
-		const filename = resolve(staticRoot, decodeURIComponent(pathname.slice("/_next/static/".length)));
+		if (!pathname.startsWith(prefix)) continue;
+		const filename = resolve(staticRoot, decodeURIComponent(pathname.slice(prefix.length)));
 		if (!filename.startsWith(staticRoot + sep)) throw Error("Browser coverage asset escapes the build directory");
 		let map;
 		try {
@@ -97,7 +98,7 @@ export async function convertBrowserCoverage(entries: JSCoverageEntry[], root = 
 		}
 
 		if (!Array.isArray(map.sources) || !Array.isArray(map.sourcesContent)) throw Error("Browser source map has no original sources");
-		map.sources = map.sources.map((source: string) => browserSourcePath(source, root));
+		map.sources = map.sources.map((source: string) => (assets ? resolve(dirname(filename), map.sourceRoot ?? "", source) : browserSourcePath(source, root)));
 		map.sourceRoot = "";
 		if (!map.sources.some(owned)) continue;
 		const converter = v8ToIstanbul(filename, 0, { source: entry.source ?? (await readFile(filename, "utf8")), originalSource: "", sourceMap: { sourcemap: map } }, (source) => !owned(source));

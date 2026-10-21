@@ -9,7 +9,8 @@ adds the following preview testing guidance.
 Run `bun install --frozen-lockfile` after cloning. Its `prepare` lifecycle installs
 Husky's repository-local hooks. Commit or stash local changes before pushing so
 checks validate the committed source. Every push runs `bun run check:push`: test inventory,
-web/tooling type checks, lint, formatting and all registered test lanes. A failed
+web/tooling type checks, lint, formatting and all registered test lanes, followed by the same per-file merged
+line/function coverage gate as CI. A failed
 check blocks the push; the hook does not rewrite files. The complete suite requires
 Docker, Node.js, Bun, ripgrep and Playwright Chromium (`bun x --no-install playwright
 install chromium`). Allow several minutes for builds and integration tests.

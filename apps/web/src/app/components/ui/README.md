@@ -116,7 +116,7 @@ import { AreaChart } from "@components/ui/charts";
 
 Do not confuse a shared primitive with an application subsystem. The agenda does
 not persist bookings, the rich editor does not send email, and the grid does not
-fetch or authorize rows. Callers supply those behaviors. The grid supports measured pinned columns, tree rows, virtualization and reorder callbacks; callers persist the resulting changes. The agenda reports moved/resized event instants through `onEventChange`.
+fetch or authorize rows. Callers supply those behaviors. The grid supports measured pinned columns, tree rows, virtualization and reorder callbacks; callers persist the resulting changes. The agenda reports created, moved and resized instants through `onEventCreate`, `onEventMove` and `onEventResize`; callers own persistence.
 
 ## Evidence and motion
 
@@ -129,8 +129,13 @@ Run the existing regression/motion/preview scripts plus `verify-catalog.mjs` and
 changing a contract. See [motion policy](../../../../design-review/MOTION.md): match
 component-specific reduced motion; never blanket-disable every descendant.
 
-Still pending: maintainer visual acceptance, actual product-shell integration,
-physical-device testing.
+Approved gallery presets are integrated where the product currently uses them.
+Physical-device testing and advanced API acceptance remain separate checks.
+
+The registered `tests/acceptance/ui-catalog.spec.ts` suite exercises public gallery
+variants, selection, keyboard navigation, drag/resize callbacks and editor commands.
+Its private source maps feed the same per-file coverage gate as application tests;
+manual comparison checks complement that evidence.
 
 ## Source review and approval boundary
 

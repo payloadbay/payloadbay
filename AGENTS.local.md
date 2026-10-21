@@ -97,7 +97,8 @@ cycles for work that was not implemented test-first.
 ## Push validation
 
 Husky runs `bun run check:push` before a push. Commit or stash changes first so
-validation covers the committed source. Fix failing checks; do not disable the
+validation covers the committed source. The gate includes merged source coverage,
+not only passing test exits. Fix failing checks; do not disable the
 hook to get a push through. Scoped local tests do not establish that CI is green:
 check the results for the pushed commit before reporting CI completion.
 

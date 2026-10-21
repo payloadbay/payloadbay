@@ -1,13 +1,22 @@
 import { useState } from "react";
-import { Agenda, type AgendaEvent } from "@components/ui/agenda";
+import { Agenda, type AgendaEvent, type AgendaView } from "@components/ui/agenda";
 
 export function AgendaCallbacks() {
+	const [date, setDate] = useState(new Date("2026-10-20T09:00:00Z"));
+	const [view, setView] = useState<AgendaView>("day");
 	const [events, setEvents] = useState<AgendaEvent[]>([
 		{
 			id: "review",
 			title: "Callback event",
 			start: new Date("2026-10-20T09:00:00Z"),
 			end: new Date("2026-10-20T10:00:00Z"),
+		},
+		{
+			id: "release",
+			title: "All-day release",
+			start: new Date("2026-10-20T00:00:00Z"),
+			end: new Date("2026-10-22T00:00:00Z"),
+			allDay: true,
 		},
 	]);
 	const [selected, setSelected] = useState<string | null>(null);
@@ -26,8 +35,13 @@ export function AgendaCallbacks() {
 		<>
 			<Agenda
 				events={events}
-				date={new Date("2026-10-20T09:00:00Z")}
-				view='day'
+				date={date}
+				view={view}
+				onViewChange={setView}
+				onDateChange={(next) => {
+					setDate(next);
+					record("date", { date: next.toISOString() });
+				}}
 				timeZone='Europe/Berlin'
 				selectedEventId={selected}
 				onEventSelect={(id) => {
