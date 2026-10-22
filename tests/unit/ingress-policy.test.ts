@@ -81,3 +81,19 @@ test("request protection rejects malformed and unbounded configuration", () => {
 		}).success,
 	).toBe(false);
 });
+
+test("header existence ignores inherited object properties", () => {
+	for (const header of ["constructor", "__proto__", "content-type"]) {
+		const condition = requestCondition.parse({
+			...newCondition(),
+			field: "header",
+			header,
+			operator: "present",
+		});
+		expect(matchesCondition(condition, { ...request, headers: Object.create({ "content-type": "application/json" }) })).toBe(false);
+		expect(matchesCondition(condition, { ...request, headers: Object.fromEntries([[header, "fixture"]]) })).toBe(true);
+	}
+
+	const contentType = requestCondition.parse({ ...newCondition("content_type"), operator: "present" });
+	expect(matchesCondition(contentType, { ...request, headers: Object.create({ "content-type": "application/json" }) })).toBe(false);
+});

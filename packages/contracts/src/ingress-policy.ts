@@ -215,7 +215,13 @@ export function newConditionGroup(): Extract<RequestCondition, { kind: "group" }
 }
 
 export function conditionValue(node: Extract<RequestCondition, { kind: "condition" }>, request: ProtectionRequest): string | number | undefined {
-	return node.field === "header" ? request.headers[node.header ?? ""] : node.field === "method" ? request.method : node.field === "path" ? request.path : node.field === "content_type" ? request.headers["content-type"] : request.bodySize;
+	if (node.field === "header" || node.field === "content_type") {
+		const name = node.field === "header" ? (node.header ?? "") : "content-type";
+
+		return Object.hasOwn(request.headers, name) ? request.headers[name] : undefined;
+	}
+
+	return node.field === "method" ? request.method : node.field === "path" ? request.path : request.bodySize;
 }
 
 /** Convert wildcard syntax to the same bounded, non-backtracking engine. */
