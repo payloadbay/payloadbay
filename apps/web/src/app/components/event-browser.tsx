@@ -49,6 +49,7 @@ type ProcessingAttempt = {
 	result: { kind: string; reason?: string } | null;
 };
 type Detail = {
+	protection?: { kind: "filter" | "rate_limit"; scope: { type: string; id: string }; rule: { id: string; name: string } | null } | null;
 	id: string;
 	endpointId: string;
 	projectId: string;
@@ -688,6 +689,13 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 											</Tabs.List>
 										</Tabs.ListContainer>
 										<Tabs.Panel id='ingress' className='flex flex-col gap-4 pt-4'>
+											{detail.protection && (
+												<section aria-label='Request protection result' className='rounded-xl bg-field p-3 text-sm'>
+													<p className='font-semibold'>{detail.protection.kind === "rate_limit" ? "Rate limit exceeded" : "Blocked by request filter"}</p>
+													<p>{detail.protection.rule?.name ?? "Default block action"}</p>
+													<p className='capitalize text-muted'>{detail.protection.scope.type === "endpoint" ? "Route" : detail.protection.scope.type} policy</p>
+												</section>
+											)}
 											<h3 className='font-semibold'>{detail.endpointName}</h3>
 											<div className='flex flex-wrap items-center gap-2'>
 												<Chip variant='soft'>{detail.method}</Chip>

@@ -1,4 +1,4 @@
-import { ingressPolicyUpdate } from "./ingress-policy.ts";
+import { ingressPolicyUpdate, protectionTestInput } from "./ingress-policy.ts";
 import { installationUpdateInput } from "./installation.ts";
 import { snoozeNotificationInput } from "./notifications.ts";
 import { z } from "zod";
@@ -13,6 +13,13 @@ import { bootstrapInput, emailPreviewInput, draftInput, publicationInput, activa
 
 /** The same validators used by HTTP handlers; no copied documentation shapes. */
 export const apiRequestSchemas: Record<string, z.ZodType> = {
+	"put /api/v1/organizations/{organizationId}/protection": ingressPolicyUpdate,
+	"put /api/v1/workspaces/{workspaceId}/protection": ingressPolicyUpdate,
+	"put /api/v1/projects/{projectId}/protection": ingressPolicyUpdate,
+	"post /api/v1/organizations/{organizationId}/protection/test": protectionTestInput,
+	"post /api/v1/workspaces/{workspaceId}/protection/test": protectionTestInput,
+	"post /api/v1/projects/{projectId}/protection/test": protectionTestInput,
+	"post /api/v1/endpoints/{endpointId}/protection/test": protectionTestInput,
 	"post /api/v1/bootstrap": bootstrapInput,
 	"put /api/v1/endpoints/{endpointId}/protection": ingressPolicyUpdate,
 	"put /api/v1/installation/settings": installationUpdateInput,

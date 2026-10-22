@@ -1,4 +1,4 @@
-import { checkIngressPolicy } from "./ingress-policy.ts";
+import { checkIngressPolicy, type ProtectionBlock } from "./ingress-policy.ts";
 import { assertExecutionDependencies } from "./execution-dependencies.ts";
 import { validateProviderResponse } from "../../contracts/src/provider-response.ts";
 import { executePipeline } from "./pipeline.ts";
@@ -54,9 +54,21 @@ export async function receiveIngress(pool: Pool, input: IngressInput, options: I
 	).rows[0];
 	if (!route) throw new AppError("ingress_unavailable", 404, "Ingress route unavailable");
 	let decision: ReturnType<typeof ingressDecision.parse>;
+	let protectionReason: ProtectionBlock["reason"] | undefined;
 	try {
-		const protection = await checkIngressPolicy(pool, route.id, headers, options.encryptionKey);
+		const protection = await checkIngressPolicy(
+			pool,
+			route.id,
+			{
+				headers,
+				method: input.method,
+				path: new URL(input.url).pathname,
+				bodySize: input.body.byteLength,
+			},
+			options.encryptionKey,
+		);
 		if (protection) {
+			protectionReason = protection.reason;
 			decision = { kind: "reject", response: { status: protection.status, body: protection.status === 429 ? "Too many requests" : "Request blocked", headers: { "content-type": "text/plain", ...(protection.retryAfter ? { "retry-after": String(protection.retryAfter) } : {}) } } };
 		} else {
 			await assertExecutionDependencies(pool, route.project_id, "ingress", route.shared_versions.ingress ?? {}, route.effective_bindings ?? []);
@@ -116,7 +128,7 @@ export async function receiveIngress(pool: Pool, input: IngressInput, options: I
 				JSON.stringify(headers),
 				decision.kind === "accept" ? decision.event.contentType : (headers["content-type"] ?? "application/octet-stream"),
 				decision.kind === "accept" ? accepted : Buffer.alloc(0),
-				JSON.stringify(decision.kind === "accept" ? (decision.event.metadata ?? {}) : admissionRejected ? { platform: { reason: "organization_admission_limit" } } : {}),
+				JSON.stringify(decision.kind === "accept" ? (decision.event.metadata ?? {}) : admissionRejected ? { platform: { reason: "organization_admission_limit" } } : protectionReason ? { platform: { protection: protectionReason } } : {}),
 				decision.kind,
 				input.method,
 				decision.response.status,

@@ -380,6 +380,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 	else if (currentOrganization && pathname.endsWith("/security")) breadcrumbItems.push({ label: "Security" });
 	else if (pathname.endsWith("/api-keys")) breadcrumbItems.push({ label: currentOrganization ? "API keys" : "Personal API keys" });
 	else if (pathname.startsWith("/code/")) breadcrumbItems.push({ label: currentProject || currentWorkspace || currentOrganization ? "Code and middleware" : "Shared code" });
+	else if (pathname.endsWith("/protection")) breadcrumbItems.push({ label: "Request protection" });
 	else if (pathname.endsWith("/notifications")) breadcrumbItems.push({ label: currentProject || currentWorkspace || currentOrganization ? "Notification rules" : "Notification settings" });
 	else if (pathname.startsWith("/admin/notification-channels/")) {
 		breadcrumbItems.push({ label: "Notification modules", href: "/admin/notification-channels" });
@@ -485,6 +486,17 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 	const auditType = project ? "project" : workspace ? "workspace" : "organization";
 	const contextualLinks = [
 		...primaryContextualLinks,
+		...(!routeId && auditResource?.permissions.includes("endpoints.configure")
+			? [
+					{
+						id: "scoped-protection",
+						label: "Request protection",
+						href: "/" + (auditType === "project" ? "projects" : auditType === "workspace" ? "workspaces" : "organizations") + "/" + auditResource.id + "/protection",
+						icon: IconSettings,
+						visible: true,
+					},
+				]
+			: []),
 		...(!routeId && auditResource?.permissions.includes("audit.read")
 			? [
 					{
@@ -499,7 +511,7 @@ export function DashboardShell({ children, preview = false }: { children: ReactN
 	];
 
 	const groups = [
-		{ label: "Settings", items: contextualLinks.filter((item) => ["organization-security", "overview", "protection", "code", "helpers", "secrets", "middleware", "project-overview", "project-code", "project-members", "workspace", "workspace-members", "workspace-code", "organization", "organization-members", "organization-code", "organization-api-keys", "workspace-api-keys", "project-api-keys"].includes(item.id)) },
+		{ label: "Settings", items: contextualLinks.filter((item) => ["organization-security", "scoped-protection", "overview", "protection", "code", "helpers", "secrets", "middleware", "project-overview", "project-code", "project-members", "workspace", "workspace-members", "workspace-code", "organization", "organization-members", "organization-code", "organization-api-keys", "workspace-api-keys", "project-api-keys"].includes(item.id)) },
 		{ label: "Observe and troubleshoot", items: contextualLinks.filter((item) => ["events", "project-events", "playground", "test", "organization-usage", "scoped-audit"].includes(item.id)) },
 		{ label: "Publish and history", items: contextualLinks.filter((item) => item.id === "history") },
 		{ label: "Automation", items: contextualLinks.filter((item) => ["project-notifications", "workspace-rules"].includes(item.id)) },

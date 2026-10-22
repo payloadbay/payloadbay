@@ -1,60 +1,83 @@
 import { test, expect } from "bun:test";
-import { ingressPolicy, ingressRuleOutcome, browserBlockingRules } from "../../packages/contracts/src/ingress-policy.ts";
+import { ingressPolicy, evaluateFilters, filterTemplates, requestCondition, matchesCondition, newCondition, type RequestCondition } from "../../packages/contracts/src/ingress-policy.ts";
 
-test("ordered header filters support a leading exception and a default block", () => {
-	const policy = ingressPolicy.parse({
+const request = {
+	method: "POST",
+	path: "/hooks",
+	headers: { "sec-fetch-mode": "navigate" },
+	bodySize: 0,
+};
+
+test("ordered filters support a leading exception and default block", () => {
+	const exception = {
+		id: crypto.randomUUID(),
+		name: "Trusted sender",
 		enabled: true,
-		defaultAction: "block",
-		rules: [
-			{
-				id: crypto.randomUUID(),
-				name: "Trusted sender",
-				enabled: true,
-				header: "X-Sender",
-				operator: "equals",
-				value: "provider",
-				action: "skip",
-			},
-			...browserBlockingRules(),
-		],
-	});
-	expect(ingressRuleOutcome(policy, { "x-sender": "provider", "user-agent": "Mozilla/5.0" })).toBe("allow");
-	expect(ingressRuleOutcome(policy, { "user-agent": "Mozilla/5.0" })).toBe("block");
-	expect(ingressRuleOutcome(policy, {})).toBe("block");
-	expect(ingressRuleOutcome({ ...policy, enabled: false }, {})).toBe("allow");
+		action: "skip",
+		condition: { ...newCondition(), header: "x-sender", value: "provider" },
+	};
+	const policy = ingressPolicy.parse({ enabled: true, defaultAction: "block", rules: [exception, filterTemplates[0].create()] });
+	expect(evaluateFilters(policy, { ...request, headers: { ...request.headers, "x-sender": "provider" } }).action).toBe("skip");
+	expect(evaluateFilters(policy, request).action).toBe("block");
+	expect(evaluateFilters({ ...policy, enabled: false }, request).action).toBe("continue");
+	expect(evaluateFilters({ ...policy, rules: [] }, request).action).toBe("block");
 });
 
-test("header filter operators distinguish missing, empty and matched values", () => {
-	for (const [operator, headers, outcome] of [
-		["present", { "x-test": "" }, "block"],
-		["missing", {}, "block"],
-		["equals", { "x-test": "token" }, "block"],
-		["equals", { "x-test": "TOKEN" }, "allow"],
-		["contains", { "x-test": "Test TOKEN" }, "block"],
-	] as const) {
-		const policy = ingressPolicy.parse({
-			enabled: true,
-			rules: [
-				{
-					id: crypto.randomUUID(),
-					name: "Rule",
-					enabled: true,
-					header: "X-Test",
-					operator,
-					value: "token",
-					action: "block",
-				},
-			],
-		});
-		expect(ingressRuleOutcome(policy, headers)).toBe(outcome);
-		expect(ingressRuleOutcome({ ...policy, rules: policy.rules.map((rule) => ({ ...rule, enabled: false })) }, headers)).toBe("allow");
-	}
+test("nested conditions distinguish absence from negated comparisons", () => {
+	const condition: RequestCondition = {
+		id: crypto.randomUUID(),
+		kind: "group",
+		join: "all",
+		negate: false,
+		children: [
+			{
+				...newCondition(),
+				kind: "condition",
+				field: "header",
+				header: "x-source",
+				operator: "present",
+				ignoreCase: false,
+			},
+			{
+				...newCondition(),
+				kind: "condition",
+				field: "header",
+				header: "x-source",
+				operator: "not_contains",
+				value: "browser",
+				ignoreCase: true,
+			},
+		],
+	};
+	expect(matchesCondition(requestCondition.parse(condition), { ...request, headers: {} })).toBe(false);
+	expect(matchesCondition(condition, { ...request, headers: { "x-source": "provider" } })).toBe(true);
+	expect(matchesCondition(condition, { ...request, headers: { "x-source": "BROWSER" } })).toBe(false);
 });
 
 test("request protection rejects malformed and unbounded configuration", () => {
-	expect(ingressPolicy.safeParse({ rateLimit: { enabled: true, requests: 0, windowSeconds: 60 } }).success).toBe(false);
-	expect(ingressPolicy.safeParse({ rateLimit: { enabled: true, requests: 1, windowSeconds: 86401 } }).success).toBe(false);
-	const rules = browserBlockingRules();
-	expect(ingressPolicy.safeParse({ rules: [rules[0], rules[0]] }).success).toBe(false);
-	expect(ingressPolicy.safeParse({ rules: [{ ...rules[0], header: "bad\r\nheader" }] }).success).toBe(false);
+	const rule = filterTemplates[0].create();
+	expect(ingressPolicy.safeParse({ rules: [rule, rule] }).success).toBe(false);
+	expect(requestCondition.safeParse({ ...newCondition(), header: "bad\r\nheader" }).success).toBe(false);
+	expect(
+		requestCondition.safeParse({
+			...newCondition(),
+			header: "x-test",
+			operator: "regex",
+			value: "(?=unsupported)",
+		}).success,
+	).toBe(false);
+	expect(
+		ingressPolicy.safeParse({
+			rateLimits: [
+				{
+					id: crypto.randomUUID(),
+					name: "Quota",
+					enabled: true,
+					algorithm: "rolling",
+					requests: 10001,
+					windowSeconds: 60,
+				},
+			],
+		}).success,
+	).toBe(false);
 });

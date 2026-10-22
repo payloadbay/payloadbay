@@ -830,25 +830,25 @@ test("CF09 historical platform helper bundles are blocked before ingress and pro
 
 test("request protection stores encrypted rules and blocks before scripts without losing event history", async () => {
 	const { getIngressPolicy, saveIngressPolicy } = await import("../../packages/domain/src/ingress-policy.ts");
-	const { ingressPolicy, browserBlockingRules } = await import("../../packages/contracts/src/ingress-policy.ts");
+	const { ingressPolicy, filterTemplates } = await import("../../packages/contracts/src/ingress-policy.ts");
 	await ingressFixture(accepting, async ({ pool, db, scope, key }) => {
 		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','project',$1,'custom',ARRAY['endpoints.configure'])", [scope.project]);
 		const actor = { userId: "fixture-owner" };
-		assert.equal((await getIngressPolicy(pool, actor, scope.endpoint, options.encryptionKey)).version, 0);
-		const policy = ingressPolicy.parse({ enabled: true, rules: browserBlockingRules() });
-		await saveIngressPolicy(pool, actor, scope.endpoint, { expectedVersion: 0, policy }, options.encryptionKey);
+		assert.equal((await getIngressPolicy(pool, actor, { type: "endpoint", id: scope.endpoint }, options.encryptionKey)).version, 0);
+		const policy = ingressPolicy.parse({ enabled: true, rules: [filterTemplates[1].create()] });
+		await saveIngressPolicy(pool, actor, { type: "endpoint", id: scope.endpoint }, { expectedVersion: 0, policy }, options.encryptionKey);
 		const stored = (await db.query("SELECT encrypted_policy FROM payloadbay.ingress_policy WHERE endpoint_id=$1", [scope.endpoint])).rows[0].encrypted_policy;
-		assert.equal(stored.includes(Buffer.from("Mozilla/")), false);
-		assert.equal(JSON.stringify((await db.query("SELECT redacted_diff FROM payloadbay.audit WHERE operation='endpoint.protection_changed'")).rows).includes("Mozilla/"), false);
-		assert.deepEqual((await getIngressPolicy(pool, actor, scope.endpoint, options.encryptionKey)).policy, policy);
-		await assert.rejects(saveIngressPolicy(pool, actor, scope.endpoint, { expectedVersion: 0, policy }, options.encryptionKey), { code: "version_conflict" });
+		assert.equal(stored.includes(Buffer.from("Chrome|")), false);
+		assert.equal(JSON.stringify((await db.query("SELECT redacted_diff FROM payloadbay.audit WHERE operation='request.protection_changed'")).rows).includes("Chrome|"), false);
+		assert.deepEqual((await getIngressPolicy(pool, actor, { type: "endpoint", id: scope.endpoint }, options.encryptionKey)).policy, policy);
+		await assert.rejects(saveIngressPolicy(pool, actor, { type: "endpoint", id: scope.endpoint }, { expectedVersion: 0, policy }, options.encryptionKey), { code: "version_conflict" });
 		let executed = false;
 		const response = await receiveIngress(
 			pool,
 			{
 				key,
 				body: new Uint8Array([42]),
-				headers: { "User-Agent": "Mozilla/5.0" },
+				headers: { "User-Agent": "Chrome/123" },
 				method: "POST",
 				url: "https://fixture.test",
 			},
@@ -865,8 +865,14 @@ test("request protection stores encrypted rules and blocks before scripts withou
 		assert.deepEqual((await db.query("SELECT ingress_outcome,response_status FROM payloadbay.event")).rows, [{ ingress_outcome: "reject", response_status: 403 }]);
 		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.execution")).rows[0].n, 0);
 		await db.query("UPDATE payloadbay.grant_record SET permissions=ARRAY['metadata.read'] WHERE scope_id=$1", [scope.project]);
-		await assert.rejects(getIngressPolicy(pool, actor, scope.endpoint, options.encryptionKey), { code: "forbidden" });
-		await assert.rejects(saveIngressPolicy(pool, actor, scope.endpoint, { expectedVersion: 1, policy }, options.encryptionKey), { code: "forbidden" });
+		const { eventDetails } = await import("../../packages/domain/src/events.ts");
+		const eventId = (await db.query("SELECT id FROM payloadbay.event WHERE endpoint_id=$1", [scope.endpoint])).rows[0].id;
+		const inspection = await eventDetails(pool, actor, eventId);
+		assert.equal(inspection.protection.kind, "filter");
+		assert.equal(inspection.protection.rule.id, policy.rules[0].id);
+		assert.equal(inspection.protection.scope.id, scope.endpoint);
+		await assert.rejects(getIngressPolicy(pool, actor, { type: "endpoint", id: scope.endpoint }, options.encryptionKey), { code: "forbidden" });
+		await assert.rejects(saveIngressPolicy(pool, actor, { type: "endpoint", id: scope.endpoint }, { expectedVersion: 1, policy }, options.encryptionKey), { code: "forbidden" });
 		await db.query("UPDATE payloadbay.ingress_policy SET encrypted_policy=$1 WHERE endpoint_id=$2", [Buffer.from([0]), scope.endpoint]);
 		await assert.rejects(
 			receiveIngress(
@@ -891,9 +897,34 @@ test("route quota is atomic across concurrent requests and resets using database
 	await ingressFixture(accepting, async ({ pool, db, scope, key }) => {
 		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','project',$1,'custom',ARRAY['endpoints.configure'])", [scope.project]);
 		const actor = { userId: "fixture-owner" };
-		const policy = ingressPolicy.parse({ rateLimit: { enabled: true, requests: 2, windowSeconds: 60 } });
-		await saveIngressPolicy(pool, actor, scope.endpoint, { expectedVersion: 0, policy }, options.encryptionKey);
-		const results = await Promise.all(Array.from({ length: 10 }, () => checkIngressPolicy(pool, scope.endpoint, {}, options.encryptionKey)));
+		const policy = ingressPolicy.parse({
+			rateLimits: [
+				{
+					id: crypto.randomUUID(),
+					name: "Route quota",
+					enabled: true,
+					algorithm: "fixed",
+					requests: 2,
+					windowSeconds: 60,
+				},
+			],
+		});
+		await saveIngressPolicy(pool, actor, { type: "endpoint", id: scope.endpoint }, { expectedVersion: 0, policy }, options.encryptionKey);
+		const results = await Promise.all(
+			Array.from({ length: 10 }, () =>
+				checkIngressPolicy(
+					pool,
+					scope.endpoint,
+					{
+						method: "POST",
+						path: "/",
+						headers: {},
+						bodySize: 0,
+					},
+					options.encryptionKey,
+				),
+			),
+		);
 		assert.equal(results.filter((result) => result === null).length, 2);
 		assert.equal(results.filter((result) => result?.status === 429).length, 8);
 		const response = await receiveIngress(
@@ -914,9 +945,35 @@ test("route quota is atomic across concurrent requests and resets using database
 		);
 		assert.equal(response.status, 429);
 		assert.ok(Number(response.headers?.["retry-after"]) > 0);
-		await db.query("UPDATE payloadbay.ingress_rate_bucket SET window_start=clock_timestamp()-interval '61 seconds' WHERE endpoint_id=$1", [scope.endpoint]);
-		assert.equal(await checkIngressPolicy(pool, scope.endpoint, {}, options.encryptionKey), null);
-		await saveIngressPolicy(pool, actor, scope.endpoint, { expectedVersion: 1, policy: { ...policy, rateLimit: { ...policy.rateLimit, enabled: false } } }, options.encryptionKey);
-		assert.equal(await checkIngressPolicy(pool, scope.endpoint, {}, options.encryptionKey), null);
+		await db.query("UPDATE payloadbay.ingress_rate_bucket SET state=jsonb_set(state,'{startedAt}',to_jsonb(floor(extract(epoch FROM clock_timestamp())*1000)-61000)) WHERE policy_id IN (SELECT id FROM payloadbay.ingress_policy WHERE endpoint_id=$1)", [scope.endpoint]);
+		assert.equal(
+			await checkIngressPolicy(
+				pool,
+				scope.endpoint,
+				{
+					method: "POST",
+					path: "/",
+					headers: {},
+					bodySize: 0,
+				},
+				options.encryptionKey,
+			),
+			null,
+		);
+		await saveIngressPolicy(pool, actor, { type: "endpoint", id: scope.endpoint }, { expectedVersion: 1, policy: { ...policy, rateLimits: policy.rateLimits.map((rule) => ({ ...rule, enabled: false })) } }, options.encryptionKey);
+		assert.equal(
+			await checkIngressPolicy(
+				pool,
+				scope.endpoint,
+				{
+					method: "POST",
+					path: "/",
+					headers: {},
+					bodySize: 0,
+				},
+				options.encryptionKey,
+			),
+			null,
+		);
 	});
 });

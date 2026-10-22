@@ -257,14 +257,25 @@ test("U278 Drizzle source recreates complete usable domain schema", async () => 
 	const { getTableConfig } = require("drizzle-orm/pg-core");
 	const schema = await import("../../packages/domain/src/schema.ts");
 	for (const [child, parent, column] of [
+		[schema.ingressPolicy, schema.organization, "organization_id"],
+		[schema.ingressPolicy, schema.workspace, "workspace_id"],
+		[schema.ingressPolicy, schema.project, "project_id"],
 		[schema.ingressPolicy, schema.endpoint, "endpoint_id"],
+		[schema.ingressRateBucket, schema.ingressPolicy, "policy_id"],
 		[schema.ingressRateBucket, schema.endpoint, "endpoint_id"],
 		[schema.processingAttempt, schema.execution, "execution_id"],
 	] as const) {
 		const foreignKeys = getTableConfig(child).foreignKeys;
-		assert.equal(foreignKeys.length, 1);
-		assert.equal(foreignKeys[0].onDelete, "cascade", "private route state must follow its owner's lifecycle");
-		const reference = foreignKeys[0].reference();
+		const ownerKey = foreignKeys.find(
+			(key: { reference(): { columns: { name: string }[] } }) =>
+				key
+					.reference()
+					.columns.map((value) => value.name)
+					.join(",") === column,
+		);
+		assert.ok(ownerKey);
+		assert.equal(ownerKey.onDelete, "cascade", "private route state must follow its owner's lifecycle");
+		const reference = ownerKey.reference();
 		assert.equal(reference.foreignTable, parent);
 		assert.deepEqual(
 			reference.columns.map((value: { name: string }) => value.name),

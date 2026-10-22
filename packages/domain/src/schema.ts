@@ -302,22 +302,38 @@ export const endpoint = domain.table(
 export const ingressPolicy = domain.table(
 	"ingress_policy",
 	{
-		endpointId: uuid("endpoint_id").primaryKey(),
+		id: id(),
+		organizationId: uuid("organization_id"),
+		workspaceId: uuid("workspace_id"),
+		projectId: uuid("project_id"),
+		endpointId: uuid("endpoint_id"),
 		version: integer("version").notNull(),
 		encryptedPolicy: bytes("encrypted_policy").notNull(),
 	},
-	(t) => [foreignKey({ columns: [t.endpointId], foreignColumns: [endpoint.id] }).onDelete("cascade")],
+	(t) => [
+		foreignKey({ columns: [t.organizationId], foreignColumns: [organization.id] }).onDelete("cascade"),
+		foreignKey({ columns: [t.workspaceId], foreignColumns: [workspace.id] }).onDelete("cascade"),
+		foreignKey({ columns: [t.projectId], foreignColumns: [project.id] }).onDelete("cascade"),
+		foreignKey({ columns: [t.endpointId], foreignColumns: [endpoint.id] }).onDelete("cascade"),
+		unique("ingress_policy_organization").on(t.organizationId),
+		unique("ingress_policy_workspace").on(t.workspaceId),
+		unique("ingress_policy_project").on(t.projectId),
+		unique("ingress_policy_endpoint").on(t.endpointId),
+		check("ingress_policy_one_owner", sql`num_nonnulls(${t.organizationId},${t.workspaceId},${t.projectId},${t.endpointId})=1`),
+	],
 );
 
 export const ingressRateBucket = domain.table(
 	"ingress_rate_bucket",
 	{
-		endpointId: uuid("endpoint_id").primaryKey(),
+		policyId: uuid("policy_id").notNull(),
+		ruleId: uuid("rule_id").notNull(),
+		counterKey: text("counter_key").notNull(),
+		endpointId: uuid("endpoint_id"),
 		policyVersion: integer("policy_version").notNull(),
-		windowStart: time("window_start").notNull(),
-		hits: integer("hits").notNull(),
+		state: jsonb("state"),
 	},
-	(t) => [foreignKey({ columns: [t.endpointId], foreignColumns: [endpoint.id] }).onDelete("cascade")],
+	(t) => [primaryKey({ columns: [t.policyId, t.ruleId, t.counterKey] }), foreignKey({ columns: [t.policyId], foreignColumns: [ingressPolicy.id] }).onDelete("cascade"), foreignKey({ columns: [t.endpointId], foreignColumns: [endpoint.id] }).onDelete("cascade")],
 );
 
 export const draft = domain.table(

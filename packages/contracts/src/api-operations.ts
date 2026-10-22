@@ -1,5 +1,15 @@
 /** Explicit public HTTP surface. The route-parity test rejects drift. */
 export const apiOperations = [
+	["get", "/api/v1/organizations/{organizationId}/protection"],
+	["put", "/api/v1/organizations/{organizationId}/protection"],
+	["get", "/api/v1/workspaces/{workspaceId}/protection"],
+	["put", "/api/v1/workspaces/{workspaceId}/protection"],
+	["get", "/api/v1/projects/{projectId}/protection"],
+	["put", "/api/v1/projects/{projectId}/protection"],
+	["post", "/api/v1/organizations/{organizationId}/protection/test"],
+	["post", "/api/v1/workspaces/{workspaceId}/protection/test"],
+	["post", "/api/v1/projects/{projectId}/protection/test"],
+	["post", "/api/v1/endpoints/{endpointId}/protection/test"],
 	["get", "/api/v1/bootstrap"],
 	["post", "/api/v1/bootstrap"],
 	["get", "/api/v1/changes"],

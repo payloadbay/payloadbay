@@ -2177,92 +2177,262 @@ test.describe("browser-local chart dates", () => {
 test.describe("mobile request protection", () => {
 	test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-	test("request protection supports ordered rules, a browser template and a real route quota", async ({ page }) => {
+	test("nested request filters, templates, quota and unsaved changes work together", async ({ page }) => {
+		test.setTimeout(60000);
 		const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
 		await ensureBrowserOwner(page);
 		const headers = commandHeaders();
 		const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: await browserOrganization(page), name: "Protection workspace", slug: "protection-workspace" } })).json();
 		const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Protection project", slug: "protection-project" } })).json();
 		const route = await (await page.request.post("/api/v1/projects/" + project.id + "/endpoints", { headers, data: { name: "Protected endpoint", slug: "protected" } })).json();
-		const publication = await page.request.post("/api/v1/endpoints/" + route.id + "/publications", { headers, data: { expectedVersion: 1, draftVersions: { ingress: 1, processing: 1 } } });
-		expect(publication.status()).toBe(200);
+		expect((await page.request.post("/api/v1/endpoints/" + route.id + "/publications", { headers, data: { expectedVersion: 1, draftVersions: { ingress: 1, processing: 1 } } })).status()).toBe(200);
 		const endpoint = await (await page.request.get("/api/v1/endpoints/" + route.id)).json();
 		const path = "/projects/" + project.id + "/routes/" + route.id + "/protection";
-		let failLoad = true;
-		let failSave = true;
-		await page.route("**/api/v1/endpoints/" + route.id + "/protection", async (intercepted) => {
-			if (intercepted.request().method() === "GET" && failLoad) {
-				failLoad = false;
-				await intercepted.fulfill({ status: 503, json: { error: { code: "unavailable", message: "Synthetic protection outage", correlationId: "fixture" } } });
-			} else if (intercepted.request().method() === "PUT" && failSave) {
-				failSave = false;
-				await intercepted.fulfill({ status: 409, json: { error: { code: "version_conflict", message: "Synthetic concurrent edit", correlationId: "fixture" } } });
-			} else await intercepted.continue();
-		});
 		await page.goto(path);
-		await expect(page.getByText("Request protection is unavailable.", { exact: true })).toBeVisible();
-		await page.getByRole("button", { name: "Retry", exact: true }).click();
-		await expect(page.getByRole("heading", { name: "Request protection", exact: true })).toBeVisible();
-		await page.getByText("Enable request filters", { exact: true }).tap();
+		await page.getByRole("switch", { name: "Enable request filters", exact: true }).press("Space");
 		await page.getByRole("button", { name: "Add rule", exact: true }).click();
+		await page.getByRole("menuitem", { name: "Create from scratch", exact: true }).click();
 		let dialog = page.getByRole("dialog", { name: "Request filter rule", exact: true });
-		await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
-		await page.getByRole("button", { name: "Add rule", exact: true }).click();
-		await page.keyboard.press("Escape");
-		await expect(dialog).toHaveCount(0);
-		await page.getByRole("button", { name: "Add rule", exact: true }).click();
-		dialog = page.getByRole("dialog", { name: "Request filter rule", exact: true });
 		await dialog.getByLabel("Rule name", { exact: true }).fill("Trusted sender");
 		await dialog.getByLabel("Header name", { exact: true }).fill("x-sender");
-		await chooseOption(dialog.getByRole("button", { name: /Match condition/ }), "equals");
-		await dialog.getByLabel("Header value", { exact: true }).fill("provider");
-		await chooseOption(dialog.getByRole("button", { name: /Rule action/ }), "skip");
+		await dialog.getByLabel("Comparison value", { exact: true }).fill("provider");
+		await chooseOption(dialog.getByRole("button", { name: /Action$/ }), "skip");
+		await dialog.getByRole("button", { name: "Add group", exact: true }).click();
+		const nested = dialog.locator("fieldset[data-condition-group]").last();
+		await chooseOption(nested.getByRole("button", { name: /Match conditions/ }), "any");
+		await nested.getByLabel("Header name", { exact: true }).fill("x-event");
+		await chooseOption(nested.getByRole("button", { name: /Operator$/ }), "regex");
+		await nested.getByLabel("Regular expression", { exact: true }).fill("(?=unsafe)");
+		await expect(dialog.getByRole("button", { name: "Apply rule", exact: true })).toBeDisabled();
+		await nested.getByLabel("Regular expression", { exact: true }).fill("^purchase");
+		await dialog.getByText("Expression preview", { exact: true }).click();
+		await expect(dialog.getByRole("region", { name: "Request conditions" }).getByLabel("Expression preview", { exact: true })).toContainText("AND");
+		await dialog.screenshot({ path: test.info().outputPath("request-conditions-mobile.png"), animations: "disabled" });
 		await dialog.getByRole("button", { name: "Apply rule", exact: true }).click();
-		await page.getByRole("button", { name: "Add browser-request template", exact: true }).click();
-		await page.getByRole("button", { name: "Move Browser user agent up", exact: true }).click();
-		await page.getByRole("button", { name: "Move Browser user agent down", exact: true }).click();
-		await page.getByRole("button", { name: "Edit Browser navigation", exact: true }).click();
+		await page.getByRole("button", { name: "Add rule", exact: true }).click();
+		await page.getByRole("menuitem", { name: "Create from template", exact: true }).click();
+		await page.getByRole("option", { name: /Block browser-like clients/ }).click();
 		dialog = page.getByRole("dialog", { name: "Request filter rule", exact: true });
-		await chooseOption(dialog.getByRole("button", { name: /Match condition/ }), "present");
-		await expect(dialog.getByLabel("Header value", { exact: true })).toHaveCount(0);
-		await dialog.getByRole("switch", { name: "Enable rule", exact: true }).press("Space");
+		await expect(dialog.getByLabel("Rule name", { exact: true })).toHaveValue("Block browser-like clients");
 		await dialog.getByRole("button", { name: "Apply rule", exact: true }).click();
-		await chooseOption(page.getByRole("button", { name: /When no rule matches/ }), "block");
-		await chooseOption(page.getByRole("button", { name: /When no rule matches/ }), "allow");
-		await page.getByRole("switch", { name: "Limit incoming requests", exact: true }).press("Space");
-		await page.getByRole("textbox", { name: "Requests per window", exact: true }).fill("1");
-		await page.getByRole("textbox", { name: "Window in seconds", exact: true }).fill("60");
-		await page.getByRole("heading", { name: "Request protection", exact: true }).click();
-		await page.getByRole("button", { name: "Save request protection", exact: true }).click();
-		const saveError = page.getByRole("alertdialog", { name: "Request failed", exact: true });
-		await expect(saveError).toContainText("Synthetic concurrent edit");
-		await saveError.getByRole("button", { name: "Close", exact: true }).click();
-		await expect(saveError).toHaveCount(0);
+		await page.getByRole("button", { name: "Add rate limit", exact: true }).click();
+		dialog = page.getByRole("dialog", { name: "Rate limit rule", exact: true });
+		await dialog.getByLabel("Rate limit name", { exact: true }).fill("Route quota");
+		await chooseOption(dialog.getByRole("button", { name: /Algorithm$/ }), "rolling");
+		await dialog.getByRole("textbox", { name: "Requests per window", exact: true }).fill("1");
+		await dialog.getByRole("button", { name: "Apply rate limit", exact: true }).click();
+		await page.getByRole("button", { name: "Test request", exact: true }).click();
+		dialog = page.getByRole("dialog", { name: "Test request protection", exact: true });
+		await dialog.getByLabel("Request headers (JSON)", { exact: true }).fill(JSON.stringify({ "user-agent": "Chrome/123" }));
+		await dialog.getByRole("button", { name: "Test request", exact: true }).click();
+		await expect(dialog.getByText("Would be blocked", { exact: true })).toBeVisible();
+		await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
 		await page.getByRole("button", { name: "Save request protection", exact: true }).click();
 		await expect(page.getByRole("button", { name: "Save request protection", exact: true })).toBeDisabled();
-		await page.setViewportSize({ width: 390, height: 844 });
 		await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-		const trustedRow = page.getByRole("row").filter({ hasText: "Trusted sender" });
-		await trustedRow.scrollIntoViewIfNeeded();
-		const ruleBounds = await trustedRow.getByText("Trusted sender", { exact: true }).boundingBox();
-		const deleteBounds = await trustedRow.getByRole("button", { name: "Delete Trusted sender", exact: true }).boundingBox();
-		expect(ruleBounds!.x).toBeGreaterThanOrEqual(0);
-		expect(deleteBounds!.x + deleteBounds!.width).toBeLessThanOrEqual(390);
 		await page.evaluate(() => window.scrollTo(0, 0));
 		await page.screenshot({ path: test.info().outputPath("request-protection-mobile.png"), fullPage: true, animations: "disabled" });
-		const blocked = await page.request.post(endpoint.ingressUrl, { headers: { "user-agent": "Mozilla/5.0" }, data: "fixture" });
-		expect(blocked.status()).toBe(403);
-		const allowed = await page.request.post(endpoint.ingressUrl, { headers: { "user-agent": "Mozilla/5.0", "x-sender": "provider" }, data: "fixture" });
-		expect(allowed.status()).toBe(503);
-		const limited = await page.request.post(endpoint.ingressUrl, { headers: { "user-agent": "Mozilla/5.0", "x-sender": "provider" }, data: "fixture" });
+		expect((await page.request.post(endpoint.ingressUrl, { headers: { "user-agent": "Chrome/123" }, data: "fixture" })).status()).toBe(403);
+		expect((await page.request.post(endpoint.ingressUrl, { headers: { "user-agent": "provider", "x-sender": "provider", "x-event": "purchase.created" }, data: "fixture" })).status()).toBe(503);
+		const limited = await page.request.post(endpoint.ingressUrl, { headers: { "user-agent": "provider" }, data: "fixture" });
 		expect(limited.status()).toBe(429);
 		expect(Number(limited.headers()["retry-after"])).toBeGreaterThan(0);
-		await page.getByRole("button", { name: "Delete Browser navigation", exact: true }).click();
+		await page.getByRole("button", { name: "Delete Block browser-like clients", exact: true }).click();
 		await page.getByRole("list", { name: "Breadcrumbs" }).getByRole("link", { name: "Protected endpoint", exact: true }).click();
 		await page.getByRole("dialog", { name: "Discard unsaved changes?" }).getByRole("button", { name: "Discard changes", exact: true }).click();
 		await expect(page).not.toHaveURL(/protection$/);
 		await page.goto(path);
-		await expect(page.getByRole("grid", { name: "Request filter rules", exact: true })).toContainText("Browser navigation");
+		await expect(page.getByRole("grid", { name: "Request filter rules", exact: true })).toContainText("Block browser-like clients");
+		await page.goto("/projects/" + project.id + "/routes/" + route.id + "?section=events");
+		await page
+			.getByRole("button", { name: /Inspect event/ })
+			.first()
+			.click();
+		await expect(page.getByRole("region", { name: "Request protection result", exact: true })).toContainText("Rate limit exceeded");
+		await expect(page.getByRole("region", { name: "Request protection result", exact: true })).toContainText("Route quota");
+	});
+	test("request protection sorting uses handles on touch and keyboard and survives reload", async ({ page }) => {
+		const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
+		const { ingressPolicy, filterTemplates } = await import("../../packages/contracts/src/ingress-policy.ts");
+		await ensureBrowserOwner(page);
+		const organization = await browserOrganization(page);
+		const path = "/organizations/" + organization + "/protection";
+		const endpoint = "/api/v1/organizations/" + organization + "/protection";
+		const rules = filterTemplates.map((template) => template.create());
+		expect((await page.request.put(endpoint, { headers: commandHeaders(), data: { expectedVersion: 0, policy: ingressPolicy.parse({ enabled: true, rules }) } })).status()).toBe(200);
+		await page.goto(path);
+		const table = page.getByRole("grid", { name: "Request filter rules", exact: true });
+		await expect(table.getByRole("row").nth(1)).toContainText(rules[0].name);
+		const client = await page.context().newCDPSession(page);
+		const first = table.getByRole("row").filter({ hasText: rules[0].name });
+		const second = table.getByRole("row").filter({ hasText: rules[1].name });
+		await second.scrollIntoViewIfNeeded();
+		const start = await first.getByRole("button", { name: "Drag " + rules[0].name, exact: true }).boundingBox();
+		const target = await second.boundingBox();
+		expect(start).toBeTruthy();
+		expect(target).toBeTruthy();
+		const point = { x: start!.x + start!.width / 2, y: start!.y + start!.height / 2 };
+		await client.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [point] });
+		await client.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: point.x, y: target!.y + target!.height - 12 }] });
+		await client.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] });
+		await expect(table.getByRole("row").nth(1)).toContainText(rules[0].name);
+		await client.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [point] });
+		await client.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: point.x, y: target!.y + target!.height - 12 }] });
+		await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+		await expect(table.getByRole("row").nth(1)).toContainText(rules[1].name);
+		await page.getByRole("button", { name: "Save request protection", exact: true }).click();
+		await expect(page.getByRole("button", { name: "Save request protection", exact: true })).toBeDisabled();
+		await page.reload();
+		await expect(table.getByRole("row").nth(1)).toContainText(rules[1].name);
+		await page.getByRole("button", { name: "Move " + rules[0].name + " up", exact: true }).click();
+		await page.getByRole("button", { name: "Move " + rules[0].name + " down", exact: true }).click();
+		const handle = table.getByRole("button", { name: "Drag " + rules[1].name, exact: true });
+		await handle.focus();
+		await page.keyboard.press("Enter");
+		await page.keyboard.press("ArrowDown");
+		await page.keyboard.press("Enter");
+		await expect(table.getByRole("row").nth(1)).toContainText(rules[0].name);
+		await page.getByRole("button", { name: "Save request protection", exact: true }).click();
+		await expect(page.getByRole("button", { name: "Save request protection", exact: true })).toBeDisabled();
+		await page.setViewportSize({ width: 1440, height: 1000 });
+		await page.evaluate(() => window.scrollTo(0, 0));
+		await page.screenshot({ path: test.info().outputPath("request-protection-desktop.png"), fullPage: true, animations: "disabled" });
+	});
+
+	test("request protection retries load failures and preserves a draft after conflicting saves", async ({ page }) => {
+		const { ensureBrowserOwner } = await import("../helpers/browser-auth.ts");
+		await ensureBrowserOwner(page);
+		const organization = await browserOrganization(page);
+		let failLoad = true;
+		let failSave = true;
+		await page.route("**/api/v1/organizations/" + organization + "/protection", async (route) => {
+			if (route.request().method() === "GET" && failLoad) {
+				failLoad = false;
+				await route.fulfill({ status: 503, json: { error: { code: "unavailable", message: "Synthetic protection outage", correlationId: "fixture" } } });
+			} else if (route.request().method() === "PUT" && failSave) {
+				failSave = false;
+				await route.fulfill({ status: 409, json: { error: { code: "version_conflict", message: "Synthetic concurrent edit", correlationId: "fixture" } } });
+			} else await route.continue();
+		});
+		await page.goto("/organizations/" + organization + "/protection");
+		await expect(page.getByText("Request protection is unavailable.", { exact: true })).toBeVisible();
+		await page.getByRole("button", { name: "Retry", exact: true }).click();
+		await page.getByRole("switch", { name: "Enable request filters", exact: true }).press("Space");
+		await page.getByRole("button", { name: "Save request protection", exact: true }).click();
+		const toast = page.getByRole("alertdialog", { name: "Request failed", exact: true });
+		await expect(toast).toContainText("Synthetic concurrent edit");
+		await toast.getByRole("button", { name: "Close", exact: true }).click();
+		await expect(toast).toHaveCount(0);
+		await expect(page.getByRole("switch", { name: "Enable request filters", exact: true })).toBeChecked();
+		await page.getByRole("button", { name: "Save request protection", exact: true }).click();
+		await expect(page.getByRole("button", { name: "Save request protection", exact: true })).toBeDisabled();
+	});
+	test("request protection inherits across resource pages and tests each draft without sending HTTP", async ({ page }) => {
+		const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
+		const { ingressPolicy, filterTemplates } = await import("../../packages/contracts/src/ingress-policy.ts");
+		await ensureBrowserOwner(page);
+		const headers = commandHeaders();
+		const organization = await browserOrganization(page);
+		const workspace = await (await page.request.post("/api/v1/workspaces", { headers, data: { parentId: organization, name: "Protected workspace", slug: "protected-workspace" } })).json();
+		const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Protected project", slug: "protected-project" } })).json();
+		for (const [type, id] of [
+			["organizations", organization],
+			["workspaces", workspace.id],
+			["projects", project.id],
+		]) {
+			const address = "/api/v1/" + type + "/" + id + "/protection";
+			expect((await page.request.get(address)).status()).toBe(200);
+			const policy = ingressPolicy.parse({ enabled: true, rules: [filterTemplates[0].create()] });
+			expect((await page.request.put(address, { headers, data: { expectedVersion: 0, policy } })).status()).toBe(200);
+			const result = await page.request.post(address + "/test", {
+				headers,
+				data: {
+					policy,
+					request: {
+						method: "GET",
+						path: "/",
+						headers: { "sec-fetch-mode": "navigate" },
+						bodySize: 0,
+					},
+				},
+			});
+			expect(result.status()).toBe(200);
+			expect((await result.json()).blocked).toBe(true);
+			await page.goto("/" + type + "/" + id + "/protection");
+			await expect(page.getByRole("heading", { name: "Request protection", exact: true })).toBeVisible();
+			if (type !== "organizations") await expect(page.getByText("Inherited protection", { exact: true })).toBeVisible();
+		}
+
+		await page.getByRole("link", { name: "Open Protected workspace protection", exact: true }).click();
+		await expect(page).toHaveURL(new RegExp("workspaces/" + workspace.id + "/protection$"));
+	});
+	test("request protection editors validate field-specific conditions and conditional token buckets", async ({ page }) => {
+		const { ensureBrowserOwner } = await import("../helpers/browser-auth.ts");
+		await ensureBrowserOwner(page);
+		await page.goto("/organizations/" + (await browserOrganization(page)) + "/protection");
+		await page.getByRole("button", { name: "Add rule", exact: true }).click();
+		await page.getByRole("menuitem", { name: "Create from scratch", exact: true }).click();
+		let dialog = page.getByRole("dialog", { name: "Request filter rule", exact: true });
+		await dialog.getByLabel("Rule name", { exact: true }).fill("Header membership");
+		await dialog.getByLabel("Header name", { exact: true }).fill("invalid header");
+		await expect(dialog.getByText("Use a valid header name", { exact: true })).toBeVisible();
+		await dialog.getByLabel("Header name", { exact: true }).fill("x-kind");
+		await chooseOption(dialog.getByRole("button", { name: /Operator$/ }), "in");
+		await dialog.getByLabel("Values (one per line)", { exact: true }).fill("purchase\nrefund");
+		await dialog.getByText("Ignore case", { exact: true }).tap();
+		await dialog.getByRole("button", { name: "Add group", exact: true }).click();
+		const nested = dialog.locator("fieldset[data-condition-group]").last();
+		await nested.getByRole("checkbox", { name: "Negate this group", exact: true }).press("Space");
+		await chooseOption(nested.getByRole("button", { name: /Request field$/ }), "body_size");
+		await chooseOption(nested.getByRole("button", { name: /Operator$/ }), "gt");
+		await nested.getByRole("textbox", { name: "Comparison size (bytes)", exact: true }).fill("1024");
+		await nested.getByRole("button", { name: "Add condition", exact: true }).click();
+		const extra = nested.locator("fieldset[data-condition-id]").last();
+		await chooseOption(extra.getByRole("button", { name: /Request field$/ }), "method");
+		await extra.getByLabel("Comparison value", { exact: true }).fill("GET");
+		await extra.getByRole("button", { name: "Remove condition", exact: true }).click();
+		await nested.getByRole("button", { name: "Remove group", exact: true }).click();
+		await dialog.getByRole("button", { name: "Apply rule", exact: true }).click();
+		await page.getByRole("button", { name: "Edit Header membership", exact: true }).click();
+		dialog = page.getByRole("dialog", { name: "Request filter rule", exact: true });
+		await chooseOption(dialog.getByRole("button", { name: /Operator$/ }), "present");
+		await expect(dialog.getByLabel("Values (one per line)", { exact: true })).toHaveCount(0);
+		await dialog.getByRole("button", { name: "Apply rule", exact: true }).click();
+		await page.getByRole("grid", { name: "Request filter rules", exact: true }).getByRole("switch").press("Space");
+		await page.getByRole("button", { name: "Add rate limit", exact: true }).click();
+		dialog = page.getByRole("dialog", { name: "Rate limit rule", exact: true });
+		await dialog.getByLabel("Rate limit name", { exact: true }).fill("Conditional bucket");
+		await dialog.getByRole("textbox", { name: "Refill requests", exact: true }).fill("10");
+		await dialog.getByRole("textbox", { name: "Interval (seconds)", exact: true }).fill("30");
+		await dialog.getByRole("textbox", { name: "Burst size", exact: true }).fill("5");
+		await chooseOption(dialog.getByRole("button", { name: /Count requests together$/ }), "route");
+		await chooseOption(dialog.getByRole("button", { name: /Requests to count$/ }), "matching");
+		await chooseOption(dialog.getByRole("button", { name: /Request field$/ }), "path");
+		await chooseOption(dialog.getByRole("button", { name: /Operator$/ }), "starts_with");
+		await dialog.getByLabel("Comparison value", { exact: true }).fill("/hooks");
+		await dialog.getByRole("button", { name: "Apply rate limit", exact: true }).click();
+		await page.getByRole("button", { name: "Edit Conditional bucket", exact: true }).click();
+		dialog = page.getByRole("dialog", { name: "Rate limit rule", exact: true });
+		await chooseOption(dialog.getByRole("button", { name: /Algorithm$/ }), "fixed");
+		await chooseOption(dialog.getByRole("button", { name: /Requests to count$/ }), "all");
+		await dialog.getByRole("button", { name: "Apply rate limit", exact: true }).click();
+		await page.getByRole("button", { name: "Test request", exact: true }).click();
+		dialog = page.getByRole("dialog", { name: "Test request protection", exact: true });
+		await chooseOption(dialog.getByRole("button", { name: /HTTP method$/ }), "GET");
+		await dialog.getByLabel("URL path", { exact: true }).fill("/hooks/example");
+		await dialog.getByLabel("Request body", { exact: true }).fill("fixture");
+		await dialog.getByLabel("Request headers (JSON)", { exact: true }).fill("invalid");
+		await expect(dialog.getByRole("button", { name: "Test request", exact: true })).toBeDisabled();
+		await dialog.getByLabel("Request headers (JSON)", { exact: true }).fill("{}");
+		await dialog.getByRole("button", { name: "Test request", exact: true }).click();
+		await expect(dialog.getByText("Filters permit this request", { exact: true })).toBeVisible();
+		await page.keyboard.press("Escape");
+		await expect(dialog).toHaveCount(0);
+		await page.getByRole("grid", { name: "Rate limit rules", exact: true }).getByRole("switch").press("Space");
+
+		await page.getByRole("button", { name: "Delete Header membership", exact: true }).click();
+		await page.getByRole("button", { name: "Delete Conditional bucket", exact: true }).click();
+		await expect(page.getByRole("button", { name: "Save request protection", exact: true })).toBeDisabled();
 	});
 });
 

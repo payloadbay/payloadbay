@@ -23,6 +23,16 @@ of complete upstream API equivalence.
 | SidebarNavigation   | `@components/ui/sidebar-navigation`    | Groups, links/icons, current item, contextual back action; collapsed accessible links and tooltips. Caller owns authorization and routing guards. |
 | useNavigationSearch | `@components/ui/use-navigation-search` | Coordinates layout and search. Search waits for navigation to finish closing; navigation shortcuts cannot replace an open search dialog.          |
 
+`useTableReorder` (`@components/ui/use-table-reorder`) combines handle-only pointer
+and touch sorting with React Aria keyboard drag/drop. The caller owns the ordered
+items and persistence, supplies stable IDs and a unique table group, and attaches
+the returned handle bindings plus row `data-reorder-id`/`data-reorder-group`.
+
+Request-protection screens share `ConditionBuilder`
+(`@components/request-condition-builder`): a controlled bounded AND/OR/NOT tree,
+field-specific operators and a read-only expression preview. Persist and execute
+the validated contract tree, never the preview text.
+
 Each component imports its scoped stylesheet as needed. Classes use `pb-`, CSS
 custom properties use `--pb-`; theme defaults come from public HeroUI tokens.
 `SetupSteps` accepts paired `--pb-step-accent` and `--pb-step-foreground` values.
