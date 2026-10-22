@@ -10,6 +10,14 @@ test("signed-out application root opens sign-in instead of a bootstrap landing p
 	await expect(page.getByRole("img", { name: "Payload Bay", exact: true })).toBeVisible();
 });
 
+test("image optimization rejects SVG and unapproved remote sources", async ({ request }) => {
+	for (const url of ["/brand/payloadbay-logo-dark-transparent.svg", "https://example.invalid/image.png"]) {
+		const response = await request.get("/_next/image?" + new URLSearchParams({ url, w: "384", q: "75" }));
+		expect(response.status()).toBe(400);
+		expect(response.headers()["content-type"] ?? "").not.toContain("image/");
+	}
+});
+
 test("email entry advances to accessible OTP entry without a success toast", async ({ page, context }) => {
 	await page.setViewportSize({ width: 1440, height: 1000 });
 	await context.grantPermissions(["clipboard-read", "clipboard-write"]);
