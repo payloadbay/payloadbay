@@ -97,3 +97,22 @@ test("header existence ignores inherited object properties", () => {
 	const contentType = requestCondition.parse({ ...newCondition("content_type"), operator: "present" });
 	expect(matchesCondition(contentType, { ...request, headers: Object.create({ "content-type": "application/json" }) })).toBe(false);
 });
+
+test("regex matching rejects excessive aggregate work without negation bypass", () => {
+	const condition = requestCondition.parse({
+		...newCondition(),
+		field: "header",
+		header: "x-load",
+		operator: "not_regex",
+		value: "a?".repeat(100) + "a{100}b",
+	});
+	expect(() => matchesCondition(condition, { ...request, headers: { "x-load": "a".repeat(8190) + "cb" } })).toThrow("evaluation limit");
+	const regular = requestCondition.parse({
+		...newCondition(),
+		field: "header",
+		header: "x-load",
+		operator: "regex",
+		value: "^purchase",
+	});
+	expect(matchesCondition(regular, { ...request, headers: { "x-load": "purchase.created" } })).toBe(true);
+});

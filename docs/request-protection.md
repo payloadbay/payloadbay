@@ -47,6 +47,12 @@ Wildcards match the entire field and use `*`; regex searches within the field.
 Regex uses the nonbacktracking RE2JS engine, with bounded source and program
 sizes. Backreferences and lookaround are unavailable. Trees have bounded depth,
 node counts and value sizes. Neither expressions nor regex execute JavaScript.
+One request shares a conservative two-million-state matching budget across all
+ancestor filters and rate conditions. Pattern program size times field length
+reserves work before matching; excessive work blocks with HTTP 403 and an
+inspectable evaluation-limit outcome. Draft simulation reports the limit without
+consuming quota. This bounds aggregate matching work, not wall-clock time or all
+configuration parsing costs.
 
 Add rule offers scratch or template creation. Templates open in the regular
 editor for changes before applying. Browser templates check navigation metadata

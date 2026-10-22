@@ -271,3 +271,69 @@ test("shared and per-route quotas reserve atomically across scopes and concurren
 		await assert.rejects(checkIngressPolicy(pool, crypto.randomUUID(), request, "fixture-key"), { code: "ingress_unavailable" });
 	});
 });
+
+test("regex work is shared across inherited filters and rate rules and blocks before scripts", async () => {
+	await authFixture(async ({ pool, db }) => {
+		const scope = await seedScope(db);
+		await db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','organization',$1,'custom',ARRAY['endpoints.configure'])", [scope.organization]);
+		const expression = "a?".repeat(100) + "a{100}b";
+
+		const expensive = () => leaf({ header: "x-load", operator: "regex", value: expression });
+
+		await saveIngressPolicy(
+			pool,
+			{ userId: "fixture-owner" },
+			{ type: "organization", id: scope.organization },
+			{
+				expectedVersion: 0,
+				policy: ingressPolicy.parse({
+					enabled: true,
+					rules: [
+						filter(
+							group(
+								"any",
+								Array.from({ length: 7 }, () => group("any", Array.from({ length: 7 }, expensive))),
+							),
+						),
+					],
+				}),
+			},
+			"fixture-key",
+		);
+		const policy = ingressPolicy.parse({ rateLimits: [rate("fixed", { id: crypto.randomUUID(), condition: expensive() }), rate("fixed", { id: crypto.randomUUID(), condition: expensive() })] });
+		await saveIngressPolicy(pool, { userId: "fixture-owner" }, { type: "project", id: scope.project }, { expectedVersion: 0, policy }, "fixture-key");
+		const sample = { ...request, headers: { "x-load": "a".repeat(129) + "cb" } };
+		const blocked = await checkIngressPolicy(pool, scope.endpoint, sample, "fixture-key");
+		assert.equal(blocked?.status, 403);
+		assert.equal(blocked?.reason.kind, "work_limit");
+		assert.equal(blocked?.reason.scope.type, "project");
+		await assert.rejects(testIngressPolicy(pool, { userId: "fixture-owner" }, { type: "project", id: scope.project }, { policy, request: sample }, "fixture-key"), { code: "protection_work_limit" });
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.ingress_rate_bucket")).rows[0].n, 0);
+		const { receiveIngress } = await import("../../packages/domain/src/ingress.ts");
+		const key = (await db.query("SELECT ingress_key FROM payloadbay.endpoint WHERE id=$1", [scope.endpoint])).rows[0].ingress_key;
+		let executed = false;
+		const response = await receiveIngress(
+			pool,
+			{
+				key,
+				...sample,
+				url: "https://fixture.test/ingress/" + key,
+				body: new Uint8Array([42]),
+			},
+			{
+				encryptionKey: "fixture-key",
+				run: async () => {
+					executed = true;
+					throw Error("must not execute");
+				},
+			},
+		);
+		assert.equal(response.status, 403);
+		assert.equal(executed, false);
+		const event = (await db.query("SELECT original_body,metadata,ingress_outcome FROM payloadbay.event WHERE endpoint_id=$1", [scope.endpoint])).rows[0];
+		assert.equal(event.ingress_outcome, "reject");
+		assert.equal(event.metadata.platform.protection.kind, "work_limit");
+		assert.deepEqual(event.original_body, Buffer.from([42]));
+	});
+});

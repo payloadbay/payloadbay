@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { RE2JS } from "re2js";
+import { AppError } from "./errors.ts";
 
 export const protectionScope = z.object({ type: z.enum(["organization", "workspace", "project", "endpoint"]), id: z.uuid() }).strict();
 
@@ -246,9 +247,13 @@ function wildcardSource(glob: string) {
 	return source;
 }
 
-export function matchesCondition(node: RequestCondition, request: ProtectionRequest): boolean {
+export function protectionEvaluationBudget() {
+	return { remaining: 2000000 };
+}
+
+export function matchesCondition(node: RequestCondition, request: ProtectionRequest, budget = protectionEvaluationBudget()): boolean {
 	if (node.kind === "group") {
-		const matches = node.join === "all" ? node.children.every((child) => matchesCondition(child, request)) : node.children.some((child) => matchesCondition(child, request));
+		const matches = node.join === "all" ? node.children.every((child) => matchesCondition(child, request, budget)) : node.children.some((child) => matchesCondition(child, request, budget));
 
 		return node.negate ? !matches : matches;
 	}
@@ -267,7 +272,13 @@ export function matchesCondition(node: RequestCondition, request: ProtectionRequ
 		if (Array.isArray(node.value)) matches = node.value.some((item) => normalize(item) === value);
 		else if (typeof node.value === "string") {
 			const expected = normalize(node.value);
-			matches = operator === "equals" ? value === expected : operator === "contains" ? value.includes(expected) : operator === "starts_with" ? value.startsWith(expected) : operator === "ends_with" ? value.endsWith(expected) : operator === "wildcard" ? pattern(wildcardSource(node.value), node.ignoreCase).matches(actual) : operator === "regex" ? pattern(node.value, node.ignoreCase).test(actual) : false;
+			if (operator === "wildcard" || operator === "regex") {
+				const compiled = pattern(operator === "wildcard" ? wildcardSource(node.value) : node.value, node.ignoreCase);
+				// Bound aggregate NFA work before entering the matcher, including negated rules.
+				budget.remaining -= compiled.programSize() * (actual.length + 1);
+				if (budget.remaining < 0) throw new AppError("protection_work_limit", 422, "Regex matching exceeds the evaluation limit. Simplify the patterns or shorten the compared fields.");
+				matches = operator === "wildcard" ? compiled.matches(actual) : compiled.test(actual);
+			} else matches = operator === "equals" ? value === expected : operator === "contains" ? value.includes(expected) : operator === "starts_with" ? value.startsWith(expected) : operator === "ends_with" ? value.endsWith(expected) : false;
 		}
 	}
 
@@ -281,9 +292,9 @@ export function formatCondition(node: RequestCondition): string {
 	return field + " " + node.operator.replaceAll("_", " ") + (node.value === undefined || node.operator === "present" || node.operator === "missing" ? "" : " " + JSON.stringify(node.value)) + (node.ignoreCase ? " [ignore case]" : "");
 }
 
-export function evaluateFilters(policy: IngressPolicy, request: ProtectionRequest) {
+export function evaluateFilters(policy: IngressPolicy, request: ProtectionRequest, budget = protectionEvaluationBudget()) {
 	if (!policy.enabled) return { action: "continue" as const, rule: null };
-	const rule = policy.rules.find((item) => item.enabled && matchesCondition(item.condition, request));
+	const rule = policy.rules.find((item) => item.enabled && matchesCondition(item.condition, request, budget));
 
 	return rule ? { action: rule.action, rule: { id: rule.id, name: rule.name } } : { action: policy.defaultAction === "block" ? ("block" as const) : ("continue" as const), rule: null };
 }

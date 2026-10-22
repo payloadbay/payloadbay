@@ -2250,6 +2250,32 @@ test.describe("mobile request protection", () => {
 			.click();
 		await expect(page.getByRole("region", { name: "Request protection result", exact: true })).toContainText("Rate limit exceeded");
 		await expect(page.getByRole("region", { name: "Request protection result", exact: true })).toContainText("Route quota");
+		await page.getByRole("dialog", { name: "Event inspection", exact: true }).getByRole("button", { name: "Close", exact: true }).click();
+		const { ingressPolicy, newCondition } = await import("../../packages/contracts/src/ingress-policy.ts");
+		const organization = await browserOrganization(page);
+		const expensivePolicy = ingressPolicy.parse({
+			enabled: true,
+			rules: [
+				{
+					id: crypto.randomUUID(),
+					name: "Expensive expression",
+					enabled: true,
+					action: "block",
+					condition: {
+						...newCondition(),
+						header: "x-load",
+						operator: "regex",
+						value: "a?".repeat(100) + "a{100}b",
+					},
+				},
+			],
+		});
+		expect((await page.request.put("/api/v1/organizations/" + organization + "/protection", { headers, data: { expectedVersion: 0, policy: expensivePolicy } })).status()).toBe(200);
+		expect((await page.request.post(endpoint.ingressUrl, { headers: { "x-load": "a".repeat(8190) + "cb" }, data: "fixture" })).status()).toBe(403);
+		const events = await (await page.request.get("/api/v1/events?endpointId=" + route.id)).json();
+		await page.getByRole("button", { name: "Refresh events", exact: true }).click();
+		await page.getByRole("button", { name: "Inspect event " + events.items[0].id.slice(0, 8), exact: true }).click();
+		await expect(page.getByRole("region", { name: "Request protection result", exact: true })).toContainText("Protection evaluation limit");
 	});
 	test("request protection sorting uses handles on touch and keyboard and survives reload", async ({ page }) => {
 		const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");

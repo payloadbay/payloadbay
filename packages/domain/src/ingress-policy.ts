@@ -5,7 +5,7 @@ import { endpointFor } from "./endpoints.ts";
 import { requirePermission, dataAncestry, actorPermissions } from "./membership.ts";
 import { appendChange } from "./changes.ts";
 import { encryptPrivate, decryptPrivate } from "./private-crypto.ts";
-import { ingressPolicy, ingressPolicyUpdate, protectionScope, protectionTestInput, evaluateFilters, matchesCondition, type ProtectionScope, type ProtectionRequest, type IngressRateRule } from "../../contracts/src/ingress-policy.ts";
+import { ingressPolicy, ingressPolicyUpdate, protectionScope, protectionTestInput, protectionEvaluationBudget, evaluateFilters, matchesCondition, type ProtectionScope, type ProtectionRequest, type IngressRateRule } from "../../contracts/src/ingress-policy.ts";
 import { ingressRateState, reserveIngressRate, type IngressRateState } from "../../contracts/src/ingress-rate.ts";
 import { AppError } from "../../contracts/src/errors.ts";
 
@@ -133,12 +133,13 @@ export async function testIngressPolicy(pool: Pool, actor: Actor, input: Protect
 	const rows = await loadPolicies(pool, ancestry.slice(0, -1));
 	const policies = [...rows.map((row) => ({ scope: ownerOf(row), policy: ingressPolicy.parse(decryptPrivate(row.encrypted_policy, encryptionKey)) })), { scope, policy }];
 	const results = [];
+	const budget = protectionEvaluationBudget();
 	for (const item of policies) {
-		const result = evaluateFilters(item.policy, request);
+		const result = evaluateFilters(item.policy, request, budget);
 		results.push({
 			scope: item.scope,
 			...result,
-			rateRules: result.action === "block" ? [] : item.policy.rateLimits.filter((rule) => rule.enabled && (!rule.condition || matchesCondition(rule.condition, request))).map(({ id, name }) => ({ id, name })),
+			rateRules: result.action === "block" ? [] : item.policy.rateLimits.filter((rule) => rule.enabled && (!rule.condition || matchesCondition(rule.condition, request, budget))).map(({ id, name }) => ({ id, name })),
 		});
 		if (result.action === "block") break;
 	}
@@ -146,7 +147,7 @@ export async function testIngressPolicy(pool: Pool, actor: Actor, input: Protect
 	return { blocked: results.some((result) => result.action === "block"), results };
 }
 
-export type ProtectionBlock = { status: 403 | 429; retryAfter?: number; reason: { kind: "filter" | "rate_limit"; scope: ProtectionScope; rule: { id: string; name: string } | null } };
+export type ProtectionBlock = { status: 403 | 429; retryAfter?: number; reason: { kind: "filter" | "rate_limit" | "work_limit"; scope: ProtectionScope; rule: { id: string; name: string } | null } };
 
 /** All scopes admit atomically; child exceptions never skip parent filters or quotas. */
 export async function checkIngressPolicy(pool: Pool, endpointId: string, request: ProtectionRequest, encryptionKey: string): Promise<ProtectionBlock | null> {
@@ -171,19 +172,25 @@ export async function checkIngressPolicy(pool: Pool, endpointId: string, request
 			prior?: IngressRateState | null;
 			next?: IngressRateState;
 		}[] = [];
+		const budget = protectionEvaluationBudget();
 		for (const row of rows) {
 			const scope = ownerOf(row);
 			const policy = ingressPolicy.parse(decryptPrivate(row.encrypted_policy, encryptionKey));
-			const result = evaluateFilters(policy, request);
-			if (result.action === "block") return { status: 403, reason: { kind: "filter", scope, rule: result.rule } };
-			for (const rule of policy.rateLimits)
-				if (rule.enabled && (!rule.condition || matchesCondition(rule.condition, request)))
-					reservations.push({
-						row,
-						scope,
-						rule,
-						key: rule.groupBy === "route" ? endpointId : "shared",
-					});
+			try {
+				const result = evaluateFilters(policy, request, budget);
+				if (result.action === "block") return { status: 403, reason: { kind: "filter", scope, rule: result.rule } };
+				for (const rule of policy.rateLimits)
+					if (rule.enabled && (!rule.condition || matchesCondition(rule.condition, request, budget)))
+						reservations.push({
+							row,
+							scope,
+							rule,
+							key: rule.groupBy === "route" ? endpointId : "shared",
+						});
+			} catch (error) {
+				if (error instanceof AppError && error.code === "protection_work_limit") return { status: 403, reason: { kind: "work_limit", scope, rule: null } };
+				throw error;
+			}
 		}
 
 		if (!reservations.length) return null;
