@@ -23,6 +23,13 @@ test("U156a API reference renders using installation-local assets and specificat
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 	await page.screenshot({ path: test.info().outputPath("api-reference-mobile.png"), animations: "disabled" });
 	await writeFile(test.info().outputPath("api-reference-controls.txt"), controls);
+	const longHeading = page.getByRole("heading", { name: /^GET \/organizations\/\{organizationId\}\/protection/ });
+	await longHeading.scrollIntoViewIfNeeded();
+	const headingBounds = await longHeading.boundingBox();
+	expect(headingBounds!.x).toBeGreaterThanOrEqual(0);
+	expect(headingBounds!.x + headingBounds!.width).toBeLessThanOrEqual(390);
+	expect(await longHeading.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+	await page.screenshot({ path: test.info().outputPath("api-reference-long-heading-mobile.png"), animations: "disabled" });
 });
 
 test("U156b Scalar sends real scoped Bearer requests and rejects the same token after revocation", async ({ page, browser, baseURL }) => {

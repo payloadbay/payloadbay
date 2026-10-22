@@ -24,7 +24,7 @@ const configuration: AnyApiReferenceConfiguration = {
 	agent: { disabled: true },
 	proxyUrl: "",
 	authentication: { preferredSecurityScheme: "apiToken" },
-	customCss: ':root { --scalar-font: "Inter Variable", Inter, sans-serif; }',
+	customCss: ':root { --scalar-font: "Inter Variable", Inter, sans-serif; } .pb-api-documentation .section-header-label { overflow-wrap: anywhere; }',
 	customFetch: (input, init) => {
 		const target = new URL(input instanceof Request ? input.url : String(input), window.location.origin);
 		if (target.origin !== window.location.origin) throw Error("The Payload Bay API console sends requests only to this installation.");
@@ -59,7 +59,7 @@ export default function ApiDocumentationPage() {
 	}, []);
 
 	return (
-		<main className='min-w-0 flex-1'>
+		<main className='pb-api-documentation min-w-0 flex-1'>
 			<header ref={header} className='border-border bg-background sticky top-0 z-20 border-b'>
 				<div className='hidden [[data-preview=true]_&]:block'>
 					<PreviewNotice />
