@@ -46,6 +46,18 @@ async function rebuild() {
 			metafile: true,
 			sourcemap: process.env.REVIEW_SOURCE_COVERAGE === "true" ? "external" : false,
 		});
+		await build({
+			entryPoints: [path.join(source, "navigation-guard.tsx")],
+			bundle: true,
+			outdir: staging,
+			jsx: "automatic",
+			tsconfig: path.join(source, "../tsconfig.json"),
+			format: "esm",
+			// Keep hook callback boundaries intact for precise V8 source coverage.
+			minify: false,
+			define: { "process.env.NODE_ENV": '"production"', "process.env": "{}" },
+			sourcemap: process.env.REVIEW_SOURCE_COVERAGE === "true" ? "external" : false,
+		});
 		for (const entry of ["replacement.tsx", "catalog.tsx"]) {
 			const key = Object.keys(result.metafile.inputs).find((name) => path.resolve(name) === path.join(source, entry));
 			const visited = new Set();
@@ -62,7 +74,7 @@ async function rebuild() {
 		}
 
 		const reload = '<script>let version;setInterval(async()=>{try{const state=await(await fetch(new URL("__revision",location.href),{cache:"no-store"})).json();if(version===undefined)version=state.revision;else if(version!==state.revision)location.reload();}catch{}},1200);</script>';
-		for (const side of ["replacement", "catalog"]) {
+		for (const side of ["replacement", "catalog", "navigation-guard"]) {
 			const css = `@import "tailwindcss"; @import "@heroui/styles"; @import "../src/app/styles/brand-theme.css"; @import "@fontsource-variable/inter"; @source "./*.tsx"; @source "../src/app/components/ui/*.tsx"; @theme inline { --font-sans: "Inter Variable", Inter, sans-serif; } body { margin:0; background:var(--background); color:var(--foreground); font-family:var(--font-sans); }`;
 			const styled = await postcss([tailwind({ base: source })]).process(css, { from: path.join(source, `${side}.css`) });
 			const withFonts = styled.css.replace(/url\(([^)]*inter-[^/)]*\.woff2)\)/g, (_, url) => `url(./files/${path.basename(url.replace(/["']/g, ""))})`);

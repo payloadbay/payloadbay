@@ -730,6 +730,13 @@ test("U300 route editor tests unsaved ingress with synthetic fixture", async ({ 
 	await prompt.dismiss();
 	await cancelledReload;
 	await expect(page).toHaveURL(new RegExp("/projects/" + project.id + "/routes/" + route.id));
+	await page.getByRole("button", { name: "Search pages and resources", exact: true }).click();
+	const search = page.getByRole("dialog", { name: "Search pages and resources", exact: true });
+	await search.getByPlaceholder("Search pages and resources…").fill("Test project");
+	await search.getByRole("menuitem", { name: "Test project / Project Jump to", exact: true }).click();
+	await expect(page.getByRole("heading", { name: "Discard unsaved changes?", exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "Keep editing", exact: true }).click();
+	await expect(page).toHaveURL(new RegExp("/projects/" + project.id + "/routes/" + route.id));
 	await page.getByRole("navigation", { name: "Breadcrumbs", exact: true }).locator(`a[href="/projects/${project.id}"]`).click();
 	await expect(page.getByRole("heading", { name: "Discard unsaved changes?", exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "Keep editing", exact: true }).click();
@@ -946,7 +953,7 @@ test("account registers a passkey, signs in with it and removes it", async ({ pa
 	await expect(page.getByText("No passkeys registered yet.", { exact: true })).toBeVisible();
 });
 
-test("project invitations remain pending until the recipient signs in and accepts", async ({ page, context }) => {
+test("project invitations remain pending until the recipient signs in and accepts", async ({ page }) => {
 	const { ensureBrowserOwner, signInBrowser, commandHeaders } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
 	const headers = commandHeaders();
@@ -970,8 +977,9 @@ test("project invitations remain pending until the recipient signs in and accept
 			return Boolean(invitationUrl);
 		})
 		.toBe(true);
-	await context.clearCookies();
 	await page.goto(invitationUrl);
+	await expect(page.getByRole("button", { name: "Accept invitation", exact: true })).toBeDisabled();
+	await page.getByRole("button", { name: "Use another account", exact: true }).click();
 	await expect(page.getByLabel("Email address")).toHaveValue("invited-reviewer@example.test");
 	await signInBrowser(page, "invited-reviewer@example.test");
 	await page.goto(invitationUrl);
@@ -2043,6 +2051,14 @@ test("UX68 route traffic recovers an outage and live counts stay specific to tha
 	expect(received.status()).toBe(202);
 	await expect(page.getByRole("img", { name: /^24-hour traffic: 1 incoming requests, 1 accepted/ })).toBeVisible();
 	await expect(page.getByRole("grid", { name: "Route recent executions", exact: true }).getByRole("row")).toHaveCount(2);
+	await page.goto("/");
+	await expect(page.getByRole("img", { name: /^24-hour traffic: 1 incoming requests, 1 accepted/ })).toBeVisible();
+	const next = await page.request.post("/ingress/" + endpoint.ingress_key, { data: { type: "overview.traffic.updated" } });
+	expect(next.status()).toBe(202);
+	await expect(page.getByRole("img", { name: /^24-hour traffic: 2 incoming requests, 2 accepted/ })).toBeVisible();
+	await page.goto("/projects/" + project.id + "/routes/" + endpoint.id + "?section=events");
+	await expect(page.getByRole("heading", { name: "Route events", exact: true })).toHaveCount(1);
+	await expect(page.getByRole("heading", { name: "Route events", exact: true })).toBeVisible();
 });
 
 test("UX78 saved assertion scripts can be restored and run against the current handler", async ({ page }) => {

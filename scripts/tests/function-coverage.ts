@@ -4,7 +4,7 @@ import type { FileCoverageData, FunctionMapping } from "istanbul-lib-coverage";
 
 type NamedFunction = { mapping: FunctionMapping; declared: boolean };
 
-/** Reconcile unique declared function names; preserve inferred/minified entries. */
+/** Reconcile precise source ranges and unique declarations across compiler aliases. */
 export function createFunctionNormalizer() {
 	const indexes = new Map<string, Map<string, NamedFunction[]> | null>();
 
@@ -65,6 +65,7 @@ export function createFunctionNormalizer() {
 
 		const names = indexes.get(file.path);
 		if (!names) return;
+		const sourceFunctions = [...names.values()].flat();
 		const fnMap: FileCoverageData["fnMap"] = {};
 		const hits: FileCoverageData["f"] = {};
 		const identities = new Map<string, string>();
@@ -77,7 +78,10 @@ export function createFunctionNormalizer() {
 			// They are not unique source declarations and keep their mapped ranges.
 			// Source maps can begin before a declaration; require overlapping ranges.
 			// Coincident minified names in disjoint authored ranges remain distinct.
-			const canonical = source?.length === 1 && source[0].declared && mapping.loc.end.line >= source[0].mapping.loc.start.line && mapping.loc.start.line <= source[0].mapping.loc.end.line ? source[0].mapping : mapping;
+			// Compiler maps can omit a parenthesis or include the trailing semicolon.
+			// Require unambiguous source boundaries rather than inferred names.
+			const located = sourceFunctions.filter(({ mapping: candidate }) => candidate.loc.start.line === mapping.loc.start.line && Math.abs(candidate.loc.start.column - mapping.loc.start.column) <= 1 && candidate.loc.end.line === mapping.loc.end.line && Math.abs(candidate.loc.end.column - mapping.loc.end.column) <= 1);
+			const canonical = located.length === 1 ? located[0].mapping : source?.length === 1 && source[0].declared && mapping.loc.end.line >= source[0].mapping.loc.start.line && mapping.loc.start.line <= source[0].mapping.loc.end.line ? source[0].mapping : mapping;
 			const key = canonical.name + ":" + JSON.stringify(canonical.loc);
 			let target = identities.get(key);
 			if (target === undefined) {

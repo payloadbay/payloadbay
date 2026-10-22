@@ -526,38 +526,39 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 	return (
 		<section className='flex min-w-0 flex-col gap-6'>
 			{unsavedDialog}
-			<header className='flex flex-wrap items-start justify-between gap-4'>
-				<div>
-					{section === "overview" && <p className='text-muted text-sm'>Ingress route</p>}
-					<h1 className='text-3xl font-semibold'>
-						{section === "overview"
-							? route.name
-							: ({
-									code: "Scripts",
-									secrets: "Secrets",
-									playground: "Playground",
-									test: "Script test",
-									events: "Route events",
-									history: "Publication history",
-								}[section] ?? "Route")}
-					</h1>
-					{section === "overview" && (
-						<div className='mt-3 flex flex-wrap items-center gap-2' aria-label='Route status'>
-							<Chip color={route.activePublicationId ? "success" : "default"} size='sm'>
-								{route.activePublicationId ? "Published" : "Draft"}
-							</Chip>
-							<Chip color={route.paused ? "warning" : "success"} size='sm' aria-label='Delivery state'>
-								{route.paused ? "Delivery paused — ingress still accepts events." : "Delivery active."}
-							</Chip>
-						</div>
+			{section !== "events" && (
+				<header className='flex flex-wrap items-start justify-between gap-4'>
+					<div>
+						{section === "overview" && <p className='text-muted text-sm'>Ingress route</p>}
+						<h1 className='text-3xl font-semibold'>
+							{section === "overview"
+								? route.name
+								: ({
+										code: "Scripts",
+										secrets: "Secrets",
+										playground: "Playground",
+										test: "Script test",
+										history: "Publication history",
+									}[section] ?? "Route")}
+						</h1>
+						{section === "overview" && (
+							<div className='mt-3 flex flex-wrap items-center gap-2' aria-label='Route status'>
+								<Chip color={route.activePublicationId ? "success" : "default"} size='sm'>
+									{route.activePublicationId ? "Published" : "Draft"}
+								</Chip>
+								<Chip color={route.paused ? "warning" : "success"} size='sm' aria-label='Delivery state'>
+									{route.paused ? "Delivery paused — ingress still accepts events." : "Delivery active."}
+								</Chip>
+							</div>
+						)}
+					</div>
+					{section === "overview" && route.permissions.includes("endpoints.pause") && (
+						<Button variant='secondary' isDisabled={busy} onPress={() => void toggleDelivery()}>
+							{route.paused ? <IconPlayerPlay size={18} /> : <IconPlayerPause size={18} />} {route.paused ? "Resume delivery" : "Pause delivery"}
+						</Button>
 					)}
-				</div>
-				{section === "overview" && route.permissions.includes("endpoints.pause") && (
-					<Button variant='secondary' isDisabled={busy} onPress={() => void toggleDelivery()}>
-						{route.paused ? <IconPlayerPlay size={18} /> : <IconPlayerPause size={18} />} {route.paused ? "Resume delivery" : "Pause delivery"}
-					</Button>
-				)}
-			</header>
+				</header>
+			)}
 			{section === "overview" && route.ingressUrl && (
 				<Card>
 					<Card.Header>

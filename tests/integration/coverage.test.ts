@@ -406,3 +406,44 @@ test("CV15 a coincident minified name outside the declared function range cannot
 		await rm(directory, { recursive: true, force: true });
 	}
 });
+
+test("CV16 compiler aliases with precise source ranges retain separate callback identities", async () => {
+	const directory = await mkdtemp(resolve("test-results/callback-aliases-"));
+	const source = resolve(directory, "callbacks.ts");
+	try {
+		const text = 'const first = () => "one";\nconst second = () => "two";\n';
+		await writeFile(source, text);
+		const lines = text.trimEnd().split("\n");
+		const locations = lines.map((line, index) => ({ start: { line: index + 1, column: line.indexOf("()") }, end: { line: index + 1, column: line.indexOf(";") } }));
+
+		const report = (name: string, columnOffset: number, hits: number) => ({
+			[source]: {
+				path: source,
+				statementMap: { "0": locations[0] },
+				s: { "0": 1 },
+				branchMap: {},
+				b: {},
+				fnMap: Object.fromEntries(
+					locations.map((loc, index) => [
+						String(index),
+						{
+							name,
+							decl: loc,
+							loc: { start: { ...loc.start, column: loc.start.column + columnOffset }, end: { ...loc.end, column: loc.end.column + columnOffset } },
+							line: loc.start.line,
+						},
+					]),
+				),
+				f: { "0": hits, "1": 0 },
+			},
+		});
+
+		const summary = mergeNodeCoverage([report("a", 0, 1), report("b", 1, 0)])
+			.fileCoverageFor(source)
+			.toSummary();
+		assert.equal(summary.functions.total, 2);
+		assert.equal(summary.functions.covered, 1);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});

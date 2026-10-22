@@ -32,6 +32,15 @@ test("FT06b a verified new customer creates an organization through the mobile s
 			await page.getByLabel("Sign-in code").fill(otp!);
 			await page.getByRole("button", { name: "Sign in", exact: true }).click();
 			await expect(page).toHaveURL(f.url + "/onboarding");
+			let onboardingUnavailable = true;
+			await page.route("**/api/v1/onboarding", async (route) => {
+				if (onboardingUnavailable && route.request().method() === "GET") await route.fulfill({ status: 503, json: { error: { code: "unavailable", message: "Temporary setup outage" } } });
+				else await route.continue();
+			});
+			await page.reload();
+			await expect(page.getByRole("heading", { name: "Organization setup unavailable", exact: true })).toBeVisible();
+			onboardingUnavailable = false;
+			await page.getByRole("button", { name: "Retry setup", exact: true }).click();
 			await page.getByLabel("Organization name").fill("Customer company");
 			await page.getByRole("button", { name: "Create organization and continue", exact: true }).click();
 			await expect(page).toHaveURL(/\/workspaces\/[0-9a-f-]+$/);
