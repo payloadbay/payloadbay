@@ -195,7 +195,7 @@ function ConditionNode({ value, onChange, onRemove, count, depth }: ConditionNod
 				label='Operator'
 				value={value.operator}
 				items={operatorsFor(value.field).map((key) => ({ key, label: labels[key] }))}
-				onChange={(operator) => onChange({ ...value, operator: operator as ConditionOperator, value: operator === "present" || operator === "missing" ? undefined : operator === "in" || operator === "not_in" ? (Array.isArray(value.value) ? value.value : typeof value.value === "string" && value.value ? [value.value] : []) : value.field === "body_size" ? 0 : typeof value.value === "string" ? value.value : "" })}
+				onChange={(operator) => onChange({ ...value, operator: operator as ConditionOperator, value: operator === "present" || operator === "missing" ? undefined : operator === "in" || operator === "not_in" ? (Array.isArray(value.value) ? value.value : typeof value.value === "string" && value.value ? [value.value] : []) : value.field === "body_size" ? (typeof value.value === "number" ? value.value : 0) : typeof value.value === "string" ? value.value : "" })}
 			/>
 			{!exists &&
 				(value.field === "body_size" ? (

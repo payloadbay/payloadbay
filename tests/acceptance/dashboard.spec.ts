@@ -2412,6 +2412,8 @@ test.describe("mobile request protection", () => {
 		await chooseOption(nested.getByRole("button", { name: /Request field$/ }), "body_size");
 		await chooseOption(nested.getByRole("button", { name: /Operator$/ }), "gt");
 		await nested.getByRole("textbox", { name: "Comparison size (bytes)", exact: true }).fill("1024");
+		await chooseOption(nested.getByRole("button", { name: /Operator$/ }), "gte");
+		await expect(nested.getByRole("textbox", { name: "Comparison size (bytes)", exact: true })).toHaveValue(/^1,?024$/);
 		await nested.getByRole("button", { name: "Add condition", exact: true }).click();
 		const extra = nested.locator("fieldset[data-condition-id]").last();
 		await chooseOption(extra.getByRole("button", { name: /Request field$/ }), "method");
