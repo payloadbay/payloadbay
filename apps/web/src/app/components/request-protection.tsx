@@ -202,9 +202,6 @@ export function RequestProtection({ scope }: { scope: ProtectionScope }) {
 			<header className='flex flex-wrap items-start justify-between gap-3'>
 				<div>
 					<h1 className='text-3xl font-semibold'>Request protection</h1>
-					<p className='mt-2 text-muted'>
-						{scopeLabels[scope.type]}: <strong className='font-medium text-foreground'>{saved.name}</strong>
-					</p>
 				</div>
 				<Button
 					variant='secondary'

@@ -13,7 +13,7 @@ import { useUnsavedChanges } from "@components/unsaved-changes";
 import { ScriptingGuide } from "@components/scripting-guide";
 import { use, useState, useEffect, useCallback } from "react";
 import { Button, Card, Tabs, Checkbox, Label, Input, Chip, Table, Modal, ComboBox, TextField, Select, ListBox } from "@heroui/react";
-import { IconArrowLeft, IconCheck, IconUpload, IconPlayerPause, IconPlayerPlay, IconCopy, IconInfoCircle, IconPlayerTrackNext, IconArchive, IconArchiveOff, IconTrash } from "@tabler/icons-react";
+import { IconCheck, IconUpload, IconPlayerPause, IconPlayerPlay, IconCopy, IconInfoCircle, IconPlayerTrackNext, IconArchive, IconArchiveOff, IconTrash } from "@tabler/icons-react";
 
 import { formatScript, formatScriptForDisplay, scriptDocument } from "@lib/script-document";
 import { HelperImportPicker } from "@components/helper-import-picker";
@@ -526,10 +526,6 @@ export default function RoutePage({ params }: { params: Promise<{ projectId: str
 	return (
 		<section className='flex min-w-0 flex-col gap-6'>
 			{unsavedDialog}
-			<Link href={"/projects/" + projectId} className='button button--secondary w-fit'>
-				<IconArrowLeft size={16} />
-				Back to project
-			</Link>
 			<header className='flex flex-wrap items-start justify-between gap-4'>
 				<div>
 					{section === "overview" && <p className='text-muted text-sm'>Ingress route</p>}

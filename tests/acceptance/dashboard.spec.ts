@@ -649,7 +649,7 @@ test("U296 project member navigation uses project scope", async ({ page }) => {
 	await expect(page.getByRole("heading", { name: "Project members", exact: true }), "Project member page must exist").toBeVisible();
 	await expect(page.getByRole("rowheader", { name: /Browser owner/ })).toBeVisible();
 	await expect(page.getByRole("heading", { name: "Instance members", exact: true })).toHaveCount(0);
-	await page.getByRole("link", { name: "Back to project", exact: true }).click();
+	await page.getByRole("navigation", { name: "Breadcrumbs", exact: true }).locator(`a[href="/projects/${project.id}"]`).click();
 	await expect(page.getByRole("heading", { name: "Member project", exact: true })).toBeVisible();
 });
 
@@ -730,13 +730,13 @@ test("U300 route editor tests unsaved ingress with synthetic fixture", async ({ 
 	await prompt.dismiss();
 	await cancelledReload;
 	await expect(page).toHaveURL(new RegExp("/projects/" + project.id + "/routes/" + route.id));
-	await page.getByRole("link", { name: "Back to project", exact: true }).click();
+	await page.getByRole("navigation", { name: "Breadcrumbs", exact: true }).locator(`a[href="/projects/${project.id}"]`).click();
 	await expect(page.getByRole("heading", { name: "Discard unsaved changes?", exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "Keep editing", exact: true }).click();
-	await page.getByRole("link", { name: "Back to project", exact: true }).click();
+	await page.getByRole("navigation", { name: "Breadcrumbs", exact: true }).locator(`a[href="/projects/${project.id}"]`).click();
 	await page.keyboard.press("Escape");
 	await expect(page.getByRole("heading", { name: "Discard unsaved changes?", exact: true })).toHaveCount(0);
-	await page.getByRole("link", { name: "Back to project", exact: true }).click();
+	await page.getByRole("navigation", { name: "Breadcrumbs", exact: true }).locator(`a[href="/projects/${project.id}"]`).click();
 	await page.getByRole("button", { name: "Discard changes", exact: true }).click();
 	await expect(page.getByRole("heading", { name: "Test project", exact: true })).toBeVisible();
 	const unchangedDraft = await (await page.request.get("/api/v1/endpoints/" + route.id + "/drafts/ingress")).json();
@@ -1260,16 +1260,36 @@ test("FT06a organization context owns workspace creation", async ({ page }) => {
 	await expect(page.getByRole("row").filter({ hasText: "Foundation team" })).toBeVisible();
 });
 
-test("FT06c organization code and members retain their own scope", async ({ page }) => {
+test("FT06c organization code and members retain their own scope", async ({ page }, testInfo) => {
 	const { ensureBrowserOwner } = await import("../helpers/browser-auth.ts");
 	await ensureBrowserOwner(page);
 	const organizationId = await browserOrganization(page);
 	await page.goto("/code/organization/" + organizationId);
 	await expect(page.getByRole("button", { name: "Create helper", exact: true })).toBeVisible();
-	await page.getByRole("link", { name: "Back to organization", exact: true }).click();
+	await page.getByRole("navigation", { name: "Breadcrumbs", exact: true }).locator(`a[href="/organizations/${organizationId}"]`).click();
 	await expect(page).toHaveURL(new RegExp("/organizations/" + organizationId + "$"));
 	await page.goto("/organizations/" + organizationId + "/members");
 	await expect(page.getByRole("heading", { name: "Organization members", exact: true })).toBeVisible();
+	for (const width of [390, 1440]) {
+		await page.setViewportSize({ width, height: 900 });
+		for (const [path, title] of [
+			["/code/organization/" + organizationId, "Code and middleware"],
+			["/organizations/" + organizationId + "/members", "Organization members"],
+			["/organizations/" + organizationId + "/security", "Organization security"],
+			["/organizations/" + organizationId + "/usage", "Usage and limits"],
+			["/organizations/" + organizationId + "/api-keys", "Organization API keys"],
+			["/organizations/" + organizationId + "/protection", "Request protection"],
+		]) {
+			await page.goto(path);
+			const heading = page.getByRole("heading", { name: title, exact: true });
+			await expect(heading).toBeVisible();
+			const header = heading.locator("..");
+			await expect(header.locator(":scope > :first-child")).toHaveText(title);
+			if (title === "Code and middleware") await page.screenshot({ path: testInfo.outputPath(`organization-code-${width}.png`), fullPage: true });
+			await expect(page.locator("main").getByRole("link", { name: /^Back to / })).toHaveCount(0);
+			await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+		}
+	}
 });
 
 test("FT11b organization usage shows local counts and unlimited self-host defaults", async ({ page }) => {

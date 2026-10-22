@@ -375,7 +375,6 @@ export function EventBrowser({ projectId, endpointId, embedded = false }: { proj
 		<section className='flex flex-col gap-6'>
 			<header className='flex flex-wrap items-start justify-between gap-4'>
 				<div>
-					<p className='text-muted text-sm'>{projects.find((project) => project.id === activeProject)?.name ?? "All accessible projects"}</p>
 					<h1 className='text-3xl font-semibold'>{embedded ? "Route events" : "Events"}</h1>
 					<p className='text-muted mt-2'>One received event, with its ingress outcome, processing executions and outgoing attempts.</p>
 					<p role='status' className='text-muted mt-2 text-sm'>

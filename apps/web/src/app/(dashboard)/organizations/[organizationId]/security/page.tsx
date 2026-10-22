@@ -65,7 +65,9 @@ export default function OrganizationSecurityPage({ params }: { params: Promise<{
 	return (
 		<section className='flex flex-col gap-6'>
 			{unsavedDialog}
-			<h1 className='text-3xl font-semibold'>Organization security</h1>
+			<header>
+				<h1 className='text-3xl font-semibold'>Organization security</h1>
+			</header>
 			{!policy ? (
 				error ? (
 					<div className='flex flex-col items-start gap-3'>

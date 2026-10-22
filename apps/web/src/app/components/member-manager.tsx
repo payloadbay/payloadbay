@@ -196,7 +196,6 @@ export function MemberManager({ scope: chosen, held: chosenHeld }: { scope?: Sco
 		<section className='flex flex-col gap-6'>
 			<header className='flex flex-wrap items-start justify-between gap-4'>
 				<div>
-					<p className='text-muted text-sm'>Access and ownership</p>
 					<h1 className='text-3xl font-semibold'>{scope.type === "instance" ? "Instance members" : scope.type === "organization" ? "Organization members" : scope.type === "workspace" ? "Workspace members" : "Project members"}</h1>
 					<p className='text-muted mt-2'>Permissions apply to this scope and its children. Inherited access continues to apply.</p>
 				</div>

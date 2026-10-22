@@ -26,6 +26,12 @@ are different actions. Give them distinct controls and predictable back behavior
 Keep the same information architecture across desktop and mobile, adapting its
 presentation rather than removing capabilities.
 
+Resource overview headers identify the resource with its type and name. Settings
+and task pages begin with the task title; breadcrumbs supply their ancestry. Do
+not add duplicate back buttons, scope-name preheaders or unrelated category labels
+above those titles. Keep optional descriptions below the title and header actions
+aligned consistently across equivalent pages.
+
 ## Search and command navigation
 
 Cross-application search is a dedicated command palette: a focused overlay with

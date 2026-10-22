@@ -280,7 +280,7 @@ test("UX51 notification modules support catalog creation, keyboard publishing, p
 	expect(saved.revisions).toHaveLength(2);
 	await page.getByRole("button", { name: "Send published test", exact: true }).click();
 	await expect(page.getByRole("alertdialog").filter({ hasText: "Queued a real test" })).toBeVisible();
-	await page.locator("main header").getByRole("link", { name: "Notification modules", exact: true }).click();
+	await page.getByRole("navigation", { name: "Breadcrumbs", exact: true }).getByRole("link", { name: "Notification modules", exact: true }).click();
 	await expect(page.getByRole("grid", { name: "Notification modules", exact: true })).toContainText("Lifecycle email updated");
 });
 

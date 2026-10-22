@@ -176,10 +176,7 @@ export default function NotificationModulePage({ params }: { params: Promise<{ c
 		<section className='flex min-w-0 flex-col gap-6'>
 			{unsavedDialog}
 			<header>
-				<Link className='button button--secondary w-fit' href='/admin/notification-channels'>
-					Notification modules
-				</Link>
-				<h1 className='mt-2 text-3xl font-semibold'>{channelId === "new" ? "Create notification module" : name}</h1>
+				<h1 className='text-3xl font-semibold'>{channelId === "new" ? "Create notification module" : name}</h1>
 				<p className='text-muted mt-2'>Instance-owned code. Email modules return ctx.email(message); HTTP modules use fetch and return ctx.complete(), ctx.retry(), or ctx.fail(). Recipients and SMTP credentials are controlled by the platform.</p>
 			</header>
 			<div className='flex flex-wrap items-center gap-3'>

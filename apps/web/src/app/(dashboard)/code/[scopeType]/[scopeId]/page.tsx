@@ -3,12 +3,11 @@
 import { LoadingState } from "@components/loading-state";
 import { useFeedbackToast } from "@lib/feedback";
 import { use, useEffect, useCallback, useState, useRef, type PointerEvent, type FormEvent } from "react";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { useDragAndDrop } from "react-aria-components";
 import { Button, Form, TextField, Label, Input, FieldError, Tabs, NumberField, Checkbox, Table, Modal, Select, ListBox } from "@heroui/react";
 import { ResourceEmptyState } from "@components/ui/resource-empty-state";
-import { IconCode, IconPlus, IconCopy, IconLock, IconArrowLeft, IconCheck, IconGripVertical, IconArrowUp, IconArrowDown, IconPencil, IconInfoCircle } from "@tabler/icons-react";
+import { IconCode, IconPlus, IconCopy, IconLock, IconCheck, IconGripVertical, IconArrowUp, IconArrowDown, IconPencil, IconInfoCircle } from "@tabler/icons-react";
 import { formatScript, formatScriptForDisplay, scriptDocument } from "@lib/script-document";
 import { useUnsavedChanges } from "@components/unsaved-changes";
 import { ScriptingGuide } from "@components/scripting-guide";
@@ -421,11 +420,6 @@ export default function CodePage({ params }: { params: Promise<{ scopeType: stri
 			{unsavedDialog}
 			<header className='flex flex-wrap items-start justify-between gap-4'>
 				<div>
-					<Link href={scopeType === "project" ? "/projects/" + scopeId : scopeType === "organization" ? "/organizations/" + scopeId : scopeType === "workspace" ? "/workspaces/" + scopeId : scopeType === "endpoint" && endpointScope ? "/projects/" + endpointScope.projectId + "/routes/" + scopeId : "/"} className='button button--secondary w-fit'>
-						<IconArrowLeft size={16} />
-						{scopeType === "project" ? "Back to project" : scopeType === "organization" ? "Back to organization" : scopeType === "workspace" ? "Back to workspace" : scopeType === "endpoint" ? "Back to ingress route" : "Back to overview"}
-					</Link>
-					<p className='text-muted text-sm'>{selectedScope?.name ?? endpointScope?.name ?? "Scope"}</p>
 					<h1 className='text-3xl font-semibold'>Code and middleware</h1>
 					<p className='text-muted mt-2'>Manage shared helpers and middleware.</p>
 				</div>

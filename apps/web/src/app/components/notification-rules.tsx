@@ -2,10 +2,9 @@
 
 import { LoadingState } from "@components/loading-state";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import Link from "next/link";
 import { Button, Card, Switch, Label, NumberField, FieldError, Modal, Select, ListBox } from "@heroui/react";
 import { ResourceEmptyState } from "@components/ui/resource-empty-state";
-import { IconBell, IconPlus, IconPencil, IconArrowLeft } from "@tabler/icons-react";
+import { IconBell, IconPlus, IconPencil } from "@tabler/icons-react";
 import { api } from "@lib/api-client";
 import { useFeedbackToast } from "@lib/feedback";
 import { useDashboard } from "@components/dashboard-shell";
@@ -128,11 +127,6 @@ export function NotificationRules({ projectId, workspaceId }: { projectId?: stri
 		<section className='flex flex-col gap-6'>
 			<header className='flex flex-wrap items-start justify-between gap-4'>
 				<div>
-					<Link className='button button--secondary w-fit' href={address}>
-						<IconArrowLeft size={16} />
-						Back to {projectId ? "project" : "workspace"}
-					</Link>
-					<p className='text-muted mt-4 text-sm'>{project.name}</p>
 					<h1 className='text-3xl font-semibold'>Failure notification rules</h1>
 					<p className='text-muted mt-2'>No default failure alerts. Thresholds count distinct managed operations, not repeated retry attempts. {workspaceId && "Workspace rules count across all projects in this workspace."}</p>
 				</div>

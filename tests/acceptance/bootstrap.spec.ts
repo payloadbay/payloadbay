@@ -358,7 +358,7 @@ test("route editor has nested navigation, a scripting guide, typed method handle
 	await page.setViewportSize({ width: 1440, height: 900 });
 	await expect(page.getByRole("link", { name: "Route events", exact: true })).toBeVisible();
 	await expect(page.getByRole("button", { name: "Toggle navigation" })).toBeVisible();
-	await page.getByRole("link", { name: "Back to project", exact: true }).click();
+	await page.getByRole("navigation", { name: "Breadcrumbs", exact: true }).getByRole("link", { name: "Playground", exact: true }).click();
 	await expect(page.getByRole("dialog", { name: "Discard unsaved changes?" })).toBeVisible();
 	await page.getByRole("button", { name: "Keep editing", exact: true }).click();
 	await expect(page.getByRole("grid", { name: "Secret inventory" })).toBeVisible();

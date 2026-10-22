@@ -4,7 +4,6 @@ import { use, useEffect, useState } from "react";
 import { Button, Label, Table, Select, ListBox } from "@heroui/react";
 
 import { LoadingState } from "@components/loading-state";
-import { useDashboard } from "@components/dashboard-shell";
 import { api } from "@lib/api-client";
 import { useFeedbackToast } from "@lib/feedback";
 import { usageMetrics, type UsageMetric, type UsageReport } from "@contracts/usage";
@@ -24,8 +23,6 @@ const metricLabels: Record<UsageMetric, string> = {
 export default function OrganizationUsagePage({ params }: { params: Promise<{ organizationId: string }> }) {
 	const { organizationId } = use(params);
 
-	const { organizations } = useDashboard();
-
 	const [hours, setHours] = useState("24");
 	const [attempt, setAttempt] = useState(0);
 	const [result, setResult] = useState<{ key: string; usage: UsageReport; policy: OrganizationPolicy } | null>(null);
@@ -34,7 +31,6 @@ export default function OrganizationUsagePage({ params }: { params: Promise<{ or
 	const requestKey = `${organizationId}:${hours}:${attempt}`;
 	const error = failure?.key === requestKey ? failure.message : "";
 	const data = result?.key === requestKey ? result : null;
-	const organization = organizations.find((item) => item.id === organizationId);
 
 	useFeedbackToast(error, "", { error: "Usage could not be loaded" });
 
@@ -59,7 +55,6 @@ export default function OrganizationUsagePage({ params }: { params: Promise<{ or
 	return (
 		<section className='flex flex-col gap-6'>
 			<header>
-				<p className='text-muted text-sm'>{organization?.name ?? "Organization"}</p>
 				<h1 className='text-3xl font-semibold'>Usage and limits</h1>
 				<p className='text-muted mt-2'>Operational counts for this organization. Retries count as attempts; a replay creates a new execution. Counts are stored locally.</p>
 			</header>
