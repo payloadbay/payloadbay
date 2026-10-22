@@ -40,7 +40,7 @@ stores it durably, routes it to the right destination, and makes delivery
 outcomes visible. Applications can then receive events through HTTP targets or
 outbound runners without exposing every destination directly to providers.
 
-## What Payload Bay does
+## Product direction
 
 - **Receive** webhooks through stable canonical URLs and custom aliases.
 - **Verify** provider signatures against the unchanged request body.
@@ -79,52 +79,43 @@ Donations and sponsorship are optional ways to support the project.
 
 ## Project status
 
-Payload Bay is in early development. This repository currently establishes the
-product workspace and does not yet contain an installable implementation.
+Payload Bay has an implemented, unreleased foundation, reviewed in [PR #13](https://github.com/payloadbay/payloadbay/pull/13).
+The dashboard and API support organization/workspace/project setup, passwordless
+sign-in, editable ingress/processing, helpers, middleware, secrets, publication,
+queued HTTP delivery, retries/replay, live inspection and opt-in notifications.
+Self-hosted usage is locally measured without default commercial quotas. Pull
+runners, payments and enterprise activation remain later work.
 
-The first work proves the self-hosted ingress, durable persistence, delivery,
-retry, and recovery path before public interfaces are stabilized.
+This is not a published operator release. Coverage, coordinated release images,
+clean operator installation, upgrade and backup/restore gates remain open. See
+[preflight](specs/001-releasable-alpha/preflight.md) for exact evidence rather than
+treating the product direction above as a list of shipped guarantees.
 
 ## Development workflow
 
-Core uses the shared [Payload Bay SpecKit setup](.github/speckit/README.md) with
-Python helpers, Codex skills and the TDD extension. The
-[project constitution](.specify/memory/constitution.md) records the current
-architecture and test-first delivery rules. Feature specifications, plans and
-tasks stay in this repository.
+Core uses the centrally distributed [Payload Bay SpecKit setup](.github/speckit/README.md)
+with Python helpers, Codex skills and the TDD extension. The
+[constitution](.specify/memory/constitution.md), feature specification, tasks and
+verification ledger remain project-owned. Shared presets arrive through Repository
+Baseline CI; local SpecKit initialization/refresh is a separate step.
 
-The shared preset arrives through Repository Baseline CI. Installing or refreshing
-it is a separate local SpecKit step. The product test runner and verified TDD
-profile are not established yet; those must be scoped and verified before the
-first behavioral implementation. This setup does not implement webhook delivery.
+The stack is Next.js/React on Node.js, public HeroUI with project-owned components, Better Auth, PostgreSQL/Drizzle,
+Graphile Worker and a separate workerd executor. Bun manages packages and unit
+feedback. Restricted Docker/runc is the default executor mode; optional runsc
+requires host setup and has not been attested on this installation.
 
-## Local backend development
+Use [development bootstrap](docs/deployment/bootstrap.md) for prerequisites and
+isolated test owners. `bun run web:dev` starts the web development server;
+`bun run test:file <registered-file>` and `bun run test:affected <changed-path>`
+provide scoped feedback. Static checks are `bun run typecheck`, `bun run lint`
+and `bun run format:check`. `bun run test:coverage` still fails its per-file gate;
+passing tests alone are not coverage certification. No Supabase tooling is needed.
 
-Payload Bay uses a project-local Supabase CLI and Docker-compatible container
-runtime for backend development. The committed `supabase/` directory contains
-non-secret local configuration, migrations, and Edge Function source. It is
-safe to inspect with Supabase Studio, but Studio is not the source of truth.
-
-```bash
-bun install
-bun run supabase:start
-bun run supabase:status
-```
-
-Reset the local database and apply committed migrations with:
-
-```bash
-bun run supabase:reset
-```
-
-Stop local services without deleting their data:
-
-```bash
-bun run supabase:stop
-```
-
-The local Supabase stack is for development only. Do not expose it to external
-traffic or use its default credentials for an installation.
+Published Docker images are the intended operator interface. Source-built
+[Coolify previews](docs/coolify-previews.md) already exercise the app, worker,
+executor and disposable database, but are not a production installation guide.
+Master CI generates release migrations; feature branches never generate them
+locally or substitute development schema push for a production upgrade.
 
 ## Contributing
 
@@ -145,24 +136,21 @@ search existing Issues and Discussions, and coordinate the intended outcome.
 
 ## Repository boundaries
 
-This is the canonical product repository. It is intended to contain the
-Supabase backend, dashboard, shared API contract, public SDK, and official
-integrations that ship as the Payload Bay product.
+This is the canonical product repository. Its implemented source boundaries are:
 
 ```text
-supabase/                  Backend schema, Edge Functions, queues, and Cron
-apps/dashboard/            Dashboard application
-packages/api-contract/     Versioned API and generated types
-packages/sdk-node/         Public Node.js SDK
-packages/integration-sdk/  Integration authoring contract
-packages/integrations/     Official provider integrations
+apps/web/                  Integrated dashboard and HTTP API
+apps/worker/               Trusted background job processing
+apps/executor/             Bounded TypeScript compilation and workerd execution
+packages/contracts/        Public Zod/OpenAPI and internal typed contracts
+packages/domain/           Authorization, persistence, queue and delivery services
+packages/script-sdk/       Configured script lifecycle types
 deploy/                    Self-hosting and deployment material
 scripts/                   Product build and release tooling
 ```
 
-The Payload Bay Runner is intentionally a separate repository. It is a CLI and
-native-binary product with independent releases and a tested compatibility
-relationship to Payload Bay server releases.
+The future pulling Runner remains a separate repository and release boundary;
+this version does not ship that product or claim tested server compatibility.
 
 ## Related resources
 

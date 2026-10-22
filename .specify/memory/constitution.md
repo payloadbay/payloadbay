@@ -12,19 +12,24 @@ proposed behavior distinct from implemented code and experiment evidence.
 
 ### II. Durable, Honest Delivery
 
-The intended first flow is Provider → Ingress Edge Function → ingest_event RPC →
-PostgreSQL and PGMQ → worker wake-up → Delivery Worker → HTTP target → attempt
-result. Persist the event and its durable delivery work before acknowledging the
+The intended flow is Provider → bounded ingress handling → atomic PostgreSQL
+event and job commit → Graphile Worker → isolated processing code → HTTP target
+→ recorded attempt result. Persist the event and its durable delivery work before acknowledging the
 provider. Preserve original request bytes for verification and delivery. Promise
 at-least-once delivery; receivers remain responsible for duplicate handling.
 Test rejection, crash, retry and recovery behavior as well as successful delivery.
 
 ### III. Authorization and Backend Ownership
 
-Supabase remains the backend foundation: PostgreSQL owns domain data, migrations,
-RLS and atomic business commands; Edge Functions and shared TypeScript own
-verification and delivery logic. Keep service-role credentials out of dashboard,
-SDK and Runner clients. Public API contracts must not accidentally expose internal
+The approved foundation is an integrated Next.js/Node.js application, PostgreSQL,
+Graphile Worker and Better Auth. Domain commands and authorization are shared
+server-only services. Auth libraries do not automatically isolate domain data. Instance admission,
+organization/workspace ownership and project roles are distinct; role grants inherit down
+instance → organization → workspace → project. Enforce resource-scoped
+authorization across API, live streams and future MCP.
+User-authored code requires a validated executor boundary without application
+Docker socket access. Keep privileged credentials out of browsers and scripts.
+Public API contracts must not accidentally expose internal
 table layout. Preserve append-only applied migration history. Propose architecture
 changes explicitly before substituting another backend or infrastructure layer.
 
@@ -60,7 +65,7 @@ owns its constitution, specs, plans, tasks, verified test commands and graph sta
 ## Engineering Constraints
 
 - Use Bun workspaces and the existing lockfile for product dependencies/scripts.
-- Keep backend work under `supabase/`; add dashboard and package directories when
+- Keep application, worker and shared package directories separate; add them when
   their implementation begins. Do not create empty future architecture scaffolds.
 - Runner remains separately released; moving it requires an explicit decision.
 - Keep secrets, private payloads, local environments and machine state out of Git.
@@ -88,4 +93,10 @@ principles; minor versions add obligations; patch versions clarify wording.
 Every review checks compliance. Exceptions state scope, reason and compensating
 evidence. Refreshing a shared preset does not itself amend this constitution.
 
-**Version**: 1.0.0 | **Ratified**: 2026-10-13 | **Last Amended**: 2026-10-13
+**Version**: 2.3.0 | **Ratified**: 2026-10-13 | **Last Amended**: 2026-10-16
+
+Amendment 2.3.0: the maintainer confirmed Organization above Workspace on
+2026-10-16 so a company can own multiple workspaces. Authorization inheritance
+now includes that scope; existing scoped grants must not be promoted during
+implementation. This records the approved foundation requirement, not a claim
+that the current runtime implements it.

@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width,initial-scale=1" />
+		<title>Payload Bay / Component review</title>
+		<style>
+			@font-face {
+				font-family: Inter;
+				src: url("./files/inter-latin-wght-normal.woff2");
+			}
+			* {
+				box-sizing: border-box;
+			}
+			body {
+				margin: 0;
+				background: #03060d;
+				color: #fcfcfc;
+				font:
+					15px Inter,
+					system-ui,
+					sans-serif;
+			}
+			header {
+				padding: 24px 28px;
+				border-bottom: 1px solid #232933;
+				background: #0c192a;
+			}
+			h1 {
+				font-size: 25px;
+				letter-spacing: -0.6px;
+				margin: 8px 0;
+			}
+			p {
+				color: #91a1b9;
+				line-height: 1.6;
+				margin: 8px 0;
+			}
+			.eyebrow {
+				color: #5e98e9;
+				font-size: 12px;
+				letter-spacing: 0.1em;
+				text-transform: uppercase;
+			}
+			.columns {
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				height: calc(100dvh - 170px);
+			}
+			section {
+				min-width: 0;
+				display: flex;
+				flex-direction: column;
+			}
+			section + section {
+				border-left: 1px solid #232933;
+			}
+			h2 {
+				font-size: 14px;
+				font-weight: 600;
+				margin: 0;
+				padding: 15px 24px;
+				background: #0c192a;
+				border-bottom: 1px solid #232933;
+			}
+			h2 a {
+				display: inline-block;
+				margin-top: 6px;
+				color: #5e98e9;
+				font-size: 12px;
+			}
+			h2 span {
+				font-weight: 400;
+				color: #91a1b9;
+				margin-left: 8px;
+			}
+			iframe {
+				width: 100%;
+				height: 100%;
+				border: 0;
+				flex: 1;
+				min-height: 0;
+			}
+			.switch {
+				display: none;
+				gap: 8px;
+				margin-top: 16px;
+			}
+			button {
+				font: inherit;
+				color: inherit;
+				border: 1px solid #394453;
+				background: #1a2432;
+				padding: 9px 14px;
+				border-radius: 12px;
+				cursor: pointer;
+			}
+			button[aria-pressed="true"] {
+				background: #156fde;
+				border-color: #156fde;
+			}
+			@media (max-width: 760px) {
+				header {
+					padding: 16px;
+				}
+				.columns {
+					grid-template-columns: 1fr;
+					height: calc(100dvh - 236px);
+				}
+				h1 {
+					font-size: 22px;
+				}
+				.switch {
+					display: flex;
+				}
+				.columns section {
+					display: none;
+				}
+				.columns section.visible {
+					display: flex;
+				}
+				section + section {
+					border-left: 0;
+				}
+				h2 {
+					padding: 12px 16px;
+				}
+				h2 a {
+					display: inline-block;
+					margin-top: 6px;
+					color: #5e98e9;
+					font-size: 12px;
+				}
+				h2 span {
+					display: block;
+					margin: 4px 0 0;
+				}
+			}
+
+			body {
+				height: 100dvh;
+				display: flex;
+				flex-direction: column;
+				overflow: hidden;
+			}
+			header {
+				flex-shrink: 0;
+			}
+			.preview-tools {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 12px;
+				margin-top: 14px;
+			}
+			.preview-tools [role="group"] {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 6px;
+			}
+			.preview-tools button {
+				padding: 7px 10px;
+				font-size: 12px;
+			}
+			.columns {
+				flex: 1;
+				height: auto;
+				min-height: 0;
+			}
+			.frame-viewport {
+				position: relative;
+				flex: 1;
+				min-height: 0;
+				min-width: 0;
+				overflow: hidden;
+				background: #080d14;
+			}
+			.frame-viewport iframe {
+				position: absolute;
+				transform-origin: top left;
+				flex: none;
+				border: 0;
+				max-width: none;
+			}
+			@media (max-width: 760px) {
+				header {
+					padding: 12px;
+				}
+				header p {
+					display: none;
+				}
+				.columns {
+					height: auto;
+				}
+				.switch {
+					margin-top: 10px;
+				}
+				h2 {
+					padding: 8px 12px;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<header>
+			<div class="eyebrow">Payload Bay · design review · component library</div>
+			<h1>Same design language. Open components.</h1>
+			<p>Compare the existing replacements or browse all 52 selected components. Desktop and mobile previews use the same selection. Production screens are unchanged.</p>
+			<div class="preview-tools" role="toolbar" aria-label="Preview controls">
+				<div role="group" aria-label="Viewport"><button data-viewport="fit" aria-pressed="true">Fit</button><button data-viewport="desktop" aria-pressed="false">Desktop 1024 × 768</button><button data-viewport="mobile" aria-pressed="false">Mobile 390 × 844</button></div>
+				<div role="group" aria-label="Screen"><button data-screen="components" aria-pressed="false">Components</button><button data-screen="navigation" aria-pressed="false">Full navigation layout</button><button data-screen="catalog" aria-pressed="true">Component library · 52</button></div>
+			</div>
+			<label style="display: flex; align-items: center; gap: 12px; margin-top: 12px"
+				>Component
+				<select id="catalog-component" aria-label="Component" style="padding: 8px 12px; border: 1px solid #344357; border-radius: 10px; background: #1c2938; color: #fcfcfc">
+					<option value="all">All components · synchronized scrolling</option>
+					<!-- catalog-options -->
+				</select></label
+			>
+			<div class="switch"><button aria-pressed="false" data-side="pro">HeroUI Pro</button><button aria-pressed="true" data-side="replacement">Replacement</button></div>
+		</header>
+		<div class="columns">
+			<section id="pro">
+				<h2>HeroUI Pro <span>Existing licensed components</span> <a href="./pro.html?navigation" target="_blank" rel="noopener">Open full layout ↗</a></h2>
+				<div class="frame-viewport"><iframe title="HeroUI Pro reference" src="./catalog-pro.html?component=all"></iframe></div>
+			</section>
+			<section id="replacement" class="visible">
+				<h2>Proposed replacement <span>Public HeroUI + Recharts</span> <a href="./replacement.html?navigation" target="_blank" rel="noopener">Open full layout ↗</a></h2>
+				<div class="frame-viewport"><iframe title="Independent replacement" src="./catalog.html?component=all"></iframe></div>
+			</section>
+		</div>
+		<script>
+			let viewport = "fit";
+			let screen = "catalog";
+			const picker = document.getElementById("catalog-component");
+			function loadFrames() {
+				document.querySelectorAll("iframe").forEach((frame, index) => {
+					const file = screen === "catalog" ? (index === 0 ? "catalog-pro" : "catalog") : index === 0 ? "pro" : "replacement";
+					frame.src = "./" + file + ".html?" + new URLSearchParams(screen === "catalog" ? { component: picker.value } : { ...options, ...(screen === "navigation" ? { navigation: "" } : {}) });
+				});
+			}
+			picker.onchange = () => {
+				screen = "catalog";
+				document.querySelectorAll("[data-screen]").forEach((item) => item.setAttribute("aria-pressed", String(item.dataset.screen === screen)));
+				loadFrames();
+			};
+			let options = {};
+			window.addEventListener("message", (event) => {
+				const frames = [...document.querySelectorAll("iframe")];
+				if (event.origin === location.origin && ["catalog-scroll", "catalog-variant"].includes(event.data?.type) && frames.some((frame) => frame.contentWindow === event.source)) {
+					frames.forEach((frame) => {
+						if (frame.contentWindow !== event.source) frame.contentWindow.postMessage(event.data, location.origin);
+					});
+					return;
+				}
+				if (event.origin !== location.origin || event.data?.type !== "review-options" || !frames.some((frame) => frame.contentWindow === event.source)) return;
+				if (JSON.stringify(options) === JSON.stringify(event.data.options)) return;
+				options = event.data.options;
+				frames.forEach((frame) => {
+					if (frame.contentWindow !== event.source) frame.contentWindow.postMessage({ type: "review-options", options }, location.origin);
+				});
+				document.querySelectorAll("h2 a").forEach((link) => {
+					const url = new URL(link.href);
+					Object.entries(options).forEach(([key, value]) => url.searchParams.set(key, value));
+					link.href = url;
+				});
+			});
+			const presets = { desktop: [1024, 768], mobile: [390, 844] };
+			const hosts = [...document.querySelectorAll(".frame-viewport")];
+			function resizePreviews() {
+				for (const host of hosts) {
+					if (!host.clientWidth || !host.clientHeight) continue;
+					const frame = host.querySelector("iframe");
+					const [width, height] = presets[viewport] || [host.clientWidth, host.clientHeight];
+					const scale = Math.min(1, host.clientWidth / width, host.clientHeight / height);
+					Object.assign(frame.style, { width: width + "px", height: height + "px", transform: "scale(" + scale + ")", left: (host.clientWidth - width * scale) / 2 + "px", top: (host.clientHeight - height * scale) / 2 + "px" });
+				}
+			}
+			function select(group, button) {
+				document.querySelectorAll(group).forEach((item) => item.setAttribute("aria-pressed", String(item === button)));
+			}
+			document.querySelectorAll("[data-viewport]").forEach(
+				(button) =>
+					(button.onclick = () => {
+						viewport = button.dataset.viewport;
+						select("[data-viewport]", button);
+						resizePreviews();
+					}),
+			);
+			document.querySelectorAll("[data-screen]").forEach(
+				(button) =>
+					(button.onclick = () => {
+						select("[data-screen]", button);
+						screen = button.dataset.screen;
+						loadFrames();
+					}),
+			);
+			document.querySelectorAll("[data-side]").forEach(
+				(button) =>
+					(button.onclick = () => {
+						select("[data-side]", button);
+						document.querySelectorAll(".columns section").forEach((section) => section.classList.toggle("visible", section.id === button.dataset.side));
+						resizePreviews();
+					}),
+			);
+			const observer = new ResizeObserver(resizePreviews);
+			hosts.forEach((host) => observer.observe(host));
+			resizePreviews();
+		</script>
+	</body>
+</html>
