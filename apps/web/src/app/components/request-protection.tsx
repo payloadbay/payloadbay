@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Button, Card, Chip, Dropdown, FieldError, Input, Label, ListBox, Modal, Switch, Table, TextArea, TextField } from "@heroui/react";
-import { IconArrowDown, IconArrowUp, IconArrowUpRight, IconFlask, IconGripVertical, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { Button, Chip, Dropdown, FieldError, Input, Label, ListBox, Modal, Switch, Table, TextArea, TextField } from "@heroui/react";
+import { IconShield, IconFilter, IconGauge, IconArrowDown, IconArrowUp, IconArrowUpRight, IconFlask, IconGripVertical, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { api } from "@lib/api-client";
 import { useFeedbackToast } from "@lib/feedback";
 import { useUnsavedChanges } from "@components/unsaved-changes";
+import { AppSection } from "@components/ui/app-section";
 import { LoadingState } from "@components/loading-state";
 import { ConditionBuilder, RuleNumber, RuleSelect } from "@components/request-condition-builder";
 import { useTableReorder } from "@components/ui/use-table-reorder";
@@ -216,51 +217,48 @@ export function RequestProtection({ scope }: { scope: ProtectionScope }) {
 				</Button>
 			</header>
 			{saved.inherited.length > 0 && (
-				<Card>
-					<Card.Header>
-						<Card.Title>Inherited protection</Card.Title>
-					</Card.Header>
-					<Card.Content className='space-y-4'>
-						{saved.inherited.map((parent) => (
-							<section key={parent.scope.type + parent.scope.id} className='space-y-2 rounded-xl border border-separator p-3'>
-								<div className='flex flex-wrap items-center justify-between gap-2'>
-									<p className='font-medium'>
-										{scopeLabels[parent.scope.type]}: {parent.name}
-									</p>
-									{parent.editable && (
-										<Link className='button button--ghost button--sm' href={"/" + plural[parent.scope.type] + "/" + parent.scope.id + "/protection"} aria-label={"Open " + parent.name + " protection"}>
-											<IconArrowUpRight size={16} />
-											Edit at source
-										</Link>
-									)}
-								</div>
-								<div className='flex flex-wrap gap-2'>
-									{parent.rules.map((item) => (
-										<Chip key={item.id} size='sm' color={!parent.enabled || !item.enabled ? "default" : item.action === "block" ? "danger" : "accent"} variant='soft'>
-											{item.name}
-											{!parent.enabled || !item.enabled ? " (disabled)" : ""}
-										</Chip>
-									))}
-									{parent.rateLimits.map((item) => (
-										<Chip key={item.id} size='sm' color={item.enabled ? "warning" : "default"} variant='soft'>
-											{item.name}
-											{!item.enabled ? " (disabled)" : ""}
-										</Chip>
-									))}
-									{parent.enabled && parent.defaultAction === "block" && (
-										<Chip size='sm' color='danger' variant='soft'>
-											Block unmatched requests
-										</Chip>
-									)}
-								</div>
-							</section>
-						))}
-					</Card.Content>
-				</Card>
+				<AppSection icon={<IconShield size={20} />} title='Inherited protection' description='Review rules applied by parent resources.'>
+					{saved.inherited.map((parent) => (
+						<section key={parent.scope.type + parent.scope.id} className='space-y-2 rounded-xl border border-separator p-3'>
+							<div className='flex flex-wrap items-center justify-between gap-2'>
+								<p className='font-medium'>
+									{scopeLabels[parent.scope.type]}: {parent.name}
+								</p>
+								{parent.editable && (
+									<Link className='button button--ghost button--sm' href={"/" + plural[parent.scope.type] + "/" + parent.scope.id + "/protection"} aria-label={"Open " + parent.name + " protection"}>
+										<IconArrowUpRight size={16} />
+										Edit at source
+									</Link>
+								)}
+							</div>
+							<div className='flex flex-wrap gap-2'>
+								{parent.rules.map((item) => (
+									<Chip key={item.id} size='sm' color={!parent.enabled || !item.enabled ? "default" : item.action === "block" ? "danger" : "accent"} variant='soft'>
+										{item.name}
+										{!parent.enabled || !item.enabled ? " (disabled)" : ""}
+									</Chip>
+								))}
+								{parent.rateLimits.map((item) => (
+									<Chip key={item.id} size='sm' color={item.enabled ? "warning" : "default"} variant='soft'>
+										{item.name}
+										{!item.enabled ? " (disabled)" : ""}
+									</Chip>
+								))}
+								{parent.enabled && parent.defaultAction === "block" && (
+									<Chip size='sm' color='danger' variant='soft'>
+										Block unmatched requests
+									</Chip>
+								)}
+							</div>
+						</section>
+					))}
+				</AppSection>
 			)}
-			<Card>
-				<Card.Header className='flex flex-row flex-wrap items-center justify-between gap-3'>
-					<Card.Title>Request filters</Card.Title>
+			<AppSection
+				icon={<IconFilter size={20} />}
+				title='Request filters'
+				description='Choose which requests this resource accepts or blocks.'
+				actions={
 					<Dropdown>
 						<Button variant='secondary' isDisabled={policy.rules.length >= 100 || busy}>
 							<IconPlus size={16} />
@@ -277,42 +275,42 @@ export function RequestProtection({ scope }: { scope: ProtectionScope }) {
 							</Dropdown.Menu>
 						</Dropdown.Popover>
 					</Dropdown>
-				</Card.Header>
-				<Card.Content className='space-y-4'>
-					<Switch isSelected={policy.enabled} onChange={(enabled) => setPolicy((current) => ({ ...current, enabled }))}>
-						<Switch.Content>
-							<Label>Enable request filters</Label>
-							<Switch.Control>
-								<Switch.Thumb />
-							</Switch.Control>
-						</Switch.Content>
-					</Switch>
-					{policy.enabled && (
-						<RuleSelect
-							label='When no rule matches'
-							value={policy.defaultAction}
-							items={[
-								{ key: "allow", label: "Continue to the next protection checks" },
-								{ key: "block", label: "Block the request" },
-							]}
-							onChange={(value) => setPolicy((current) => ({ ...current, defaultAction: value === "block" ? "block" : "allow" }))}
-						/>
-					)}
-					<ProtectionRuleTable kind='filter' items={policy.rules} disabled={busy} onChange={(rules) => setPolicy((current) => ({ ...current, rules }))} onEdit={openRule} onToggle={(id, enabled) => setPolicy((current) => ({ ...current, rules: current.rules.map((item) => (item.id === id ? { ...item, enabled } : item)) }))} onDelete={(id) => setPolicy((current) => ({ ...current, rules: current.rules.filter((item) => item.id !== id) }))} />
-				</Card.Content>
-			</Card>
-			<Card>
-				<Card.Header className='flex flex-row flex-wrap items-center justify-between gap-3'>
-					<Card.Title>Rate limits</Card.Title>
+				}
+			>
+				<Switch isSelected={policy.enabled} onChange={(enabled) => setPolicy((current) => ({ ...current, enabled }))}>
+					<Switch.Content>
+						<Label>Enable request filters</Label>
+						<Switch.Control>
+							<Switch.Thumb />
+						</Switch.Control>
+					</Switch.Content>
+				</Switch>
+				{policy.enabled && (
+					<RuleSelect
+						label='When no rule matches'
+						value={policy.defaultAction}
+						items={[
+							{ key: "allow", label: "Continue to the next protection checks" },
+							{ key: "block", label: "Block the request" },
+						]}
+						onChange={(value) => setPolicy((current) => ({ ...current, defaultAction: value === "block" ? "block" : "allow" }))}
+					/>
+				)}
+				<ProtectionRuleTable kind='filter' items={policy.rules} disabled={busy} onChange={(rules) => setPolicy((current) => ({ ...current, rules }))} onEdit={openRule} onToggle={(id, enabled) => setPolicy((current) => ({ ...current, rules: current.rules.map((item) => (item.id === id ? { ...item, enabled } : item)) }))} onDelete={(id) => setPolicy((current) => ({ ...current, rules: current.rules.filter((item) => item.id !== id) }))} />
+			</AppSection>
+			<AppSection
+				icon={<IconGauge size={20} />}
+				title='Rate limits'
+				description='Control how many requests a sender can make.'
+				actions={
 					<Button variant='secondary' isDisabled={policy.rateLimits.length >= 10 || busy} onPress={() => openRate()}>
 						<IconPlus size={16} />
 						Add rate limit
 					</Button>
-				</Card.Header>
-				<Card.Content>
-					<ProtectionRuleTable kind='rate' items={policy.rateLimits} disabled={busy} onChange={(rateLimits) => setPolicy((current) => ({ ...current, rateLimits }))} onEdit={openRate} onToggle={(id, enabled) => setPolicy((current) => ({ ...current, rateLimits: current.rateLimits.map((item) => (item.id === id ? { ...item, enabled } : item)) }))} onDelete={(id) => setPolicy((current) => ({ ...current, rateLimits: current.rateLimits.filter((item) => item.id !== id) }))} />
-				</Card.Content>
-			</Card>
+				}
+			>
+				<ProtectionRuleTable kind='rate' items={policy.rateLimits} disabled={busy} onChange={(rateLimits) => setPolicy((current) => ({ ...current, rateLimits }))} onEdit={openRate} onToggle={(id, enabled) => setPolicy((current) => ({ ...current, rateLimits: current.rateLimits.map((item) => (item.id === id ? { ...item, enabled } : item)) }))} onDelete={(id) => setPolicy((current) => ({ ...current, rateLimits: current.rateLimits.filter((item) => item.id !== id) }))} />
+			</AppSection>
 			<div className='flex justify-center sm:justify-end'>
 				<Button isDisabled={busy || !dirty || !ingressPolicy.safeParse(policy).success} onPress={() => void save()}>
 					Save request protection

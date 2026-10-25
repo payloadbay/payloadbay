@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { AppSection } from "@components/ui/app-section";
 import { LoadingState } from "@components/loading-state";
 import { useState, useEffect, useCallback, type FormEvent } from "react";
-import { Button, Card, FieldError, Form, Input, Label, TextField, Table } from "@heroui/react";
+import { Button, FieldError, Form, Input, Label, TextField, Table } from "@heroui/react";
 import { authClient } from "@lib/auth-client";
-import { IconFingerprint, IconTrash } from "@tabler/icons-react";
+import { IconFingerprint, IconTrash, IconUser } from "@tabler/icons-react";
 import { useDashboard } from "@components/dashboard-shell";
 import { useFeedbackToast } from "@lib/feedback";
 
@@ -111,96 +112,85 @@ export default function AccountPage() {
 			<Link href='/account/api-keys' className='text-accent w-fit font-medium'>
 				Manage personal API keys
 			</Link>
-			<Card>
-				<Card.Content>
-					<Form onSubmit={save} className='flex flex-col gap-5'>
-						<TextField name='name' value={name} onChange={setName} isRequired maxLength={100} isDisabled={busy}>
-							<Label>Display name</Label>
-							<Input variant='secondary' autoComplete='name' />
-							<FieldError />
-						</TextField>
-						<TextField name='email' type='email' value={me.user.email} isReadOnly>
-							<Label>Email address</Label>
-							<Input variant='secondary' autoComplete='email' />
-						</TextField>
-						<p className='text-muted text-sm'>Sign in with a one-time email code. Email changes are not available.</p>
-						<Button type='submit' className='self-start' isPending={busy} isDisabled={busy || !name.trim() || name.trim() === me.user.name}>
-							Save changes
-						</Button>
-					</Form>
-				</Card.Content>
-			</Card>
-			<Card>
-				<Card.Header>
-					<h2 className='flex items-center gap-2 text-xl font-semibold'>
-						<IconFingerprint size={20} />
-						Security and passkeys
-					</h2>
-					<Card.Description>Sign in with your device or security key. Email codes remain available for recovery.</Card.Description>
-				</Card.Header>
-				<Card.Content className='flex flex-col gap-4'>
-					{loadingKeys ? (
-						<LoadingState label='Loading passkeys…' />
-					) : keysUnavailable ? (
-						<div>
-							<p className='text-muted text-sm'>Passkeys could not be loaded.</p>
-							<Button
-								variant='secondary'
-								onPress={() => {
-									setLoadingKeys(true);
-									loadPasskeys()
-										.then(
-											(keys) => {
-												setPasskeys(keys);
-												setKeysUnavailable(false);
-											},
-											(cause) => setError(cause.message),
-										)
-										.finally(() => setLoadingKeys(false));
-								}}
-							>
-								Retry loading passkeys
-							</Button>
-						</div>
-					) : passkeys.length ? (
-						<Table>
-							<Table.ScrollContainer>
-								<Table.Content aria-label='Your passkeys'>
-									<Table.Header>
-										<Table.Column isRowHeader>Passkey</Table.Column>
-										<Table.Column aria-label='Actions' />
-									</Table.Header>
-									<Table.Body>
-										{passkeys.map((key) => (
-											<Table.Row key={key.id} id={key.id}>
-												<Table.Cell>
-													{key.name || "Unnamed passkey"}
-													<p className='text-muted text-xs'>{key.createdAt ? new Date(key.createdAt).toLocaleDateString() : ""}</p>
-												</Table.Cell>
-												<Table.Cell className='text-right [&>div]:justify-end'>
-													<Button isIconOnly size='sm' variant='ghost' aria-label={"Remove passkey " + (key.name || "Unnamed passkey")} isDisabled={busy || (Boolean(me.passkeyRequired) && passkeys.length <= 1)} onPress={() => void removePasskey(key.id)}>
-														<IconTrash size={18} />
-													</Button>
-												</Table.Cell>
-											</Table.Row>
-										))}
-									</Table.Body>
-								</Table.Content>
-							</Table.ScrollContainer>
-						</Table>
-					) : (
-						<p className='text-muted text-sm'>No passkeys registered yet.</p>
-					)}
-					<TextField value={passkeyName} onChange={setPasskeyName} maxLength={100}>
-						<Label>Passkey name</Label>
-						<Input variant='secondary' />
+			<AppSection icon={<IconUser size={20} />} title='Profile' description='Manage your display name and account details.'>
+				<Form onSubmit={save} className='flex flex-col gap-5'>
+					<TextField name='name' value={name} onChange={setName} isRequired maxLength={100} isDisabled={busy}>
+						<Label>Display name</Label>
+						<Input variant='secondary' autoComplete='name' />
+						<FieldError />
 					</TextField>
-					<Button className='self-center sm:self-start' variant='secondary' onPress={() => void addPasskey()} isDisabled={busy || loadingKeys}>
-						<IconFingerprint size={18} />
-						Add passkey
+					<TextField name='email' type='email' value={me.user.email} isReadOnly>
+						<Label>Email address</Label>
+						<Input variant='secondary' autoComplete='email' />
+					</TextField>
+					<p className='text-muted text-sm'>Sign in with a one-time email code. Email changes are not available.</p>
+					<Button type='submit' className='self-start' isPending={busy} isDisabled={busy || !name.trim() || name.trim() === me.user.name}>
+						Save changes
 					</Button>
-				</Card.Content>
-			</Card>
+				</Form>
+			</AppSection>
+			<AppSection icon={<IconFingerprint size={20} />} title='Security and passkeys' description='Sign in with your device or security key. Email codes remain available for recovery.'>
+				{loadingKeys ? (
+					<LoadingState label='Loading passkeys…' />
+				) : keysUnavailable ? (
+					<div>
+						<p className='text-muted text-sm'>Passkeys could not be loaded.</p>
+						<Button
+							variant='secondary'
+							onPress={() => {
+								setLoadingKeys(true);
+								loadPasskeys()
+									.then(
+										(keys) => {
+											setPasskeys(keys);
+											setKeysUnavailable(false);
+										},
+										(cause) => setError(cause.message),
+									)
+									.finally(() => setLoadingKeys(false));
+							}}
+						>
+							Retry loading passkeys
+						</Button>
+					</div>
+				) : passkeys.length ? (
+					<Table>
+						<Table.ScrollContainer>
+							<Table.Content aria-label='Your passkeys'>
+								<Table.Header>
+									<Table.Column isRowHeader>Passkey</Table.Column>
+									<Table.Column aria-label='Actions' />
+								</Table.Header>
+								<Table.Body>
+									{passkeys.map((key) => (
+										<Table.Row key={key.id} id={key.id}>
+											<Table.Cell>
+												{key.name || "Unnamed passkey"}
+												<p className='text-muted text-xs'>{key.createdAt ? new Date(key.createdAt).toLocaleDateString() : ""}</p>
+											</Table.Cell>
+											<Table.Cell className='text-right [&>div]:justify-end'>
+												<Button isIconOnly size='sm' variant='ghost' aria-label={"Remove passkey " + (key.name || "Unnamed passkey")} isDisabled={busy || (Boolean(me.passkeyRequired) && passkeys.length <= 1)} onPress={() => void removePasskey(key.id)}>
+													<IconTrash size={18} />
+												</Button>
+											</Table.Cell>
+										</Table.Row>
+									))}
+								</Table.Body>
+							</Table.Content>
+						</Table.ScrollContainer>
+					</Table>
+				) : (
+					<p className='text-muted text-sm'>No passkeys registered yet.</p>
+				)}
+				<TextField value={passkeyName} onChange={setPasskeyName} maxLength={100}>
+					<Label>Passkey name</Label>
+					<Input variant='secondary' />
+				</TextField>
+				<Button className='self-center sm:self-start' variant='secondary' onPress={() => void addPasskey()} isDisabled={busy || loadingKeys}>
+					<IconFingerprint size={18} />
+					Add passkey
+				</Button>
+			</AppSection>
 		</section>
 	);
 }

@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { AppSection } from "@components/ui/app-section";
 import { IconKey } from "@tabler/icons-react";
 import { use, useEffect, useState } from "react";
-import { Button, Card, Switch, Label, Description } from "@heroui/react";
+import { Button, Switch, Label, Description } from "@heroui/react";
 import { api } from "@lib/api-client";
 import { useFeedbackToast } from "@lib/feedback";
 import { LoadingState } from "@components/loading-state";
@@ -86,32 +87,31 @@ export default function OrganizationSecurityPage({ params }: { params: Promise<{
 					<LoadingState label='Loading security policy' />
 				)
 			) : (
-				<Card className='max-w-2xl'>
-					<Card.Header className='flex-row items-center gap-3'>
-						<IconKey size={22} className='text-accent shrink-0' aria-hidden='true' />
-						<Card.Title>Passkeys</Card.Title>
-					</Card.Header>
-					<Card.Content>
-						<Switch className='w-full' isSelected={enabled} onChange={setEnabled} isDisabled={busy}>
-							<Switch.Content className='w-full justify-between gap-4'>
-								<Label className='text-left'>Require a registered passkey</Label>
-								<Switch.Control className='shrink-0'>
-									<Switch.Thumb />
-								</Switch.Control>
-							</Switch.Content>
-							<Description className='mt-1 ps-0'>Members need a passkey on their account to access this organization.</Description>
-						</Switch>
-						<p className='text-muted mt-4 text-sm'>Email-code sign-in stays available. This policy requires enrollment, not an extra sign-in step.</p>
-						<Link href='/account' className='button button--secondary button--sm mt-3'>
-							Manage your passkeys
-						</Link>
-					</Card.Content>
-					<Card.Footer className='border-border justify-end border-t pt-4'>
+				<AppSection
+					className='max-w-2xl'
+					icon={<IconKey size={20} />}
+					title='Passkeys'
+					description='Set passkey requirements for members of this organization.'
+					footer={
 						<Button className='w-full sm:w-auto' isPending={busy} isDisabled={busy || enabled === policy.requirePasskey} onPress={() => void save()}>
 							Save security policy
 						</Button>
-					</Card.Footer>
-				</Card>
+					}
+				>
+					<Switch className='w-full' isSelected={enabled} onChange={setEnabled} isDisabled={busy}>
+						<Switch.Content className='w-full justify-between gap-4'>
+							<Label className='text-left'>Require a registered passkey</Label>
+							<Switch.Control className='shrink-0'>
+								<Switch.Thumb />
+							</Switch.Control>
+						</Switch.Content>
+						<Description className='mt-1 ps-0'>Members need a passkey on their account to access this organization.</Description>
+					</Switch>
+					<p className='text-muted mt-4 text-sm'>Email-code sign-in stays available. This policy requires enrollment, not an extra sign-in step.</p>
+					<Link href='/account' className='button button--secondary button--sm mt-3'>
+						Manage your passkeys
+					</Link>
+				</AppSection>
 			)}
 		</section>
 	);

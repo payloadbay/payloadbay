@@ -232,3 +232,13 @@ Keep resource identity and state separate from actions. Place actions with their
 related controls, not beside status labels whose size and purpose differ. Format
 human-facing dates and chart labels from full timestamps using the viewer's
 locale and timezone; keep machine-facing timestamps unambiguous.
+
+## Settings section composition
+
+Equivalent settings cards use the shared AppSection composition: a consistently
+sized leading icon, title and concise description, followed by the settings
+content. Require that complete header pattern rather than making each part
+independently optional. Keep section actions and footer actions in their shared
+slots. This rule applies to settings sections, not every metric card, table or
+editor surface. Reuse the existing dashboard shell; presentation consistency
+alone does not require new route layouts or a navigation rewrite.

@@ -1281,6 +1281,7 @@ test("FT06c organization code and members retain their own scope", async ({ page
 	for (const width of [390, 1440]) {
 		await page.setViewportSize({ width, height: 900 });
 		for (const [path, title] of [
+			["/account", "Account settings"],
 			["/code/organization/" + organizationId, "Code and middleware"],
 			["/organizations/" + organizationId + "/members", "Organization members"],
 			["/organizations/" + organizationId + "/security", "Organization security"],
@@ -1293,6 +1294,27 @@ test("FT06c organization code and members retain their own scope", async ({ page
 			await expect(heading).toBeVisible();
 			const header = heading.locator("..");
 			await expect(header.locator(":scope > :first-child")).toHaveText(title);
+			if (["Account settings", "Organization security", "Request protection"].includes(title)) {
+				await expect(page.locator("[data-app-section]").first()).toBeVisible();
+				if (title === "Account settings") await expect(page.locator("[data-app-section]")).toHaveCount(2);
+				for (const section of await page.locator("[data-app-section]").all()) {
+					const sectionHeader = section.locator('[data-slot="app-section-header"]');
+					await expect(sectionHeader.getByRole("heading", { level: 2 })).toBeVisible();
+					await expect(sectionHeader.locator('[data-slot="app-section-icon"] > svg')).toHaveCSS("width", "20px");
+					expect((await sectionHeader.locator('[data-slot="app-section-description"]').innerText()).trim().length).toBeGreaterThan(0);
+					const aligned = await sectionHeader.evaluate((element) => {
+						const icon = element.querySelector('[data-slot="app-section-icon"]')!.getBoundingClientRect();
+						const heading = element.querySelector("h2")!.getBoundingClientRect();
+						const description = element.querySelector('[data-slot="app-section-description"]')!.getBoundingClientRect();
+
+						return icon.right < heading.x && Math.abs(icon.y - heading.y) < 2 && Math.abs(heading.x - description.x) < 1;
+					});
+					expect(aligned).toBe(true);
+				}
+
+				await page.screenshot({ path: testInfo.outputPath(`settings-${title.replaceAll(" ", "-")}-${width}.png`), fullPage: true });
+			}
+
 			if (title === "Code and middleware") await page.screenshot({ path: testInfo.outputPath(`organization-code-${width}.png`), fullPage: true });
 			await expect(page.locator("main").getByRole("link", { name: /^Back to / })).toHaveCount(0);
 			await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

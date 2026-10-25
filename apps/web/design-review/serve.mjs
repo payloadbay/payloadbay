@@ -33,7 +33,7 @@ async function rebuild() {
 	const staging = await mkdtemp(path.join(tmpdir(), "payloadbay-review-build-"));
 	try {
 		const result = await build({
-			entryPoints: ["replacement", "catalog"].map((side) => path.join(source, `${side}.tsx`)),
+			entryPoints: ["replacement", "catalog", "page-layouts"].map((side) => path.join(source, `${side}.tsx`)),
 			bundle: true,
 			outdir: staging,
 			jsx: "automatic",
@@ -58,7 +58,7 @@ async function rebuild() {
 			define: { "process.env.NODE_ENV": '"production"', "process.env": "{}" },
 			sourcemap: process.env.REVIEW_SOURCE_COVERAGE === "true" ? "external" : false,
 		});
-		for (const entry of ["replacement.tsx", "catalog.tsx"]) {
+		for (const entry of ["replacement.tsx", "catalog.tsx", "page-layouts.tsx"]) {
 			const key = Object.keys(result.metafile.inputs).find((name) => path.resolve(name) === path.join(source, entry));
 			const visited = new Set();
 
@@ -74,15 +74,17 @@ async function rebuild() {
 		}
 
 		const reload = '<script>let version;setInterval(async()=>{try{const state=await(await fetch(new URL("__revision",location.href),{cache:"no-store"})).json();if(version===undefined)version=state.revision;else if(version!==state.revision)location.reload();}catch{}},1200);</script>';
-		for (const side of ["replacement", "catalog", "navigation-guard"]) {
+		for (const side of ["replacement", "catalog", "navigation-guard", "page-layouts"]) {
 			const css = `@import "tailwindcss"; @import "@heroui/styles"; @import "../src/app/styles/brand-theme.css"; @import "@fontsource-variable/inter"; @source "./*.tsx"; @source "../src/app/components/ui/*.tsx"; @theme inline { --font-sans: "Inter Variable", Inter, sans-serif; } body { margin:0; background:var(--background); color:var(--foreground); font-family:var(--font-sans); }`;
 			const styled = await postcss([tailwind({ base: source })]).process(css, { from: path.join(source, `${side}.css`) });
 			const withFonts = styled.css.replace(/url\(([^)]*inter-[^/)]*\.woff2)\)/g, (_, url) => `url(./files/${path.basename(url.replace(/["']/g, ""))})`);
 			await writeFile(path.join(staging, `${side}.css`), withFonts);
 			const independentCss = (await readFile(path.join(components, "primitives.css"), "utf8")) + "\n" + (await readFile(path.join(components, "catalog.css"), "utf8"));
-			await writeFile(path.join(staging, `${side}-composition.css`), independentCss + (side === "replacement" ? "\n" + (await readFile(path.join(source, "replacement.css"), "utf8")) : ""));
+			await writeFile(path.join(staging, `${side}-composition.css`), independentCss + (["replacement", "page-layouts"].includes(side) ? "\n" + (await readFile(path.join(source, `${side}.css`), "utf8")) : ""));
 			await writeFile(path.join(staging, `${side}.html`), `<!doctype html><html lang="en" data-theme="dark"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${side} comparison</title><link rel="stylesheet" href="./${side}.css"><link rel="stylesheet" href="./${side}-composition.css"><div id="root"></div><script type="module" src="./${side}.js"></script>${reload}</html>`);
 		}
+
+		await cp(path.join(source, "../public/brand/payloadbay-logo-dark-transparent.svg"), path.join(staging, "layout-brand.svg"));
 
 		let index = await readFile(path.join(source, "index.html"), "utf8");
 		const options = Object.entries(componentGroups)
@@ -114,6 +116,7 @@ const types = {
 	".js": "text/javascript",
 	".css": "text/css",
 	".woff2": "font/woff2",
+	".svg": "image/svg+xml",
 };
 createServer(async (request, response) => {
 	try {

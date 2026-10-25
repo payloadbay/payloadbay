@@ -196,3 +196,15 @@ payloads and leaves persistence to its caller.
 Emoji categories filter the grid using the bundled dataset. Search spans all
 categories; All also keeps caller-provided items reachable. Skin tones apply to
 both category browsing and search results.
+
+## Settings sections
+
+`AppSection` (`@components/ui/app-section`) owns the settings card, header,
+content padding and optional action/footer slots. `icon` (a React element),
+`title`, `description` and `children` are required. Icons render at 20px, with
+consistent title/description alignment. Pass form or table content as children;
+use `actions` for section-header controls and `footer` for section-level actions.
+Do not supply nested Card.Header or Card.Content wrappers. Keep unrelated data
+summaries, editor surfaces and page headings in their appropriate compositions.
+Account, Organization security and scoped Request protection use this component.
+The live subpage comparison imports this exact production component.
