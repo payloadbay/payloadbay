@@ -1,0 +1,40 @@
+# Synthetic disposable development fixtures. These are not operator credentials.
+services:
+  postgres:
+    image: postgres:17-bookworm@sha256:3645570cccdfa447589da9f57dd740faa29b30938e861289a5574b6ca6b03826
+    environment:
+      POSTGRES_USER: fixture
+      POSTGRES_PASSWORD: fixture-only
+      POSTGRES_DB: fixture
+    ports: ["127.0.0.1::5432"]
+    tmpfs: ["/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fixture -d fixture"]
+      interval: 1s
+      timeout: 5s
+      retries: 30
+  smtp:
+    image: axllent/mailpit:v1.30.2@sha256:37a38e48e9338cd7e89dfeb487f37b02ebfcd9cb23111bed2d345e79d37d6dd6
+    ports: ["127.0.0.1::1025", "127.0.0.1::8025"]
+  http:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.fixture
+    ports: ["127.0.0.1::8080"]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+  executor-check:
+    profiles: [sandbox]
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.executor
+    runtime: ${PAYLOADBAY_EXECUTOR_RUNTIME:-runc}
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 64
+    mem_limit: 512m
+    cpus: 1
+    tmpfs: ["/tmp:size=16777216,mode=1777"]

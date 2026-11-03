@@ -1,0 +1,55 @@
+@layer scalar-base, scalar-theme, scalar-config, theme, base, components, utilities;
+
+@import "tailwindcss";
+@import "@heroui/styles";
+@import "./brand-theme.css";
+
+@theme inline {
+	--font-sans: "Inter Variable", Inter, sans-serif;
+}
+
+body {
+	margin: 0;
+	background: var(--background);
+	color: var(--foreground);
+	font-family: var(--font-sans);
+}
+
+/* Keep the header sticky while preserving page scrolling and mobile pull-to-refresh. */
+.pb-layout.dashboard-app-layout {
+	height: auto;
+	min-height: 100dvh;
+	overflow: visible;
+	grid-template-rows: auto minmax(0, 1fr);
+}
+.dashboard-app-layout > .pb-layout-header {
+	position: sticky;
+	top: 0;
+	z-index: 40;
+	height: auto;
+	padding: 0;
+	border: 0;
+}
+.dashboard-app-layout > .pb-layout-header > div {
+	width: 100%;
+}
+.dashboard-app-layout .pb-layout-page {
+	padding: 0;
+	overflow: visible;
+}
+.dashboard-app-layout > .pb-desktop-sidebar {
+	position: sticky;
+	top: 0;
+	height: 100dvh;
+	align-self: start;
+}
+.pb-navigation-sheet {
+	top: var(--dashboard-viewport-top, 0px);
+	bottom: auto;
+	height: var(--dashboard-viewport-height, 100dvh);
+	max-height: var(--dashboard-viewport-height, 100dvh);
+}
+
+.pb-navigation-body .dashboard-navigation-header {
+	padding-top: 3.5rem;
+}

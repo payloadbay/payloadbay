@@ -1,0 +1,101 @@
+# Operator deployment: published images only, no source build or Docker socket.
+x-runtime: &runtime
+  PUBLIC_URL: ${PUBLIC_URL:?Set the public HTTPS URL}
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
+  PAYLOADBAY_ENCRYPTION_KEY: ${PAYLOADBAY_ENCRYPTION_KEY:?}
+  PAYLOADBAY_BOOTSTRAP_SECRET: ${PAYLOADBAY_BOOTSTRAP_SECRET:?}
+  PAYLOADBAY_EXECUTOR_TOKEN: ${PAYLOADBAY_EXECUTOR_TOKEN:?}
+  PAYLOADBAY_BROKER_SECRET: ${PAYLOADBAY_BROKER_SECRET:?}
+  EXECUTOR_URL: http://executor:8080
+  PAYLOADBAY_EXECUTOR_RUNTIME: ${PAYLOADBAY_EXECUTOR_RUNTIME:-runc}
+  SMTP_HOST: ${SMTP_HOST:?}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_SECURE: ${SMTP_SECURE:-false}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_FROM: ${SMTP_FROM:?}
+
+x-restricted: &restricted
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs: ["/tmp:size=134217728,mode=1777"]
+  pids_limit: 128
+  mem_limit: 1g
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:17-bookworm@sha256:3645570cccdfa447589da9f57dd740faa29b30938e861289a5574b6ca6b03826
+    environment:
+      POSTGRES_USER: payloadbay_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: payloadbay
+    volumes: ["postgres:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U payloadbay_admin -d payloadbay"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+  migrator:
+    <<: *restricted
+    image: ${PAYLOADBAY_MIGRATOR_IMAGE:?Set the coordinated published migrator image digest}
+    environment:
+      MIGRATION_DATABASE_URL: postgres://payloadbay_admin@postgres:5432/payloadbay
+      PGPASSWORD: ${POSTGRES_PASSWORD:?}
+      PAYLOADBAY_APP_DATABASE_PASSWORD: ${PAYLOADBAY_APP_DATABASE_PASSWORD:?}
+      PAYLOADBAY_WORKER_DATABASE_PASSWORD: ${PAYLOADBAY_WORKER_DATABASE_PASSWORD:?}
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+  executor:
+    <<: *restricted
+    image: ${PAYLOADBAY_EXECUTOR_IMAGE:?Set the coordinated published executor image digest}
+    runtime: ${PAYLOADBAY_EXECUTOR_RUNTIME:-runc}
+    environment:
+      PAYLOADBAY_EXECUTOR_TOKEN: ${PAYLOADBAY_EXECUTOR_TOKEN:?}
+      PAYLOADBAY_EXECUTOR_RUNTIME: ${PAYLOADBAY_EXECUTOR_RUNTIME:-runc}
+      PAYLOADBAY_BROKER_URL: http://worker:8081/broker
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  worker:
+    <<: *restricted
+    image: ${PAYLOADBAY_WORKER_IMAGE:?Set the coordinated published worker image digest}
+    environment:
+      <<: *runtime
+      DATABASE_URL: postgres://payloadbay_jobs@postgres:5432/payloadbay
+      PGPASSWORD: ${PAYLOADBAY_WORKER_DATABASE_PASSWORD:?}
+    depends_on:
+      migrator: {condition: service_completed_successfully}
+      executor: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8081/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  app:
+    <<: *restricted
+    image: ${PAYLOADBAY_APP_IMAGE:?Set the coordinated published app image digest}
+    environment:
+      <<: *runtime
+      DATABASE_URL: postgres://payloadbay_web@postgres:5432/payloadbay
+      PGPASSWORD: ${PAYLOADBAY_APP_DATABASE_PASSWORD:?}
+      PAYLOADBAY_LOGIN_HINT: ${PAYLOADBAY_LOGIN_HINT:-}
+    expose: ["3000"]
+    ports: ["${PAYLOADBAY_BIND_ADDRESS:-127.0.0.1}:${PAYLOADBAY_PORT:-3000}:3000"]
+    depends_on:
+      migrator: {condition: service_completed_successfully}
+      executor: {condition: service_healthy}
+      worker: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+volumes:
+  postgres:

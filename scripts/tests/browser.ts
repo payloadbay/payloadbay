@@ -1,0 +1,49 @@
+import { executorFixture } from "../../tests/helpers/executor-fixture.ts";
+import { fixtureEnvironment } from "../../tests/helpers/fixture-environment.ts";
+import { spawn } from "node:child_process";
+import { once } from "node:events";
+import { readdirSync } from "node:fs";
+import { resolve } from "node:path";
+import { withFixtures, stopFixtures } from "./fixtures.ts";
+import { ensureNextBuild } from "./next-build.ts";
+import { database } from "../../packages/domain/src/db.ts";
+import { prepareDevelopmentDatabase as migrate } from "../../packages/domain/src/development.ts";
+import { readServerConfig } from "../../packages/domain/src/config.ts";
+import { run } from "../../apps/worker/node_modules/graphile-worker/dist/index.js";
+import { platformJobTask } from "../../apps/worker/src/tasks/platform-job.ts";
+
+let status = 1;
+try {
+	ensureNextBuild();
+	await withFixtures(async (fixture) => {
+		await migrate(fixture.databaseUrl);
+		const pool = database(fixture.databaseUrl);
+		const executor = await executorFixture();
+		const env = fixtureEnvironment(fixture, "http://localhost:" + process.env.PAB_TEST_PORT);
+		env.EXECUTOR_URL = executor.url;
+		const worker = await run({
+			pgPool: pool,
+			noHandleSignals: true,
+			pollInterval: 100,
+			concurrency: 1,
+			taskList: { platform_job: platformJobTask(pool, readServerConfig(env)) },
+		});
+		try {
+			const child = spawn("bun", ["x", "--no-install", "playwright", "test", "--config=tests/config/playwright.config.ts", ...process.argv.slice(2)], { env, stdio: "inherit" });
+			const [code] = await once(child, "exit");
+			status = Number(code ?? 1);
+			if (status === 0 && env.PAB_TEST_SOURCE_COVERAGE === "true") {
+				const directory = resolve(env.PAB_TEST_ARTIFACT_DIR ?? "test-results/browser", "coverage/browser");
+				if (!readdirSync(directory).some((file) => file.endsWith(".json"))) throw Error("Browser coverage contains no first-party source records");
+			}
+		} finally {
+			await worker.stop();
+			await pool.end();
+			await executor.stop();
+		}
+	});
+} finally {
+	await stopFixtures();
+}
+
+process.exitCode = status;

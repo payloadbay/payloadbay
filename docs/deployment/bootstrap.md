@@ -1,0 +1,149 @@
+# Development bootstrap and verification
+
+The repository contains the Next.js dashboard/API, Better Auth, PostgreSQL,
+Graphile Worker and a workerd executor. It is still unreleased; a working
+preview and scoped tests do not complete the published-image/upgrade gates.
+
+Use Bun from the repository root:
+
+```sh
+bun install --frozen-lockfile
+bun run test:inventory
+bun run typecheck
+bun run lint
+bun run format:check
+bun run test:file tests/integration/organizations.test.ts
+bun run test:affected packages/domain/src/ingress.ts
+```
+
+Use `bun run test` for the complete registered suite at a verification milestone.
+Run Next-consuming browser/deployment lanes sequentially: they share one local
+standalone build directory. Development PostgreSQL/SMTP/HTTP fixtures use Docker,
+synthetic data, random loopback ports and isolated databases. Tests never need a
+production database or real SMTP account. Ignored run evidence lives under
+`test-results/<run-id>`.
+
+`bun run db:push` applies the authoritative Drizzle schema to a disposable
+development database. Feature branches do not generate ordinary release migration
+files; master CI composes one merged migration from schema plus runtime behavior.
+The organization upgrade hook maps legacy workspaces before enforcing required
+lineage. Historical mechanism fixtures are separate from current-source seeds.
+Back up retained installations and use the released migration path for upgrades;
+a development push is not a production upgrade mechanism.
+
+## Identity and organization setup
+
+One-time secret-protected owner setup creates an instance owner, a default
+organization and a default workspace in one transaction. Admission alone is not
+an instance role. Organization/workspace/project grants inherit downward.
+
+Registration defaults to invitation-only. An instance administrator can enable
+organization onboarding in Installation → Configuration to test verified-customer registration: email code → organization
+setup → default workspace → first project/route. Provisioning is idempotent and
+does not grant instance administration. Existing invitees enter their assigned
+scope; inactive instance admission must be restored by an operator.
+
+Self-hosted standard operation does not require a cloud account, license heartbeat
+or payment provider. Future hosted commercial rollout remains a separate gate.
+Usage facts are local operational measurements, not a selected pricing model.
+
+## Runtime and UI packages
+
+Published images are the intended operator installation interface. Source builds
+install locked public dependencies with Bun. They do not require HeroUI Pro,
+a commercial UI license, or an installer token. The shared UI catalog is under
+`apps/web/src/app/components/ui/`; its local gallery runs independently on port 4173.
+
+The executor defaults to ordinary restricted Docker (`runc`). Optional
+`PAYLOADBAY_EXECUTOR_RUNTIME=runsc` requires host-installed/configured gVisor; an
+unavailable explicitly selected runtime fails rather than silently downgrading.
+The web app does not receive the Docker socket. `bun run sandbox:check` verifies
+the selected host capability. Host gVisor validation and complete release-image
+installation/upgrade evidence remain separately tracked acceptance gates.
+
+## Verification artifacts and retention
+
+`bun run test:coverage` runs the unit owners with fresh LCOV under that run's
+`test-results/<run-id>/unit/coverage/` directory. The explicit checker reads the
+per-file line/function minima from `bunfig.toml`, verifies required source files loaded,
+and rejects missing reports or failing/empty tests. This measures unit-loaded
+sources; it does not certify the application's complete production coverage.
+Node, executor and deployment owners accept `--collect-coverage` for source-mapped
+V8 LCOV, for example `bun run test:executor --collect-coverage`. This collects the
+owning invocation once and removes raw V8 source-map caches before artifacts are
+uploaded. It is collection evidence, not an aggregate threshold pass. Bun LCOV
+does not identify individual functions, so summing its function counts with V8
+would be invalid; cross-engine function merging remains an open gate. Compiler
+children intentionally do not inherit diagnostic environment variables. Coverage
+does not weaken that boundary.
+
+Integration files that use Next share one parent-built standalone fixture before
+parallel Node execution. Keep separate Next-consuming commands sequential.
+
+Event retention defaults to disabled. See [event retention](retention.md) for
+opt-in configuration, preserved unfinished work, irreversible deletion and the
+remaining release verification limits.
+
+## CI and external contribution review
+
+The CI workflow checks an immutable source SHA on fresh GitHub-hosted
+runners, with separate static, unit, backend, executor, browser, performance and
+deployment owners. The unit coverage command deliberately fails if a loaded file
+misses the configured minimum; passing unit tests alone are not a coverage pass.
+The current remaining coverage aggregation and published-release checks remain
+release gates rather than being waived by this workflow.
+
+Same-repository maintainer branches run automatically. External pull requests use
+the trusted base `pull_request_target` workflow, which first verifies that
+`ci-external-review` has required reviewers, without checking out the contribution.
+A native GitHub environment review then authorizes the exact source SHA before
+any check runner starts. The UI installer credential has been removed; the
+approval gate still protects execution of external contribution code. New head commits require a new workflow authorization.
+The external path becomes available once this workflow exists on master.
+
+The source-controlled environment declaration lives in the central repository
+baseline ([policy PR #30](https://github.com/payloadbay/.github/pull/30)); the
+existing baseline workflow applies it after source approval. Missing or unreadable
+protection fails closed. No new required branch-protection check is enabled until
+the workflow has been validated. Coolify still owns PR previews separately;
+this does not introduce a replacement deployment pipeline.
+
+CI caches public dependency downloads. No licensed installation step or UI
+credential is used. Test runners receive no production credentials.
+
+## Release migration container
+
+`deploy/Dockerfile.migrator` builds a separate non-root, one-shot migration
+image without HeroUI credentials or a host Node/Bun requirement. It includes the
+CI-generated `packages/domain/drizzle` directory and runs the existing locked,
+digest-checked release migrator. `MIGRATION_DATABASE_URL` is supplied only to
+that privileged one-shot service, not to the executor. A branch with no generated
+release SQL fails safely; it never substitutes development schema push.
+
+The registered migration-container test uses an explicitly mounted synthetic
+historical fixture directory. It proves packaging, auth/queue initialization and
+idempotence, not installation of a published release. The production Compose and
+published coordinated image gates remain open. See [database recovery](backup.md)
+for the data, role, encryption-key and rollback boundaries.
+
+### CI approval environment
+
+Trusted CI and candidate-image builds do not reference a GitHub environment.
+Neither requires a UI installer secret.
+External-source approval uses `ci-external-review` with `deployment: false`,
+which preserves required reviewers without creating a deployment record.
+Its repository-specific settings are declared in
+`.github/ci-external-review.json`; the organization baseline does not manage
+GitHub environments. Apply that file with:
+
+```sh
+gh api --method PUT repos/payloadbay/payloadbay/environments/ci-external-review --input .github/ci-external-review.json
+```
+
+The authorization gate rejects missing, failed, cancelled or skipped external
+approval before any contribution checkout or build execution.
+The legacy `alpha-ci-external` environment must remain until this PR is merged
+and old default-branch workflows no longer reference it. Removing it earlier
+could remove protection from those workflows. The empty `alpha-ci` environment
+is obsolete; if an old default-branch workflow recreates it before merge, it can
+be removed again afterward. Existing historical timeline entries are not rewritten.
