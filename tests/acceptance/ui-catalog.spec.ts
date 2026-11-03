@@ -256,6 +256,7 @@ test("sheet drag handles settle small drags and support keyboard dismissal", asy
 	await page.getByRole("button", { name: "Open sheet", exact: true }).click();
 	const dialog = page.getByRole("dialog", { name: "Delivery details", exact: true });
 	const handle = dialog.locator('[data-slot="sheet-handle"]');
+	await expect(page.locator('[data-slot="sheet-content"]')).toHaveAttribute("data-expanded", "true");
 	await page.evaluate(() => document.fonts.ready);
 	const original = await dialog.boundingBox();
 	const bounds = await handle.boundingBox();

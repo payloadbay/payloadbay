@@ -187,11 +187,13 @@ export async function verifyCatalogInteractions(page, origin = "http://localhost
 		await page.getByRole("button", { name: "Open sheet", exact: true }).click();
 		const sheet = page.getByRole("dialog", { name: "Delivery details" });
 		await expect(sheet).toBeVisible();
+		await expect(page.locator('[data-slot="sheet-content"]')).toHaveAttribute("data-expanded", "true");
 		await page.getByRole("button", { name: "Close sheet", exact: true }).click();
 		await expect(sheet).toHaveCount(0);
 		await expect(page.getByRole("button", { name: "Open sheet", exact: true })).toBeFocused();
 		await page.getByRole("button", { name: "Open sheet", exact: true }).click();
 		await expect(sheet).toBeVisible();
+		await expect(page.locator('[data-slot="sheet-content"]')).toHaveAttribute("data-expanded", "true");
 		const handle = page.locator('[data-slot="sheet-handle"]');
 		const box = await handle.boundingBox();
 		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
