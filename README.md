@@ -86,8 +86,8 @@ queued HTTP delivery, retries/replay, live inspection and opt-in notifications.
 Self-hosted usage is locally measured without default commercial quotas. Pull
 runners, payments and enterprise activation remain later work.
 
-This is not a published operator release. Coverage, coordinated release images,
-clean operator installation, upgrade and backup/restore gates remain open. See
+This is not a published operator release. Coordinated release images, clean
+operator installation, upgrade and backup/restore gates remain open. See
 [preflight](specs/001-releasable-alpha/preflight.md) for exact evidence rather than
 treating the product direction above as a list of shipped guarantees.
 
@@ -108,13 +108,15 @@ Use [development bootstrap](docs/deployment/bootstrap.md) for prerequisites and
 isolated test owners. `bun run web:dev` starts the web development server;
 `bun run test:file <registered-file>` and `bun run test:affected <changed-path>`
 provide scoped feedback. Static checks are `bun run typecheck`, `bun run lint`
-and `bun run format:check`. `bun run test:coverage` still fails its per-file gate;
-passing tests alone are not coverage certification. No Supabase tooling is needed.
+and `bun run format:check`. The verified full CI/coverage checkpoint and remaining
+publication gates are recorded in [release readiness](docs/releases/readiness.md).
+Passing scoped tests alone is not coverage certification. No Supabase tooling is needed.
 
 Published Docker images are the intended operator interface. Source-built
 [Coolify previews](docs/coolify-previews.md) already exercise the app, worker,
 executor and disposable database, but are not a production installation guide.
-Master CI generates release migrations; feature branches never generate them
+See the [release policy](docs/releases/policy.md) for versioning, support,
+publication and recovery requirements. Master CI generates release migrations; feature branches never generate them
 locally or substitute development schema push for a production upgrade.
 
 ## Contributing

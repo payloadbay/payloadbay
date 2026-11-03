@@ -16,11 +16,33 @@ pending jobs, encrypted secrets and original security-definer ownership/ACLs.
 A separate fresh-cluster exercise restores roles before owned database objects.
 These are mechanism tests, not a published-image installation certificate.
 
-Before release:
+## Verified source checkpoint
 
-- Complete source-mapped cross-owner coverage with the unchanged per-file minima
-  and a complete executable-source inventory.
-- Complete the affected final owners and reconcile original acceptance evidence.
+PR #13 source commit `1560be1e9ac0339ebeebc774b19f57c4d4fe80ff`
+has successful exact-SHA CI, including the merged coverage gate. The local full
+suite recorded 589 passing checks and 311 of 311 executable source files meeting
+the unchanged 80% line/function minima. These counts describe that checkpoint;
+subsequent changes require their own affected checks and CI.
+
+## Remaining release gates
+
+Before merge/publication:
+
+- Select and add the product license. No root product license has been selected
+  or committed; dependency licenses do not license Payload Bay itself.
+- The [release policy](policy.md) now defines versioning, supported versions,
+  security fixes, publication ownership and first-alpha acceptance. Publish it
+  with the implementation rather than leaving it only in a working tree.
+- Configure the migration workflow's master-only `migration-generation`
+  environment secret `DEPLOY_KEY` and repository write key. On 2026-11-03 key
+  creation was blocked by the organization's disabled deploy-key policy. The
+  protected environment exists, but no key/secret or deploy-key bypass has been
+  created. Enabling that organization setting requires maintainer confirmation,
+  or replace this authentication with a dedicated GitHub App. The generated
+  migration commit must be able to trigger its required CI run.
+
+After approved merge:
+
 - Produce the master-CI-owned release SQL after approved merge; never generate an
   ordinary release migration locally or replace it with development push.
 - Publish coordinated app, worker, executor and migrator image digests without

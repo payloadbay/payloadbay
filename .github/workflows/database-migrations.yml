@@ -13,13 +13,21 @@ concurrency:
   group: payloadbay-migration-generation
   cancel-in-progress: false
 permissions:
-  contents: write
+  contents: read
 jobs:
   generate:
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
+    environment:
+      name: migration-generation
+      deployment: false
     env:
       PAYLOADBAY_MIGRATION_WORKFLOW: "true"
     steps:
+      - name: Require the master-only migration credential
+        env:
+          HAS_DEPLOY_KEY: ${{ secrets.DEPLOY_KEY != '' }}
+        run: test "$HAS_DEPLOY_KEY" = 'true'
       - uses: actions/checkout@v7
         with:
           ssh-key: ${{ secrets.DEPLOY_KEY }}
