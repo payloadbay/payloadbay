@@ -94,7 +94,7 @@ jobs:
             target="$service"
             if [[ "$service" == 'executor' ]]; then target=runner; fi
             image="ghcr.io/$GITHUB_REPOSITORY-$service:$tag"
-            docker buildx build --load --platform linux/amd64 --target "$target" --file "deploy/Dockerfile.$service" --label "org.opencontainers.image.revision=$SOURCE_SHA" --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" --tag "$image" .
+            docker buildx build --load --platform linux/amd64 --target "$target" --file "deploy/Dockerfile.$service" --label "org.opencontainers.image.licenses=AGPL-3.0-only" --label "org.opencontainers.image.revision=$SOURCE_SHA" --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" --tag "$image" .
             user=$(docker image inspect --format '{{.Config.User}}' "$image")
             if [[ "$user" != 'node' ]]; then echo 'Candidate runtime must use the non-root node identity.' >&2; exit 1; fi
           done

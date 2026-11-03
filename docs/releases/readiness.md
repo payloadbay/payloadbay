@@ -28,18 +28,18 @@ subsequent changes require their own affected checks and CI.
 
 Before merge/publication:
 
-- Select and add the product license. No root product license has been selected
-  or committed; dependency licenses do not license Payload Bay itself.
-- The [release policy](policy.md) now defines versioning, supported versions,
-  security fixes, publication ownership and first-alpha acceptance. Publish it
-  with the implementation rather than leaving it only in a working tree.
-- Configure the migration workflow's master-only `migration-generation`
-  environment secret `DEPLOY_KEY` and repository write key. On 2026-11-03 key
-  creation was blocked by the organization's disabled deploy-key policy. The
-  protected environment exists, but no key/secret or deploy-key bypass has been
-  created. Enabling that organization setting requires maintainer confirmation,
-  or replace this authentication with a dedicated GitHub App. The generated
-  migration commit must be able to trigger its required CI run.
+- Product licensing is the unchanged GNU AGPLv3 (`AGPL-3.0-only`), with its
+  license included in runtime images. Commercial redistribution remains allowed
+  under the license's source-sharing obligations.
+- The [release policy](policy.md) defines versioning, support, security fixes,
+  publication ownership and first-alpha acceptance.
+- Migration authentication was configured on 2026-11-03: `DEPLOY_KEY` is an
+  encrypted secret in the master-only `migration-generation` environment, with
+  one dedicated repository write key. The maintainer approved enabling deploy
+  keys for the organization and the ruleset retains its other protections.
+  Generated SQL commits may bypass that ruleset and trigger complete CI. The
+  local private key was deleted. The actual first master workflow run remains
+  the end-to-end verification of this configuration.
 
 After approved merge:
 

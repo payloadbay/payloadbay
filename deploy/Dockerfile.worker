@@ -21,6 +21,7 @@ WORKDIR /opt/payloadbay/apps/worker
 COPY --from=build --chown=node:node /out/worker.mjs ./worker.mjs
 COPY --from=build --chown=node:node /source/node_modules /opt/payloadbay/node_modules
 COPY --from=build --chown=node:node /source/apps/worker/node_modules ./node_modules
+COPY --chown=node:node LICENSE /usr/share/licenses/payloadbay/LICENSE
 USER node
 EXPOSE 8081
 CMD ["node","/opt/payloadbay/apps/worker/worker.mjs"]

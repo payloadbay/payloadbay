@@ -163,3 +163,15 @@ this version does not ship that product or claim tested server compatibility.
 
 Public documentation, website, and Runner repositories will be linked here when
 they are activated.
+
+## License
+
+Payload Bay is licensed under the [GNU Affero General Public License v3.0](LICENSE)
+(`AGPL-3.0-only`). Commercial use, modification and resale are permitted under
+that license. Covered distributions must provide corresponding source, and a
+modified network-served version must offer its corresponding source to remote
+users as required by section 13. Independently developed applications that only
+exchange webhooks with Payload Bay are not automatically covered by its license.
+
+The license text is unchanged. Dependency, font and vendored-skill notices retain
+their original licenses. Donations are optional; no payment requirement is added.

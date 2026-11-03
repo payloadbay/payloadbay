@@ -20,6 +20,7 @@ COPY --from=build --chown=node:node /source/node_modules ./node_modules
 COPY --from=build --chown=node:node /source/packages/domain/node_modules ./packages/domain/node_modules
 COPY --from=build --chown=node:node /out/migrate.mjs ./packages/domain/migrate.mjs
 COPY --chown=node:node packages/domain/drizzle/ ./migrations/
+COPY --chown=node:node LICENSE /usr/share/licenses/payloadbay/LICENSE
 USER node
 ENTRYPOINT ["node", "/opt/payloadbay/packages/domain/migrate.mjs"]
 CMD ["--directory", "/opt/payloadbay/migrations"]
