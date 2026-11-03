@@ -105,3 +105,12 @@ query parameter; they are not presented as paired Pro comparisons.
 The latest live-docs and reference-composition audit is in
 [REFERENCE-AUDIT.md](./REFERENCE-AUDIT.md). Production migration and user approval
 remain separate from implementing and checking this gallery.
+
+## Public Sheet replacement (2026-11-01)
+
+HeroUI React/styles 3.2.7 now provides Sheet publicly. The gallery imports it
+directly, with native compound composition, CSS-length snap points and
+NestedRoot. The former local source/CSS and custom fractional/controlled snap
+API were removed. The historical Sheet row above describes the former
+implementation, not the current public component contract. Keyboard dismissal
+uses the close control; the native handle is decorative for assistive technology.

@@ -192,7 +192,7 @@ export async function verifyCatalogInteractions(page, origin = "http://localhost
 		await expect(page.getByRole("button", { name: "Open sheet", exact: true })).toBeFocused();
 		await page.getByRole("button", { name: "Open sheet", exact: true }).click();
 		await expect(sheet).toBeVisible();
-		const handle = page.getByRole("button", { name: "Drag down or press to close sheet" });
+		const handle = page.locator('[data-slot="sheet-handle"]');
 		const box = await handle.boundingBox();
 		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
 		await page.mouse.down();
@@ -200,7 +200,7 @@ export async function verifyCatalogInteractions(page, origin = "http://localhost
 		await page.waitForTimeout(200);
 		await page.mouse.up();
 		await expect(sheet).toBeVisible();
-		await handle.press("Enter");
+		await sheet.getByRole("button", { name: "Close sheet", exact: true }).press("Enter");
 		await expect(sheet).toHaveCount(0);
 	});
 

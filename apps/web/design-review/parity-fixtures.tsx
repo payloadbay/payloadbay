@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button } from "@heroui/react";
+import { Button, Sheet } from "@heroui/react";
 import { PressableFeedback } from "@components/ui/feedback";
 import { ContextualSidebar } from "@components/ui/sidebar-navigation";
 import { FileTree } from "@components/ui/file-tree";
@@ -10,7 +10,6 @@ import { Resizable } from "@components/ui/resizable";
 import { Timeline, ItemCard, ItemCardGroup, ListView } from "@components/ui/display";
 import { SetupSteps } from "@components/ui/setup-steps";
 import { ContextMenu } from "@components/ui/context-menu";
-import { Sheet } from "@components/ui/sheet";
 import { Markdown } from "@components/ui/content";
 import { RichTextEditor } from "@components/ui/rich-text-editor";
 import { Agenda, type AgendaEvent } from "@components/ui/agenda";
@@ -33,7 +32,6 @@ export function ParityFixtures({ id }: { id: string }) {
 	const [step, setStep] = useState(1);
 	const [message, setMessage] = useState("");
 	const [sheet, setSheet] = useState<string | null>(null);
-	const [snap, setSnap] = useState(0.5);
 	const [nested, setNested] = useState(false);
 	const [document, setDocument] = useState<JSONContent>({ type: "doc", content: [{ type: "paragraph" }] });
 	const [events, setEvents] = useState(initialEvents);
@@ -198,27 +196,47 @@ export function ParityFixtures({ id }: { id: string }) {
 						</Button>
 					))}
 					<Sheet
-						title='Snap sheet'
 						placement={(sheet ?? "bottom") as "left" | "right" | "top" | "bottom"}
-						open={sheet !== null}
+						isOpen={sheet !== null}
 						onOpenChange={(open) => {
 							if (!open) setSheet(null);
 						}}
-						snapPoints={[0.3, 0.5, 0.85]}
-						activeSnapPoint={snap}
-						onActiveSnapPointChange={setSnap}
+						snapPoints={sheet === "left" || sheet === "right" ? ["30vw", "50vw"] : ["30vh", "50vh"]}
 						isDetached
 					>
-						<p>Drag to resize, or use arrow keys on the handle.</p>
-						<Button variant='secondary' onPress={() => setNested(true)}>
-							Nested sheet
-						</Button>
-						<Sheet title='Nested sheet' open={nested} onOpenChange={setNested}>
-							<p>Child sheet</p>
-						</Sheet>
-						<Button variant='secondary' onPress={() => setSnap(snap === 0.5 ? 0.85 : 0.5)}>
-							Change snap point
-						</Button>
+						<Sheet.Backdrop>
+							<Sheet.Content className={sheet === "left" || sheet === "right" ? "w-[85vw]" : "mx-auto h-[85dvh] w-full max-w-[640px]"}>
+								<Sheet.Dialog>
+									<Sheet.Handle />
+									<Sheet.CloseTrigger aria-label='Close sheet' />
+									<Sheet.Header>
+										<Sheet.Heading>Snap sheet</Sheet.Heading>
+									</Sheet.Header>
+									<Sheet.Body className='flex flex-col gap-4'>
+										<p>Swipe to move between partial positions and full expansion. Use Escape or Close to dismiss.</p>
+										<Sheet.NestedRoot isOpen={nested} onOpenChange={setNested}>
+											<Sheet.Trigger>
+												<Button variant='secondary'>Nested sheet</Button>
+											</Sheet.Trigger>
+											<Sheet.Backdrop>
+												<Sheet.Content className='mx-auto max-w-[540px]'>
+													<Sheet.Dialog>
+														<Sheet.Handle />
+														<Sheet.CloseTrigger aria-label='Close nested sheet' />
+														<Sheet.Header>
+															<Sheet.Heading>Nested sheet</Sheet.Heading>
+														</Sheet.Header>
+														<Sheet.Body>
+															<p>Child sheet</p>
+														</Sheet.Body>
+													</Sheet.Dialog>
+												</Sheet.Content>
+											</Sheet.Backdrop>
+										</Sheet.NestedRoot>
+									</Sheet.Body>
+								</Sheet.Dialog>
+							</Sheet.Content>
+						</Sheet.Backdrop>
 					</Sheet>
 				</div>
 			);

@@ -67,11 +67,12 @@ export async function verifyParityGaps(page, origin = "http://localhost:4173", w
 	const bounds = await dialog.boundingBox();
 	expect(bounds.x).toBeGreaterThan(width * 0.35);
 	expect(bounds.x + bounds.width).toBeGreaterThan(width - 34);
-	await dialog.getByRole("button", { name: "Change snap point" }).click();
-	await expect.poll(async () => (await dialog.boundingBox()).width).toBeGreaterThan(width * 0.7);
+	const content = page.locator('[data-slot="sheet-content"]');
+	await expect(content).toHaveAttribute("data-placement", "right");
+	await expect(content).toHaveAttribute("data-snap-points", "");
 	await page.keyboard.press("Escape");
 	await expect(dialog).toHaveCount(0);
-	console.log("PASS directional detached sheet, snap resize and Escape");
+	console.log("PASS directional detached sheet, native snap positions and Escape");
 
 	target = await fixture("list-view");
 	expect(await target.getByRole("row").count()).toBeLessThan(100);
@@ -132,6 +133,8 @@ export async function verifyParityGaps(page, origin = "http://localhost:4173", w
 	await parent.getByRole("button", { name: "Nested sheet", exact: true }).click();
 	const nested = page.getByRole("dialog", { name: "Nested sheet", exact: true });
 	await expect(nested).toBeVisible();
+	// Native Sheet transfers focus after its entry animation.
+	await expect.poll(() => nested.evaluate((node) => node.contains(document.activeElement))).toBe(true);
 	await page.keyboard.press("Escape");
 	await expect(nested).toHaveCount(0);
 	await expect(parent).toBeVisible();

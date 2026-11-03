@@ -8,7 +8,7 @@ import type { JSONContent } from "@tiptap/react";
 import { CatalogPage } from "./catalog-page";
 import { createRoot } from "react-dom/client";
 import { useState } from "react";
-import { Button, Tooltip } from "@heroui/react";
+import { Button, Tooltip, Sheet } from "@heroui/react";
 import { IconFolder, IconWebhook, IconBell } from "@tabler/icons-react";
 import { AreaChart, BarChart, ChartTooltip, ChartTooltipRow, ComposedChart, LineChart, PieChart, RadarChart, RadialChart } from "@components/ui/charts";
 import { CellColorPicker, CellSelect, CellSlider, CellSwitch, CheckboxButtonGroup, InlineSelect, NativeSelect, NumberStepper, RadioButtonGroup } from "@components/ui/cell-controls";
@@ -27,7 +27,6 @@ import { ActionBar } from "@components/ui/action-bar";
 import { Segment } from "@components/ui/segment";
 import { HoverCard } from "@components/ui/hover-card";
 import { ContextMenu } from "@components/ui/context-menu";
-import { Sheet } from "@components/ui/sheet";
 import { Navbar } from "@components/ui/navbar";
 import { EmojiPicker } from "@components/ui/emoji-picker";
 import { DashboardLayout } from "@components/ui/dashboard-layout";
@@ -465,17 +464,26 @@ function Example({ id, variant = "default" }: { id: string; variant?: string }) 
 				body = (
 					<>
 						<Button onPress={() => setOpen(true)}>Open sheet</Button>
-						<Sheet
-							title='Delivery details'
-							open={open}
-							onOpenChange={setOpen}
-							footer={
-								<Button variant='secondary' onPress={() => setOpen(false)}>
-									Done
-								</Button>
-							}
-						>
-							<p className='text-sm text-muted'>Drag the handle down to dismiss, or use the close action.</p>
+						<Sheet isOpen={open} onOpenChange={setOpen}>
+							<Sheet.Backdrop>
+								<Sheet.Content className='mx-auto max-h-[92dvh] w-full max-w-[640px]'>
+									<Sheet.Dialog>
+										<Sheet.Handle />
+										<Sheet.CloseTrigger aria-label='Close sheet' />
+										<Sheet.Header>
+											<Sheet.Heading>Delivery details</Sheet.Heading>
+										</Sheet.Header>
+										<Sheet.Body>
+											<p className='text-sm text-muted'>Drag the handle down to dismiss, or use the close action.</p>
+										</Sheet.Body>
+										<Sheet.Footer>
+											<Sheet.Close>
+												<Button variant='secondary'>Done</Button>
+											</Sheet.Close>
+										</Sheet.Footer>
+									</Sheet.Dialog>
+								</Sheet.Content>
+							</Sheet.Backdrop>
 						</Sheet>
 					</>
 				);

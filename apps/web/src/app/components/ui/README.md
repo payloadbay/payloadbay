@@ -105,7 +105,7 @@ parity and production adoption are separate acceptance steps.
 | `navbar`                    | Navbar                                                                                                                                | Brand, links/current page and action slots; mobile navigation sheet.                                                                                                                                                |
 | `segment`                   | Segment                                                                                                                               | Public radio semantics and arrow-key selection with a shared moving indicator.                                                                                                                                      |
 | `emoji-picker`              | EmojiPicker                                                                                                                           | Public React Aria search/grid, bundled emoji data or caller-provided items, skin tones and selection callback. No third-party picker UI or React adapter.                                                           |
-| `sheet`                     | Sheet                                                                                                                                 | Public modal focus/dismissal, animated bottom panel, scrollable body/footer, drag-handle dismissal and cancelled-short-drag recovery.                                                                               |
+| public HeroUI               | Sheet                                                                                                                                 | Native public HeroUI Sheet: scroll snapping, four placements, nested roots, focus restoration and close controls.                                                                                                   |
 
 Existing `DashboardLayout`, `SidebarNavigation`, `CommandSearch`, `SetupSteps`,
 `ResourceEmptyState` and `MetricLineChart` remain in the initial table above.
@@ -208,3 +208,12 @@ Do not supply nested Card.Header or Card.Content wrappers. Keep unrelated data
 summaries, editor surfaces and page headings in their appropriate compositions.
 Account, Organization security and scoped Request protection use this component.
 The live subpage comparison imports this exact production component.
+
+### Public Sheet
+
+Import `Sheet` directly from `@heroui/react` (3.2.7+). The former local Sheet and
+its CSS have been removed. Use compound Header/Heading/Body/Footer and
+`Sheet.NestedRoot` for nested sheets. Snap-point numbers are pixels; CSS length
+strings are supported. The native handle is decorative to assistive technology;
+provide CloseTrigger or Sheet.Close for keyboard dismissal. Do not recreate the
+old fractional snap-point or activeSnapPoint API on top of the public component.

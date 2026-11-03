@@ -150,7 +150,7 @@ try {
 	const dialog = page.getByRole("dialog", { name: "Delivery details" });
 	await page.waitForTimeout(550);
 	const before = await dialog.boundingBox();
-	const handle = await page.getByRole("button", { name: "Drag down or press to close sheet" }).boundingBox();
+	const handle = await page.locator('[data-slot="sheet-handle"]').boundingBox();
 	await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
 	await page.mouse.down();
 	await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2 + 30, { steps: 10 });
