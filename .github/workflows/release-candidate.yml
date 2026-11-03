@@ -140,6 +140,22 @@ jobs:
             if [[ ! "$coordinate" =~ @sha256:[0-9a-f]{64}$ ]]; then echo 'Published digest is unavailable.' >&2; exit 1; fi
             printf 'PAYLOADBAY_%s_IMAGE=%s\n' "${service^^}" "$coordinate" >> candidate/images.env
           done
+          # The archive is the same coordinated build, usable before GHCR visibility is public.
+          printf 'SOURCE_SHA=%s\n' "$SOURCE_SHA" > candidate/images.local.env
+          archive_images=()
+          for service in app worker executor migrator; do
+            image="ghcr.io/$GITHUB_REPOSITORY-$service:$tag"
+            image_id=$(docker image inspect --format '{{.Id}}' "$image")
+            if [[ ! "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]; then echo 'Local image identity is unavailable.' >&2; exit 1; fi
+            printf 'PAYLOADBAY_%s_IMAGE=%s\n' "${service^^}" "$image_id" >> candidate/images.local.env
+            archive_images+=("$image")
+          done
+          docker image save "${archive_images[@]}" | gzip -1 > candidate/images.tar.gz
+          (cd candidate && sha256sum images.tar.gz > images.tar.gz.sha256)
+          printf 'services:\n' > candidate/compose.local.yml
+          for service in app worker executor migrator; do
+            printf '  %s:\n    pull_policy: never\n' "$service" >> candidate/compose.local.yml
+          done
           cp deploy/compose.yml candidate/compose.yml
           cp deploy/release-manifest.json candidate/source-manifest.json
           echo 'Candidate images published. Clean installation, upgrade and restore certification are still required; no release or floating version tag was created.' >> "$GITHUB_STEP_SUMMARY"
@@ -151,3 +167,4 @@ jobs:
           path: candidate/
           if-no-files-found: warn
           retention-days: 30
+          compression-level: 0

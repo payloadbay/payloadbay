@@ -11,6 +11,28 @@ preview schema-push service for the release migrator. The release checklist in
 [release readiness](../releases/readiness.md) distinguishes tested mechanisms from
 published installation evidence.
 
+## Prebuilt image archive
+
+A release also supplies `images.tar.gz`, its SHA256 checksum, `images.local.env`
+and `compose.local.yml`. This is the same coordinated prebuilt image set, for
+operators who cannot pull from GHCR. It does not build source or require registry
+credentials. PostgreSQL is still pulled from its public pinned registry image.
+
+Verify the checksum against the release asset, then load the archive:
+
+```sh
+sha256sum --check images.tar.gz.sha256
+docker image load --input images.tar.gz
+docker compose --env-file /secure/operator.env --env-file images.local.env \
+  -f compose.yml -f compose.local.yml up -d
+```
+
+The local environment file pins Docker image configuration IDs and the override
+prevents pulling those four images. The ordinary `images.env` file instead pins
+registry manifest digests. Do not mix the two coordinate files or load an archive
+from another release. Retain the archive/checksum and exact source revision with
+your operator recovery material.
+
 ## Configuration
 
 Use one operator-owned environment file with Docker Compose's `--env-file` flag.

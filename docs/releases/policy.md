@@ -72,8 +72,14 @@ published digests:
 5. Record source, real schema migration, SDK/protocol/date, Docker runtime,
    published digests and observed results in a release-specific manifest.
 
+The candidate also exports a compressed archive of these same four image tags,
+its checksum, immutable local image IDs and a no-pull Compose override. Verify
+archive installation independently; never replace published-image acceptance with
+a local source rebuild. This distribution path needs no GHCR credentials.
+
 Create the version tag on the accepted source SHA, then a GitHub prerelease with
-release notes, operator Compose, immutable `images.env` and the completed
+release notes, operator Compose, immutable `images.env`, the image archive/local
+coordinates/checksum/override, and the completed
 manifest. Include setup, changes, known limitations, required migrations,
 recovery guidance and the supported architecture. Versioned image aliases may
 point to the accepted digests; operator instructions must retain digest pins.
