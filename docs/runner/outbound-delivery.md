@@ -45,7 +45,9 @@ retry. The normal delivery-attempt history records the outcome.
 response or `local_delivery_failed`. Expired, wrong-destination, revoked and
 superseded-generation acknowledgements cannot finalize an execution. Request
 payloads are encrypted with the instance encryption key and cleared after the
-managed send finishes. Never replace that key as a recovery shortcut.
+managed send finishes. Trusted recovery also clears expired request/response
+envelopes in bounded batches if the worker died before its cleanup ran. Never
+replace that key as a recovery shortcut.
 
 A receiver may act before its response or acknowledgement is lost. Retries can
 therefore duplicate effects. `x-payloadbay-delivery-id` carries a stable

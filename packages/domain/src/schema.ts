@@ -893,5 +893,10 @@ export const runnerDelivery = domain.table(
 		leaseDigest: text("lease_digest"),
 		result: jsonb("result"),
 	},
-	(t) => [index("runner_delivery_destination").on(t.destinationId, t.expiresAt)],
+	(t) => [
+		index("runner_delivery_destination").on(t.destinationId, t.expiresAt),
+		index("runner_delivery_expiry")
+			.on(t.expiresAt)
+			.where(sql`${t.payload} IS NOT NULL OR ${t.result} IS NOT NULL`),
+	],
 );

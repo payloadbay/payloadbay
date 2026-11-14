@@ -133,6 +133,9 @@ test("Runner timeout retains a failed attempt and stale acknowledgements cannot 
 		const first = await sending;
 		assert.equal(first.ok, false);
 		assert.equal(first.networkError, "delivery_network_error");
+		await pool.query("UPDATE payloadbay.runner_delivery SET payload=$2,result=$3,expires_at=clock_timestamp()-interval '1 second' WHERE id=$1", [envelope.id, Buffer.from("synthetic-orphaned-ciphertext"), JSON.stringify({ networkError: "local_delivery_failed" })]);
+		assert.deepEqual(await recoverExpired(pool), []);
+		assert.deepEqual((await pool.query("SELECT payload,result FROM payloadbay.runner_delivery WHERE id=$1", [envelope.id])).rows[0], { payload: null, result: null });
 		await assert.rejects(completeRunnerDelivery(pool, token, String(envelope.id), envelope.leaseToken, { networkError: "local_delivery_failed" }), { code: "stale_delivery" });
 		const retry = managedSend(pool, authority, "default", { operationId: "offline", body: "request" }, { encryptionKey, timeoutMs: 1500 });
 		const next = await pending(pool, token);
