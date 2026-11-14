@@ -84,6 +84,7 @@ test("RV01 worker refuses an incompatible executor before starting job runners",
 		await once(executor, "listening");
 		const address = executor.address();
 		assert.ok(address && typeof address !== "string");
+		const readinessRequested = once(executor, "request", { signal: AbortSignal.timeout(15000) });
 		const child = spawn(process.execPath, ["--import", "tsx", "apps/worker/src/main.ts"], {
 			env: { ...fixtureEnvironment(fixture, "http://localhost:3000"), EXECUTOR_URL: `http://127.0.0.1:${address.port}`, PORT: "0" },
 			stdio: ["ignore", "ignore", "pipe"],
@@ -95,6 +96,8 @@ test("RV01 worker refuses an incompatible executor before starting job runners",
 		const exited = once(child, "exit");
 		let timer: ReturnType<typeof setTimeout> | undefined;
 		try {
+			// TypeScript/coverage startup is separate from the protocol-refusal deadline.
+			await readinessRequested;
 			const code = await Promise.race([
 				exited.then(([code]) => code),
 				new Promise<null>((resolve) => {

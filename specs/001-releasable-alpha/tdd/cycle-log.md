@@ -3748,3 +3748,28 @@ Verification:
 Not certified here: physical mobile keyboards, a new Coolify deployment, candidate
 Docker images, or complete cross-owner release coverage. Existing release gates
 and thresholds are unchanged; no ordinary release migration was generated.
+
+## 2026-11-14 — merge-readiness dependency refresh and RV01 startup observation
+
+A fresh `bun audit --json` found existing dependency advisories independently of
+functional CI. Patched Nodemailer to 10.1.4 throughout the workspaces and pinned
+Monaco's DOMPurify to 3.4.18 and Scalar's Undici to 7.30.1 using root overrides.
+The subsequent audit has no high/critical advisories; the four remaining
+low/moderate transitive findings and their exposure assessment are recorded in
+`docs/releases/readiness.md`, without suppression.
+
+The normal push gate at b745cb8 passed static checks and 64 unit tests but stopped
+at integration 340/341: RV01 observed the incompatible readiness request, then
+its spawn-relative five-second wait returned null rather than an exit code.
+Three isolated refusal diagnostics returned code 1 after roughly 2.8–3.0 seconds;
+module startup consumed approximately 2.7–2.9 seconds. Those reruns do not prove
+the exact scheduling cause of the earlier failure.
+
+RV01 now bounds startup observation separately (15 seconds to reach the test
+server) and retains the same five-second refusal deadline after that request.
+It still requires exactly one probe, exit code 1 and sanitized failure output.
+The complete executor-client file passes 3/3. A temporary diagnostic copy with
+a six-second preload in the actual worker process also passes RV01, exercising
+slow startup without any product-side hook. No application deadline, readiness
+contract, retry rule or test assertion was relaxed. Full hook/CI results for the
+new source must be recorded independently; no merge or release is authorized.
