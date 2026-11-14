@@ -24,3 +24,11 @@ test("release acceptance coordinate validation cannot claim an installation cert
 		await rm(directory, { recursive: true, force: true });
 	}
 });
+
+test("release acceptance rejects root image users even with a custom group", () => {
+	const image = (user: string, revision = sha) => ({ Config: { User: user, Labels: { "org.opencontainers.image.revision": revision } } });
+
+	for (const user of ["node", "1000", "node:node", "1000:1000"]) runner.validateCandidateImage(image(user), sha);
+	for (const user of ["", "root", "0", "0:0", "0:1000", "00:1000", "root:node", ":1000"]) assert.throws(() => runner.validateCandidateImage(image(user), sha));
+	assert.throws(() => runner.validateCandidateImage(image("node", "b".repeat(40)), sha));
+});

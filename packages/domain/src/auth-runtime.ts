@@ -1,3 +1,4 @@
+import { protectStoredOAuthTokens } from "./oauth-security.ts";
 import { passkeyPolicyRequired } from "./organization-security.ts";
 import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
@@ -29,8 +30,19 @@ export function createAuth(pool: Pool, config: ServerConfig, sharedIdentityPool?
 		trustedOrigins: [new URL(config.publicUrl).origin],
 		session: { expiresIn: 30 * 24 * 60 * 60, updateAge: 24 * 60 * 60, cookieCache: { enabled: false } },
 		socialProviders: Object.fromEntries(Object.entries(config.oauth).map(([name, client]) => [name, name === "tiktok" ? { ...client, clientId: undefined, clientKey: client.clientId } : client])),
-		account: { accountLinking: { enabled: true, requireLocalEmailVerified: true, allowDifferentEmails: false } },
+		account: {
+			encryptOAuthTokens: true,
+			accountLinking: {
+				enabled: true,
+				disableImplicitLinking: true,
+				// Email OTP remains available without a social account record.
+				allowUnlinkingAll: true,
+				requireLocalEmailVerified: true,
+				allowDifferentEmails: false,
+			},
+		},
 		databaseHooks: {
+			account: { create: { before: async (account) => ({ data: { ...account, idToken: null } }) }, update: { before: async (account) => ({ data: { ...account, idToken: null } }) } },
 			session: {
 				create: {
 					before: async (session) => {
@@ -58,6 +70,12 @@ export function createAuth(pool: Pool, config: ServerConfig, sharedIdentityPool?
 			},
 		},
 		plugins: [
+			{
+				id: "protected-oauth-storage",
+				init: async (ctx) => {
+					await protectStoredOAuthTokens(pool, ctx.secretConfig);
+				},
+			},
 			admin(),
 			passkey({ rpID: new URL(config.publicUrl).hostname, rpName: "Payload Bay", origin: new URL(config.publicUrl).origin }),
 			emailOTP({
@@ -92,6 +110,11 @@ export function createAuth(pool: Pool, config: ServerConfig, sharedIdentityPool?
 			before: createAuthMiddleware(async (ctx) => {
 				if (ctx.path.startsWith("/admin/") && (ctx.request || ctx.headers)) throw new APIError("NOT_FOUND", { message: "Resource unavailable" });
 				if (ctx.path.includes("forget-password") || ctx.path.includes("reset-password") || ctx.path.includes("sign-up")) throw new APIError("NOT_FOUND", { message: "This authentication method is unavailable" });
+
+				if (ctx.path === "/link-social") {
+					const current = await getSessionFromCtx(ctx, { disableCookieCache: true });
+					if (!current || Date.now() - new Date(current.session.createdAt).getTime() > 600000) throw new APIError("UNAUTHORIZED", { message: "Sign in again before linking an identity provider" });
+				}
 
 				if (ctx.path === "/passkey/delete-passkey") {
 					const session = await getSessionFromCtx(ctx, { disableCookieCache: true });

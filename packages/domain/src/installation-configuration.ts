@@ -7,6 +7,7 @@ import { AppError } from "../../contracts/src/errors.ts";
 import { encryptPrivate, decryptPrivate } from "./private-crypto.ts";
 import { requirePermission } from "./membership.ts";
 import { transaction } from "./db.ts";
+import { oauthAuthorityDigest } from "./oauth-security.ts";
 
 /** Saved application policy is authoritative; SMTP and infrastructure stay deployment-owned. */
 export async function resolveInstallationConfiguration(pool: Pool, base: ServerConfig) {
@@ -43,17 +44,22 @@ export async function saveInstallationConfiguration(pool: Pool, actor: Actor, in
 	await transaction(pool, async (db) => {
 		await requirePermission(db, actor, { type: "instance", id: installationId }, "settings.manage");
 		await db.query("SELECT id FROM payloadbay.installation WHERE id=$1 FOR UPDATE", [installationId]);
-		const row = (await db.query("SELECT version,encrypted_settings FROM payloadbay.installation_configuration WHERE installation_id=$1", [installationId])).rows[0];
+		const row = (await db.query("SELECT version,encrypted_settings,oauth_authorities FROM payloadbay.installation_configuration WHERE installation_id=$1", [installationId])).rows[0];
 		if (Number(row?.version ?? 0) !== data.data.version) throw new AppError("version_conflict", 409, "Installation settings changed; reload before saving");
 		const old = row ? editableInstallationSettings.parse(decryptPrivate<unknown>(row.encrypted_settings, base.encryptionKey)) : selectedSettings({ ...base, oauth: {} });
 		const next = editableInstallationSettings.parse({ ...old, ...data.data.settings });
+		const authorities: Record<string, string> = { ...(row?.oauth_authorities ?? {}) };
+		for (const [name, value] of Object.entries(old.oauth)) authorities[name] ??= oauthAuthorityDigest(name as OAuthProvider, value);
 		for (const [name, value] of Object.entries(next.oauth)) {
+			const authority = oauthAuthorityDigest(name as OAuthProvider, value);
+			if (authorities[name] && authorities[name] !== authority) throw new AppError("oauth_identity_pinned", 409, "Identity settings are pinned; rotate the client secret here. Changing the identity authority requires a deployment-controlled migration.");
+			authorities[name] = authority;
 			const previous = old.oauth[name as OAuthProvider];
 			if (!value.clientSecret && value.clientId === previous?.clientId) value.clientSecret = previous?.clientSecret;
 			if (!value.clientSecret) throw new AppError("invalid_input", 400, "A new OAuth application requires its client secret");
 		}
 
-		await db.query("INSERT INTO payloadbay.installation_configuration(installation_id,version,encrypted_settings) VALUES($1,1,$2) ON CONFLICT(installation_id) DO UPDATE SET version=payloadbay.installation_configuration.version+1,encrypted_settings=EXCLUDED.encrypted_settings,updated_at=clock_timestamp()", [installationId, encryptPrivate(next, base.encryptionKey)]);
+		await db.query("INSERT INTO payloadbay.installation_configuration(installation_id,version,encrypted_settings,oauth_authorities) VALUES($1,1,$2,$3) ON CONFLICT(installation_id) DO UPDATE SET version=payloadbay.installation_configuration.version+1,encrypted_settings=EXCLUDED.encrypted_settings,oauth_authorities=EXCLUDED.oauth_authorities,updated_at=clock_timestamp()", [installationId, encryptPrivate(next, base.encryptionKey), JSON.stringify(authorities)]);
 		await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation,resource_id,redacted_diff) VALUES($1,'instance',$2::uuid,'installation.settings_updated',($2::uuid)::text,$3)", [actor.userId, installationId, JSON.stringify({ version: data.data.version + 1, resourceName: "Installation settings", fields: Object.keys(data.data.settings) })]);
 	});
 

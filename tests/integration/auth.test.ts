@@ -1,5 +1,6 @@
 import { authFixture, identity, fixtureConfig, setupSecret } from "../helpers/auth-fixtures.ts";
 import test from "node:test";
+import { createHash } from "node:crypto";
 import assert from "node:assert/strict";
 import { bootstrapOwner } from "../../packages/domain/src/bootstrap.ts";
 
@@ -90,7 +91,7 @@ test("U215 per email request quota is durable", async () => {
 		await requestLoginCode(f.pool, auth, "operator@example.test", 1);
 		await assert.rejects(requestLoginCode(f.pool, auth, "operator@example.test", 1), (error: unknown) => error instanceof LoginCodeRateLimitError && error.status === 429 && error.retryAfterSeconds > 30 && error.retryAfterSeconds <= 300);
 		assert.equal(sends, 1);
-		assert.equal((await f.db.query("SELECT count FROM payloadbay.auth_request_window WHERE key NOT LIKE 'otp-cooldown:%'")).rows[0].count, 2);
+		assert.equal((await f.db.query("SELECT count FROM payloadbay.auth_request_window WHERE key=$1", [createHash("sha256").update("operator@example.test").digest("hex")])).rows[0].count, 2);
 		await f.db.query("UPDATE payloadbay.auth_request_window SET window_started_at=clock_timestamp()-interval '301 seconds'");
 		await requestLoginCode(f.pool, auth, "operator@example.test", 1);
 		assert.equal(sends, 2);
@@ -375,53 +376,61 @@ test("U224 superseded queued OTP code is not sent", async () => {
 	});
 });
 
-test("U49 unverified matching email never links OAuth implicitly", async () => {
-	await authFixture(async (f) => {
-		await identity(f.db, "operator", false);
-		const config = fixtureConfig(f);
-		config.oauth = {
-			google: {
-				clientId: "fixture-client",
-				clientSecret: "fixture-secret",
-				getUserInfo: async () => ({
-					user: {
-						id: "fixture-google-user",
-						name: "Operator",
-						email: "operator@example.test",
-						emailVerified: true,
-					},
-					data: { sub: "fixture-google-user", email: "operator@example.test", email_verified: true },
-				}),
-			},
-		} as typeof config.oauth;
-		const service = createAuth(f.pool, config);
-		const previous = globalThis.fetch;
-		try {
-			const authorization = await service.handler(new Request(config.publicUrl + "/api/auth/sign-in/social", { method: "POST", headers: { origin: config.publicUrl, "content-type": "application/json" }, body: JSON.stringify({ provider: "google", callbackURL: config.publicUrl + "/dashboard" }) }));
-			assert.equal(authorization.status, 200);
-			const details = await authorization.json();
-			const state = new URL(details.url).searchParams.get("state");
-			assert.ok(state);
-			const cookie = authorization.headers
-				.getSetCookie()
-				.map((value) => value.split(";")[0])
-				.join("; ");
-			globalThis.fetch = (async (input) => {
-				const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-				if (url.startsWith("https://oauth2.googleapis.com/token")) return Response.json({ access_token: "fixture-access-token", token_type: "Bearer", expires_in: 3600 });
-				throw Error("Unexpected OAuth network request");
-			}) as typeof fetch;
-			const response = await service.handler(new Request(config.publicUrl + "/api/auth/callback/google?code=fixture-code&state=" + encodeURIComponent(state), { headers: { cookie } }));
-			assert.equal(response.status, 302);
-			assert.equal(new URL(response.headers.get("location")!).searchParams.get("error"), "account_not_linked");
-			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM auth.account")).rows[0].count, 0);
-			assert.equal((await f.db.query("SELECT count(*)::int AS count FROM auth.session")).rows[0].count, 0);
-		} finally {
-			globalThis.fetch = previous;
-			await service.close();
-		}
+for (const verified of [false, true]) {
+	test(`OAuth ${verified ? "verified" : "unverified"} matching email never links implicitly`, async () => {
+		await authFixture(async (f) => {
+			await identity(f.db, "operator", verified);
+			const config = fixtureConfig(f);
+			config.oauth = {
+				google: {
+					clientId: "fixture-client",
+					clientSecret: "fixture-secret",
+					verifyIdToken: async () => true,
+					getUserInfo: async () => ({
+						user: {
+							id: "fixture-google-user",
+							name: "Operator",
+							email: "operator@example.test",
+							emailVerified: true,
+						},
+						data: { sub: "fixture-google-user", email: "operator@example.test", email_verified: true },
+					}),
+				},
+			} as typeof config.oauth;
+			const service = createAuth(f.pool, config);
+			const previous = globalThis.fetch;
+			try {
+				const authorization = await service.handler(new Request(config.publicUrl + "/api/auth/sign-in/social", { method: "POST", headers: { origin: config.publicUrl, "content-type": "application/json" }, body: JSON.stringify({ provider: "google", callbackURL: config.publicUrl + "/dashboard" }) }));
+				assert.equal(authorization.status, 200);
+				const details = await authorization.json();
+				const state = new URL(details.url).searchParams.get("state");
+				assert.ok(state);
+				const cookie = authorization.headers
+					.getSetCookie()
+					.map((value) => value.split(";")[0])
+					.join("; ");
+				globalThis.fetch = (async (input) => {
+					const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+					if (url.startsWith("https://oauth2.googleapis.com/token")) return Response.json({ access_token: "fixture-access-token", token_type: "Bearer", expires_in: 3600 });
+					throw Error("Unexpected OAuth network request");
+				}) as typeof fetch;
+				const response = await service.handler(new Request(config.publicUrl + "/api/auth/callback/google?code=fixture-code&state=" + encodeURIComponent(state), { headers: { cookie } }));
+				assert.equal(response.status, 302);
+				assert.equal(new URL(response.headers.get("location")!).searchParams.get("error"), "account_not_linked");
+				assert.equal((await f.db.query("SELECT count(*)::int AS count FROM auth.account")).rows[0].count, 0);
+				assert.equal((await f.db.query("SELECT count(*)::int AS count FROM auth.session")).rows[0].count, 0);
+				const direct = await service.handler(new Request(config.publicUrl + "/api/auth/sign-in/social", { method: "POST", headers: { origin: config.publicUrl, "content-type": "application/json" }, body: JSON.stringify({ provider: "google", idToken: { token: "synthetic-verified-provider-token" } }) }));
+				assert.equal(direct.status, 401);
+				assert.match((await direct.json()).message, /account.*link/i);
+				assert.equal((await f.db.query("SELECT count(*)::int AS count FROM auth.account")).rows[0].count, 0);
+				assert.equal((await f.db.query("SELECT count(*)::int AS count FROM auth.session")).rows[0].count, 0);
+			} finally {
+				globalThis.fetch = previous;
+				await service.close();
+			}
+		});
 	});
-});
+}
 
 test("U50 public registration stays disabled", async () => {
 	await authFixture(async (f) => {

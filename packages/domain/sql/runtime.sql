@@ -81,6 +81,7 @@ REVOKE ALL ON ALL FUNCTIONS IN SCHEMA payloadbay,graphile_worker FROM PUBLIC;
 GRANT USAGE ON SCHEMA payloadbay,auth TO payloadbay_app;
 GRANT USAGE ON SCHEMA payloadbay,graphile_worker TO payloadbay_worker;
 GRANT SELECT,INSERT,UPDATE ON ALL TABLES IN SCHEMA payloadbay TO payloadbay_app;
+GRANT DELETE ON payloadbay.auth_request_window TO payloadbay_app;
 GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA payloadbay TO payloadbay_worker;
 REVOKE ALL ON payloadbay.schema_migration FROM payloadbay_app,payloadbay_worker;
 GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA payloadbay TO payloadbay_app,payloadbay_worker;

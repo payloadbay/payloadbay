@@ -1,8 +1,11 @@
 import type { Pool } from "pg";
 import { transaction } from "./db.ts";
+import { pruneOTPRequestState } from "./auth.ts";
 import { platformJobPriority } from "./platform-jobs.ts";
 
 export async function recoverPlatformJobs(pool: Pool) {
+	await pruneOTPRequestState(pool);
+
 	return transaction(pool, async (client) => {
 		const candidates = await client.query(`SELECT * FROM payloadbay.platform_job WHERE state IN ('queued','running') AND ((expiry IS NOT NULL AND expiry<=clock_timestamp()) OR(state='running' AND lease_expiry<=clock_timestamp()) OR(state='queued' AND claim_deadline_at<=clock_timestamp())) ORDER BY due_at,id FOR UPDATE SKIP LOCKED LIMIT 100`);
 		const recovered: string[] = [];
