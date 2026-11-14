@@ -3773,3 +3773,21 @@ a six-second preload in the actual worker process also passes RV01, exercising
 slow startup without any product-side hook. No application deadline, readiness
 contract, retry rule or test assertion was relaxed. Full hook/CI results for the
 new source must be recorded independently; no merge or release is authorized.
+
+### Runtime follow-up
+
+The npm audit does not inspect Node's built-in HTTP client. Running the prior
+pinned image independently confirmed Node 22.23.3 / bundled Undici 6.28.1, within
+the disclosed GHSA-xjj6-f33q-929c range. The intermediate dc3c516 full run was
+stopped before pushing when this additional runtime blocker was identified; its
+partial passing lanes are not final-source evidence. Release/fixture Dockerfiles
+and CI now pin Node 22.23.5, the 2026-11-11 security release, with Docker image
+index digest e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee.
+Executing that exact image verifies Node 22.23.5 / bundled Undici 6.29.1.
+Historical bootstrap coordinates remain unchanged. A fresh normal full gate
+and exact-SHA CI are still required for these updated runtime images.
+
+The preceding browser-only launch failures were missing workspace system
+libraries (libnspr4.so and others), not application assertions. Official
+Playwright Chromium dependencies were restored, a browser launch passed and
+the real signed-out application-root case passed before restarting validation.

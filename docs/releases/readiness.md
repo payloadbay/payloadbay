@@ -36,7 +36,13 @@ that predate the last successful CI; that run did not establish dependency-audit
 clearance. Compatible updates now pin Nodemailer 10.1.4, DOMPurify 3.4.18 and
 Undici 7.30.1. Root overrides cover the exact transitive versions pinned by
 Monaco and Scalar; remove them when upstream requirements include the fixes.
-The refreshed audit reports no high or critical advisories.
+The refreshed npm audit reports no high or critical advisories. The pinned
+production Node image was checked independently: the old Node 22.23.3 image
+contains Undici 6.28.1. All release/fixture Dockerfiles and CI now use the
+[Node 22.23.5 security release](https://github.com/nodejs/node/releases/tag/v22.23.5)
+with an immutable image digest; its bundled Undici 6.29.1 addresses the built-in
+`fetch` exposure that an npm override cannot fix. Historical bootstrap image
+coordinates below the manifest's evidence field remain unchanged.
 
 Four lower-severity findings remain visible, without an audit-ignore rule:
 
