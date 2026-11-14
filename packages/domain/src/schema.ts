@@ -766,7 +766,7 @@ export const replayKey = domain.table(
 	(t) => [primaryKey({ columns: [t.actor, t.eventId, t.key] }), index("replay_key_event").on(t.eventId), index("replay_key_execution").on(t.executionId)],
 );
 
-export const authRequestWindow = domain.table("auth_request_window", { key: text("key").primaryKey(), windowStartedAt: time("window_started_at").notNull(), count: integer("count").notNull() }, (t) => [check("auth_request_window_count", sql`${t.count}>=0`)]);
+export const authRequestWindow = domain.table("auth_request_window", { key: text("key").primaryKey(), windowStartedAt: time("window_started_at").notNull(), count: integer("count").notNull() }, (t) => [check("auth_request_window_count", sql`${t.count}>=0`), index("auth_request_window_expiry").on(t.windowStartedAt)]);
 
 export const invitation = domain.table(
 	"invitation",
@@ -844,6 +844,7 @@ export const installationConfiguration = domain.table("installation_configuratio
 		.references(() => installation.id),
 	version: integer("version").notNull().default(1),
 	encryptedSettings: bytes("encrypted_settings").notNull(),
+	oauthAuthorities: jsonb("oauth_authorities").notNull().default({}),
 	updatedAt: time("updated_at").notNull().defaultNow(),
 });
 

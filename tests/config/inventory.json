@@ -1,5 +1,7 @@
 {
 	"owners": {
+		"tests/acceptance/account-sign-in.spec.ts": "browser",
+		"tests/integration/security-boundaries.test.ts": "node",
 		"tests/deployment/release-acceptance.test.ts": "deployment",
 		"tests/executor/providers.test.ts": "executor",
 		"tests/unit/tooling.test.ts": "unit",
