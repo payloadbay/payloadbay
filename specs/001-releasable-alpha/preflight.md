@@ -1,9 +1,11 @@
 # Alpha implementation preflight
 
-Updated 2026-10-17. The alpha remains unreleased in draft PR #13. The original
-bootstrap-only snapshot is historical; it does not describe the current app.
+Current merge/release status and the latest verified source checkpoint are in
+[release readiness](../../docs/releases/readiness.md). PR #13 remains unmerged
+at the maintainer's request. The older checkpoints below are historical evidence;
+they do not override later CI results or certify published-image installation.
 
-## Latest complete clean verification
+## Historical complete verification (2026-10-17)
 
 Source `017cd69`, GitHub CI `39056043199`: static, unit51/51, backend297/297,
 executor34/34, deployment32/32, browser70/70 and performance1/1 pass. All five

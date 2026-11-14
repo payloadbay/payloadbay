@@ -18,11 +18,37 @@ These are mechanism tests, not a published-image installation certificate.
 
 ## Verified source checkpoint
 
-PR #13 source commit `1560be1e9ac0339ebeebc774b19f57c4d4fe80ff`
-has successful exact-SHA CI, including the merged coverage gate. The local full
-suite recorded 589 passing checks and 311 of 311 executable source files meeting
-the unchanged 80% line/function minima. These counts describe that checkpoint;
-subsequent changes require their own affected checks and CI.
+PR #13 source commit `098a7b764765191c997f5a0453b392c673bde9d9`
+completed [CI run 41569541003](https://github.com/payloadbay/payloadbay/actions/runs/41569541003)
+with all 589 checks passing and 310 of 310 executable source files meeting the
+unchanged 80% line/function minima. This is the last verified source checkpoint;
+subsequent dependency changes require their own complete checks. Current status
+is available on [PR #13](https://github.com/payloadbay/payloadbay/pull/13).
+
+The maintainer has requested merge preparation only. Keep the PR open, with
+automatic merge disabled; do not publish images, create a release or deploy the
+persistent instance without renewed approval.
+
+## Dependency review (2026-11-14)
+
+The dependency audit is separate from functional CI. This review found advisories
+that predate the last successful CI; that run did not establish dependency-audit
+clearance. Compatible updates now pin Nodemailer 10.1.4, DOMPurify 3.4.18 and
+Undici 7.30.1. Root overrides cover the exact transitive versions pinned by
+Monaco and Scalar; remove them when upstream requirements include the fixes.
+The refreshed audit reports no high or critical advisories.
+
+Four lower-severity findings remain visible, without an audit-ignore rule:
+
+| Dependency | Current path and exposure | Follow-up |
+| --- | --- | --- |
+| [deepmerge 4.3.1](https://github.com/advisories/GHSA-gcqx-w48m-w2h4) | Low severity; React Email → html-to-text merges formatter options. `email-renderer.tsx` passes only rendered HTML to `toPlainText`, never caller-supplied merge options. No patched upstream release is available in this review. | Update when fixed; re-evaluate before adding configurable formatter options. |
+| [esbuild 0.18.20](https://github.com/advisories/GHSA-67mh-4wv8-2f99) | Moderate severity; Drizzle's legacy development loader uses transform APIs, not the affected HTTP development server. The executor uses the separate patched 0.28.2 version. | Update the loader through Drizzle; never expose this legacy esbuild server. |
+| [glob 13.0.6](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4) | Moderate severity; c8/test-exclude uses repository-controlled paths in the coverage process. No customer request or script supplies its patterns or cancellation signal. | Adopt the upstream coverage dependency update; avoid an unverified major override. |
+| [minimatch 10.2.6](https://github.com/advisories/GHSA-g3hv-75wg-m249) | Moderate severity; coverage and TypeScript lint tooling consume developer-controlled repository globs. Customer input does not reach these patterns. | Adopt compatible upstream tooling updates; re-evaluate if this becomes a runtime matcher. |
+
+These are scoped exposure assessments, not a claim of a vulnerability-free
+application. Re-run the audit before publishing the actual release candidate.
 
 ## Remaining release gates
 

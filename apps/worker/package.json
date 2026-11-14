@@ -6,7 +6,7 @@
 	"dependencies": {
 		"graphile-worker": "0.18.0",
 		"pg": "8.23.1",
-		"nodemailer": "10.1.0",
+		"nodemailer": "10.1.4",
 		"@payloadbay/domain": "workspace:*"
 	}
 }

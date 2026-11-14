@@ -22,8 +22,9 @@
 				"esbuild": "0.28.2",
 				"eslint": "9.39.5",
 				"eslint-config-next": "16.4.2",
+				"husky": "9.1.7",
 				"istanbul-lib-coverage": "3.2.2",
-				"nodemailer": "10.1.0",
+				"nodemailer": "10.1.4",
 				"pg": "8.23.1",
 				"prettier": "3.9.9",
 				"tsx": "4.20.6",
@@ -36,7 +37,7 @@
 			"dependencies": {
 				"graphile-worker": "0.18.0",
 				"pg": "8.23.1",
-				"nodemailer": "10.1.0",
+				"nodemailer": "10.1.4",
 				"@payloadbay/domain": "workspace:*"
 			},
 			"devDependencies": {}
@@ -69,13 +70,14 @@
 				"@tiptap/extension-placeholder": "3.32.0",
 				"@tiptap/react": "3.32.0",
 				"@tiptap/starter-kit": "3.32.0",
+				"@tiptap/suggestion": "3.32.0",
 				"better-auth": "1.7.7",
 				"drizzle-orm": "0.45.4",
 				"embla-carousel-react": "8.6.0",
 				"monaco-editor": "0.57.0",
 				"motion": "14.2.0",
 				"next": "16.4.2",
-				"nodemailer": "10.1.0",
+				"nodemailer": "10.1.4",
 				"pg": "8.23.1",
 				"prettier": "3.9.9",
 				"react": "19.3.0",
@@ -106,6 +108,7 @@
 		},
 		"packages/contracts/package.json": {
 			"dependencies": {
+				"re2js": "2.9.0",
 				"zod": "4.6.7"
 			},
 			"devDependencies": {}
@@ -118,7 +121,7 @@
 				"better-auth": "1.7.7",
 				"drizzle-orm": "0.45.4",
 				"graphile-worker": "0.18.0",
-				"nodemailer": "10.1.0",
+				"nodemailer": "10.1.4",
 				"pg": "8.23.1",
 				"react": "19.3.0",
 				"react-dom": "19.3.0",
@@ -156,25 +159,34 @@
 		"images": [
 			{
 				"tag": "postgres:17-bookworm",
-				"repoDigests": ["postgres@sha256:3645570cccdfa447589da9f57dd740faa29b30938e861289a5574b6ca6b03826"],
+				"repoDigests": [
+					"postgres@sha256:3645570cccdfa447589da9f57dd740faa29b30938e861289a5574b6ca6b03826"
+				],
 				"localImageId": "sha256:589f742565e4f6d22149176b032974f55f8201a8a37b71ed587ec5c6902e689f",
 				"architecture": "amd64"
 			},
 			{
 				"tag": "axllent/mailpit:v1.30.2",
-				"repoDigests": ["axllent/mailpit@sha256:37a38e48e9338cd7e89dfeb487f37b02ebfcd9cb23111bed2d345e79d37d6dd6", "public.ecr.aws/supabase/mailpit@sha256:37a38e48e9338cd7e89dfeb487f37b02ebfcd9cb23111bed2d345e79d37d6dd6"],
+				"repoDigests": [
+					"axllent/mailpit@sha256:37a38e48e9338cd7e89dfeb487f37b02ebfcd9cb23111bed2d345e79d37d6dd6",
+					"public.ecr.aws/supabase/mailpit@sha256:37a38e48e9338cd7e89dfeb487f37b02ebfcd9cb23111bed2d345e79d37d6dd6"
+				],
 				"localImageId": "sha256:cdb09a322d77e0b233727104beaafb4b7b503fd3badce6a6d9e58fd9993025f6",
 				"architecture": "amd64"
 			},
 			{
 				"tag": "node:22-bookworm-slim",
-				"repoDigests": ["node@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392"],
+				"repoDigests": [
+					"node@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392"
+				],
 				"localImageId": "sha256:d0a16be756b6ec6658aecb8b7bcf87fa6c7d0d7fcc6ca53ad14bb49a4c90bdd7",
 				"architecture": "amd64"
 			},
 			{
 				"tag": "oven/bun:1.3.14",
-				"repoDigests": ["oven/bun@sha256:e10577f0db68676a7024391c6e5cb4b879ebd17188ab750cf10024a6d700e5c4"],
+				"repoDigests": [
+					"oven/bun@sha256:e10577f0db68676a7024391c6e5cb4b879ebd17188ab750cf10024a6d700e5c4"
+				],
 				"localImageId": "sha256:59cef0f85ea477b70c4d6428d4a986d4fced461012f46a745fa15d19a523b56f",
 				"architecture": "amd64"
 			},
@@ -207,7 +219,10 @@
 	"operator": {
 		"compose": "deploy/compose.yml",
 		"persistentDatabaseVolume": true,
-		"runtimeRoles": ["payloadbay_web", "payloadbay_jobs"],
+		"runtimeRoles": [
+			"payloadbay_web",
+			"payloadbay_jobs"
+		],
 		"migrationImage": "deploy/Dockerfile.migrator",
 		"publishedInstallVerified": false,
 		"publishedRestoreVerified": false
@@ -227,5 +242,9 @@
 		"scope": "Local public-dependency install and web build verified. Current GitHub CI and candidate Docker images remain separate release gates.",
 		"localFrozenInstallVerified": true,
 		"localWebBuildVerified": true
+	},
+	"dependencyOverrides": {
+		"dompurify": "3.4.18",
+		"undici": "7.30.1"
 	}
 }
