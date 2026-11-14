@@ -44,6 +44,13 @@ with an immutable image digest; its bundled Undici 6.29.1 addresses the built-in
 `fetch` exposure that an npm override cannot fix. Historical bootstrap image
 coordinates below the manifest's evidence field remain unchanged.
 
+The operator, preview, development, migration-acceptance and restore-client images
+also pin [PostgreSQL 17.12](https://www.postgresql.org/docs/release/17.12/), the
+2026-11-12 security update, by immutable digest. The first release starts with a
+fresh cluster; existing pre-release operators must follow the upstream reindex
+and full-backup guidance when updating an older PostgreSQL 17 cluster. No existing
+database or volume is upgraded as part of this source change.
+
 Four lower-severity findings remain visible, without an audit-ignore rule:
 
 | Dependency | Current path and exposure | Follow-up |

@@ -26,7 +26,7 @@ x-restricted: &restricted
 
 services:
   postgres:
-    image: postgres:17-bookworm@sha256:3645570cccdfa447589da9f57dd740faa29b30938e861289a5574b6ca6b03826
+    image: postgres:17.12-bookworm@sha256:40865bc877a289da75963d97d72b59633f639fc5af7a4e856bfa3714cae5b536
     environment:
       POSTGRES_USER: payloadbay_admin
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}

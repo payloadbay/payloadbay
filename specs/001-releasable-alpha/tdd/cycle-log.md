@@ -3791,3 +3791,10 @@ The preceding browser-only launch failures were missing workspace system
 libraries (libnspr4.so and others), not application assertions. Official
 Playwright Chromium dependencies were restored, a browser launch passed and
 the real signed-out application-root case passed before restarting validation.
+
+The same runtime preflight includes PostgreSQL 17.12 (security release dated
+2026-11-12). Operator/dev/preview Compose, candidate SQL acceptance and restore
+clients pin image index 40865bc877a289da75963d97d72b59633f639fc5af7a4e856bfa3714cae5b536.
+Executing the exact image reports PostgreSQL 17.12. No existing database/volume
+was upgraded. Existing pre-release operators must follow upstream reindex and
+new-full-backup guidance; first-release acceptance uses a fresh cluster.

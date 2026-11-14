@@ -111,7 +111,7 @@ jobs:
           export PAYLOADBAY_APP_DATABASE_PASSWORD="$(openssl rand -hex 32)"
           export PAYLOADBAY_WORKER_DATABASE_PASSWORD="$(openssl rand -hex 32)"
           docker network create "$network"
-          docker run --rm -d --name "$postgres" --network "$network" --network-alias postgres --env POSTGRES_USER=payloadbay_admin --env POSTGRES_DB=payloadbay --env POSTGRES_PASSWORD --tmpfs /var/lib/postgresql/data:size=536870912 postgres:17-bookworm@sha256:3645570cccdfa447589da9f57dd740faa29b30938e861289a5574b6ca6b03826
+          docker run --rm -d --name "$postgres" --network "$network" --network-alias postgres --env POSTGRES_USER=payloadbay_admin --env POSTGRES_DB=payloadbay --env POSTGRES_PASSWORD --tmpfs /var/lib/postgresql/data:size=536870912 postgres:17.12-bookworm@sha256:40865bc877a289da75963d97d72b59633f639fc5af7a4e856bfa3714cae5b536
           ready=false
           for attempt in {1..60}; do
             if docker exec "$postgres" pg_isready -h 127.0.0.1 -U payloadbay_admin -d payloadbay >/dev/null 2>&1; then ready=true; break; fi

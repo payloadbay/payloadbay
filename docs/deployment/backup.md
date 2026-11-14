@@ -1,5 +1,11 @@
 # Database recovery
 
+The first alpha pins PostgreSQL 17.12. When updating an existing pre-release
+PostgreSQL 17 cluster, follow the upstream [17.12 update guidance](https://www.postgresql.org/docs/release/17.12/):
+review affected indexes for reindexing and take a new full backup rather than
+trusting older incremental backups. This source update does not upgrade an
+existing database or certify an in-place downgrade.
+
 Payload Bay keeps domain records, authentication, immutable code/publications and
 Graphile jobs in PostgreSQL. A backup must retain all of these schemas together.
 Backing up event rows alone cannot recover accepted deliveries.

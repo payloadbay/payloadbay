@@ -7,7 +7,9 @@
 		"compatibilityDate": "2026-07-01",
 		"executorProtocolVersion": 1,
 		"sdkVersion": "1",
-		"nodeImage": "node:22.23.5-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee"
+		"nodeImage": "node:22.23.5-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee",
+		"postgres": "17.12",
+		"postgresImage": "postgres:17.12-bookworm@sha256:40865bc877a289da75963d97d72b59633f639fc5af7a4e856bfa3714cae5b536"
 	},
 	"packages": {
 		"package.json": {

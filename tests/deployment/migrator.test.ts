@@ -75,7 +75,7 @@ test("RI02 PostgreSQL archive restores binary events, pinned code, encrypted sec
 			const encrypted = encryptPrivate({ value: "synthetic-restored-secret" }, key);
 			const secret = (await db.query("INSERT INTO payloadbay.secret_version(scope_type,scope_id,name,version,encrypted_value,key_id) VALUES('project',$1,'restore-test',1,$2,'v1') RETURNING id", [scope.project, encrypted])).rows[0].id;
 			await db.query("SELECT payloadbay.enqueue('process_event',$1::json,now(),'restore-pending',0::smallint)", [JSON.stringify({ executionId: execution })]);
-			const clientImage = "postgres:17-bookworm@sha256:3645570cccdfa447589da9f57dd740faa29b30938e861289a5574b6ca6b03826";
+			const clientImage = "postgres:17.12-bookworm@sha256:40865bc877a289da75963d97d72b59633f639fc5af7a4e856bfa3714cae5b536";
 
 			const pg = (database: string) => ["run", ...restricted, "--network", fixture.network, "--env", "PGHOST=postgres", "--env", "PGUSER=fixture", "--env", "PGPASSWORD=fixture-only", "--env", "PGDATABASE=" + database, clientImage];
 
@@ -117,7 +117,7 @@ test("RI03 fresh PostgreSQL cluster restores original roles before owned databas
 		try {
 			const scope = await seedScope(db);
 			const event = await seedEvent(db, scope);
-			const clientImage = "postgres:17-bookworm@sha256:3645570cccdfa447589da9f57dd740faa29b30938e861289a5574b6ca6b03826";
+			const clientImage = "postgres:17.12-bookworm@sha256:40865bc877a289da75963d97d72b59633f639fc5af7a4e856bfa3714cae5b536";
 			const source = ["run", ...restricted, "--network", fixture.network, "--env", "PGHOST=postgres", "--env", "PGUSER=fixture", "--env", "PGPASSWORD=fixture-only", "--env", "PGDATABASE=" + new URL(fixture.containerDatabaseUrl).pathname.slice(1), clientImage];
 			const roles = execFileSync("docker", [...source, "pg_dumpall", "--globals-only", "--no-role-passwords", "--no-tablespaces"], { stdio: ["ignore", "pipe", "pipe"] });
 			const archive = execFileSync("docker", [...source, "pg_dump", "--format=custom"], { stdio: ["ignore", "pipe", "pipe"] });
