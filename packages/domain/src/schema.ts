@@ -866,3 +866,12 @@ export const organizationSecurity = domain.table("organization_security", {
 	requirePasskey: boolean("require_passkey").notNull().default(false),
 	version: integer("version").notNull().default(1),
 });
+
+export const ingressDiagnosticBudget = domain.table("ingress_diagnostic_budget", {
+	organizationId: uuid("organization_id")
+		.primaryKey()
+		.references(() => organization.id),
+	recordCount: bigint("record_count", { mode: "number" }).notNull().default(0),
+	byteCount: bigint("byte_count", { mode: "number" }).notNull().default(0),
+	omittedCount: bigint("omitted_count", { mode: "number" }).notNull().default(0),
+});

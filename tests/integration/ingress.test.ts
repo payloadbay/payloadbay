@@ -977,3 +977,93 @@ test("route quota is atomic across concurrent requests and resets using database
 		);
 	});
 });
+
+test("rejected ingress has bounded body retention and exhausted diagnostics add no event, change or usage rows", async () => {
+	await ingressFixture('return ctx.reject({status:403,body:"Rejected"});', async ({ pool, db, key, scope }) => {
+		const request = {
+			key,
+			body: new Uint8Array(1048576),
+			headers: {},
+			method: "POST",
+			url: "https://fixture.test/ingress",
+		};
+		const rejecting = {
+			...options,
+			run: async () => ({
+				decision: { kind: "reject", response: { status: 403, body: "Rejected" } },
+				logs: [],
+				peakRssBytes: 0,
+				durationMs: 0,
+			}),
+		};
+		for (let i = 0; i < 20; i++) assert.equal((await receiveIngress(pool, request, rejecting)).status, 403);
+
+		const counts = async () => ({ events: (await db.query("SELECT count(*)::int AS n FROM payloadbay.event")).rows[0].n, facts: (await db.query("SELECT count(*)::int AS n FROM payloadbay.usage_fact")).rows[0].n, changes: (await db.query("SELECT count(*)::int AS n FROM payloadbay.change_record")).rows[0].n });
+
+		const before = await counts();
+		assert.equal(before.events, 15);
+		for (let i = 0; i < 10; i++) assert.equal((await receiveIngress(pool, request, rejecting)).status, 403);
+		assert.deepEqual(await counts(), before);
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.execution")).rows[0].n, 0);
+		const budget = (await db.query("SELECT record_count::int AS n,byte_count::int AS bytes FROM payloadbay.ingress_diagnostic_budget WHERE organization_id=$1", [scope.organization])).rows[0];
+		assert.equal(budget.n, 15);
+		assert.ok(budget.bytes <= 16777216);
+		assert.equal((await db.query("SELECT omitted_count::int AS n FROM payloadbay.ingress_diagnostic_budget WHERE organization_id=$1", [scope.organization])).rows[0].n, 15);
+	});
+});
+
+test("small diagnostic records have a separate row bound while accepted work remains durable", async () => {
+	await ingressFixture(accepting, async ({ pool, db, key }) => {
+		const request = {
+			key,
+			body: new Uint8Array([42]),
+			headers: {},
+			method: "POST",
+			url: "https://fixture.test/ingress",
+		};
+		const rejecting = {
+			...options,
+			run: async () => ({
+				decision: { kind: "reject", response: { status: 401, body: "Rejected" } },
+				logs: [],
+				peakRssBytes: 0,
+				durationMs: 0,
+			}),
+		};
+		for (let i = 0; i < 1003; i++) assert.equal((await receiveIngress(pool, request, rejecting)).status, 401);
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.event")).rows[0].n, 1000);
+		assert.equal((await receiveIngress(pool, request, options)).status, 202);
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.receipt")).rows[0].n, 1);
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM payloadbay.execution")).rows[0].n, 1);
+		assert.equal((await db.query("SELECT count(*)::int AS n FROM graphile_worker.jobs")).rows[0].n, 1);
+	});
+});
+
+test("trusted event retention releases diagnostic row and byte capacity", async () => {
+	await ingressFixture(accepting, async ({ pool, db, key, scope }) => {
+		await db.query("INSERT INTO payloadbay.event(endpoint_id,publication_id,original_body,headers,content_type,accepted_body,ingress_outcome,received_at) VALUES($1,$2,$3,'{}','application/octet-stream',$3,'reject',clock_timestamp()-interval '40 days')", [scope.endpoint, scope.publication, Buffer.from([42])]);
+		const request = {
+			key,
+			body: new Uint8Array([42]),
+			headers: {},
+			method: "POST",
+			url: "https://fixture.test/ingress",
+		};
+		const rejecting = {
+			...options,
+			run: async () => ({
+				decision: { kind: "reject", response: { status: 403, body: "Rejected" } },
+				logs: [],
+				peakRssBytes: 0,
+				durationMs: 0,
+			}),
+		};
+		await receiveIngress(pool, request, rejecting);
+		const before = (await db.query("SELECT record_count::int AS n,byte_count::int AS bytes FROM payloadbay.ingress_diagnostic_budget")).rows[0];
+		assert.equal(before.n, 2);
+		assert.equal((await db.query("SELECT payloadbay.prune_expired_events(statement_timestamp()-interval '30 days',100) AS n")).rows[0].n, 1);
+		const after = (await db.query("SELECT record_count::int AS n,byte_count::int AS bytes FROM payloadbay.ingress_diagnostic_budget")).rows[0];
+		assert.equal(after.n, 1);
+		assert.ok(after.bytes < before.bytes);
+	});
+});

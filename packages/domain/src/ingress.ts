@@ -1,3 +1,4 @@
+import { reserveIngressDiagnostic } from "./ingress-diagnostics.ts";
 import { checkIngressPolicy, type ProtectionBlock } from "./ingress-policy.ts";
 import { assertExecutionDependencies } from "./execution-dependencies.ts";
 import { validateProviderResponse } from "../../contracts/src/provider-response.ts";
@@ -105,6 +106,7 @@ export async function receiveIngress(pool: Pool, input: IngressInput, options: I
 		}
 	} catch (cause) {
 		await transaction(pool, async (db) => {
+			if (!(await reserveIngressDiagnostic(db, route.organization_id, input.body.byteLength, headers, {}))) return;
 			const recorded = (await db.query("INSERT INTO payloadbay.event(endpoint_id,publication_id,original_body,headers,content_type,accepted_body,ingress_outcome,request_method,response_status) VALUES($1,$2,$3,$4,$5,$6,'error',$7,$8) RETURNING id", [route.id, route.publication_id, Buffer.from(input.body), JSON.stringify(headers), headers["content-type"] ?? "application/octet-stream", Buffer.alloc(0), input.method, cause instanceof AppError ? cause.status : 500])).rows[0];
 			await recordEndpointUsage(db, route.id, "ingress.recorded", recorded.id);
 			await appendChange(db, { scope: { type: "project", id: route.project_id }, kind: "event.recorded", resourceId: recorded.id });
@@ -120,6 +122,8 @@ export async function receiveIngress(pool: Pool, input: IngressInput, options: I
 			decision = { kind: "reject", response: { status: 429, body: "Event acceptance is temporarily unavailable for this organization", headers: { "content-type": "text/plain" } } };
 		}
 
+		const metadata = decision.kind === "accept" ? (decision.event.metadata ?? {}) : admissionRejected ? { platform: { reason: "organization_admission_limit" } } : protectionReason ? { platform: { protection: protectionReason } } : {};
+		if (decision.kind !== "accept" && !(await reserveIngressDiagnostic(db, route.organization_id, input.body.byteLength, headers, metadata))) return;
 		const event = (
 			await db.query("INSERT INTO payloadbay.event(endpoint_id,publication_id,original_body,headers,content_type,accepted_body,metadata,ingress_outcome,request_method,response_status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id", [
 				route.id,
@@ -128,7 +132,7 @@ export async function receiveIngress(pool: Pool, input: IngressInput, options: I
 				JSON.stringify(headers),
 				decision.kind === "accept" ? decision.event.contentType : (headers["content-type"] ?? "application/octet-stream"),
 				decision.kind === "accept" ? accepted : Buffer.alloc(0),
-				JSON.stringify(decision.kind === "accept" ? (decision.event.metadata ?? {}) : admissionRejected ? { platform: { reason: "organization_admission_limit" } } : protectionReason ? { platform: { protection: protectionReason } } : {}),
+				JSON.stringify(metadata),
 				decision.kind,
 				input.method,
 				decision.response.status,
