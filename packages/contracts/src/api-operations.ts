@@ -1,5 +1,9 @@
 /** Explicit public HTTP surface. The route-parity test rejects drift. */
 export const apiOperations = [
+	["post", "/api/v1/runner/claim"],
+	["post", "/api/v1/runner/deliveries/{deliveryId}/complete"],
+	["post", "/api/v1/destinations/{destinationId}/runner"],
+	["delete", "/api/v1/destinations/{destinationId}/runner"],
 	["get", "/api/v1/organizations/{organizationId}/protection"],
 	["put", "/api/v1/organizations/{organizationId}/protection"],
 	["get", "/api/v1/workspaces/{workspaceId}/protection"],

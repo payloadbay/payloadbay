@@ -43,7 +43,8 @@ export function createBroker(pool: Pool, config: ServerConfig, resolveConfig: ()
 			}
 
 			const input = unpackWire(JSON.parse(Buffer.concat(chunks).toString("utf8"))) as { target: DestinationTarget; input: SendInput };
-			const result = await managedSend(pool, authority, input.target, input.input, { timeoutMs: (await resolveConfig()).httpTimeoutMs, signal: abort.signal });
+			const currentConfig = await resolveConfig();
+			const result = await managedSend(pool, authority, input.target, input.input, { timeoutMs: currentConfig.httpTimeoutMs, signal: abort.signal, encryptionKey: currentConfig.encryptionKey });
 			response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(packWire(result)));
 		} catch {
 			if (!response.writableEnded) response.writeHead(403, { "content-type": "application/json" }).end(JSON.stringify({ error: { code: "broker_request_rejected" } }));

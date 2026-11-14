@@ -865,3 +865,32 @@ export const organizationSecurity = domain.table("organization_security", {
 	requirePasskey: boolean("require_passkey").notNull().default(false),
 	version: integer("version").notNull().default(1),
 });
+
+export const runnerCredential = domain.table("runner_credential", {
+	id: id(),
+	destinationId: uuid("destination_id")
+		.notNull()
+		.references(() => destination.id, { onDelete: "cascade" }),
+	tokenDigest: text("token_digest").notNull().unique(),
+	parentToken: jsonb("parent_token"),
+	createdBy: text("created_by").notNull(),
+	createdAt: time("created_at").notNull().defaultNow(),
+	revokedAt: time("revoked_at"),
+});
+
+export const runnerDelivery = domain.table(
+	"runner_delivery",
+	{
+		id: uuid("id")
+			.primaryKey()
+			.references(() => deliveryAttempt.id, { onDelete: "cascade" }),
+		destinationId: uuid("destination_id")
+			.notNull()
+			.references(() => destination.id, { onDelete: "cascade" }),
+		payload: bytes("payload"),
+		expiresAt: time("expires_at").notNull(),
+		leaseDigest: text("lease_digest"),
+		result: jsonb("result"),
+	},
+	(t) => [index("runner_delivery_destination").on(t.destinationId, t.expiresAt)],
+);
