@@ -23,6 +23,12 @@ export function candidateCoordinates(text) {
 	return result;
 }
 
+export function validateCandidateImage(image, sourceSha) {
+	assert.equal(image.Config.Labels?.["org.opencontainers.image.revision"], sourceSha, "Images must share the candidate source commit");
+	const user = (image.Config.User ?? "").split(":", 1)[0];
+	assert.ok(user && user !== "root" && !/^0+$/.test(user), "Application images must run as non-root");
+}
+
 async function availablePort() {
 	const server = createServer();
 	await new Promise((resolve, reject) => server.once("error", reject).listen(0, "127.0.0.1", resolve));
@@ -123,8 +129,8 @@ export async function accept(candidateDirectory, { validateOnly = false } = {}) 
 		compose("pull");
 		for (const service of ["APP", "WORKER", "EXECUTOR", "MIGRATOR"]) {
 			const image = JSON.parse(docker(["image", "inspect", coordinates[`PAYLOADBAY_${service}_IMAGE`]]))[0];
-			assert.equal(image.Config.Labels["org.opencontainers.image.revision"], coordinates.SOURCE_SHA, "Images must share the candidate source commit");
-			assert.ok(image.Config.User && !["root", "0", "0:0"].includes(image.Config.User), "Application images must run as non-root");
+			validateCandidateImage(image, coordinates.SOURCE_SHA);
+			docker(["run", "--rm", "--read-only", "--network", "none", "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true", "--pids-limit", "32", "--memory", "128m", "--entrypoint", "node", coordinates[`PAYLOADBAY_${service}_IMAGE`], "-e", "if(process.getuid()===0)process.exit(1)"]);
 		}
 
 		checks.push("coordinated-published-images");
