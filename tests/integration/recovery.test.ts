@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { once } from "node:events";
 import { prepareDevelopmentDatabase as migrate } from "../../packages/domain/src/development.ts";
 import { database } from "../../packages/domain/src/db.ts";
 import { withFixtures } from "../../scripts/tests/fixtures.ts";
@@ -548,5 +549,97 @@ try {
 		await db.query("UPDATE payloadbay.execution SET lease_expiry=clock_timestamp()-interval '1 second' WHERE id=$1", [live.id]);
 		await db.query("UPDATE payloadbay.execution SET due_at=clock_timestamp() WHERE id=$1", [waiting]);
 		assert.deepEqual(await childClaim(waiting, 2), { id: waiting, attempt: 1 });
+	});
+});
+
+test("recovery drill rolls back a disconnected completion transaction without losing the accepted event", async () => {
+	await recoveryFixture(async ({ pool, db, executionId, endpointId }) => {
+		const connection = await pool.connect();
+		connection.on("error", () => {});
+		try {
+			const pid = (await connection.query("SELECT pg_backend_pid() AS pid")).rows[0].pid;
+			await connection.query("BEGIN");
+			await connection.query("UPDATE payloadbay.execution SET final_result=$2::jsonb WHERE id=$1", [executionId, JSON.stringify({ mustRollback: true })]);
+			assert.equal((await db.query("SELECT pg_terminate_backend($1) AS terminated", [pid])).rows[0].terminated, true);
+			await assert.rejects(connection.query("COMMIT"));
+		} finally {
+			connection.release(true);
+		}
+
+		assert.equal((await db.query("SELECT final_result FROM payloadbay.execution WHERE id=$1", [executionId])).rows[0].final_result, null);
+		await db.query("UPDATE payloadbay.execution SET lease_expiry=clock_timestamp() WHERE id=$1", [executionId]);
+		assert.deepEqual(await recoverExpired(pool), [executionId]);
+		const { claimExecution } = await import("../../packages/domain/src/execution-lease.ts");
+		const replacement = await claimExecution(pool, executionId, 2, "database-reconnected-worker");
+		assert.ok(replacement);
+		await finishExecution(
+			pool,
+			{
+				executionId,
+				endpointId,
+				generation: 2,
+				owner: "database-reconnected-worker",
+			},
+			{ kind: "complete" },
+		);
+		assert.deepEqual((await db.query("SELECT original_body,accepted_body FROM payloadbay.event WHERE id=$1", [replacement.event_id])).rows[0], { original_body: Buffer.from([0, 255, 42]), accepted_body: Buffer.from([0, 255, 42]) });
+	});
+});
+
+test("recovery drill reclaims a SIGKILLed lease owner and rejects its stale completion", async () => {
+	await recoveryFixture(async ({ pool, db, databaseUrl, executionId, endpointId }) => {
+		const { spawn } = await import("node:child_process");
+		const { createInterface } = await import("node:readline");
+		await db.query("UPDATE payloadbay.execution SET state='queued',lease_owner=NULL,lease_expiry=NULL WHERE id=$1", [executionId]);
+		const source = `import { database } from ${JSON.stringify(new URL("../../packages/domain/src/db.ts", import.meta.url).href)};
+import { claimExecution } from ${JSON.stringify(new URL("../../packages/domain/src/execution-lease.ts", import.meta.url).href)};
+const pool=database(process.env.PAB_CRASH_DATABASE_URL);
+const claim=await claimExecution(pool,${JSON.stringify(executionId)},1,'crash-drill-worker');
+if(!claim) process.exit(2);
+process.stdout.write('claimed\\n');
+setInterval(()=>{},1000);`;
+		const child = spawn(process.execPath, ["--import", "tsx", "--input-type=module", "--eval", source], { env: { ...process.env, PAB_CRASH_DATABASE_URL: databaseUrl }, stdio: ["ignore", "pipe", "ignore"] });
+		const exited = once(child, "exit");
+		const lines = createInterface({ input: child.stdout });
+		try {
+			const [line] = await once(lines, "line", { signal: AbortSignal.timeout(15000) });
+			assert.equal(line, "claimed");
+			assert.deepEqual(await recoverExpired(pool), [], "a live lease must survive an early sweep");
+			child.kill("SIGKILL");
+			assert.deepEqual(await exited, [null, "SIGKILL"]);
+			await db.query("UPDATE payloadbay.execution SET lease_expiry=clock_timestamp() WHERE id=$1", [executionId]);
+			assert.deepEqual(await recoverExpired(pool), [executionId]);
+			await assert.rejects(
+				finishExecution(
+					pool,
+					{
+						executionId,
+						endpointId,
+						generation: 1,
+						owner: "crash-drill-worker",
+					},
+					{ kind: "complete" },
+				),
+				{ code: "stale_execution" },
+			);
+			assert.deepEqual((await db.query("SELECT state FROM payloadbay.processing_attempt WHERE execution_id=$1", [executionId])).rows, [{ state: "interrupted" }]);
+			const { claimExecution } = await import("../../packages/domain/src/execution-lease.ts");
+			assert.ok(await claimExecution(pool, executionId, 2, "replacement-after-crash"));
+			await finishExecution(
+				pool,
+				{
+					executionId,
+					endpointId,
+					generation: 2,
+					owner: "replacement-after-crash",
+				},
+				{ kind: "complete" },
+			);
+			assert.deepEqual((await db.query("SELECT state FROM payloadbay.processing_attempt WHERE execution_id=$1 ORDER BY attempt_number", [executionId])).rows, [{ state: "interrupted" }, { state: "succeeded" }]);
+		} finally {
+			lines.close();
+			if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+			await exited;
+		}
 	});
 });

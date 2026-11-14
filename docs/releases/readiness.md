@@ -18,8 +18,8 @@ These are mechanism tests, not a published-image installation certificate.
 
 ## Verified source checkpoint
 
-PR #13 source commit `098a7b764765191c997f5a0453b392c673bde9d9`
-completed [CI run 41569541003](https://github.com/payloadbay/payloadbay/actions/runs/41569541003)
+PR #13 source commit `3194ddad55c25e8e525fceff06b504aca2f441b5`
+completed [CI run 43614090655](https://github.com/payloadbay/payloadbay/actions/runs/43614090655)
 with all 589 checks passing and 310 of 310 executable source files meeting the
 unchanged 80% line/function minima. This is the last verified source checkpoint;
 subsequent dependency changes require their own complete checks. Current status
@@ -126,3 +126,12 @@ bootstrap, first HTTP delivery, pending-job/code-pin upgrade and backup/restore
 acceptance. Candidate publication and repeated SQL alone do not certify those
 flows, optional host runsc or a hostile public multi-tenant service. ARM image
 publication and multi-platform certification are not claimed by this workflow.
+
+## Additional preparation (in progress)
+
+The maintainer approved a deeper security audit, additional recovery drills, a
+repeatable published-candidate acceptance runner and provider examples. The new
+[acceptance runner](acceptance.md) and [integration examples](../integrations/examples.md)
+do not certify unpublished images. The outbound-only private receiver Runner is
+tracked separately in [#18](https://github.com/payloadbay/payloadbay/issues/18);
+its protocol prototype is not a shipped Core feature or a first-alpha promise.

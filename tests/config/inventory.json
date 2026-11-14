@@ -1,5 +1,7 @@
 {
 	"owners": {
+		"tests/deployment/release-acceptance.test.ts": "deployment",
+		"tests/executor/providers.test.ts": "executor",
 		"tests/unit/tooling.test.ts": "unit",
 		"tests/integration/fixtures.test.ts": "node",
 		"tests/executor/feasibility.test.ts": "executor",
