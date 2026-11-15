@@ -20,10 +20,13 @@ These are mechanism tests, not a published-image installation certificate.
 
 PR #13 source commit `3194ddad55c25e8e525fceff06b504aca2f441b5`
 completed [CI run 43614090655](https://github.com/payloadbay/payloadbay/actions/runs/43614090655)
-with all 589 checks passing and 310 of 310 executable source files meeting the
-unchanged 80% line/function minima. This is the last verified source checkpoint;
-subsequent dependency changes require their own complete checks. Current status
-is available on [PR #13](https://github.com/payloadbay/payloadbay/pull/13).
+with all 589 checks passing. Its old coverage reporter also reported 310 of 310
+executable files above the 80% line/function minima, but a later audit reproduced
+a source-map placeholder false positive and missing server-function attribution.
+That historical coverage result is not sufficient release evidence. Acceptance
+requires a complete run with normalized multi-source maps, genuine trusted-server
+counters and the placeholder guard; the 80% minima remain unchanged. Current
+exact-commit checks are available on [PR #13](https://github.com/payloadbay/payloadbay/pull/13).
 
 The maintainer has requested merge preparation only. Keep the PR open, with
 automatic merge disabled; do not publish images, create a release or deploy the

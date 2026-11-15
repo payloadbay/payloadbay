@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, writeFile, readFile, rm, access } from "node:fs/promises";
 import { resolve, relative } from "node:path";
-import { transform } from "esbuild";
+import { build, transform } from "esbuild";
 import { evaluateCoverage, validateCoverageProvenance, runtimeCoverageSources, coveredRevision } from "../../scripts/tests/merge-coverage.ts";
 import { runNodeCoverage, mergeNodeCoverage, browserSourcePath, convertBrowserCoverage } from "../../scripts/tests/coverage.ts";
 
@@ -443,6 +443,104 @@ test("CV16 compiler aliases with precise source ranges retain separate callback 
 			.toSummary();
 		assert.equal(summary.functions.total, 2);
 		assert.equal(summary.functions.covered, 1);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("coverage cannot certify an authored function using a source-only placeholder", async () => {
+	const directory = await mkdtemp(resolve("test-results/coverage-placeholder-"));
+	try {
+		const source = resolve(directory, "source.ts");
+		await writeFile(source, "export function neverCalled() { return 42; }\n");
+		const placeholder = {
+			[source]: {
+				path: source,
+				statementMap: { 0: { start: { line: 1, column: 0 }, end: { line: 1, column: 46 } } },
+				s: { 0: 1 },
+				fnMap: {},
+				f: {},
+				branchMap: {},
+				b: {},
+			},
+		};
+		assert.equal(evaluateCoverage([placeholder], "", [source], 0.8).passed, false);
+		const actual = {
+			[source]: {
+				...placeholder[source],
+				fnMap: {
+					0: {
+						name: "neverCalled",
+						decl: { start: { line: 1, column: 0 }, end: { line: 1, column: 43 } },
+						loc: { start: { line: 1, column: 0 }, end: { line: 1, column: 43 } },
+						line: 1,
+					},
+				},
+				f: { 0: 1 },
+			},
+		};
+		assert.equal(evaluateCoverage([placeholder, actual], "", [source], 0.8).passed, true, "Actual executed ranges must still certify the function");
+		assert.equal(evaluateCoverage([actual, placeholder], "", [source], 0.8).passed, true, "A later placeholder must not change genuine counters");
+		const uncalled = { [source]: { ...actual[source], f: { 0: 0 }, s: { 0: 0 } } };
+		assert.equal(evaluateCoverage([uncalled, placeholder], "", [source], 0.8).passed, false, "A placeholder cannot add hits to an uncalled function");
+		await writeFile(source, "export default () => 42;\n");
+		assert.equal(evaluateCoverage([placeholder], "", [source], 0.8).passed, false, "Anonymous default functions also need execution evidence");
+		await writeFile(source, "export const answer = 42;\n");
+		assert.equal(evaluateCoverage([placeholder], "", [source], 0.8).passed, true, "Modules without authored functions do not need fabricated function counters");
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("trusted Next fixtures forward only opted-in coverage, never arbitrary host settings", async () => {
+	const { fixtureEnvironment } = await import("../helpers/fixture-environment.ts");
+	const saved = { flag: process.env.PAB_TEST_SOURCE_COVERAGE, raw: process.env.NODE_V8_COVERAGE, secret: process.env.PAB_PRIVATE_HOST_CANARY };
+	try {
+		process.env.NODE_V8_COVERAGE = "/tmp/synthetic-coverage";
+		process.env.PAB_PRIVATE_HOST_CANARY = "must-not-forward";
+		const f = { databaseUrl: "postgres://fixture@localhost/fixture", smtpPort: 1025 };
+		for (const flag of ["false", "true"]) {
+			process.env.PAB_TEST_SOURCE_COVERAGE = flag;
+			const env = fixtureEnvironment(f, "http://localhost:3000");
+			assert.equal(env.NODE_V8_COVERAGE, flag === "true" ? "/tmp/synthetic-coverage" : undefined);
+			assert.equal(env.PAB_PRIVATE_HOST_CANARY, undefined);
+		}
+	} finally {
+		for (const [key, value] of [
+			["PAB_TEST_SOURCE_COVERAGE", saved.flag],
+			["NODE_V8_COVERAGE", saved.raw],
+			["PAB_PRIVATE_HOST_CANARY", saved.secret],
+		]) {
+			if (value === undefined) delete process.env[key!];
+			else process.env[key!] = value;
+		}
+	}
+});
+
+test("multi-source Node maps retain actual called and uncalled function counters", async () => {
+	const directory = await mkdtemp(resolve("test-results/coverage-multi-source-"));
+	try {
+		const helper = resolve(directory, "helper.ts");
+		const main = resolve(directory, "main.ts");
+		const entry = resolve(directory, "compiled.mjs");
+		await writeFile(helper, "export function called() { return 42; }\nexport function notCalled() { return 0; }\n");
+		await writeFile(main, 'import { called, notCalled } from "./helper.ts";\nexport {called,notCalled};\nif(called()!==42) throw Error("wrong result");\n');
+		await build({
+			entryPoints: [main],
+			outfile: entry,
+			bundle: true,
+			platform: "node",
+			format: "esm",
+			sourcemap: "inline",
+		});
+		const output = resolve(directory, "coverage");
+		const result = runNodeCoverage([entry], { directory: output, env: process.env, include: [relative(process.cwd(), helper), relative(process.cwd(), main)] });
+		assert.equal(result.status, 0, result.stderr);
+		const report = JSON.parse(await readFile(resolve(output, "coverage-final.json"), "utf8"));
+		const summary = mergeNodeCoverage([report]).fileCoverageFor(helper).toSummary();
+		assert.equal(summary.functions.total, 2);
+		assert.equal(summary.functions.covered, 1);
+		assert.equal(evaluateCoverage([report], "", [helper], 0.8).passed, false);
 	} finally {
 		await rm(directory, { recursive: true, force: true });
 	}

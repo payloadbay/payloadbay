@@ -293,3 +293,16 @@ DROP TRIGGER IF EXISTS required_passkey ON auth.passkey;
 CREATE TRIGGER required_passkey BEFORE DELETE ON auth.passkey FOR EACH ROW EXECUTE FUNCTION payloadbay.protect_required_passkey();
 
 GRANT SELECT("userId") ON auth.passkey TO payloadbay_worker;
+
+
+GRANT SELECT,UPDATE ON payloadbay.ingress_diagnostic_budget TO payloadbay_retention;
+CREATE OR REPLACE FUNCTION payloadbay.release_ingress_diagnostic_budget() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog AS $$
+DECLARE organization uuid;
+BEGIN
+ IF OLD.ingress_outcome='accept' THEN RETURN OLD; END IF;
+ SELECT w.organization_id INTO organization FROM payloadbay.endpoint e JOIN payloadbay.project p ON p.id=e.project_id JOIN payloadbay.workspace w ON w.id=p.workspace_id WHERE e.id=OLD.endpoint_id;
+ UPDATE payloadbay.ingress_diagnostic_budget SET record_count=greatest(0,record_count-1),byte_count=greatest(0,byte_count-octet_length(OLD.original_body)-octet_length(OLD.headers::text)-octet_length(OLD.metadata::text)-1024) WHERE organization_id=organization;
+ RETURN OLD;
+END $$;
+DROP TRIGGER IF EXISTS release_ingress_diagnostic_budget ON payloadbay.event;
+CREATE TRIGGER release_ingress_diagnostic_budget AFTER DELETE ON payloadbay.event FOR EACH ROW EXECUTE FUNCTION payloadbay.release_ingress_diagnostic_budget();

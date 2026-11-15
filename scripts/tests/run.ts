@@ -69,7 +69,7 @@ for (const lane of lanes) {
 		TSX_TSCONFIG_PATH: resolve("tests/config/tsconfig.json"),
 		PAB_TEST_ARTIFACT_DIR: `${reports}/${lane}`,
 	};
-	if (collectCoverage && ["browser", "node"].includes(lane)) env.PAB_TEST_SOURCE_COVERAGE = "true";
+	if (collectCoverage && ["browser", "node", "deployment"].includes(lane)) env.PAB_TEST_SOURCE_COVERAGE = "true";
 	mkdirSync(env.PAB_TEST_ARTIFACT_DIR, { recursive: true });
 	if (lane === "browser") {
 		const listener = createServer();

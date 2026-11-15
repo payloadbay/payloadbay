@@ -12,6 +12,8 @@ export function fixtureEnvironment(
 	const env: NodeJS.ProcessEnv = {};
 	for (const key of ["PATH", "HOME", "TMPDIR", "TMP", "TEMP", "SystemRoot", "USERPROFILE", "LOCALAPPDATA", "APPDATA", "LANG", "LC_ALL", "NO_COLOR", "FORCE_COLOR", "TZ", "PAB_TEST_PORT", "PAB_TEST_ARTIFACT_DIR", "PAB_TEST_RUN_ID", "PAB_TEST_SOURCE_COVERAGE"]) if (process.env[key] !== undefined) env[key] = process.env[key];
 
+	if (process.env.PAB_TEST_SOURCE_COVERAGE === "true" && process.env.NODE_V8_COVERAGE) env.NODE_V8_COVERAGE = process.env.NODE_V8_COVERAGE;
+
 	return {
 		...env,
 		NEXT_TELEMETRY_DISABLED: "1",

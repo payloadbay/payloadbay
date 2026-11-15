@@ -28,8 +28,27 @@ export function runNodeCoverage(args: string[], options: CoverageOptions) {
 	rmSync(report, { force: true });
 	rmSync(resolve(directory, "coverage-final.json"), { force: true });
 	try {
-		const result = spawnSync("node", [resolve("node_modules/c8/bin/c8.js"), `--reports-dir=${directory}`, `--temp-directory=${raw}`, "--reporter=lcovonly", "--reporter=json", "--exclude-after-remap", "--merge-async", "--exclude=**/node_modules/**", "--exclude=**/*.d.ts", "--exclude=**/*.d.mts", "--exclude=**/*.d.cts", ...options.include.map((pattern) => `--include=${pattern}`), "node", ...args], { encoding: "utf8", env: options.env, maxBuffer: 16 * 1024 * 1024 });
-		if (result.error) throw result.error;
+		const execution = spawnSync("node", args, { encoding: "utf8", env: { ...options.env, NODE_V8_COVERAGE: raw }, maxBuffer: 16 * 1024 * 1024 });
+		if (execution.error) throw execution.error;
+		// c8 filters multi-source ranges before decoding cached file URLs.
+		for (const name of readdirSync(raw).filter((name) => name.endsWith(".json"))) {
+			const filename = resolve(raw, name);
+			const snapshot = JSON.parse(readFileSync(filename, "utf8"));
+			for (const cache of Object.values(snapshot["source-map-cache"] ?? {}) as { data?: { sources?: string[] } }[]) {
+				if (Array.isArray(cache.data?.sources)) cache.data.sources = cache.data.sources.map((source) => (source.startsWith("file://") ? fileURLToPath(source) : source));
+			}
+
+			writeFileSync(filename, JSON.stringify(snapshot));
+		}
+
+		const reporting = spawnSync("node", [resolve("node_modules/c8/bin/c8.js"), "report", `--reports-dir=${directory}`, `--temp-directory=${raw}`, "--reporter=lcovonly", "--reporter=json", "--exclude-after-remap", "--merge-async", "--exclude=**/node_modules/**", "--exclude=**/*.d.ts", "--exclude=**/*.d.mts", "--exclude=**/*.d.cts", ...options.include.map((pattern) => `--include=${pattern}`)], { encoding: "utf8", env: { ...options.env, NODE_V8_COVERAGE: "" }, maxBuffer: 16 * 1024 * 1024 });
+		if (reporting.error) throw reporting.error;
+		const result = {
+			...execution,
+			status: execution.status === 0 ? reporting.status : execution.status,
+			stdout: (execution.stdout ?? "") + (reporting.stdout ?? ""),
+			stderr: (execution.stderr ?? "") + (reporting.stderr ?? ""),
+		};
 		if (result.status === 0 && !readFileSync(report, "utf8").includes("SF:")) throw Error("Node coverage contains no source records");
 
 		return result;

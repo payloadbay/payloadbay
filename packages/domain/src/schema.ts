@@ -900,3 +900,12 @@ export const runnerDelivery = domain.table(
 			.where(sql`${t.payload} IS NOT NULL OR ${t.result} IS NOT NULL`),
 	],
 );
+
+export const ingressDiagnosticBudget = domain.table("ingress_diagnostic_budget", {
+	organizationId: uuid("organization_id")
+		.primaryKey()
+		.references(() => organization.id),
+	recordCount: bigint("record_count", { mode: "number" }).notNull().default(0),
+	byteCount: bigint("byte_count", { mode: "number" }).notNull().default(0),
+	omittedCount: bigint("omitted_count", { mode: "number" }).notNull().default(0),
+});
