@@ -319,6 +319,7 @@ test("U125 a non-overridable parent binding blocks child replacement", async () 
 });
 
 test("U288 actual ingress and worker execute their pinned middleware stages", async () => {
+	const { createDestination } = await import("../../packages/domain/src/destinations.ts");
 	const { authFixture, fixtureConfig } = await import("../helpers/auth-fixtures.ts");
 	const { seedScope } = await import("../helpers/domain-fixtures.ts");
 	const { permissions } = await import("../../packages/contracts/src/permissions.ts");
@@ -361,7 +362,12 @@ test("U288 actual ingress and worker execute their pinned middleware stages", as
 				body: "return ctx.continue({event:{metadata:{processed:true}}});",
 			},
 		);
-		await db.query("INSERT INTO payloadbay.draft(endpoint_id,stage,body) VALUES($1,'ingress',$2),($1,'processing',$3)", [scope.endpoint, 'return ctx.accept({event:{body:ctx.request.body,contentType:"application/octet-stream",metadata:{ingressMarker:ctx.request.headers["x-ingress-marker"]??"missing"}},response:{status:202,body:"accepted"}});', 'if(ctx.event.metadata.processed!==true)return ctx.fail({reason:"middleware_missing"});return ctx.complete();']);
+		await createDestination(pool, { userId: "fixture-owner" }, { projectId: scope.project, name: "Receiver", url: f.httpUrl + "/delivery" });
+		await db.query("INSERT INTO payloadbay.draft(endpoint_id,stage,body) VALUES($1,'ingress',$2),($1,'processing',$3)", [
+			scope.endpoint,
+			'return ctx.accept({event:{body:ctx.request.body,contentType:"application/octet-stream",metadata:{ingressMarker:ctx.request.headers["x-ingress-marker"]??"missing"}},response:{status:202,body:"accepted"}});',
+			'if(ctx.event.metadata.processed!==true)return ctx.fail({reason:"middleware_missing"});const delivery=await ctx.destinations.send({body:ctx.event.body});return delivery.ok?ctx.complete():ctx.retry({reason:"delivery_failed"});',
+		]);
 		await publish(
 			pool,
 			{ userId: "fixture-owner" },
@@ -391,6 +397,10 @@ test("U288 actual ingress and worker execute their pinned middleware stages", as
 		await processEventTask(pool, fixtureConfig(f), execute)({ executionId: queued.id, endpointId: scope.endpoint, generation: 1 });
 		assert.equal((await db.query("SELECT state FROM payloadbay.execution WHERE id=$1", [queued.id])).rows[0].state, "succeeded", "processing must execute pinned middleware");
 		assert.equal(event.metadata.processed, undefined);
+		const receipts = await (await fetch(f.httpUrl + "/receipts")).json();
+		assert.equal(receipts.length, 1);
+		assert.equal(receipts[0].body, Buffer.from([0, 255, 42]).toString("base64"));
+		assert.equal((await db.query("SELECT status_code FROM payloadbay.delivery_attempt")).rows[0].status_code, 200);
 	});
 });
 

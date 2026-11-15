@@ -119,3 +119,37 @@ test("RV01 worker refuses an incompatible executor before starting job runners",
 		}
 	});
 });
+
+test("executor clients bound oversized compiler responses and translate cancelled transport", async () => {
+	const { createServer } = await import("node:http");
+	const { compileSource, executeSource } = await import("../../packages/domain/src/executor-client.ts");
+	let requests = 0;
+	const server = createServer((request, response) => {
+		requests += 1;
+		request.resume();
+		response.writeHead(200, { "content-type": "application/json" }).end("x".repeat(6291457));
+	});
+	server.listen(0, "127.0.0.1");
+	await once(server, "listening");
+	const address = server.address();
+	assert.ok(address && typeof address !== "string");
+	const config = { executorUrl: "http://127.0.0.1:" + address.port, executorToken: "synthetic-transport-token" };
+	try {
+		await assert.rejects(compileSource(config, { stage: "processing", body: "return ctx.complete();" }, AbortSignal.abort()), { code: "compiler_unavailable", status: 503 });
+		await assert.rejects(
+			executeSource(config, {
+				stage: "processing",
+				bundle: "synthetic",
+				input: {},
+				signal: AbortSignal.abort(),
+			}),
+			{ code: "executor_unavailable", status: 503 },
+		);
+		assert.equal(requests, 0, "Already-cancelled work must not reach the executor");
+		await assert.rejects(compileSource(config, { stage: "processing", body: "return ctx.complete();" }), { code: "compiler_response_invalid", status: 503 });
+		assert.equal(requests, 1);
+	} finally {
+		server.closeAllConnections();
+		await new Promise<void>((resolve) => server.close(() => resolve()));
+	}
+});

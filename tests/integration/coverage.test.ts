@@ -1,8 +1,8 @@
 import test from "node:test";
 import type { FunctionMapping } from "istanbul-lib-coverage";
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile, readFile, rm, access } from "node:fs/promises";
-import { resolve, relative } from "node:path";
+import { mkdtemp, writeFile, readFile, rm, access, mkdir } from "node:fs/promises";
+import { resolve, relative, dirname } from "node:path";
 import { build, transform } from "esbuild";
 import { evaluateCoverage, validateCoverageProvenance, runtimeCoverageSources, coveredRevision } from "../../scripts/tests/merge-coverage.ts";
 import { runNodeCoverage, mergeNodeCoverage, browserSourcePath, convertBrowserCoverage } from "../../scripts/tests/coverage.ts";
@@ -772,5 +772,47 @@ test("executed parenthesized arrow bodies retain coverage when maps omit closing
 		assert.equal(evaluateCoverage([report], "", [source], 0.8).passed, false);
 	} finally {
 		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("browser counters survive unmapped generated closing braces without covering cold arrows", async () => {
+	const root = await mkdtemp(resolve("test-results/unmapped-arrow-ends-"));
+	try {
+		const source = resolve(root, "apps/web/src/callbacks.tsx");
+		const assets = resolve(root, "assets");
+		await mkdir(dirname(source), { recursive: true });
+		await mkdir(assets);
+		const original = 'export const callbacks = [\n  (value: string) => value,\n  (value: string) => value,\n];\nexport const never = () => "never";\n';
+		const generated = 'const callbacks = [\n (value) => { return value; },\n (value) => { return value; }\n];\nconst never = () => "never";\n';
+		await writeFile(source, original);
+		await writeFile(
+			resolve(assets, "arrows.js.map"),
+			JSON.stringify({
+				version: 3,
+				sources: [source],
+				sourcesContent: [original],
+				names: [],
+				mappings: [[[0, 0, 0, 0]], [[1, 0, 1, 2], [20, 0, 1, 21], [26]], [[1, 0, 2, 2], [20, 0, 2, 21], [26]], [[0, 0, 3, 0]], [[0, 0, 4, 0]]],
+			}),
+		);
+		const starts = [generated.indexOf("(value)"), generated.lastIndexOf("(value)")];
+		const report = await convertBrowserCoverage(
+			[
+				{
+					url: "http://127.0.0.1/static/arrows.js",
+					source: generated,
+					scriptId: "fixture",
+					functions: [{ functionName: "", isBlockCoverage: true, ranges: [{ startOffset: 0, endOffset: generated.length, count: 1 }] }, ...starts.map((startOffset, index) => ({ functionName: "render", isBlockCoverage: true, ranges: [{ startOffset, endOffset: generated.indexOf("}", startOffset) + 1, count: index === 0 ? 1 : 0 }] }))],
+				},
+			],
+			root,
+			{ directory: assets, prefix: "/static/" },
+		);
+		const summary = mergeNodeCoverage([report]).fileCoverageFor(source).toSummary();
+		assert.equal(summary.functions.total, 3);
+		assert.equal(summary.functions.covered, 1, "The invoked arrow must retain its real count; cold and unmaterialized arrows stay cold");
+		assert.equal(evaluateCoverage([report], "", [source], 0.8).passed, false);
+	} finally {
+		await rm(root, { recursive: true, force: true });
 	}
 });

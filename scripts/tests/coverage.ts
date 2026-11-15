@@ -1,4 +1,5 @@
-import { createFunctionNormalizer } from "./function-coverage.ts";
+import { createFunctionNormalizer, type FunctionStartCounter } from "./function-coverage.ts";
+import { TraceMap, originalPositionFor } from "@jridgewell/trace-mapping";
 import { createHash } from "node:crypto";
 import libReport from "istanbul-lib-report";
 import istanbulReports from "istanbul-reports";
@@ -144,6 +145,36 @@ export function browserSourcePath(source: string, root = process.cwd()) {
 	return isAbsolute(relative) ? relative : resolve(root, "apps/web", relative);
 }
 
+function unmappedBrowserFunctionStarts(entry: JSCoverageEntry, source: string, map: ConstructorParameters<typeof TraceMap>[0], owned: (path: string) => boolean) {
+	const trace = new TraceMap(map);
+	const lines = [0, ...Array.from(source.matchAll(/\n/g), (match) => match.index! + 1)];
+	const counters = new Map<string, FunctionStartCounter[]>();
+
+	const position = (offset: number) => {
+		let first = 0;
+		let last = lines.length;
+		while (first + 1 < last) {
+			const middle = Math.floor((first + last) / 2);
+			if (lines[middle] <= offset) first = middle;
+			else last = middle;
+		}
+
+		return { line: first + 1, column: offset - lines[first] };
+	};
+
+	for (const fn of namedCoverageFunctions(entry.functions)) {
+		if (!fn.functionName || !fn.ranges.length) continue;
+		const range = fn.ranges[0];
+		const start = originalPositionFor(trace, position(range.startOffset));
+		if (!start.source || !owned(start.source) || start.line === null || start.column === null) continue;
+		const end = originalPositionFor(trace, position(Math.max(range.startOffset, range.endOffset - 1)));
+		if (end.source !== null) continue;
+		counters.set(start.source, [...(counters.get(start.source) ?? []), { start: { line: start.line, column: start.column }, count: range.count }]);
+	}
+
+	return counters;
+}
+
 /** Export only first-party counters/locations, never source-map contents. */
 export async function convertBrowserCoverage(entries: JSCoverageEntry[], root = process.cwd(), assets?: { directory: string; prefix: string }): Promise<CoverageMapData> {
 	const staticRoot = assets ? resolve(assets.directory) : resolve(root, "apps/web/.next/static");
@@ -153,6 +184,7 @@ export async function convertBrowserCoverage(entries: JSCoverageEntry[], root = 
 	const owned = (source: string) => ownedRoots.some((directory) => source.startsWith(directory)) && /\.[cm]?[jt]sx?$/.test(source);
 
 	const collected = coverage.createCoverageMap({});
+	const normalizeFunctions = createFunctionNormalizer();
 	for (const entry of entries) {
 		let pathname: string;
 		try {
@@ -176,11 +208,15 @@ export async function convertBrowserCoverage(entries: JSCoverageEntry[], root = 
 		map.sources = map.sources.map((source: string) => (assets ? resolve(dirname(filename), map.sourceRoot ?? "", source) : browserSourcePath(source, root)));
 		map.sourceRoot = "";
 		if (!map.sources.some(owned)) continue;
-		const converter = v8ToIstanbul(filename, 0, { source: entry.source ?? (await readFile(filename, "utf8")), originalSource: "", sourceMap: { sourcemap: map } }, (source) => !owned(source));
+		const source = entry.source ?? (await readFile(filename, "utf8"));
+		const starts = unmappedBrowserFunctionStarts(entry, source, map, owned);
+		const converter = v8ToIstanbul(filename, 0, { source, originalSource: "", sourceMap: { sourcemap: map } }, (source) => !owned(source));
 		try {
 			await converter.load();
 			converter.applyCoverage(namedCoverageFunctions(entry.functions));
-			collected.merge(converter.toIstanbul());
+			const converted = converter.toIstanbul();
+			for (const file of Object.values(converted)) normalizeFunctions(file as FileCoverageData, starts.get(file.path));
+			collected.merge(converted);
 		} finally {
 			converter.destroy();
 		}

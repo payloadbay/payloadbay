@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
+import type { PanelImperativeHandle } from "react-resizable-panels";
 import { Button, Sheet } from "@heroui/react";
 import { PressableFeedback } from "@components/ui/feedback";
 import { ContextualSidebar } from "@components/ui/sidebar-navigation";
@@ -35,6 +36,7 @@ export function ParityFixtures({ id }: { id: string }) {
 	const [nested, setNested] = useState(false);
 	const [document, setDocument] = useState<JSONContent>({ type: "doc", content: [{ type: "paragraph" }] });
 	const [events, setEvents] = useState(initialEvents);
+	const upperPanel = useRef<PanelImperativeHandle | null>(null);
 
 	if (!supported.has(id)) return null;
 	let content;
@@ -119,15 +121,31 @@ export function ParityFixtures({ id }: { id: string }) {
 			break;
 		case "resizable":
 			content = (
-				<Resizable autoSaveId='parity-panels' orientation='vertical' style={{ height: 240 }}>
-					<Resizable.Panel id='top' defaultSize={40} minSize={10} collapsible collapsedSize={0} onCollapse={() => setMessage("Collapsed")} onExpand={() => setMessage("Expanded")}>
-						<p className='p-4'>Persistent upper panel</p>
-					</Resizable.Panel>
-					<Resizable.Handle type='pill' aria-label='Resize vertical panels' />
-					<Resizable.Panel id='bottom'>
-						<p className='p-4'>Lower panel</p>
-					</Resizable.Panel>
-				</Resizable>
+				<div className='flex flex-col gap-3'>
+					<div className='flex flex-wrap gap-2'>
+						<Button size='sm' variant='secondary' onPress={() => upperPanel.current?.collapse()}>
+							Collapse upper panel
+						</Button>
+						<Button size='sm' variant='secondary' onPress={() => upperPanel.current?.expand()}>
+							Expand upper panel
+						</Button>
+						<Button size='sm' variant='secondary' onPress={() => upperPanel.current?.resize("50%")}>
+							Resize upper panel to 50%
+						</Button>
+						<Button size='sm' variant='ghost' onPress={() => setMessage(`${upperPanel.current?.isCollapsed() ? "Collapsed" : "Expanded"} / ${Math.round(upperPanel.current?.getSize().asPercentage ?? 0)}%`)}>
+							Read panel state
+						</Button>
+					</div>
+					<Resizable autoSaveId='parity-panels' orientation='vertical' style={{ height: 240 }}>
+						<Resizable.Panel panelRef={upperPanel} id='top' defaultSize={40} minSize={10} collapsible collapsedSize={0} onCollapse={() => setMessage("Collapsed")} onExpand={() => setMessage("Expanded")}>
+							<p className='p-4'>Persistent upper panel</p>
+						</Resizable.Panel>
+						<Resizable.Handle type='pill' aria-label='Resize vertical panels' />
+						<Resizable.Panel id='bottom'>
+							<p className='p-4'>Lower panel</p>
+						</Resizable.Panel>
+					</Resizable>
+				</div>
 			);
 			break;
 		case "timeline":
