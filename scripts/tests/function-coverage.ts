@@ -88,9 +88,9 @@ export function createFunctionNormalizer() {
 			// They are not unique source declarations and keep their mapped ranges.
 			// Source maps can begin before a declaration; require overlapping ranges.
 			// Coincident minified names in disjoint authored ranges remain distinct.
-			// Compiler maps can omit a parenthesis or include the trailing semicolon.
+			// Compiler maps can omit a parenthesis or include the trailing comma and space.
 			// Require unambiguous source boundaries rather than inferred names.
-			const located = sourceFunctions.filter(({ mapping: candidate, starts }) => starts.some((start) => start.line === mapping.loc.start.line && Math.abs(start.column - mapping.loc.start.column) <= 1) && candidate.loc.end.line === mapping.loc.end.line && Math.abs(candidate.loc.end.column - mapping.loc.end.column) <= 1);
+			const located = sourceFunctions.filter(({ mapping: candidate, starts }) => starts.some((start) => start.line === mapping.loc.start.line && Math.abs(start.column - mapping.loc.start.column) <= 1) && candidate.loc.end.line === mapping.loc.end.line && Math.abs(candidate.loc.end.column - mapping.loc.end.column) <= 2);
 			const canonical = located.length === 1 ? located[0].mapping : source?.length === 1 && source[0].declared && mapping.loc.end.line >= source[0].mapping.loc.start.line && mapping.loc.start.line <= source[0].mapping.loc.end.line ? source[0].mapping : mapping;
 			const key = canonical.name + ":" + JSON.stringify(canonical.loc);
 			let target = identities.get(key);

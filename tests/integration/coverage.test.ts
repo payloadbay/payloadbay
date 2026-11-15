@@ -1,4 +1,5 @@
 import test from "node:test";
+import type { FunctionMapping } from "istanbul-lib-coverage";
 import assert from "node:assert/strict";
 import { mkdtemp, writeFile, readFile, rm, access } from "node:fs/promises";
 import { resolve, relative } from "node:path";
@@ -667,5 +668,47 @@ test("unnamed Node and browser callbacks retain genuine hit and cold counters", 
 		}
 	} finally {
 		await rm(root, { recursive: true, force: true });
+	}
+});
+
+test("callback source maps reconcile trailing delimiter drift without covering a different callback", async () => {
+	const directory = await mkdtemp(resolve("test-results/callback-delimiters-"));
+	try {
+		const source = resolve(directory, "callbacks.ts");
+		const lines = ['export const a = check((value: unknown) => Boolean(value), "first");', 'export const b = check((value: unknown) => !value, "second");'];
+		await writeFile(source, lines.join("\n") + "\n");
+
+		const report = (shift: number, called: number) => {
+			const fnMap: Record<string, FunctionMapping> = {};
+			for (const [index, line] of lines.entries()) {
+				const loc = { start: { line: index + 1, column: line.indexOf("(value:") + shift }, end: { line: index + 1, column: line.indexOf(', "') + 2 } };
+				fnMap[String(index)] = {
+					name: "(anonymous)",
+					decl: loc,
+					loc,
+					line: index + 1,
+				};
+			}
+
+			return {
+				[source]: {
+					path: source,
+					statementMap: { 0: fnMap["0"].loc, 1: fnMap["1"].loc },
+					s: { 0: called, 1: 0 },
+					branchMap: {},
+					b: {},
+					fnMap,
+					f: { 0: called, 1: 0 },
+				},
+			};
+		};
+
+		const merged = mergeNodeCoverage([report(0, 0), report(1, 1)]);
+		const summary = merged.fileCoverageFor(source).toSummary();
+		assert.equal(summary.functions.total, 2, "One authored callback must not become two compiler identities");
+		assert.equal(summary.functions.covered, 1, "The second callback must remain cold");
+		assert.equal(evaluateCoverage([merged.toJSON()], "", [source], 0.8).passed, false);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
 	}
 });
