@@ -1,0 +1,6 @@
+if [ -n "$(git status --porcelain)" ]; then
+	echo 'Commit or stash local changes before pushing so checks validate the committed source.' >&2
+	exit 1
+fi
+
+bun run check:push

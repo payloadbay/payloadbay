@@ -1,0 +1,1 @@
+export const LOGIN_CODE_COOLDOWN_SECONDS = 30;

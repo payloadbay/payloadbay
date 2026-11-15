@@ -1,0 +1,17 @@
+node_modules
+**/.next
+coverage
+test-results
+playwright-report
+**/dist
+**/build
+.specify
+.agents
+.github/speckit
+graphify-out
+packages/domain/migrations
+packages/domain/drizzle
+packages/domain/migration-drafts
+packages/script-sdk/src/declarations.generated.ts
+apps/web/src/app/styles/brand-theme.css
+tests/fixtures/schema-history

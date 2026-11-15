@@ -1,0 +1,21 @@
+# Index project-owned source and architecture, not generated agent/tooling copies.
+.git/
+.github/
+.agents/
+.venv/
+node_modules/
+graphify-out/
+deploy/
+coverage/
+dist/
+AGENTS.md
+.specify/scripts/
+.specify/templates/
+.specify/extensions/
+.specify/presets/
+.specify/integrations/
+.specify/workflows/
+.specify/*.json
+.specify/extensions.yml
+.specify/memory/*.json
+renovate.json

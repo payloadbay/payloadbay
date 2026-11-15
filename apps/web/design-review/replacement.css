@@ -1,0 +1,19 @@
+[data-review-motion="reduced"] .pb-layout,
+[data-review-motion="reduced"] .pb-navigation-dialog,
+[data-review-motion="reduced"] .pb-navigation-backdrop,
+[data-review-motion="reduced"] .modal__backdrop,
+[data-review-motion="reduced"] .modal__container {
+	animation: none !important;
+	transition: none !important;
+}
+[data-review-motion="enabled"] .select__popover[data-entering="true"] {
+	animation: pb-command-enter 150ms ease-out both;
+}
+[data-review-motion="enabled"] .select__popover[data-exiting="true"] {
+	animation: pb-command-exit 100ms ease-in both;
+}
+@media (prefers-reduced-motion: reduce) {
+	[data-review-motion="system"] .pb-layout {
+		transition: none;
+	}
+}

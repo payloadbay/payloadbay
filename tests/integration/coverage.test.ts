@@ -1,0 +1,818 @@
+import test from "node:test";
+import type { FunctionMapping } from "istanbul-lib-coverage";
+import assert from "node:assert/strict";
+import { mkdtemp, writeFile, readFile, rm, access, mkdir } from "node:fs/promises";
+import { resolve, relative, dirname } from "node:path";
+import { build, transform } from "esbuild";
+import { evaluateCoverage, validateCoverageProvenance, runtimeCoverageSources, coveredRevision } from "../../scripts/tests/merge-coverage.ts";
+import { runNodeCoverage, mergeNodeCoverage, browserSourcePath, convertBrowserCoverage } from "../../scripts/tests/coverage.ts";
+
+async function coverageFixture(
+	exit: number,
+	run: (report: string, status: number | null, directory: string) => Promise<void>,
+	options: {
+		keepNames?: boolean;
+		body?: string;
+		minify?: boolean;
+		fileName?: string;
+	} = {},
+) {
+	const directory = await mkdtemp(resolve("test-results/coverage-map-"));
+	try {
+		const source = resolve(directory, options.fileName ?? "source.ts");
+		const rawPath = resolve(directory, "raw-path.txt");
+		const input = options.body
+			? options.body + `\nimport { writeFileSync } from "node:fs";writeFileSync(${JSON.stringify(rawPath)}, process.env.NODE_V8_COVERAGE);`
+			: [
+					"// Source-map position canary: generated JS has a different layout.",
+					"",
+					"export function called(value: number) {",
+					"\treturn value + 1;",
+					"}",
+					"",
+					"export function neverCalled(value: number) {",
+					"\treturn value - 1;",
+					"}",
+					"",
+					`if (process.argv.at(-1) === "right") { if (neverCalled(1) !== 0) throw Error("wrong result"); } else if (called(1) !== 2) throw Error("wrong result");`,
+					`process.exitCode = ${exit};`,
+					`import { writeFileSync } from "node:fs";`,
+					`writeFileSync(${JSON.stringify(rawPath)}, process.env.NODE_V8_COVERAGE);`,
+				].join("\n");
+		await writeFile(source, input);
+		const compiled = await transform(input, {
+			loader: "ts",
+			sourcefile: source,
+			sourcemap: "inline",
+			format: "esm",
+			minify: options.minify ?? true,
+			keepNames: options.keepNames,
+		});
+		const entry = resolve(directory, "compiled.mjs");
+		await writeFile(entry, compiled.code);
+		const output = resolve(directory, "coverage");
+		const result = runNodeCoverage([entry], { directory: output, env: process.env, include: [relative(process.cwd(), source)] });
+		const raw = await readFile(rawPath, "utf8");
+		assert.equal(raw.startsWith(resolve("test-results")), false);
+		await assert.rejects(access(raw), { code: "ENOENT" });
+		const json = JSON.parse(await readFile(resolve(output, "coverage-final.json"), "utf8"));
+		const mapped = json[source];
+		assert.ok(mapped, "Mergeable coverage must refer to the original TypeScript source");
+		if (!options.keepNames && !options.body) {
+			assert.equal(Object.keys(mapped.fnMap).length, 2);
+			const identities = Object.entries(mapped.fnMap) as [string, { decl: { start: { line: number } } }][];
+			const called = identities.find(([, value]) => value.decl.start.line === 3)?.[0];
+			const uncalled = identities.find(([, value]) => value.decl.start.line === 7)?.[0];
+			assert.ok(called);
+			assert.ok(uncalled);
+			assert.equal(mapped.f[called], 1);
+			assert.equal(mapped.f[uncalled], 0);
+		}
+
+		await run(await readFile(resolve(output, "lcov.info"), "utf8"), result.status, output);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+}
+
+test("CV01 source-mapped coverage keeps called and uncalled TypeScript functions distinct", async () => {
+	await coverageFixture(0, async (report, status) => {
+		assert.equal(status, 0);
+		assert.match(report, /SF:.*source\.ts/);
+		const called = report.match(/FN:3,([^\n]+)/)?.[1];
+		const neverCalled = report.match(/FN:7,([^\n]+)/)?.[1];
+		assert.ok(called);
+		assert.ok(neverCalled);
+		assert.notEqual(called, neverCalled);
+		assert.ok(report.includes(`FNDA:1,${called}\n`));
+		assert.ok(report.includes(`FNDA:0,${neverCalled}\n`));
+		assert.match(report, /FNF:2\nFNH:1/);
+		assert.match(report, /DA:8,0/);
+		assert.doesNotMatch(report, /SF:.*compiled\.mjs/);
+	});
+});
+
+test("CV02 the reporter preserves a failing owner's exit status", async () => {
+	await coverageFixture(7, async (_report, status) => {
+		assert.equal(status, 7);
+	});
+});
+
+test("CV03 complementary real source-map reports merge function identities without double counting", async () => {
+	await coverageFixture(0, async (_report, status, directory) => {
+		assert.equal(status, 0);
+		const first = JSON.parse(await readFile(resolve(directory, "coverage-final.json"), "utf8"));
+		const source = Object.keys(first)[0];
+		const secondDirectory = resolve(directory, "second");
+		const result = runNodeCoverage([resolve(directory, "..", "compiled.mjs"), "right"], { directory: secondDirectory, env: process.env, include: [relative(process.cwd(), source)] });
+		assert.equal(result.status, 0);
+		const second = JSON.parse(await readFile(resolve(secondDirectory, "coverage-final.json"), "utf8"));
+		assert.equal(mergeNodeCoverage([first]).fileCoverageFor(source).toSummary().functions.covered, 1);
+		const { default: istanbul } = await import("istanbul-lib-coverage");
+		const live = istanbul.createCoverageMap(first).toJSON();
+		assert.equal(mergeNodeCoverage([live]).fileCoverageFor(source).toSummary().functions.covered, 1, "Live browser snapshots must preserve FileCoverage serialization");
+		assert.equal(mergeNodeCoverage([second]).fileCoverageFor(source).toSummary().functions.covered, 1);
+		const merged = mergeNodeCoverage([first, second]).fileCoverageFor(source).toSummary();
+		assert.equal(merged.functions.total, 2);
+		assert.equal(merged.functions.covered, 2);
+		assert.equal(evaluateCoverage([first, second], "", [source], 0.8).passed, true);
+		const inflatedUnit = `SF:${source}\nLF:1\nLH:1\nFNF:2\nFNH:2\nend_of_record\n`;
+		assert.equal(evaluateCoverage([first], inflatedUnit, [source], 0.8).passed, false, "A unit summary cannot override mapped missing functions");
+		const owner = { [relative(process.cwd(), source)]: "unit" as const };
+		assert.equal(evaluateCoverage([first], inflatedUnit, [source], 0.8, process.cwd(), owner).passed, true);
+		assert.equal(evaluateCoverage([first, second], "", [source], 0.8, process.cwd(), owner).passed, false, "An absent authoritative owner cannot fall back to a different runtime");
+		const belowThresholdUnit = inflatedUnit.replace("FNH:2", "FNH:1");
+		assert.equal(evaluateCoverage([first, second], belowThresholdUnit, [source], 0.8, process.cwd(), owner).passed, false, "Declared ownership must not choose whichever runtime has the higher score");
+		const other = resolve(directory, "unit-only.ts");
+		const disjointUnit = inflatedUnit.replace(source, other);
+		assert.equal(evaluateCoverage([first, second], disjointUnit, [source, other], 0.8).passed, true);
+		assert.equal(evaluateCoverage([first, second], "", [source, other], 0.8).passed, false, "Unloaded runtime source must fail");
+		assert.throws(() => evaluateCoverage([first], inflatedUnit + inflatedUnit, [source], 0.8), /Duplicate unit/);
+		const repeated = mergeNodeCoverage([first, first]).fileCoverageFor(source).toSummary();
+		assert.equal(repeated.functions.total, 2);
+		assert.equal(repeated.functions.covered, 1);
+		assert.throws(() => mergeNodeCoverage([]), /No source-mapped/);
+		assert.throws(() => mergeNodeCoverage([{}]), /Empty source-mapped/);
+	});
+});
+
+test("CV04 browser source maps require explicit test-build opt-in", async () => {
+	const { spawnSync } = await import("node:child_process");
+	const script = 'import config from "./apps/web/next.config.ts";const webpack={optimization:{minimize:true}};config.webpack(webpack);console.log(JSON.stringify({browser:Boolean(config.productionBrowserSourceMaps),server:Boolean(config.experimental?.serverSourceMaps),minimize:webpack.optimization.minimize}));';
+	for (const enabled of [false, true]) {
+		const result = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", script], { env: { ...process.env, PAB_TEST_SOURCE_COVERAGE: String(enabled), NODE_V8_COVERAGE: "" }, encoding: "utf8" });
+		assert.equal(result.status, 0, result.stderr);
+		assert.deepEqual(JSON.parse(result.stdout), { browser: enabled, server: enabled, minimize: !enabled });
+	}
+});
+
+test("CV05 browser source names normalize to owned files and encoded asset traversal is denied", async () => {
+	const { nextBuildFingerprint } = await import("../../scripts/tests/next-build.ts");
+	assert.notEqual(nextBuildFingerprint(false), nextBuildFingerprint(true), "Coverage and ordinary builds must never share a cache identity");
+	assert.equal(browserSourcePath("webpack://_N_E/./src/app/page.tsx"), resolve("apps/web/src/app/page.tsx"));
+	assert.equal(browserSourcePath("webpack://@payloadbay/web/./src/app/api/v1/me/route.ts"), resolve("apps/web/src/app/api/v1/me/route.ts"));
+	assert.equal(browserSourcePath("webpack://_N_E/(app-pages-browser)/./src/app/page.tsx"), resolve("apps/web/src/app/page.tsx"));
+	assert.equal(browserSourcePath("webpack://_N_E/../../packages/contracts/src/api.ts"), resolve("packages/contracts/src/api.ts"));
+	await assert.rejects(
+		convertBrowserCoverage([
+			{
+				url: "http://localhost/_next/static/%2e%2e%2f%2e%2e%2fsecret.js",
+				scriptId: "traversal-canary",
+				source: "",
+				functions: [],
+			},
+		]),
+		/escapes the build directory/,
+	);
+});
+
+test("CV06 private Next maps keep original content while canonicalizing both server trees", async () => {
+	const { mkdir } = await import("node:fs/promises");
+	const { normalizeNextSourceMaps } = await import("../../scripts/tests/coverage.ts");
+	const root = await mkdtemp(resolve("test-results/next-map-"));
+	try {
+		const paths = ["apps/web/.next/server", "apps/web/.next/standalone/apps/web/.next/server"];
+		const original = {
+			version: 3,
+			sources: ["webpack://@payloadbay/web/./src/app/api/v1/me/route.ts"],
+			sourcesContent: ["synthetic original source"],
+			names: [],
+			mappings: "",
+		};
+		for (const folder of paths) {
+			await mkdir(resolve(root, folder), { recursive: true });
+			await writeFile(resolve(root, folder, "route.js.map"), JSON.stringify(original));
+		}
+
+		normalizeNextSourceMaps(root);
+		for (const folder of paths) {
+			const actual = JSON.parse(await readFile(resolve(root, folder, "route.js.map"), "utf8"));
+			assert.deepEqual(actual.sources, [resolve(root, "apps/web/src/app/api/v1/me/route.ts")]);
+			assert.deepEqual(actual.sourcesContent, original.sourcesContent);
+			assert.equal(actual.sourceRoot, "");
+		}
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+test("CV07 coverage provenance rejects partial, dirty or cross-revision owners", () => {
+	const sha = "a".repeat(40);
+	const files = ["tests/example.test.ts"];
+	const metadata = {
+		owner: "node",
+		sourceSha: sha,
+		sourceRoot: process.cwd(),
+		dirty: false,
+		complete: true,
+		testCount: 1,
+		testFiles: files,
+	};
+	assert.doesNotThrow(() => validateCoverageProvenance(metadata, sha, "node", files));
+	for (const patch of [{ dirty: true }, { complete: false }, { testCount: 0 }, { sourceSha: "b".repeat(40) }, { owner: "unit" }, { testFiles: [] }, { sourceRoot: "relative" }]) {
+		assert.throws(() => validateCoverageProvenance({ ...metadata, ...patch }, sha, "node", files));
+	}
+});
+
+test("CV08 runtime inventory includes unloaded executable modules and skips pure declarations", async () => {
+	const { mkdir } = await import("node:fs/promises");
+	const root = await mkdtemp(resolve("test-results/runtime-inventory-"));
+	try {
+		for (const directory of ["apps/web/src", "packages/contracts/src", "scripts"]) await mkdir(resolve(root, directory), { recursive: true });
+		await writeFile(resolve(root, "apps/web/src/unloaded.ts"), "export const value = 1;");
+		await writeFile(resolve(root, "packages/contracts/src/types.ts"), "export interface OnlyType { value: string }");
+		await writeFile(resolve(root, "packages/contracts/src/global.d.ts"), "declare const value: string;");
+		await writeFile(resolve(root, "scripts/migrate.ts"), "console.log('synthetic migrator');");
+		assert.deepEqual(runtimeCoverageSources(root), [resolve(root, "apps/web/src/unloaded.ts"), resolve(root, "scripts/migrate.ts")]);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+test("CV09 real name-preserving compiler helpers do not become authored function coverage", async () => {
+	await coverageFixture(
+		0,
+		async (_lcov, status, directory) => {
+			assert.equal(status, 0);
+			const report = JSON.parse(await readFile(resolve(directory, "coverage-final.json"), "utf8"));
+			const source = Object.keys(report)[0];
+			const summary = mergeNodeCoverage([report]).fileCoverageFor(source).toSummary();
+			assert.equal(summary.functions.total, 2, "Only the two authored functions belong in the denominator: " + JSON.stringify(report[source].fnMap));
+			assert.equal(summary.functions.covered, 1, "The uncalled function must remain uncovered");
+		},
+		{ keepNames: true, minify: false },
+	);
+});
+
+test("CV10 same-named functions in different scopes retain distinct source identities", async () => {
+	const body = ["export function left() {", "  return function work() {", '    return "left";', "  };", "}", "export function right() {", "  return function work() {", '    return "right";', "  };", "}", 'if (left()() !== "left") throw Error("wrong result");', "right();"].join("\n");
+	await coverageFixture(
+		0,
+		async (_lcov, status, directory) => {
+			assert.equal(status, 0);
+			const report = JSON.parse(await readFile(resolve(directory, "coverage-final.json"), "utf8"));
+			const source = Object.keys(report)[0];
+			const summary = mergeNodeCoverage([report]).fileCoverageFor(source).toSummary();
+			assert.equal(summary.functions.total, 4);
+			assert.equal(summary.functions.covered, 3);
+			assert.equal(evaluateCoverage([report], "", [source], 0.8).passed, false, "Generated helpers must not lift 3/4 authored functions to 80%");
+		},
+		{ keepNames: true, body, minify: false },
+	);
+});
+
+test("CV11 different real compiler layouts merge preserved function identities and retain uncovered functions", async () => {
+	await coverageFixture(
+		0,
+		async (_lcov, status, directory) => {
+			assert.equal(status, 0);
+			const first = JSON.parse(await readFile(resolve(directory, "coverage-final.json"), "utf8"));
+			const source = Object.keys(first)[0];
+			const compiled = await transform(await readFile(source, "utf8"), {
+				loader: "ts",
+				sourcefile: source,
+				sourcemap: "inline",
+				format: "esm",
+				minify: false,
+				keepNames: false,
+			});
+			const entry = resolve(directory, "..", "other-layout.mjs");
+			await writeFile(entry, compiled.code);
+			const output = resolve(directory, "other");
+			const result = runNodeCoverage([entry, "right"], { directory: output, env: process.env, include: [relative(process.cwd(), source)] });
+			assert.equal(result.status, 0);
+			const second = JSON.parse(await readFile(resolve(output, "coverage-final.json"), "utf8"));
+			const merged = mergeNodeCoverage([first, second]).fileCoverageFor(source).toSummary();
+			assert.equal(merged.functions.total, 2);
+			assert.equal(merged.functions.covered, 2);
+			const repeated = mergeNodeCoverage([first, first]).fileCoverageFor(source).toSummary();
+			assert.equal(repeated.functions.total, 2);
+			assert.equal(repeated.functions.covered, 1);
+		},
+		{ keepNames: true, minify: false },
+	);
+});
+
+test("CV12 a dirty merge checkout cannot certify clean historical owner reports", async () => {
+	const { execFileSync } = await import("node:child_process");
+	const root = await mkdtemp(resolve("test-results/covered-revision-"));
+
+	const git = (args: string[]) => execFileSync("git", ["-C", root, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+
+	try {
+		git(["init"]);
+		git(["config", "user.name", "Coverage Fixture"]);
+		git(["config", "user.email", "fixture@example.test"]);
+		await writeFile(resolve(root, "source.ts"), "export const value = 1;");
+		git(["add", "."]);
+		git(["commit", "-m", "test coverage source"]);
+		assert.equal(coveredRevision(root), git(["rev-parse", "HEAD"]));
+		await writeFile(resolve(root, "source.ts"), "export const value = 2;");
+		assert.throws(() => coveredRevision(root), /requires a clean checkout/);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+test("CV13 a production source ending in -test.ts is not silently excluded", async () => {
+	await coverageFixture(
+		0,
+		async (lcov, status) => {
+			assert.equal(status, 0);
+			assert.match(lcov, /SF:.*script-test\.ts/);
+		},
+		{ fileName: "script-test.ts" },
+	);
+});
+
+test("CV14 inferred callback names at distinct locations must not be coalesced", async () => {
+	const directory = await mkdtemp(resolve("test-results/callback-identities-"));
+	const source = resolve(directory, "callbacks.ts");
+	try {
+		await writeFile(source, 'let close = () => "initial";\nclose = () => "replacement";\nclose();\n');
+		const first = { start: { line: 1, column: 12 }, end: { line: 1, column: 27 } };
+		const second = { start: { line: 2, column: 8 }, end: { line: 2, column: 27 } };
+		// Browser/native reports can preserve inferred names that an esbuild
+		// wrapper makes anonymous. This tests mapping identity, not execution.
+		const report = {
+			[source]: {
+				path: source,
+				statementMap: { "0": first },
+				s: { "0": 1 },
+				branchMap: {},
+				b: {},
+				fnMap: {
+					"0": {
+						name: "close",
+						decl: first,
+						loc: first,
+						line: 1,
+					},
+					"1": {
+						name: "close",
+						decl: second,
+						loc: second,
+						line: 2,
+					},
+				},
+				f: { "0": 0, "1": 1 },
+			},
+		};
+		const summary = mergeNodeCoverage([report]).fileCoverageFor(source).toSummary();
+		assert.equal(summary.functions.total, 2);
+		assert.equal(summary.functions.covered, 1);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("CV15 a coincident minified name outside the declared function range cannot gain its coverage", async () => {
+	const directory = await mkdtemp(resolve("test-results/function-name-collision-"));
+	const source = resolve(directory, "named.ts");
+	try {
+		await writeFile(source, "export function shared() {\n return 1;\n}\nexport function another() {\n return 2;\n}\n");
+		const first = { start: { line: 1, column: 0 }, end: { line: 3, column: 1 } };
+		const second = { start: { line: 4, column: 0 }, end: { line: 6, column: 1 } };
+		// A native/minified name can coincide with a different authored declaration.
+		// Source ranges must overlap before normalizing declaration identities.
+		const report = {
+			[source]: {
+				path: source,
+				statementMap: { "0": first, "1": second },
+				s: { "0": 0, "1": 1 },
+				branchMap: {},
+				b: {},
+				fnMap: {
+					"0": {
+						name: "shared",
+						decl: first,
+						loc: first,
+						line: 1,
+					},
+					"1": {
+						name: "shared",
+						decl: second,
+						loc: second,
+						line: 4,
+					},
+				},
+				f: { "0": 0, "1": 1 },
+			},
+		};
+		const summary = mergeNodeCoverage([report]).fileCoverageFor(source).toSummary();
+		assert.equal(summary.functions.total, 2);
+		assert.equal(summary.functions.covered, 1);
+		assert.equal(evaluateCoverage([report], "", [source], 0.8).passed, false);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("CV16 compiler aliases with precise source ranges retain separate callback identities", async () => {
+	const directory = await mkdtemp(resolve("test-results/callback-aliases-"));
+	const source = resolve(directory, "callbacks.ts");
+	try {
+		const text = 'const first = () => "one";\nconst second = () => "two";\n';
+		await writeFile(source, text);
+		const lines = text.trimEnd().split("\n");
+		const locations = lines.map((line, index) => ({ start: { line: index + 1, column: line.indexOf("()") }, end: { line: index + 1, column: line.indexOf(";") } }));
+
+		const report = (name: string, columnOffset: number, hits: number) => ({
+			[source]: {
+				path: source,
+				statementMap: { "0": locations[0] },
+				s: { "0": 1 },
+				branchMap: {},
+				b: {},
+				fnMap: Object.fromEntries(
+					locations.map((loc, index) => [
+						String(index),
+						{
+							name,
+							decl: loc,
+							loc: { start: { ...loc.start, column: loc.start.column + columnOffset }, end: { ...loc.end, column: loc.end.column + columnOffset } },
+							line: loc.start.line,
+						},
+					]),
+				),
+				f: { "0": hits, "1": 0 },
+			},
+		});
+
+		const summary = mergeNodeCoverage([report("a", 0, 1), report("b", 1, 0)])
+			.fileCoverageFor(source)
+			.toSummary();
+		assert.equal(summary.functions.total, 2);
+		assert.equal(summary.functions.covered, 1);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("coverage cannot certify an authored function using a source-only placeholder", async () => {
+	const directory = await mkdtemp(resolve("test-results/coverage-placeholder-"));
+	try {
+		const source = resolve(directory, "source.ts");
+		await writeFile(source, "export function neverCalled() { return 42; }\n");
+		const placeholder = {
+			[source]: {
+				path: source,
+				statementMap: { 0: { start: { line: 1, column: 0 }, end: { line: 1, column: 46 } } },
+				s: { 0: 1 },
+				fnMap: {},
+				f: {},
+				branchMap: {},
+				b: {},
+			},
+		};
+		assert.equal(evaluateCoverage([placeholder], "", [source], 0.8).passed, false);
+		const actual = {
+			[source]: {
+				...placeholder[source],
+				fnMap: {
+					0: {
+						name: "neverCalled",
+						decl: { start: { line: 1, column: 0 }, end: { line: 1, column: 43 } },
+						loc: { start: { line: 1, column: 0 }, end: { line: 1, column: 43 } },
+						line: 1,
+					},
+				},
+				f: { 0: 1 },
+			},
+		};
+		assert.equal(evaluateCoverage([placeholder, actual], "", [source], 0.8).passed, true, "Actual executed ranges must still certify the function");
+		assert.equal(evaluateCoverage([actual, placeholder], "", [source], 0.8).passed, true, "A later placeholder must not change genuine counters");
+		const uncalled = { [source]: { ...actual[source], f: { 0: 0 }, s: { 0: 0 } } };
+		assert.equal(evaluateCoverage([uncalled, placeholder], "", [source], 0.8).passed, false, "A placeholder cannot add hits to an uncalled function");
+		await writeFile(source, "export default () => 42;\n");
+		assert.equal(evaluateCoverage([placeholder], "", [source], 0.8).passed, false, "Anonymous default functions also need execution evidence");
+		await writeFile(source, "export const answer = 42;\n");
+		assert.equal(evaluateCoverage([placeholder], "", [source], 0.8).passed, true, "Modules without authored functions do not need fabricated function counters");
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("trusted Next fixtures forward only opted-in coverage, never arbitrary host settings", async () => {
+	const { fixtureEnvironment } = await import("../helpers/fixture-environment.ts");
+	const saved = { flag: process.env.PAB_TEST_SOURCE_COVERAGE, raw: process.env.NODE_V8_COVERAGE, secret: process.env.PAB_PRIVATE_HOST_CANARY };
+	try {
+		process.env.NODE_V8_COVERAGE = "/tmp/synthetic-coverage";
+		process.env.PAB_PRIVATE_HOST_CANARY = "must-not-forward";
+		const f = { databaseUrl: "postgres://fixture@localhost/fixture", smtpPort: 1025 };
+		for (const flag of ["false", "true"]) {
+			process.env.PAB_TEST_SOURCE_COVERAGE = flag;
+			const env = fixtureEnvironment(f, "http://localhost:3000");
+			assert.equal(env.NODE_V8_COVERAGE, flag === "true" ? "/tmp/synthetic-coverage" : undefined);
+			assert.equal(env.PAB_PRIVATE_HOST_CANARY, undefined);
+		}
+	} finally {
+		for (const [key, value] of [
+			["PAB_TEST_SOURCE_COVERAGE", saved.flag],
+			["NODE_V8_COVERAGE", saved.raw],
+			["PAB_PRIVATE_HOST_CANARY", saved.secret],
+		]) {
+			if (value === undefined) delete process.env[key!];
+			else process.env[key!] = value;
+		}
+	}
+});
+
+test("multi-source Node maps retain actual called and uncalled function counters", async () => {
+	const directory = await mkdtemp(resolve("test-results/coverage-multi-source-"));
+	try {
+		const helper = resolve(directory, "helper.ts");
+		const main = resolve(directory, "main.ts");
+		const entry = resolve(directory, "compiled.mjs");
+		await writeFile(helper, "export function called() { return 42; }\nexport function notCalled() { return 0; }\n");
+		await writeFile(main, 'import { called, notCalled } from "./helper.ts";\nexport {called,notCalled};\nif(called()!==42) throw Error("wrong result");\n');
+		await build({
+			entryPoints: [main],
+			outfile: entry,
+			bundle: true,
+			platform: "node",
+			format: "esm",
+			sourcemap: "inline",
+		});
+		const output = resolve(directory, "coverage");
+		const result = runNodeCoverage([entry], { directory: output, env: process.env, include: [relative(process.cwd(), helper), relative(process.cwd(), main)] });
+		assert.equal(result.status, 0, result.stderr);
+		const report = JSON.parse(await readFile(resolve(output, "coverage-final.json"), "utf8"));
+		const summary = mergeNodeCoverage([report]).fileCoverageFor(helper).toSummary();
+		assert.equal(summary.functions.total, 2);
+		assert.equal(summary.functions.covered, 1);
+		assert.equal(evaluateCoverage([report], "", [helper], 0.8).passed, false);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("exported function aliases merge with their declared identity", async () => {
+	const directory = await mkdtemp(resolve("test-results/exported-alias-"));
+	try {
+		const source = resolve(directory, "exported.ts");
+		await writeFile(source, "export function shared() {\n return 1;\n}\n");
+		const declared = { start: { line: 1, column: 0 }, end: { line: 3, column: 1 } };
+		const alias = { start: { line: 1, column: 7 }, end: { line: 3, column: 1 } };
+
+		const report = (name: string, loc: typeof declared, count: number) => ({
+			[source]: {
+				path: source,
+				statementMap: { 0: declared },
+				s: { 0: count },
+				branchMap: {},
+				b: {},
+				fnMap: {
+					0: {
+						name,
+						decl: loc,
+						loc,
+						line: 1,
+					},
+				},
+				f: { 0: count },
+			},
+		});
+
+		const summary = mergeNodeCoverage([report("shared", declared, 0), report("e", alias, 1)])
+			.fileCoverageFor(source)
+			.toSummary();
+		assert.equal(summary.functions.total, 1);
+		assert.equal(summary.functions.covered, 1);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("generated module factories are not authored functions and cannot cover a cold function", async () => {
+	const directory = await mkdtemp(resolve("test-results/generated-factory-"));
+	try {
+		const source = resolve(directory, "module.ts");
+		await writeFile(source, "export const data = [1, 2, 3];\n");
+		const loc = { start: { line: 1, column: 0 }, end: { line: 1, column: 29 } };
+		const factory = {
+			name: "12345",
+			decl: loc,
+			loc,
+			line: 1,
+		};
+		const data = {
+			path: source,
+			statementMap: { 0: loc },
+			s: { 0: 1 },
+			branchMap: {},
+			b: {},
+			fnMap: { 0: factory },
+			f: { 0: 0 },
+		};
+		assert.equal(
+			mergeNodeCoverage([{ [source]: data }])
+				.fileCoverageFor(source)
+				.toSummary().functions.total,
+			0,
+		);
+		await writeFile(source, "export function cold(){return 0;}\n");
+		const cold = { ...data, fnMap: { 0: factory, 1: { ...factory, name: "cold" } }, f: { 0: 1, 1: 0 } };
+		const summary = mergeNodeCoverage([{ [source]: cold }])
+			.fileCoverageFor(source)
+			.toSummary();
+		assert.equal(summary.functions.total, 1);
+		assert.equal(summary.functions.covered, 0);
+		assert.equal(evaluateCoverage([{ [source]: cold }], "", [source], 0.8).passed, false);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("unnamed Node and browser callbacks retain genuine hit and cold counters", async () => {
+	const { mkdir } = await import("node:fs/promises");
+	const { pathToFileURL } = await import("node:url");
+	const root = await mkdtemp(resolve("test-results/unnamed-callbacks-"));
+	try {
+		const source = resolve(root, "apps/web/src/callbacks.ts");
+		await mkdir(resolve(root, "apps/web/src"), { recursive: true });
+		const body = 'const callbacks = [\n () => "called",\n () => "cold",\n];\ncallbacks[0]();\n';
+		await writeFile(source, body);
+		const output = resolve(root, "node");
+		const result = runNodeCoverage(["--import", "tsx", "--input-type=module", "-e", `await import(${JSON.stringify(pathToFileURL(source).href)})`], { directory: output, env: process.env, include: [relative(process.cwd(), source)] });
+		assert.equal(result.status, 0, result.stderr);
+		const nodeReport = JSON.parse(await readFile(resolve(output, "coverage-final.json"), "utf8"));
+		const compiled = await transform(body, {
+			loader: "ts",
+			sourcefile: source,
+			sourcemap: "external",
+			format: "esm",
+		});
+		const assets = resolve(root, "assets");
+		await mkdir(assets);
+		await writeFile(resolve(assets, "callbacks.js.map"), compiled.map);
+		const callbacks = ["called", "cold"].map((name, index) => {
+			const text = `() => "${name}"`;
+			const startOffset = compiled.code.indexOf(text);
+			assert.ok(startOffset > 0);
+
+			return { functionName: "", isBlockCoverage: true, ranges: [{ startOffset, endOffset: startOffset + text.length, count: index === 0 ? 1 : 0 }] };
+		});
+		const entry = {
+			url: "http://127.0.0.1/static/callbacks.js",
+			source: compiled.code,
+			scriptId: "fixture",
+			functions: [{ functionName: "", isBlockCoverage: true, ranges: [{ startOffset: 0, endOffset: compiled.code.length, count: 1 }] }, ...callbacks],
+		};
+		const browserReport = await convertBrowserCoverage([entry], root, { directory: assets, prefix: "/static/" });
+		for (const report of [nodeReport, browserReport]) {
+			const summary = mergeNodeCoverage([report]).fileCoverageFor(source).toSummary();
+			assert.equal(summary.functions.total, 2, "The module wrapper must not enter the denominator");
+			assert.equal(summary.functions.covered, 1, "Only the invoked callback may gain coverage");
+			assert.equal(evaluateCoverage([report], "", [source], 0.8).passed, false);
+		}
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+test("callback source maps reconcile trailing delimiter drift without covering a different callback", async () => {
+	const directory = await mkdtemp(resolve("test-results/callback-delimiters-"));
+	try {
+		const source = resolve(directory, "callbacks.ts");
+		const lines = ['export const a = check((value: unknown) => Boolean(value), "first");', 'export const b = check((value: unknown) => !value, "second");'];
+		await writeFile(source, lines.join("\n") + "\n");
+
+		const report = (shift: number, called: number, endExtra = 2) => {
+			const fnMap: Record<string, FunctionMapping> = {};
+			for (const [index, line] of lines.entries()) {
+				const loc = { start: { line: index + 1, column: line.indexOf("(value:") + shift }, end: { line: index + 1, column: line.indexOf(', "') + endExtra } };
+				fnMap[String(index)] = {
+					name: "(anonymous)",
+					decl: loc,
+					loc,
+					line: index + 1,
+				};
+			}
+
+			return {
+				[source]: {
+					path: source,
+					statementMap: { 0: fnMap["0"].loc, 1: fnMap["1"].loc },
+					s: { 0: called, 1: 0 },
+					branchMap: {},
+					b: {},
+					fnMap,
+					f: { 0: called, 1: 0 },
+				},
+			};
+		};
+
+		const merged = mergeNodeCoverage([report(0, 0), report(1, 1, 4)]);
+		const summary = merged.fileCoverageFor(source).toSummary();
+		assert.equal(summary.functions.total, 2, "One authored callback must not become two compiler identities");
+		assert.equal(summary.functions.covered, 1, "The second callback must remain cold");
+		assert.equal(evaluateCoverage([merged.toJSON()], "", [source], 0.8).passed, false);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("different ESM and CommonJS layouts for one source URL are mapped before merging", async () => {
+	const directory = await mkdtemp(resolve("test-results/mixed-loaders-"));
+	try {
+		const source = resolve(directory, "callbacks.ts");
+		await writeFile(source, 'export const callbacks = [\n () => "left",\n () => "right",\n () => "never",\n];\n');
+		const entry = resolve(directory, "launcher.mjs");
+		await writeFile(
+			entry,
+			`import {spawnSync} from 'node:child_process';\nfor(const args of ${JSON.stringify([
+				["--import", "tsx", "--input-type=module", "-e", `(await import(${JSON.stringify(source)})).callbacks[0]()`],
+				["--import", "tsx", "-e", `require(${JSON.stringify(source)}).callbacks[1]()`],
+			])}) {const child=spawnSync(process.execPath,args,{env:process.env,encoding:'utf8'});if(child.status!==0){console.error(child.stderr);process.exit(child.status??1);}}\n`,
+		);
+		const output = resolve(directory, "coverage");
+		const result = runNodeCoverage([entry], { directory: output, env: process.env, include: [relative(process.cwd(), source)] });
+		assert.equal(result.status, 0, result.stderr);
+		const report = JSON.parse(await readFile(resolve(output, "coverage-final.json"), "utf8"));
+		const summary = mergeNodeCoverage([report]).fileCoverageFor(source).toSummary();
+		assert.equal(summary.functions.total, 3);
+		assert.equal(summary.functions.covered, 2, "Complementary loader executions must retain both hits and the cold callback");
+		assert.equal(evaluateCoverage([report], "", [source], 0.8).passed, false);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("reading export getters cannot cover an uncalled factory, nested callback or constructor", async () => {
+	const directory = await mkdtemp(resolve("test-results/export-getters-"));
+	try {
+		const source = resolve(directory, "exports.ts");
+		await writeFile(source, 'export function called() { return 1; }\nexport function unusedFactory() { return () => "never"; }\nexport class Cold { constructor() { throw Error("not constructed"); } }\n');
+		const output = resolve(directory, "coverage");
+		const result = runNodeCoverage(["--import", "tsx", "-e", `const namespace=require(${JSON.stringify(source)});Object.values(namespace);namespace.called();`], { directory: output, env: process.env, include: [relative(process.cwd(), source)] });
+		assert.equal(result.status, 0, result.stderr);
+		const report = JSON.parse(await readFile(resolve(output, "coverage-final.json"), "utf8"));
+		const summary = mergeNodeCoverage([report]).fileCoverageFor(source).toSummary();
+		assert.equal(summary.functions.total, 4);
+		assert.equal(summary.functions.covered, 1);
+		assert.equal(evaluateCoverage([report], "", [source], 0.8).passed, false);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("executed parenthesized arrow bodies retain coverage when maps omit closing delimiters", async () => {
+	const directory = await mkdtemp(resolve("test-results/parenthesized-callbacks-"));
+	try {
+		const source = resolve(directory, "callbacks.ts");
+		await writeFile(source, "export const callbacks = [\n (value: string) => (\n  value.toUpperCase()\n ),\n (value: string) => (\n  value.toLowerCase()\n ),\n];\n");
+		const output = resolve(directory, "coverage");
+		const result = runNodeCoverage(["--import", "tsx", "-e", `const {callbacks}=require(${JSON.stringify(source)});if(callbacks[0]("probe")!=="PROBE")throw Error("callback did not execute");`], { directory: output, env: process.env, include: [relative(process.cwd(), source)] });
+		assert.equal(result.status, 0, result.stderr);
+		const report = JSON.parse(await readFile(resolve(output, "coverage-final.json"), "utf8"));
+		const summary = mergeNodeCoverage([report]).fileCoverageFor(source).toSummary();
+		assert.equal(summary.functions.total, 2);
+		assert.equal(summary.functions.covered, 1, "The executed body must count while the other callback stays cold");
+		assert.equal(evaluateCoverage([report], "", [source], 0.8).passed, false);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("browser counters survive unmapped generated closing braces without covering cold arrows", async () => {
+	const root = await mkdtemp(resolve("test-results/unmapped-arrow-ends-"));
+	try {
+		const source = resolve(root, "apps/web/src/callbacks.tsx");
+		const assets = resolve(root, "assets");
+		await mkdir(dirname(source), { recursive: true });
+		await mkdir(assets);
+		const original = 'export const callbacks = [\n  (value: string) => value,\n  (value: string) => value,\n];\nexport const never = () => "never";\n';
+		const generated = 'const callbacks = [\n (value) => { return value; },\n (value) => { return value; }\n];\nconst never = () => "never";\n';
+		await writeFile(source, original);
+		await writeFile(
+			resolve(assets, "arrows.js.map"),
+			JSON.stringify({
+				version: 3,
+				sources: [source],
+				sourcesContent: [original],
+				names: [],
+				mappings: [[[0, 0, 0, 0]], [[1, 0, 1, 2], [20, 0, 1, 21], [26]], [[1, 0, 2, 2], [20, 0, 2, 21], [26]], [[0, 0, 3, 0]], [[0, 0, 4, 0]]],
+			}),
+		);
+		const starts = [generated.indexOf("(value)"), generated.lastIndexOf("(value)")];
+		const report = await convertBrowserCoverage(
+			[
+				{
+					url: "http://127.0.0.1/static/arrows.js",
+					source: generated,
+					scriptId: "fixture",
+					functions: [{ functionName: "", isBlockCoverage: true, ranges: [{ startOffset: 0, endOffset: generated.length, count: 1 }] }, ...starts.map((startOffset, index) => ({ functionName: "render", isBlockCoverage: true, ranges: [{ startOffset, endOffset: generated.indexOf("}", startOffset) + 1, count: index === 0 ? 1 : 0 }] }))],
+				},
+			],
+			root,
+			{ directory: assets, prefix: "/static/" },
+		);
+		const summary = mergeNodeCoverage([report]).fileCoverageFor(source).toSummary();
+		assert.equal(summary.functions.total, 3);
+		assert.equal(summary.functions.covered, 1, "The invoked arrow must retain its real count; cold and unmaterialized arrows stay cold");
+		assert.equal(evaluateCoverage([report], "", [source], 0.8).passed, false);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});

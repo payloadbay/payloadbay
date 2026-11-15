@@ -1,0 +1,108 @@
+import type { Pool, PoolClient } from "pg";
+import { createHash } from "node:crypto";
+import { recordEndpointUsage } from "./usage.ts";
+import { transaction } from "./db.ts";
+import { requirePermission } from "./membership.ts";
+import type { Actor } from "./authorization.ts";
+import { scheduleDispatch } from "./execution-lease.ts";
+import { AppError } from "../../contracts/src/errors.ts";
+
+export async function replayEvent(
+	pool: Pool,
+	actor: Actor,
+	input: {
+		eventId: string;
+		key: string;
+		publicationPolicy?: "original" | "current" | "selected";
+		publicationId?: string;
+		sourceExecutionId?: string;
+	},
+) {
+	if (!input.key || input.key.length > 128 || /[\x00-\x1f]/.test(input.key)) throw new AppError("invalid_replay_key", 400, "Provide an idempotency key up to 128 characters");
+	const policy = input.publicationPolicy ?? "original";
+	if (!["original", "current", "selected"].includes(policy) || (policy === "selected" && !input.publicationId) || (policy !== "selected" && input.publicationId)) throw new AppError("invalid_replay_policy", 400, "Choose original or current publication");
+	const digest = createHash("sha256")
+		.update(
+			JSON.stringify({
+				eventId: input.eventId,
+				publicationPolicy: policy,
+				sourceExecutionId: input.sourceExecutionId ?? null,
+				...(input.publicationId ? { publicationId: input.publicationId } : {}),
+			}),
+		)
+		.digest("hex");
+
+	return transaction(pool, (db) => replayInTransaction(db, actor, input, digest));
+}
+
+async function replayInTransaction(db: PoolClient, actor: Actor, input: Parameters<typeof replayEvent>[2], digest: string) {
+	const policy = input.publicationPolicy ?? "original";
+	const event = (await db.query("SELECT e.*,ep.project_id,ep.active_publication_id,ep.priority FROM payloadbay.event e JOIN payloadbay.endpoint ep ON ep.id=e.endpoint_id WHERE e.id=$1", [input.eventId])).rows[0];
+	if (!event) throw new AppError("not_found", 404, "Event unavailable");
+	await requirePermission(db, actor, { type: "project", id: event.project_id }, "events.replay");
+	if (event.ingress_outcome !== "accept") throw new AppError("request_not_accepted", 409, "Only accepted events can be replayed for delivery");
+	// Serialize with retention before creating new durable work or reusing a replay key.
+	if (!(await db.query("SELECT id FROM payloadbay.event WHERE id=$1 FOR UPDATE", [event.id])).rowCount) throw new AppError("not_found", 404, "Event unavailable");
+	await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [JSON.stringify(["replay", actor.userId, input.eventId, input.key])]);
+	const prior = (await db.query("SELECT input_digest,execution_id FROM payloadbay.replay_key WHERE actor=$1 AND event_id=$2 AND key=$3", [actor.userId, input.eventId, input.key])).rows[0];
+	if (prior) {
+		if (prior.input_digest !== digest) throw new AppError("replay_input_changed", 409, "Replay key was reused with different input");
+
+		return { id: prior.execution_id, reused: true };
+	}
+
+	const endpoint = (await db.query("SELECT active_publication_id,priority FROM payloadbay.endpoint WHERE id=$1 FOR SHARE", [event.endpoint_id])).rows[0];
+	const source = (await db.query("SELECT id,max_attempts FROM payloadbay.execution WHERE event_id=$1 AND ($2::uuid IS NULL OR id=$2) ORDER BY created_at DESC,id DESC LIMIT 1", [event.id, input.sourceExecutionId ?? null])).rows[0];
+	if (input.sourceExecutionId && !source) throw new AppError("not_found", 404, "Source execution unavailable");
+	const publicationId = policy === "selected" ? input.publicationId : policy === "original" ? event.publication_id : endpoint.active_publication_id;
+	if (policy === "selected" && !(await db.query("SELECT id FROM payloadbay.publication WHERE id=$1 AND endpoint_id=$2", [publicationId, event.endpoint_id])).rowCount) throw new AppError("publication_unavailable", 409, "Selected version does not belong to this ingress route");
+	if (!publicationId) throw new AppError("publication_unavailable", 409, "No current publication is available");
+	const execution = (await db.query("INSERT INTO payloadbay.execution(event_id,endpoint_id,publication_id,replay_of_id,max_attempts) VALUES($1,$2,$3,$4,$5) RETURNING *", [event.id, event.endpoint_id, publicationId, source?.id ?? null, source?.max_attempts ?? 5])).rows[0];
+	await recordEndpointUsage(db, event.endpoint_id, "execution.created", execution.id);
+	await recordEndpointUsage(db, event.endpoint_id, "execution.replayed", execution.id);
+	await scheduleDispatch(db, execution, endpoint.priority);
+	await db.query("INSERT INTO payloadbay.replay_key(actor,event_id,key,input_digest,execution_id) VALUES($1,$2,$3,$4,$5)", [actor.userId, event.id, input.key, digest, execution.id]);
+	await db.query("INSERT INTO payloadbay.audit(actor,scope_type,scope_id,operation,resource_id,redacted_diff) VALUES($1,'project',$2,'event.replayed',$3,$4)", [actor.userId, event.project_id, execution.id, JSON.stringify({ eventId: event.id, publicationPolicy: policy, publicationId })]);
+
+	return { id: execution.id, reused: false };
+}
+
+export async function replayEvents(
+	pool: Pool,
+	actor: Actor,
+	input: {
+		eventIds: string[];
+		key: string;
+		publicationPolicy: "original" | "current" | "selected";
+		publicationId?: string;
+	},
+) {
+	if (!input.eventIds.length || input.eventIds.length > 1000 || new Set(input.eventIds).size !== input.eventIds.length) throw new AppError("invalid_selection", 400, "Select between 1 and 1000 distinct events");
+	if (!input.key || input.key.length > 128 || /[\x00-\x1f]/.test(input.key)) throw new AppError("invalid_replay_key", 400, "Provide an idempotency key up to 128 characters");
+	if (!["original", "current", "selected"].includes(input.publicationPolicy) || (input.publicationPolicy === "selected" && !input.publicationId) || (input.publicationPolicy !== "selected" && input.publicationId)) throw new AppError("invalid_replay_policy", 400, "Choose a valid script version");
+
+	return transaction(pool, async (db) => {
+		const executions = [];
+		for (const eventId of [...input.eventIds].sort()) {
+			const next = {
+				eventId,
+				key: input.key,
+				publicationPolicy: input.publicationPolicy,
+				...(input.publicationId ? { publicationId: input.publicationId } : {}),
+			};
+			const digest = createHash("sha256")
+				.update(
+					JSON.stringify({
+						eventId,
+						publicationPolicy: next.publicationPolicy,
+						sourceExecutionId: null,
+						...(next.publicationId ? { publicationId: next.publicationId } : {}),
+					}),
+				)
+				.digest("hex");
+			executions.push(await replayInTransaction(db, actor, next, digest));
+		}
+
+		return { count: executions.length, executions };
+	});
+}
