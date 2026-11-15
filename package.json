@@ -40,6 +40,7 @@
 		"packages/*"
 	],
 	"devDependencies": {
+		"@jridgewell/trace-mapping": "0.3.31",
 		"@playwright/test": "1.64.0",
 		"@types/bun": "1.3.14",
 		"@types/istanbul-lib-coverage": "2.0.6",

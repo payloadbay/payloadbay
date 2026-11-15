@@ -288,11 +288,12 @@ test("UX52 overview recovers a failed snapshot and exposes the hourly graph valu
 	await ensureBrowserOwner(page);
 	let unavailable = true;
 	await page.route("**/api/v1/overview", async (route) => {
-		if (unavailable) await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: { code: "unavailable", message: "Synthetic traffic snapshot outage" } }) });
+		if (unavailable) await route.fulfill({ status: 503, contentType: "text/html", body: "<html><body>Synthetic reverse proxy outage</body></html>" });
 		else await route.continue();
 	});
 	await page.goto("/");
 	await expect(page.getByRole("button", { name: "Retry loading overview", exact: true })).toBeVisible();
+	await expect(page.getByRole("alertdialog", { name: "Overview unavailable", exact: true })).toContainText("Request failed");
 	unavailable = false;
 	await page.getByRole("button", { name: "Retry loading overview", exact: true }).click();
 	const graph = page.getByRole("img", { name: /^24-hour traffic:/ });

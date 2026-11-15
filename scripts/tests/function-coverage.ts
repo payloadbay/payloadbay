@@ -3,11 +3,14 @@ import ts from "typescript";
 import type { FileCoverageData, FunctionMapping } from "istanbul-lib-coverage";
 
 type Position = { line: number; column: number };
+
+export type FunctionStartCounter = { start: Position; count: number };
 type NamedFunction = {
 	mapping: FunctionMapping;
 	declared: boolean;
 	starts: Position[];
 	body: Position;
+	arrow: boolean;
 };
 
 const beforeOrEqual = (left: Position, right: Position) => left.line < right.line || (left.line === right.line && left.column <= right.column);
@@ -16,7 +19,7 @@ const beforeOrEqual = (left: Position, right: Position) => left.line < right.lin
 export function createFunctionNormalizer() {
 	const indexes = new Map<string, Map<string, NamedFunction[]> | null>();
 
-	return (file: FileCoverageData) => {
+	return (file: FileCoverageData, starts: FunctionStartCounter[] = []) => {
 		if (!indexes.has(file.path)) {
 			let text: string;
 			try {
@@ -71,6 +74,7 @@ export function createFunctionNormalizer() {
 							declared,
 							starts,
 							body: position(node.body.getStart(source)),
+							arrow: ts.isArrowFunction(node),
 						},
 					]);
 				}
@@ -125,10 +129,20 @@ export function createFunctionNormalizer() {
 			hits[target] += file.f[id];
 		}
 
+		// Bundlers may leave a generated closing brace unmapped. Preserve only
+		// genuine V8 counters anchored to one authored arrow's own header.
+		for (const counter of starts) {
+			const located = sourceFunctions.filter((source) => source.arrow && source.starts.some((start) => start.line === counter.start.line && Math.abs(start.column - counter.start.column) <= 1));
+			if (located.length !== 1) continue;
+			const canonical = located[0].mapping;
+			const target = identities.get(canonical.name + ":" + JSON.stringify(canonical.loc))!;
+			hits[target] = Math.max(hits[target], counter.count);
+		}
+
 		// Source-map placeholders have no executed function ranges. They must not
 		// turn authored functions into 100% coverage through an empty denominator.
 		if (!Object.keys(file.fnMap).length) {
-			Object.assign(file, { all: true });
+			Object.assign(file, { all: !starts.some((counter) => counter.count > 0) });
 			for (const id of Object.keys(file.s)) file.s[id] = 0;
 		}
 

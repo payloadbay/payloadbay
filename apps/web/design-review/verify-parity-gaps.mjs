@@ -50,6 +50,16 @@ export async function verifyParityGaps(page, origin = "http://localhost:4173", w
 	await page.getByText("Additional interaction cases", { exact: true }).click();
 	const persisted = await page.getByText("Persistent upper panel").evaluate((node) => node.parentElement.getBoundingClientRect().height);
 	expect(Math.abs(persisted - after)).toBeLessThan(2);
+	target = page.locator('[data-parity-fixture="resizable"]');
+	await target.getByRole("button", { name: "Collapse upper panel", exact: true }).click();
+	await expect.poll(() => target.getByText("Persistent upper panel").evaluate((node) => node.parentElement.getBoundingClientRect().height)).toBeLessThan(1);
+	await target.getByRole("button", { name: "Read panel state", exact: true }).click();
+	await expect(target.getByRole("status")).toHaveText("Collapsed / 0%");
+	await target.getByRole("button", { name: "Expand upper panel", exact: true }).click();
+	await expect.poll(() => target.getByText("Persistent upper panel").evaluate((node) => node.parentElement.getBoundingClientRect().height)).toBeGreaterThan(1);
+	await target.getByRole("button", { name: "Resize upper panel to 50%", exact: true }).click();
+	await target.getByRole("button", { name: "Read panel state", exact: true }).click();
+	await expect(target.getByRole("status")).toHaveText("Expanded / 50%");
 	console.log("PASS percentage sizes, vertical keyboard resizing and persistence");
 
 	target = await fixture("context-menu");

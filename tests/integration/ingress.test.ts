@@ -1067,3 +1067,32 @@ test("trusted event retention releases diagnostic row and byte capacity", async 
 		assert.ok(after.bytes < before.bytes);
 	});
 });
+
+test("oversized ingress stays rejected when cancelling its request stream fails", async () => {
+	const { ingressHttp } = await import("../../packages/domain/src/ingress-http.ts");
+	await authFixture(async ({ pool }) => {
+		let cancelled = false;
+		const body = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(new Uint8Array([0, 255]));
+			},
+			cancel() {
+				cancelled = true;
+				throw Error("synthetic cancellation failure");
+			},
+		});
+		const request = new Request("https://fixture.example.test/ingress/synthetic", { method: "POST", body, duplex: "half" } as RequestInit);
+		const response = await ingressHttp(pool, request, "synthetic", {
+			encryptionKey: "synthetic",
+			bodyLimit: 1,
+			run: async () => {
+				throw Error("Oversized input must not execute a script");
+			},
+		});
+		assert.equal(response.status, 413);
+		assert.equal((await response.json()).error.code, "body_too_large");
+		assert.equal(cancelled, true);
+		assert.equal(body.locked, false, "The reader lock must be released despite failed cancellation");
+		assert.equal(response.headers.get("cache-control"), "no-store");
+	});
+});

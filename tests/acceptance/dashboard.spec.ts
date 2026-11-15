@@ -1005,6 +1005,12 @@ test("workspace notification rules and personal email preferences use separate c
 	expect(rules).toHaveLength(1);
 	expect(rules[0].workspaceId).toBe(workspace.id);
 	expect(rules[0].projectId).toBeNull();
+	const project = await (await page.request.post("/api/v1/projects", { headers: commandHeaders(), data: { parentId: workspace.id, name: "Alert project", slug: "alert-project" } })).json();
+	const projectRule = await page.request.post("/api/v1/projects/" + project.id + "/notification-rules", { headers: commandHeaders(), data: { count: 2, windowSeconds: 120, enabled: true } });
+	expect(projectRule.status()).toBe(200);
+	const channelResponse = await page.request.post("/api/v1/notification-channels", { headers: commandHeaders(), data: { name: "Custom email alerts", kind: "email", source: "export default async function notify(ctx: NotificationContext) { return ctx.email(ctx.message); }" } });
+	expect(channelResponse.status()).toBe(200);
+	const channel = await channelResponse.json();
 	await page.goto("/account/notifications");
 	const email = page.getByRole("switch", { name: "Email alerts for Alert workspace: 1 failure in 60 seconds", exact: true });
 	await expect(email).not.toBeChecked();
@@ -1012,6 +1018,18 @@ test("workspace notification rules and personal email preferences use separate c
 	await expect(email).toBeChecked();
 	const preferences = await (await page.request.get("/api/v1/workspaces/" + workspace.id + "/notification-subscriptions")).json();
 	expect(preferences[0].smtpEnabled).toBe(true);
+	const custom = page.getByRole("switch", { name: "Custom email alerts alerts for Alert project: 2 failures in 120 seconds", exact: true });
+	await expect(custom).not.toBeChecked();
+	await page.locator("label").filter({ has: custom }).click();
+	await expect(custom).toBeChecked();
+	const projectPreferences = await (await page.request.get("/api/v1/projects/" + project.id + "/notification-subscriptions")).json();
+	expect(projectPreferences[0].channels).toContain(channel.id);
+	expect(projectPreferences[0].channelVersions[channel.id]).toBe(1);
+	await page.reload();
+	await expect(custom).toBeChecked();
+	await page.locator("label").filter({ has: custom }).click();
+	await expect(custom).not.toBeChecked();
+	expect((await (await page.request.get("/api/v1/projects/" + project.id + "/notification-subscriptions")).json())[0].channels).not.toContain(channel.id);
 });
 
 test("overview and mobile hierarchy preserve context while search opens resources", async ({ page }) => {
@@ -2027,6 +2045,11 @@ test("UX67 desktop resource actions, command shortcut and anchored notifications
 	await expect(page.getByRole("dialog", { name: "Edit destination", exact: true })).toBeVisible();
 	await page.keyboard.press("Escape");
 	await page.getByRole("button", { name: "Delete destination Unused target", exact: true }).click();
+	await expect(page.getByRole("dialog", { name: "Delete Unused target?", exact: true })).toBeVisible();
+	await page.keyboard.press("Escape");
+	await expect(page.getByRole("dialog")).toHaveCount(0);
+	expect((await page.request.get("/api/v1/destinations/" + destination.id)).status()).toBe(200);
+	await page.getByRole("button", { name: "Delete destination Unused target", exact: true }).click();
 	await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click();
 	await expect.poll(async () => (await page.request.get("/api/v1/destinations/" + destination.id)).status()).toBe(404);
 	await page.getByRole("button", { name: "Delete route Unused route", exact: true }).click();
@@ -2530,4 +2553,25 @@ test("instance shared-code pages are absent without weakening customer inheritan
 	await expect(page.getByRole("link", { name: "Shared code", exact: true })).toHaveCount(0);
 	await page.goto("/code/instance/" + me.instanceId);
 	await expect(page.getByRole("heading", { name: "This page could not be found.", exact: true })).toBeVisible();
+});
+
+test("cancelling a pending project invitation removes its grant without adding a member", async ({ page }) => {
+	const { ensureBrowserOwner, commandHeaders } = await import("../helpers/browser-auth.ts");
+	await ensureBrowserOwner(page);
+	const headers = commandHeaders();
+	const workspace = (await (await page.request.get("/api/v1/workspaces")).json())[0];
+	const project = await (await page.request.post("/api/v1/projects", { headers, data: { parentId: workspace.id, name: "Invitation cancellation", slug: "invitation-cancellation" } })).json();
+	await page.goto("/projects/" + project.id + "/members");
+	await page.getByRole("button", { name: "Invite someone", exact: true }).click();
+	await page.getByLabel("Email address").fill("cancelled-reviewer@example.test");
+	await page.getByRole("button", { name: "Send invitation", exact: true }).click();
+	const pending = page.getByRole("grid", { name: "Pending invitations", exact: true });
+	await expect(pending).toContainText("cancelled-reviewer@example.test");
+	const cancelled = page.waitForResponse((response) => response.request().method() === "DELETE" && response.url().includes("/api/v1/invitations/"));
+	await pending.getByRole("button", { name: "Cancel invitation for cancelled-reviewer@example.test", exact: true }).click();
+	expect((await cancelled).status()).toBe(200);
+	await expect(pending).toHaveCount(0);
+	await page.reload();
+	await expect(page.getByRole("grid", { name: "Pending invitations", exact: true })).toHaveCount(0);
+	await expect(page.getByRole("main")).not.toContainText("cancelled-reviewer@example.test");
 });

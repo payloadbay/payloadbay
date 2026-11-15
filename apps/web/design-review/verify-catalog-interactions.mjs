@@ -1,4 +1,6 @@
-import { writeFile } from "node:fs/promises";
+import { writeFile, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { chromium, expect } from "@playwright/test";
 
@@ -152,6 +154,34 @@ export async function verifyCatalogInteractions(page, origin = "http://localhost
 		await expect(page.getByText("fixture.json", { exact: true })).toBeVisible();
 		await page.getByRole("button", { name: "Remove fixture.json" }).click();
 		await expect(page.getByText("fixture.json", { exact: true })).toHaveCount(0);
+		const directory = await mkdtemp(join(tmpdir(), "payloadbay-drop-fixture-"));
+		let session;
+		try {
+			const file = join(directory, "dropped.json");
+			await writeFile(file, "{}");
+			session = await page.context().newCDPSession(page);
+			const zone = page.locator(".pb-drop-zone").first();
+			await zone.scrollIntoViewIfNeeded();
+			const bounds = await zone.boundingBox();
+			if (!bounds) throw Error("File drop target has no visible bounds");
+			for (const type of ["dragEnter", "dragOver", "drop"])
+				await session.send("Input.dispatchDragEvent", {
+					type,
+					x: bounds.x + bounds.width / 2,
+					y: bounds.y + bounds.height / 2,
+					data: { items: [], files: [file], dragOperationsMask: 1 },
+				});
+			await expect(page.getByText("dropped.json", { exact: true })).toBeVisible();
+			await page.getByRole("button", { name: "Remove dropped.json" }).click();
+			await expect(page.getByText("dropped.json", { exact: true })).toHaveCount(0);
+		} finally {
+			try {
+				await session?.detach();
+			} finally {
+				await rm(directory, { recursive: true, force: true });
+			}
+		}
+
 		await page.locator('input[type="file"]').setInputFiles({ name: "unsafe.txt", mimeType: "text/plain", buffer: Buffer.from("not json") });
 		await expect(page.getByRole("alert")).toContainText("unsupported file type");
 	});
