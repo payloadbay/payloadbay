@@ -17,7 +17,7 @@ async function protocolClient(server: string, target: string, token: string) {
 	const local = await fetch(target, {
 		method: envelope.method,
 		headers: { ...envelope.headers, "x-payloadbay-delivery-id": envelope.idempotencyKey },
-		body: Buffer.from(envelope.bodyBase64, "base64"),
+		body: ["GET", "HEAD"].includes(envelope.method) ? undefined : Buffer.from(envelope.bodyBase64, "base64"),
 		redirect: "manual",
 	});
 	const result = { status: local.status, bodyBase64: Buffer.from(await local.arrayBuffer()).toString("base64"), contentType: local.headers.get("content-type") ?? "" };
@@ -82,20 +82,40 @@ test("Runner real Next APIs deliver private bytes, reject ambient authority and 
 			{ encryptionKey: "fixture-encryption-key-32-characters", timeoutMs: 10000 },
 		);
 		const external = process.env.PAB_RUNNER_MODULE ? await import(process.env.PAB_RUNNER_MODULE) : null;
-		let reported = false;
-		for (let i = 0; i < 100; i++) {
-			const outcome = external ? await external.runOnce(external.configuration({ PAYLOADBAY_URL: f.url, PAYLOADBAY_RUNNER_TARGET: f.httpUrl + "/delivery", PAYLOADBAY_RUNNER_TOKEN: credential.token })) : await protocolClient(f.url, f.httpUrl + "/delivery", credential.token);
-			if (outcome.state === "reported") {
-				reported = true;
-				break;
+
+		async function deliverPending() {
+			for (let i = 0; i < 100; i++) {
+				const outcome = external ? await external.runOnce(external.configuration({ PAYLOADBAY_URL: f.url, PAYLOADBAY_RUNNER_TARGET: f.httpUrl + "/delivery", PAYLOADBAY_RUNNER_TOKEN: credential.token })) : await protocolClient(f.url, f.httpUrl + "/delivery", credential.token);
+				if (outcome.state === "reported") return;
+				await new Promise((resolve) => setTimeout(resolve, 20));
 			}
 
-			await new Promise((resolve) => setTimeout(resolve, 20));
+			assert.fail("Runner did not report the pending delivery");
 		}
 
-		assert.equal(reported, true);
+		await deliverPending();
 		assert.equal((await sending).ok, true);
 		assert.equal((await (await fetch(f.httpUrl + "/receipts")).json())[0].body, Buffer.from([0, 255, 42]).toString("base64"));
+		for (const method of ["GET", "HEAD"] as const) {
+			const sendingMethod = managedSend(
+				f.pool,
+				{
+					executionId,
+					endpointId: scope.endpoint,
+					generation: 1,
+					owner: "runner-http-worker",
+				},
+				"default",
+				{ operationId: "private-api-" + method, method, body: "" },
+				{ encryptionKey: "fixture-encryption-key-32-characters", timeoutMs: 10000 },
+			);
+			await deliverPending();
+			assert.equal((await sendingMethod).ok, true);
+			const receipt = (await (await fetch(f.httpUrl + "/receipts")).json()).at(-1);
+			assert.equal(receipt.method, method);
+			assert.equal(receipt.body, "");
+		}
+
 		const headers = { authorization: "Bearer " + credential.token, "content-type": "application/json" };
 		assert.equal((await fetch(f.url + "/api/v1/runner/deliveries/" + crypto.randomUUID() + "/complete", { method: "POST", headers, body: JSON.stringify({ leaseToken: "a".repeat(64), result: { networkError: "local_delivery_failed" } }) })).status, 409);
 		await f.db.query("UPDATE payloadbay.api_token SET revoked_at=clock_timestamp() WHERE id=$1", [key.id]);

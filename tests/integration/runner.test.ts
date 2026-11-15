@@ -106,6 +106,24 @@ test("Runner sends exact bytes to a private receiver through an encrypted durabl
 	});
 });
 
+for (const method of ["GET", "HEAD"] as const) {
+	test(`Runner ${method} preserves bodyless requests and rejects non-empty bodies`, async () => {
+		await fixture(async ({ pool, authority, token, httpUrl }) => {
+			await assert.rejects(managedSend(pool, authority, "default", { operationId: "invalid-body-" + method, method, body: "must-not-be-sent" }, { encryptionKey }), { code: "invalid_body" });
+			const sending = managedSend(pool, authority, "default", { operationId: "bodyless-" + method, method, body: "" }, { encryptionKey, timeoutMs: 5000 });
+			const envelope = await pending(pool, token);
+			assert.equal(envelope.method, method);
+			assert.equal(envelope.bodyBase64, "");
+			const response = await fetch(httpUrl + "/delivery", { method, headers: envelope.headers });
+			await completeRunnerDelivery(pool, token, envelope.id, envelope.leaseToken, { status: response.status, bodyBase64: Buffer.from(await response.arrayBuffer()).toString("base64"), contentType: response.headers.get("content-type") ?? "" });
+			assert.equal((await sending).ok, true);
+			const receipts = await (await fetch(httpUrl + "/receipts")).json();
+			assert.equal(receipts[0].method, method);
+			assert.equal(receipts[0].body, "");
+		});
+	});
+}
+
 test("Runner revocation, creator removal and tenant boundaries deny further payload access", async () => {
 	await fixture(async ({ pool, scope, destinationId, token }) => {
 		await assert.rejects(claimRunnerDelivery(pool, "pabr_" + "0".repeat(64), encryptionKey), { code: "unauthenticated" });
