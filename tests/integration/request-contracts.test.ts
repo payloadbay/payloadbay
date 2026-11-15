@@ -67,3 +67,17 @@ test("SC04 documented audit queries require both scope fields or neither", async
 	assert.equal(audit.safeParse({ scopeType: "organization", scopeId: randomUUID() }).success, true);
 	for (const query of [{ scopeType: "organization" }, { scopeId: randomUUID() }, { scopeType: "organization", scopeId: "not-an-id" }]) assert.equal(audit.safeParse(query).success, false);
 });
+
+test("UX89 result inspection renders bytes as JSON, text or lossless base64 without mutating them", async () => {
+	const { formatJsonResult } = await import("../../apps/web/src/app/lib/format-json-result.ts");
+	const body = new TextEncoder().encode('{"type":"purchase.completed","data":{"amount":4900}}');
+	const original = body.slice();
+	const decision = { kind: "accept", event: { body, contentType: "application/json" } };
+	assert.deepEqual(JSON.parse(formatJsonResult(decision)!), { kind: "accept", event: { body: { type: "purchase.completed", data: { amount: 4900 } }, contentType: "application/json" } });
+	assert.deepEqual(body, original);
+	assert.equal(JSON.parse(formatJsonResult({ body: new TextEncoder().encode("{broken-json"), contentType: "application/json" })!).body, "{broken-json");
+	assert.equal(JSON.parse(formatJsonResult({ body: new TextEncoder().encode("123"), contentType: "text/plain" })!).body, "123");
+	assert.deepEqual(JSON.parse(formatJsonResult({ body: new TextEncoder().encode("Hello \u{1f44b}") })!), { body: "Hello \u{1f44b}" });
+	assert.deepEqual(JSON.parse(formatJsonResult({ body: new Uint8Array([0, 255, 128]) })!).body, { encoding: "base64", data: "AP+A" });
+	assert.deepEqual(JSON.parse(formatJsonResult({ body: { 0: 123, 1: 34 } })!).body, { 0: 123, 1: 34 });
+});

@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import React, { type CSSProperties } from "react";
 import { Html, Head, Body, Container, Section, Heading, Text, Preview, Img, Button, Link, Hr, render, toPlainText } from "@react-email/components";
 import { emailContent, emailBranding, type EmailContent, type EmailBranding } from "../../contracts/src/notification-channels.ts";
 
@@ -141,7 +141,7 @@ function EmailTemplate({ message, branding }: { message: EmailContent; branding:
 export async function renderEmailMessage(input: EmailContent, appearance: EmailBranding) {
 	const message = emailContent.parse(input);
 	const branding = emailBranding.parse(appearance);
-	const html = await render(<EmailTemplate message={message} branding={branding} />);
+	const html = await render(React.createElement(EmailTemplate, { message, branding }));
 
 	return { subject: message.subject, html, text: message.text ?? toPlainText(html) };
 }

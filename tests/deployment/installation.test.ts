@@ -744,6 +744,25 @@ test("HTTP email previews require platform settings authority and render without
 		}
 
 		assert.equal((await fetch(url, { method: "POST", headers, body: body("unsupported") })).status, 400);
+		const { createSecret } = await import("../../packages/domain/src/secrets.ts");
+		const canary = "stored-provider-secret-must-not-leave-preview";
+		const secret = await createSecret(f.pool, { userId: "fixture-owner" }, { scope: { type: "instance", id: scope.installation }, name: "Preview canary", value: canary }, fixtureConfig(f).encryptionKey);
+		const modulePreview = JSON.stringify({
+			name: "Synthetic secret preview",
+			kind: "email",
+			branding: {},
+			secretBindings: { HOOK: secret.id },
+			source: "export default async function preview(ctx: NotificationContext) { return ctx.email({...ctx.message, paragraphs:[ctx.secrets.HOOK]}); }",
+		});
+		const moduleUrl = f.url + "/api/v1/notification-channels/preview";
+		assert.equal((await fetch(moduleUrl, { method: "POST", headers, body: modulePreview })).status, 403, "Settings permission alone must not grant script execution");
+		const tester = await createPersonalToken(f.pool, { userId: "fixture-owner" }, { name: "Module preview", permissions: ["settings.manage", "code.test"], expiresAt: new Date(Date.now() + 120000) });
+		const preview = await fetch(moduleUrl, { method: "POST", headers: { ...headers, authorization: "Bearer " + tester.secret }, body: modulePreview });
+		assert.equal(preview.status, 200);
+		const output = await preview.json();
+		assert.equal(output.decision.kind, "email");
+		assert.match(output.decision.message.paragraphs[0], /^https:\/\/example\.test\//);
+		assert.equal(JSON.stringify(output).includes(canary), false, "Module previews must substitute synthetic values, never decrypt real bindings");
 		const messages = await (await fetch(f.mailUrl + "/api/v1/messages")).json();
 		assert.equal(messages.total, 0, "Preview must not deliver SMTP messages");
 	});

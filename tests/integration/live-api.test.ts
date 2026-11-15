@@ -78,6 +78,27 @@ test("U209 oversized JSON body is rejected before parsing", async () => {
 	await assert.rejects(readJson(request, z.object({ name: z.string() }), 4), { code: "body_too_large", status: 413 });
 });
 
+test("an oversized request remains rejected when stream cancellation also fails", async () => {
+	let cancelled = false;
+	const body = new ReadableStream<Uint8Array>({
+		start(controller) {
+			controller.enqueue(new TextEncoder().encode('{"too":"large"}'));
+		},
+		cancel() {
+			cancelled = true;
+			throw Error("Fixture cancellation failure");
+		},
+	});
+	const request = new Request(options.origin + "/api/v1/command", {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body,
+		duplex: "half",
+	} as RequestInit & { duplex: "half" });
+	await assert.rejects(readJson(request, z.object({ name: z.string() }), 8), { code: "body_too_large", status: 413 });
+	assert.equal(cancelled, true);
+});
+
 test("U210 JSON body at limit retains public value", async () => {
 	const value = { name: "fixture" };
 	const body = JSON.stringify(value);

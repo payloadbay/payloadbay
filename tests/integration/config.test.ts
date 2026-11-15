@@ -180,3 +180,18 @@ test("UX83 installation policy has one versioned database source across web and 
 		assert.equal(JSON.stringify(audit).includes("synthetic-secret"), false);
 	});
 });
+
+test("U319 base URL follows Clipify Coolify runtime precedence", () => {
+	const deploymentEnv = {
+		...env,
+		PUBLIC_URL: "https://stale.example.test",
+		COOLIFY_URL: "http://13.preview.example.test:3000/path,https://other.example.test",
+		COOLIFY_RESOURCE_UUID: "preview-resource",
+	};
+	assert.equal(new URL(readServerConfig(deploymentEnv).publicUrl).origin, "https://13.preview.example.test");
+	assert.equal(readServerConfig(deploymentEnv).publicUrl, "https://13.preview.example.test");
+	assert.equal(new URL(readServerConfig(env).publicUrl + "/api/auth/get-session").pathname, "/api/auth/get-session");
+	assert.equal(new URL(readServerConfig({ ...deploymentEnv, COOLIFY_RESOURCE_UUID: "", COOLIFY_URL: "" }).publicUrl).origin, "https://stale.example.test");
+	assert.equal(new URL(readServerConfig({ ...env, PUBLIC_URL: "localhost:4000" }).publicUrl).origin, "http://localhost:4000");
+	assert.equal(new URL(readServerConfig({ ...env, PUBLIC_URL: undefined, COOLIFY_URL: "preview.example.test:3000" }).publicUrl).origin, "https://preview.example.test");
+});

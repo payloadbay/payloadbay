@@ -712,3 +712,47 @@ test("callback source maps reconcile trailing delimiter drift without covering a
 		await rm(directory, { recursive: true, force: true });
 	}
 });
+
+test("different ESM and CommonJS layouts for one source URL are mapped before merging", async () => {
+	const directory = await mkdtemp(resolve("test-results/mixed-loaders-"));
+	try {
+		const source = resolve(directory, "callbacks.ts");
+		await writeFile(source, 'export const callbacks = [\n () => "left",\n () => "right",\n () => "never",\n];\n');
+		const entry = resolve(directory, "launcher.mjs");
+		await writeFile(
+			entry,
+			`import {spawnSync} from 'node:child_process';\nfor(const args of ${JSON.stringify([
+				["--import", "tsx", "--input-type=module", "-e", `(await import(${JSON.stringify(source)})).callbacks[0]()`],
+				["--import", "tsx", "-e", `require(${JSON.stringify(source)}).callbacks[1]()`],
+			])}) {const child=spawnSync(process.execPath,args,{env:process.env,encoding:'utf8'});if(child.status!==0){console.error(child.stderr);process.exit(child.status??1);}}\n`,
+		);
+		const output = resolve(directory, "coverage");
+		const result = runNodeCoverage([entry], { directory: output, env: process.env, include: [relative(process.cwd(), source)] });
+		assert.equal(result.status, 0, result.stderr);
+		const report = JSON.parse(await readFile(resolve(output, "coverage-final.json"), "utf8"));
+		const summary = mergeNodeCoverage([report]).fileCoverageFor(source).toSummary();
+		assert.equal(summary.functions.total, 3);
+		assert.equal(summary.functions.covered, 2, "Complementary loader executions must retain both hits and the cold callback");
+		assert.equal(evaluateCoverage([report], "", [source], 0.8).passed, false);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("reading export getters cannot cover an uncalled factory, nested callback or constructor", async () => {
+	const directory = await mkdtemp(resolve("test-results/export-getters-"));
+	try {
+		const source = resolve(directory, "exports.ts");
+		await writeFile(source, 'export function called() { return 1; }\nexport function unusedFactory() { return () => "never"; }\nexport class Cold { constructor() { throw Error("not constructed"); } }\n');
+		const output = resolve(directory, "coverage");
+		const result = runNodeCoverage(["--import", "tsx", "-e", `const namespace=require(${JSON.stringify(source)});Object.values(namespace);namespace.called();`], { directory: output, env: process.env, include: [relative(process.cwd(), source)] });
+		assert.equal(result.status, 0, result.stderr);
+		const report = JSON.parse(await readFile(resolve(output, "coverage-final.json"), "utf8"));
+		const summary = mergeNodeCoverage([report]).fileCoverageFor(source).toSummary();
+		assert.equal(summary.functions.total, 4);
+		assert.equal(summary.functions.covered, 1);
+		assert.equal(evaluateCoverage([report], "", [source], 0.8).passed, false);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
