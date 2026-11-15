@@ -538,3 +538,37 @@ test("configured destinations support tracked bodyless methods and reject arbitr
 		await assert.rejects(managedSend(pool, authority, { url: "https://unconfigured.example" } as never, { operationId: "raw-url", body: "" }), { code: "invalid_target" });
 	});
 });
+
+test("secret-backed destination edits preserve bindings and duplicate defaults roll back", async () => {
+	const { createDestination, updateDestination, getDestination } = await import("../../packages/domain/src/destinations.ts");
+	const { createSecret } = await import("../../packages/domain/src/secrets.ts");
+	const { permissions } = await import("../../packages/contracts/src/permissions.ts");
+	await deliveryFixture(async ({ pool, db, authority, httpUrl }) => {
+		const projectId = (await db.query("SELECT project_id FROM payloadbay.endpoint WHERE id=$1", [authority.endpointId])).rows[0].project_id;
+		await db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','project',$1,'owner',$2)", [projectId, permissions]);
+		const actor = { userId: "fixture-owner" };
+		const value = "synthetic-secret-must-not-appear-in-destination-config";
+		const secret = await createSecret(pool, actor, { scope: { type: "project", id: projectId }, name: "RECEIVER_KEY", value }, "fixture-encryption-key-32-characters");
+		const input = {
+			projectId,
+			name: "Secret-backed receiver",
+			url: httpUrl + "/original",
+			secretRefs: [{ header: "x-receiver-key", secretVersionId: secret.id }],
+		};
+		const created = await createDestination(pool, actor, input);
+		const updated = await updateDestination(pool, actor, {
+			...input,
+			id: created.id,
+			expectedVersion: created.version,
+			url: httpUrl + "/updated",
+		});
+		await assert.rejects(createDestination(pool, actor, { ...input, isDefault: true }), { code: "name_conflict", status: 409 });
+		const saved = await getDestination(pool, actor, created.id);
+		assert.equal(saved.version, updated.version, "The failed duplicate must not change the existing destination version");
+		assert.equal(saved.isDefault, true, "Default switching must roll back with the failed insert");
+		assert.equal(saved.http.url, httpUrl + "/updated");
+		assert.deepEqual(saved.secretRefs, input.secretRefs);
+		assert.equal(JSON.stringify(saved).includes(value), false, "Configuration exposes immutable references, never stored secret values");
+		assert.equal((await db.query("SELECT count(*)::int AS count FROM payloadbay.destination WHERE project_id=$1", [projectId])).rows[0].count, 1);
+	});
+});
