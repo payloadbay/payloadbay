@@ -2,7 +2,7 @@
 
 Core issue [#18](https://github.com/payloadbay/payloadbay/issues/18) tracks this
 separate product. This branch adds the Core transport; the agent is maintained
-separately. Neither is a published release yet.
+in [payloadbay/runner](https://github.com/payloadbay/runner). Neither is a published release yet.
 
 Payload Bay remains the public receiving endpoint. A local agent polls outbound,
 then delivers to a fixed local HTTP(S) URL chosen by its operator. Your local app
