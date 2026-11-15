@@ -622,3 +622,50 @@ test("generated module factories are not authored functions and cannot cover a c
 		await rm(directory, { recursive: true, force: true });
 	}
 });
+
+test("unnamed Node and browser callbacks retain genuine hit and cold counters", async () => {
+	const { mkdir } = await import("node:fs/promises");
+	const { pathToFileURL } = await import("node:url");
+	const root = await mkdtemp(resolve("test-results/unnamed-callbacks-"));
+	try {
+		const source = resolve(root, "apps/web/src/callbacks.ts");
+		await mkdir(resolve(root, "apps/web/src"), { recursive: true });
+		const body = 'const callbacks = [\n () => "called",\n () => "cold",\n];\ncallbacks[0]();\n';
+		await writeFile(source, body);
+		const output = resolve(root, "node");
+		const result = runNodeCoverage(["--import", "tsx", "--input-type=module", "-e", `await import(${JSON.stringify(pathToFileURL(source).href)})`], { directory: output, env: process.env, include: [relative(process.cwd(), source)] });
+		assert.equal(result.status, 0, result.stderr);
+		const nodeReport = JSON.parse(await readFile(resolve(output, "coverage-final.json"), "utf8"));
+		const compiled = await transform(body, {
+			loader: "ts",
+			sourcefile: source,
+			sourcemap: "external",
+			format: "esm",
+		});
+		const assets = resolve(root, "assets");
+		await mkdir(assets);
+		await writeFile(resolve(assets, "callbacks.js.map"), compiled.map);
+		const callbacks = ["called", "cold"].map((name, index) => {
+			const text = `() => "${name}"`;
+			const startOffset = compiled.code.indexOf(text);
+			assert.ok(startOffset > 0);
+
+			return { functionName: "", isBlockCoverage: true, ranges: [{ startOffset, endOffset: startOffset + text.length, count: index === 0 ? 1 : 0 }] };
+		});
+		const entry = {
+			url: "http://127.0.0.1/static/callbacks.js",
+			source: compiled.code,
+			scriptId: "fixture",
+			functions: [{ functionName: "", isBlockCoverage: true, ranges: [{ startOffset: 0, endOffset: compiled.code.length, count: 1 }] }, ...callbacks],
+		};
+		const browserReport = await convertBrowserCoverage([entry], root, { directory: assets, prefix: "/static/" });
+		for (const report of [nodeReport, browserReport]) {
+			const summary = mergeNodeCoverage([report]).fileCoverageFor(source).toSummary();
+			assert.equal(summary.functions.total, 2, "The module wrapper must not enter the denominator");
+			assert.equal(summary.functions.covered, 1, "Only the invoked callback may gain coverage");
+			assert.equal(evaluateCoverage([report], "", [source], 0.8).passed, false);
+		}
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});

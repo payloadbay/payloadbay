@@ -59,3 +59,11 @@ test("SC03 account inbox and personal key queries remain documented with complet
 	assert.ok(document.paths["/api/v1/notifications"].get.parameters.some((parameter) => parameter.name === "account"));
 	assert.ok(document.paths["/api/v1/tokens"].get.parameters.some((parameter) => parameter.name === "scopeType"));
 });
+
+test("SC04 documented audit queries require both scope fields or neither", async () => {
+	const { apiQuerySchemas } = await import("../../packages/contracts/src/api-query-schemas.ts");
+	const audit = apiQuerySchemas["/api/v1/audit"];
+	assert.equal(audit.safeParse({}).success, true);
+	assert.equal(audit.safeParse({ scopeType: "organization", scopeId: randomUUID() }).success, true);
+	for (const query of [{ scopeType: "organization" }, { scopeId: randomUUID() }, { scopeType: "organization", scopeId: "not-an-id" }]) assert.equal(audit.safeParse(query).success, false);
+});

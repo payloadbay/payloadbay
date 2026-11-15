@@ -686,3 +686,65 @@ test("A6 A8 A9 A11 public HMAC ingress preserves challenge bytes and never ackno
 		});
 	});
 });
+
+test("HTTP organization policy changes require platform permission and reject stale versions", async () => {
+	await nextFixture(async (f) => {
+		const { seedScope } = await import("../helpers/domain-fixtures.ts");
+		const { identity } = await import("../helpers/auth-fixtures.ts");
+		const { permissions } = await import("../../packages/contracts/src/permissions.ts");
+		const { createPersonalToken } = await import("../../packages/domain/src/tokens.ts");
+		const scope = await seedScope(f.db);
+		await identity(f.db, "fixture-owner");
+		await f.db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','organization',$1,'owner',$2)", [scope.organization, permissions]);
+		const token = await createPersonalToken(f.pool, { userId: "fixture-owner" }, { name: "Policy API", permissions: ["metadata.read", "settings.manage"], expiresAt: new Date(Date.now() + 120000) });
+		const headers = { authorization: "Bearer " + token.secret, "content-type": "application/json" };
+		const url = f.url + "/api/v1/organizations/" + scope.organization + "/policy";
+		const original = await fetch(url, { headers });
+		assert.equal(original.status, 200);
+		assert.equal((await original.json()).version, 0);
+		const body = JSON.stringify({ expectedVersion: 0, limits: { workspaces: 5, projects: 10, admission: null }, processingConcurrency: 8 });
+		assert.equal((await fetch(url, { method: "PUT", headers, body })).status, 403, "Customer ownership must not grant platform policy authority");
+		await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, permissions]);
+		const changed = await fetch(url, { method: "PUT", headers, body });
+		assert.equal(changed.status, 200);
+		const policy = await changed.json();
+		assert.equal(policy.version, 1);
+		assert.equal(policy.processingConcurrency, 8);
+		assert.equal(policy.limits.projects, 10);
+		assert.equal((await fetch(url, { method: "PUT", headers, body })).status, 409);
+		assert.equal((await f.db.query("SELECT count(*)::int AS n FROM payloadbay.organization_policy_revision WHERE organization_id=$1", [scope.organization])).rows[0].n, 1);
+	});
+});
+
+test("HTTP email previews require platform settings authority and render without sending", async () => {
+	await nextFixture(async (f) => {
+		const { seedScope } = await import("../helpers/domain-fixtures.ts");
+		const { identity } = await import("../helpers/auth-fixtures.ts");
+		const { permissions } = await import("../../packages/contracts/src/permissions.ts");
+		const { createPersonalToken } = await import("../../packages/domain/src/tokens.ts");
+		const scope = await seedScope(f.db);
+		await identity(f.db, "fixture-owner");
+		await f.db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','organization',$1,'owner',$2)", [scope.organization, permissions]);
+		const token = await createPersonalToken(f.pool, { userId: "fixture-owner" }, { name: "Preview API", permissions: ["settings.manage"], expiresAt: new Date(Date.now() + 120000) });
+		const headers = { authorization: "Bearer " + token.secret, "content-type": "application/json" };
+		const url = f.url + "/api/v1/email-settings/preview";
+
+		const body = (kind: string) => JSON.stringify({ kind, branding: { name: "Preview operator", accent: "#156FDE" } });
+
+		assert.equal((await fetch(url, { method: "POST", headers, body: body("login") })).status, 403);
+		await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','instance',$1,'owner',$2)", [scope.installation, permissions]);
+		for (const kind of ["login", "invitation", "alert"]) {
+			const response = await fetch(url, { method: "POST", headers, body: body(kind) });
+			assert.equal(response.status, 200);
+			const rendered = await response.json();
+			assert.match(rendered.html, /Preview operator/);
+			assert.ok(rendered.text.length > 0);
+		}
+
+		assert.equal((await fetch(url, { method: "POST", headers, body: body("unsupported") })).status, 400);
+		const messages = await (await fetch(f.mailUrl + "/api/v1/messages")).json();
+		assert.equal(messages.total, 0, "Preview must not deliver SMTP messages");
+	});
+});

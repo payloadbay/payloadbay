@@ -18,6 +18,11 @@ interface CoverageOptions {
 	include: string[];
 }
 
+/** v8-to-istanbul omits unnamed callbacks despite their precise V8 counters. */
+function namedCoverageFunctions(functions: JSCoverageEntry["functions"]) {
+	return functions.map((entry, index) => (!entry.functionName && !(index === 0 && entry.ranges[0]?.startOffset === 0) ? { ...entry, functionName: "(anonymous)" } : entry));
+}
+
 /** Collect the owning Node invocation once, then discard raw source-map caches. */
 export function runNodeCoverage(args: string[], options: CoverageOptions) {
 	const directory = resolve(options.directory);
@@ -34,6 +39,7 @@ export function runNodeCoverage(args: string[], options: CoverageOptions) {
 		for (const name of readdirSync(raw).filter((name) => name.endsWith(".json"))) {
 			const filename = resolve(raw, name);
 			const snapshot = JSON.parse(readFileSync(filename, "utf8"));
+			for (const script of snapshot.result ?? []) if (Array.isArray(script.functions)) script.functions = namedCoverageFunctions(script.functions);
 			for (const cache of Object.values(snapshot["source-map-cache"] ?? {}) as { data?: { sources?: string[] } }[]) {
 				if (Array.isArray(cache.data?.sources)) cache.data.sources = cache.data.sources.map((source) => (source.startsWith("file://") ? fileURLToPath(source) : source));
 			}
@@ -123,7 +129,7 @@ export async function convertBrowserCoverage(entries: JSCoverageEntry[], root = 
 		const converter = v8ToIstanbul(filename, 0, { source: entry.source ?? (await readFile(filename, "utf8")), originalSource: "", sourceMap: { sourcemap: map } }, (source) => !owned(source));
 		try {
 			await converter.load();
-			converter.applyCoverage(entry.functions);
+			converter.applyCoverage(namedCoverageFunctions(entry.functions));
 			collected.merge(converter.toIstanbul());
 		} finally {
 			converter.destroy();
