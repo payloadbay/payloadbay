@@ -107,7 +107,8 @@ jobs:
         lane: [static, unit, node, executor, browser, performance, deployment]
     env:
       NEXT_TELEMETRY_DISABLED: "1"
-      NODE_OPTIONS: --max-old-space-size=3072
+      # Source-mapped, unminified coverage builds exceed a 3 GiB V8 heap.
+      NODE_OPTIONS: --max-old-space-size=6144
       PAB_TEST_RUN_ID: ci-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.lane }}
     steps:
       - name: Check out the tested source
