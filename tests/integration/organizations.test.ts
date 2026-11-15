@@ -835,3 +835,27 @@ test("UX75 organization passkey policy gates inherited access and protects the l
 		await db.query("DELETE FROM auth.passkey WHERE id='policy-member'");
 	});
 });
+
+test("conflicting and unverified customer onboarding leaves no admission or ownership behind", async () => {
+	const { provisionCustomerOrganization } = await import("../../packages/domain/src/onboarding.ts");
+	await authFixture(async ({ pool, db }) => {
+		await identity(db, "operator");
+		await identity(db, "first-customer");
+		await identity(db, "conflicting-customer");
+		await identity(db, "unverified-customer", false);
+		await bootstrapOwner(pool, { userId: "operator", providedSecret: setupSecret, expectedSecret: setupSecret });
+		const first = await provisionCustomerOrganization(pool, { userId: "first-customer", name: "Customer company", slug: "customer-company" }, "organization");
+		await assert.rejects(provisionCustomerOrganization(pool, { userId: "conflicting-customer", name: "Another company", slug: "customer-company" }, "organization"), { code: "slug_conflict", status: 409 });
+		await assert.rejects(provisionCustomerOrganization(pool, { userId: "unverified-customer", name: "Unverified company", slug: "unverified-company" }, "organization"), { code: "email_verification_required", status: 403 });
+		for (const userId of ["conflicting-customer", "unverified-customer"]) {
+			assert.equal((await db.query("SELECT count(*)::int AS count FROM payloadbay.admission WHERE user_id=$1", [userId])).rows[0].count, 0);
+			assert.equal((await db.query("SELECT count(*)::int AS count FROM payloadbay.grant_record WHERE user_id=$1", [userId])).rows[0].count, 0);
+			assert.equal((await db.query("SELECT count(*)::int AS count FROM payloadbay.customer_onboarding WHERE user_id=$1", [userId])).rows[0].count, 0);
+			assert.equal((await db.query("SELECT count(*)::int AS count FROM payloadbay.organization WHERE owner_user_id=$1", [userId])).rows[0].count, 0);
+		}
+
+		const owner = (await db.query("SELECT owner_user_id FROM payloadbay.organization WHERE id=$1", [first.organizationId])).rows[0].owner_user_id;
+		assert.equal(owner, "first-customer", "A conflicting signup must not change the original customer's ownership");
+		assert.equal((await db.query("SELECT organization_id FROM payloadbay.workspace WHERE id=$1", [first.workspaceId])).rows[0].organization_id, first.organizationId);
+	});
+});
