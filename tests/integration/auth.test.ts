@@ -859,3 +859,16 @@ test("UX87 HTTP resend throttling persists across auth instances and does not di
 		}
 	});
 });
+test("schema-only authentication options refuse to deliver verification codes", async () => {
+	const { Pool } = await import("pg");
+	const { authSchemaOptions } = await import("../../packages/domain/src/auth-schema.ts");
+	const pool = new Pool({ connectionString: "postgres://fixture:fixture@127.0.0.1:1/unused" });
+	try {
+		const plugin = authSchemaOptions(pool).plugins?.find((entry) => entry.id === "email-otp");
+		assert.ok(plugin);
+		const options = plugin.options as { sendVerificationOTP: () => Promise<void> };
+		await assert.rejects(options.sendVerificationOTP(), /SMTP handler is required/);
+	} finally {
+		await pool.end();
+	}
+});

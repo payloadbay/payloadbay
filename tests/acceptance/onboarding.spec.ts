@@ -1,5 +1,5 @@
 import { saveInstallationConfiguration } from "../../packages/domain/src/installation-configuration.ts";
-import { test as base, expect } from "../helpers/browser-test.ts";
+import { test as base, expect, captureBrowserCoverage } from "../helpers/browser-test.ts";
 import type { Page } from "@playwright/test";
 import { nextFixture } from "../helpers/next-fixture.ts";
 import { identity, setupSecret, fixtureConfig } from "../helpers/auth-fixtures.ts";
@@ -49,6 +49,7 @@ test("FT06b a verified new customer creates an organization through the mobile s
 		});
 		await page.reload();
 		await expect(page.getByRole("heading", { name: "Organization setup unavailable", exact: true })).toBeVisible();
+		await captureBrowserCoverage(page);
 		onboardingUnavailable = false;
 		await page.getByRole("button", { name: "Retry setup", exact: true }).click();
 		await page.getByLabel("Organization name").fill("Customer company");

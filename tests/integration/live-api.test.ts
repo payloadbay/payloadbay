@@ -20,6 +20,18 @@ test("U39 optimistic conflict cannot silently overwrite", () => {
 	assert.throws(() => expectedVersion(2, 1), { code: "version_conflict", status: 409 });
 });
 
+test("HTTP resource identifiers and optimistic versions reject ambiguous command inputs", async () => {
+	const { uuid, version } = await import("../../apps/web/src/app/lib/api/parameters.ts");
+	const id = "b176d92f-7c86-44cd-b511-4b07a8e80798";
+	assert.equal(uuid(id), id);
+	for (const invalid of ["", "../projects", `${id}/other`, "not-a-uuid"]) assert.throws(() => uuid(invalid), { status: 400 });
+	assert.equal(version(new Request(options.origin, { headers: { "if-match": '"12"' } })), 12);
+	for (const invalid of [undefined, "12", 'W/"12"', '"0"', '"-1"', '"1", "2"']) {
+		const headers = invalid === undefined ? undefined : { "if-match": invalid };
+		assert.throws(() => version(new Request(options.origin, { headers })), { status: 428 });
+	}
+});
+
 import { handle } from "../../apps/web/src/app/lib/api/handler.ts";
 
 test("U206 private HTTP command is unauthorized before invocation", async () => {
@@ -64,6 +76,27 @@ import { z } from "../../packages/contracts/node_modules/zod/index.js";
 test("U209 oversized JSON body is rejected before parsing", async () => {
 	const request = new Request(options.origin + "/api/v1/command", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "fixture" }) });
 	await assert.rejects(readJson(request, z.object({ name: z.string() }), 4), { code: "body_too_large", status: 413 });
+});
+
+test("an oversized request remains rejected when stream cancellation also fails", async () => {
+	let cancelled = false;
+	const body = new ReadableStream<Uint8Array>({
+		start(controller) {
+			controller.enqueue(new TextEncoder().encode('{"too":"large"}'));
+		},
+		cancel() {
+			cancelled = true;
+			throw Error("Fixture cancellation failure");
+		},
+	});
+	const request = new Request(options.origin + "/api/v1/command", {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body,
+		duplex: "half",
+	} as RequestInit & { duplex: "half" });
+	await assert.rejects(readJson(request, z.object({ name: z.string() }), 8), { code: "body_too_large", status: 413 });
+	assert.equal(cancelled, true);
 });
 
 test("U210 JSON body at limit retains public value", async () => {

@@ -643,3 +643,54 @@ setInterval(()=>{},1000);`;
 		}
 	});
 });
+test("lost unlock acknowledgements do not undo completed development, migration or demo work", async (context) => {
+	const { authFixture, fixtureConfig } = await import("../helpers/auth-fixtures.ts");
+	const { Client } = await import("pg");
+	const { migrate: releaseMigrate } = await import("../../packages/domain/src/migrate.ts");
+	const { seedPreviewDemo } = await import("../../packages/domain/src/preview-demo.ts");
+	const { createAuth } = await import("../../packages/domain/src/auth-runtime.ts");
+	const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
+	const { tmpdir } = await import("node:os");
+	const { join } = await import("node:path");
+	const { pathToFileURL } = await import("node:url");
+	const directory = await mkdtemp(join(tmpdir(), "pab-cleanup-ack-"));
+	try {
+		// Synthetic fixture SQL is not a release migration or release acceptance.
+		await writeFile(join(directory, "0000_cleanup_canary.sql"), "CREATE TABLE payloadbay.cleanup_canary(value integer);");
+		await authFixture(async (f) => {
+			const original = Client.prototype.query;
+			const unlocks = new Set(["SELECT pg_advisory_unlock(hashtext('payloadbay:migrations:v1'))", "SELECT pg_advisory_unlock(hashtext('payloadbay:preview-seed:v1'))"]);
+			let lostAcknowledgements = 0;
+			context.mock.method(Client.prototype, "query", function (this: InstanceType<typeof Client>, ...args: unknown[]) {
+				const response = Reflect.apply(original, this, args);
+				if (typeof args[0] !== "string" || !unlocks.has(args[0])) return response;
+
+				return Promise.resolve(response).then(() => {
+					lostAcknowledgements++;
+					throw Error("Fixture unlock acknowledgement lost");
+				});
+			});
+			await migrate(f.databaseUrl);
+			await releaseMigrate(f.databaseUrl, { directory: pathToFileURL(directory + "/") });
+			const config = fixtureConfig(f);
+			const identity = createAuth(f.pool, config);
+			try {
+				await seedPreviewDemo(f.pool, config, identity, { IS_PREVIEW: "true", NODE_ENV: "development" });
+			} finally {
+				await identity.close();
+			}
+
+			assert.equal(lostAcknowledgements, 3);
+			context.mock.restoreAll();
+			assert.equal((await f.db.query("SELECT count(*)::int AS n FROM payloadbay.schema_migration WHERE name='0000_cleanup_canary.sql'")).rows[0].n, 1);
+			assert.equal((await f.db.query("SELECT bootstrap_state FROM payloadbay.installation WHERE singleton")).rows[0].bootstrap_state, "complete");
+			for (const key of ["payloadbay:migrations:v1", "payloadbay:preview-seed:v1"]) {
+				assert.equal((await f.db.query("SELECT pg_try_advisory_lock(hashtext($1)) AS available", [key])).rows[0].available, true);
+				await f.db.query("SELECT pg_advisory_unlock(hashtext($1))", [key]);
+			}
+		});
+	} finally {
+		context.mock.restoreAll();
+		await rm(directory, { recursive: true, force: true });
+	}
+});

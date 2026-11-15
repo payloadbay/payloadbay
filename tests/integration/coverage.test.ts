@@ -1,4 +1,5 @@
 import test from "node:test";
+import type { FunctionMapping } from "istanbul-lib-coverage";
 import assert from "node:assert/strict";
 import { mkdtemp, writeFile, readFile, rm, access } from "node:fs/promises";
 import { resolve, relative } from "node:path";
@@ -137,11 +138,11 @@ test("CV03 complementary real source-map reports merge function identities witho
 
 test("CV04 browser source maps require explicit test-build opt-in", async () => {
 	const { spawnSync } = await import("node:child_process");
-	const script = 'import config from "./apps/web/next.config.ts";console.log(JSON.stringify({browser:Boolean(config.productionBrowserSourceMaps),server:Boolean(config.experimental?.serverSourceMaps)}));';
+	const script = 'import config from "./apps/web/next.config.ts";const webpack={optimization:{minimize:true}};config.webpack(webpack);console.log(JSON.stringify({browser:Boolean(config.productionBrowserSourceMaps),server:Boolean(config.experimental?.serverSourceMaps),minimize:webpack.optimization.minimize}));';
 	for (const enabled of [false, true]) {
 		const result = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", script], { env: { ...process.env, PAB_TEST_SOURCE_COVERAGE: String(enabled), NODE_V8_COVERAGE: "" }, encoding: "utf8" });
 		assert.equal(result.status, 0, result.stderr);
-		assert.deepEqual(JSON.parse(result.stdout), { browser: enabled, server: enabled });
+		assert.deepEqual(JSON.parse(result.stdout), { browser: enabled, server: enabled, minimize: !enabled });
 	}
 });
 
@@ -541,6 +542,216 @@ test("multi-source Node maps retain actual called and uncalled function counters
 		assert.equal(summary.functions.total, 2);
 		assert.equal(summary.functions.covered, 1);
 		assert.equal(evaluateCoverage([report], "", [helper], 0.8).passed, false);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("exported function aliases merge with their declared identity", async () => {
+	const directory = await mkdtemp(resolve("test-results/exported-alias-"));
+	try {
+		const source = resolve(directory, "exported.ts");
+		await writeFile(source, "export function shared() {\n return 1;\n}\n");
+		const declared = { start: { line: 1, column: 0 }, end: { line: 3, column: 1 } };
+		const alias = { start: { line: 1, column: 7 }, end: { line: 3, column: 1 } };
+
+		const report = (name: string, loc: typeof declared, count: number) => ({
+			[source]: {
+				path: source,
+				statementMap: { 0: declared },
+				s: { 0: count },
+				branchMap: {},
+				b: {},
+				fnMap: {
+					0: {
+						name,
+						decl: loc,
+						loc,
+						line: 1,
+					},
+				},
+				f: { 0: count },
+			},
+		});
+
+		const summary = mergeNodeCoverage([report("shared", declared, 0), report("e", alias, 1)])
+			.fileCoverageFor(source)
+			.toSummary();
+		assert.equal(summary.functions.total, 1);
+		assert.equal(summary.functions.covered, 1);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("generated module factories are not authored functions and cannot cover a cold function", async () => {
+	const directory = await mkdtemp(resolve("test-results/generated-factory-"));
+	try {
+		const source = resolve(directory, "module.ts");
+		await writeFile(source, "export const data = [1, 2, 3];\n");
+		const loc = { start: { line: 1, column: 0 }, end: { line: 1, column: 29 } };
+		const factory = {
+			name: "12345",
+			decl: loc,
+			loc,
+			line: 1,
+		};
+		const data = {
+			path: source,
+			statementMap: { 0: loc },
+			s: { 0: 1 },
+			branchMap: {},
+			b: {},
+			fnMap: { 0: factory },
+			f: { 0: 0 },
+		};
+		assert.equal(
+			mergeNodeCoverage([{ [source]: data }])
+				.fileCoverageFor(source)
+				.toSummary().functions.total,
+			0,
+		);
+		await writeFile(source, "export function cold(){return 0;}\n");
+		const cold = { ...data, fnMap: { 0: factory, 1: { ...factory, name: "cold" } }, f: { 0: 1, 1: 0 } };
+		const summary = mergeNodeCoverage([{ [source]: cold }])
+			.fileCoverageFor(source)
+			.toSummary();
+		assert.equal(summary.functions.total, 1);
+		assert.equal(summary.functions.covered, 0);
+		assert.equal(evaluateCoverage([{ [source]: cold }], "", [source], 0.8).passed, false);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("unnamed Node and browser callbacks retain genuine hit and cold counters", async () => {
+	const { mkdir } = await import("node:fs/promises");
+	const { pathToFileURL } = await import("node:url");
+	const root = await mkdtemp(resolve("test-results/unnamed-callbacks-"));
+	try {
+		const source = resolve(root, "apps/web/src/callbacks.ts");
+		await mkdir(resolve(root, "apps/web/src"), { recursive: true });
+		const body = 'const callbacks = [\n () => "called",\n () => "cold",\n];\ncallbacks[0]();\n';
+		await writeFile(source, body);
+		const output = resolve(root, "node");
+		const result = runNodeCoverage(["--import", "tsx", "--input-type=module", "-e", `await import(${JSON.stringify(pathToFileURL(source).href)})`], { directory: output, env: process.env, include: [relative(process.cwd(), source)] });
+		assert.equal(result.status, 0, result.stderr);
+		const nodeReport = JSON.parse(await readFile(resolve(output, "coverage-final.json"), "utf8"));
+		const compiled = await transform(body, {
+			loader: "ts",
+			sourcefile: source,
+			sourcemap: "external",
+			format: "esm",
+		});
+		const assets = resolve(root, "assets");
+		await mkdir(assets);
+		await writeFile(resolve(assets, "callbacks.js.map"), compiled.map);
+		const callbacks = ["called", "cold"].map((name, index) => {
+			const text = `() => "${name}"`;
+			const startOffset = compiled.code.indexOf(text);
+			assert.ok(startOffset > 0);
+
+			return { functionName: "", isBlockCoverage: true, ranges: [{ startOffset, endOffset: startOffset + text.length, count: index === 0 ? 1 : 0 }] };
+		});
+		const entry = {
+			url: "http://127.0.0.1/static/callbacks.js",
+			source: compiled.code,
+			scriptId: "fixture",
+			functions: [{ functionName: "", isBlockCoverage: true, ranges: [{ startOffset: 0, endOffset: compiled.code.length, count: 1 }] }, ...callbacks],
+		};
+		const browserReport = await convertBrowserCoverage([entry], root, { directory: assets, prefix: "/static/" });
+		for (const report of [nodeReport, browserReport]) {
+			const summary = mergeNodeCoverage([report]).fileCoverageFor(source).toSummary();
+			assert.equal(summary.functions.total, 2, "The module wrapper must not enter the denominator");
+			assert.equal(summary.functions.covered, 1, "Only the invoked callback may gain coverage");
+			assert.equal(evaluateCoverage([report], "", [source], 0.8).passed, false);
+		}
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+test("callback source maps reconcile trailing delimiter drift without covering a different callback", async () => {
+	const directory = await mkdtemp(resolve("test-results/callback-delimiters-"));
+	try {
+		const source = resolve(directory, "callbacks.ts");
+		const lines = ['export const a = check((value: unknown) => Boolean(value), "first");', 'export const b = check((value: unknown) => !value, "second");'];
+		await writeFile(source, lines.join("\n") + "\n");
+
+		const report = (shift: number, called: number) => {
+			const fnMap: Record<string, FunctionMapping> = {};
+			for (const [index, line] of lines.entries()) {
+				const loc = { start: { line: index + 1, column: line.indexOf("(value:") + shift }, end: { line: index + 1, column: line.indexOf(', "') + 2 } };
+				fnMap[String(index)] = {
+					name: "(anonymous)",
+					decl: loc,
+					loc,
+					line: index + 1,
+				};
+			}
+
+			return {
+				[source]: {
+					path: source,
+					statementMap: { 0: fnMap["0"].loc, 1: fnMap["1"].loc },
+					s: { 0: called, 1: 0 },
+					branchMap: {},
+					b: {},
+					fnMap,
+					f: { 0: called, 1: 0 },
+				},
+			};
+		};
+
+		const merged = mergeNodeCoverage([report(0, 0), report(1, 1)]);
+		const summary = merged.fileCoverageFor(source).toSummary();
+		assert.equal(summary.functions.total, 2, "One authored callback must not become two compiler identities");
+		assert.equal(summary.functions.covered, 1, "The second callback must remain cold");
+		assert.equal(evaluateCoverage([merged.toJSON()], "", [source], 0.8).passed, false);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("different ESM and CommonJS layouts for one source URL are mapped before merging", async () => {
+	const directory = await mkdtemp(resolve("test-results/mixed-loaders-"));
+	try {
+		const source = resolve(directory, "callbacks.ts");
+		await writeFile(source, 'export const callbacks = [\n () => "left",\n () => "right",\n () => "never",\n];\n');
+		const entry = resolve(directory, "launcher.mjs");
+		await writeFile(
+			entry,
+			`import {spawnSync} from 'node:child_process';\nfor(const args of ${JSON.stringify([
+				["--import", "tsx", "--input-type=module", "-e", `(await import(${JSON.stringify(source)})).callbacks[0]()`],
+				["--import", "tsx", "-e", `require(${JSON.stringify(source)}).callbacks[1]()`],
+			])}) {const child=spawnSync(process.execPath,args,{env:process.env,encoding:'utf8'});if(child.status!==0){console.error(child.stderr);process.exit(child.status??1);}}\n`,
+		);
+		const output = resolve(directory, "coverage");
+		const result = runNodeCoverage([entry], { directory: output, env: process.env, include: [relative(process.cwd(), source)] });
+		assert.equal(result.status, 0, result.stderr);
+		const report = JSON.parse(await readFile(resolve(output, "coverage-final.json"), "utf8"));
+		const summary = mergeNodeCoverage([report]).fileCoverageFor(source).toSummary();
+		assert.equal(summary.functions.total, 3);
+		assert.equal(summary.functions.covered, 2, "Complementary loader executions must retain both hits and the cold callback");
+		assert.equal(evaluateCoverage([report], "", [source], 0.8).passed, false);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("reading export getters cannot cover an uncalled factory, nested callback or constructor", async () => {
+	const directory = await mkdtemp(resolve("test-results/export-getters-"));
+	try {
+		const source = resolve(directory, "exports.ts");
+		await writeFile(source, 'export function called() { return 1; }\nexport function unusedFactory() { return () => "never"; }\nexport class Cold { constructor() { throw Error("not constructed"); } }\n');
+		const output = resolve(directory, "coverage");
+		const result = runNodeCoverage(["--import", "tsx", "-e", `const namespace=require(${JSON.stringify(source)});Object.values(namespace);namespace.called();`], { directory: output, env: process.env, include: [relative(process.cwd(), source)] });
+		assert.equal(result.status, 0, result.stderr);
+		const report = JSON.parse(await readFile(resolve(output, "coverage-final.json"), "utf8"));
+		const summary = mergeNodeCoverage([report]).fileCoverageFor(source).toSummary();
+		assert.equal(summary.functions.total, 4);
+		assert.equal(summary.functions.covered, 1);
+		assert.equal(evaluateCoverage([report], "", [source], 0.8).passed, false);
 	} finally {
 		await rm(directory, { recursive: true, force: true });
 	}

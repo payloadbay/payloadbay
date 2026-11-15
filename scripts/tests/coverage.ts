@@ -1,4 +1,7 @@
 import { createFunctionNormalizer } from "./function-coverage.ts";
+import { createHash } from "node:crypto";
+import libReport from "istanbul-lib-report";
+import istanbulReports from "istanbul-reports";
 import v8ToIstanbul from "v8-to-istanbul";
 import type { Page } from "@playwright/test";
 
@@ -18,6 +21,11 @@ interface CoverageOptions {
 	include: string[];
 }
 
+/** v8-to-istanbul omits unnamed callbacks despite their precise V8 counters. */
+function namedCoverageFunctions(functions: JSCoverageEntry["functions"]) {
+	return functions.map((entry, index) => (!entry.functionName && !(index === 0 && entry.ranges[0]?.startOffset === 0) ? { ...entry, functionName: "(anonymous)" } : entry));
+}
+
 /** Collect the owning Node invocation once, then discard raw source-map caches. */
 export function runNodeCoverage(args: string[], options: CoverageOptions) {
 	const directory = resolve(options.directory);
@@ -30,24 +38,72 @@ export function runNodeCoverage(args: string[], options: CoverageOptions) {
 	try {
 		const execution = spawnSync("node", args, { encoding: "utf8", env: { ...options.env, NODE_V8_COVERAGE: raw }, maxBuffer: 16 * 1024 * 1024 });
 		if (execution.error) throw execution.error;
+		const groups: { directory: string; layouts: Map<string, string> }[] = [];
 		// c8 filters multi-source ranges before decoding cached file URLs.
 		for (const name of readdirSync(raw).filter((name) => name.endsWith(".json"))) {
 			const filename = resolve(raw, name);
 			const snapshot = JSON.parse(readFileSync(filename, "utf8"));
+			for (const script of snapshot.result ?? []) if (Array.isArray(script.functions)) script.functions = namedCoverageFunctions(script.functions);
 			for (const cache of Object.values(snapshot["source-map-cache"] ?? {}) as { data?: { sources?: string[] } }[]) {
 				if (Array.isArray(cache.data?.sources)) cache.data.sources = cache.data.sources.map((source) => (source.startsWith("file://") ? fileURLToPath(source) : source));
 			}
 
-			writeFileSync(filename, JSON.stringify(snapshot));
+			// ESM and CommonJS loaders can emit different offsets for the same .ts
+			// URL. c8 merges offsets before remapping, so only compatible layouts
+			// may share a raw batch. Merge their source locations afterward instead.
+			const layouts = new Map<string, string>();
+			for (const script of snapshot.result ?? []) {
+				if (!script.url.startsWith("file://") || script.url.includes("/node_modules/")) continue;
+				layouts.set(
+					script.url,
+					createHash("sha256")
+						.update(JSON.stringify(snapshot["source-map-cache"]?.[script.url] ?? null))
+						.digest("hex"),
+				);
+			}
+
+			let group = groups.find((candidate) => [...layouts].every(([url, layout]) => !candidate.layouts.has(url) || candidate.layouts.get(url) === layout));
+			if (!group) {
+				group = { directory: resolve(raw, "batches", String(groups.length)), layouts: new Map() };
+				mkdirSync(group.directory, { recursive: true });
+				groups.push(group);
+			}
+
+			for (const [url, layout] of layouts) group.layouts.set(url, layout);
+			writeFileSync(resolve(group.directory, name), JSON.stringify(snapshot));
+			rmSync(filename);
 		}
 
-		const reporting = spawnSync("node", [resolve("node_modules/c8/bin/c8.js"), "report", `--reports-dir=${directory}`, `--temp-directory=${raw}`, "--reporter=lcovonly", "--reporter=json", "--exclude-after-remap", "--merge-async", "--exclude=**/node_modules/**", "--exclude=**/*.d.ts", "--exclude=**/*.d.mts", "--exclude=**/*.d.cts", ...options.include.map((pattern) => `--include=${pattern}`)], { encoding: "utf8", env: { ...options.env, NODE_V8_COVERAGE: "" }, maxBuffer: 16 * 1024 * 1024 });
-		if (reporting.error) throw reporting.error;
+		const reports: CoverageMapData[] = [];
+		let reportingStatus = 0;
+		let reportingOutput = "";
+		let reportingErrors = "";
+		for (const [index, group] of groups.entries()) {
+			const output = resolve(raw, "mapped", String(index));
+			const reporting = spawnSync("node", [resolve("node_modules/c8/bin/c8.js"), "report", `--reports-dir=${output}`, `--temp-directory=${group.directory}`, "--reporter=json", "--exclude-after-remap", "--merge-async", "--exclude=**/node_modules/**", "--exclude=**/*.d.ts", "--exclude=**/*.d.mts", "--exclude=**/*.d.cts", ...options.include.map((pattern) => `--include=${pattern}`)], { encoding: "utf8", env: { ...options.env, NODE_V8_COVERAGE: "" }, maxBuffer: 16 * 1024 * 1024 });
+			if (reporting.error) throw reporting.error;
+			reportingOutput += reporting.stdout ?? "";
+			reportingErrors += reporting.stderr ?? "";
+			if (reporting.status !== 0) {
+				reportingStatus = reporting.status ?? 1;
+				break;
+			}
+
+			const mapped = JSON.parse(readFileSync(resolve(output, "coverage-final.json"), "utf8")) as CoverageMapData;
+			if (Object.keys(mapped).length) reports.push(mapped);
+		}
+
+		if (reportingStatus === 0 && reports.length) {
+			const merged = mergeNodeCoverage(reports);
+			writeFileSync(resolve(directory, "coverage-final.json"), JSON.stringify(merged.toJSON()));
+			istanbulReports.create("lcovonly").execute(libReport.createContext({ dir: directory, coverageMap: merged }));
+		} else if (execution.status === 0 && reportingStatus === 0) throw Error("Node coverage contains no source records");
+
 		const result = {
 			...execution,
-			status: execution.status === 0 ? reporting.status : execution.status,
-			stdout: (execution.stdout ?? "") + (reporting.stdout ?? ""),
-			stderr: (execution.stderr ?? "") + (reporting.stderr ?? ""),
+			status: execution.status === 0 ? reportingStatus : execution.status,
+			stdout: (execution.stdout ?? "") + reportingOutput,
+			stderr: (execution.stderr ?? "") + reportingErrors,
 		};
 		if (result.status === 0 && !readFileSync(report, "utf8").includes("SF:")) throw Error("Node coverage contains no source records");
 
@@ -123,7 +179,7 @@ export async function convertBrowserCoverage(entries: JSCoverageEntry[], root = 
 		const converter = v8ToIstanbul(filename, 0, { source: entry.source ?? (await readFile(filename, "utf8")), originalSource: "", sourceMap: { sourcemap: map } }, (source) => !owned(source));
 		try {
 			await converter.load();
-			converter.applyCoverage(entry.functions);
+			converter.applyCoverage(namedCoverageFunctions(entry.functions));
 			collected.merge(converter.toIstanbul());
 		} finally {
 			converter.destroy();

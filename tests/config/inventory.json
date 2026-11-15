@@ -2,6 +2,7 @@
 	"owners": {
 		"tests/deployment/runner.test.ts": "deployment",
 		"tests/integration/runner.test.ts": "node",
+		"tests/integration/worker-entry.test.ts": "node",
 		"tests/acceptance/account-sign-in.spec.ts": "browser",
 		"tests/integration/security-boundaries.test.ts": "node",
 		"tests/deployment/release-acceptance.test.ts": "deployment",

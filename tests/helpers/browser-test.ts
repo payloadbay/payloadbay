@@ -1,4 +1,4 @@
-import { test as base } from "@playwright/test";
+import { test as base, type Page } from "@playwright/test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { createHash } from "node:crypto";
@@ -6,6 +6,13 @@ import type { CoverageMapData } from "istanbul-lib-coverage";
 import { convertBrowserCoverage, mergeNodeCoverage } from "../../scripts/tests/coverage.ts";
 
 export { expect } from "@playwright/test";
+
+const checkpoints = new WeakMap<Page, () => Promise<void>>();
+
+/** Preserve completed work before a renderer-owned hard reload discards it. */
+export async function captureBrowserCoverage(page: Page) {
+	await checkpoints.get(page)?.();
+}
 
 export const test = base.extend<{ coverageAssets: { directory: string; prefix: string } | undefined }>({
 	coverageAssets: [undefined, { option: true }],
@@ -29,6 +36,8 @@ export const test = base.extend<{ coverageAssets: { directory: string; prefix: s
 
 			return pending;
 		};
+
+		checkpoints.set(page, capture);
 
 		// Capture before test-controlled hard navigation, without intercepting network
 		// requests or changing browser cache behavior. Keep the profiler continuous.
@@ -63,6 +72,7 @@ export const test = base.extend<{ coverageAssets: { directory: string; prefix: s
 		try {
 			await use(page);
 		} finally {
+			checkpoints.delete(page);
 			page.goto = goto;
 			page.reload = reload;
 			page.goBack = back;
