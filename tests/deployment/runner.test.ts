@@ -28,6 +28,7 @@ async function protocolClient(server: string, target: string, token: string) {
 }
 
 test("Runner real Next APIs deliver private bytes, reject ambient authority and revoke derived credentials", async () => {
+	if (process.env.CI === "true") assert.ok(process.env.PAB_RUNNER_MODULE, "CI must exercise the pinned standalone Runner, not the inline protocol client");
 	await nextFixture(async (f) => {
 		const scope = await seedScope(f.db);
 		await f.db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");

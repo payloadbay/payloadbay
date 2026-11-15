@@ -63,7 +63,12 @@ bytes, single claims, timeouts, replay fencing, platform-admin exclusion and
 credential revocation. `tests/deployment/runner.test.ts` runs the real Next APIs
 and the protocol client. Set `PAB_RUNNER_MODULE` to the absolute file URL of the
 separate agent module to run the same API acceptance against the actual agent.
-The normal Core suite needs no sibling checkout or external package.
+The CI deployment lane checks out the public agent at
+[`fcb5211`](https://github.com/payloadbay/runner/commit/fcb52119489f01dcb052c77933d1b80fd0d9bd1c)
+and sets that module explicitly; it refuses to silently fall back to the inline
+client in CI. The checkout is ignored source, not a release artifact. Update the
+pin alongside protocol changes. Local Core checks still need no sibling checkout
+or external package unless testing the standalone agent.
 
 These tests use disposable development databases. The first ordinary release
 migration remains master-CI-owned; no local release SQL is generated.
