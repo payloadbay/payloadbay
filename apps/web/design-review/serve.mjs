@@ -41,7 +41,8 @@ async function rebuild() {
 			format: "esm",
 			splitting: true,
 			chunkNames: "chunks/[name]-[hash]",
-			minify: true,
+			// Preserve authored callback boundaries in instrumented review fixtures.
+			minify: process.env.REVIEW_SOURCE_COVERAGE !== "true",
 			define: { "process.env.NODE_ENV": '"production"' },
 			metafile: true,
 			sourcemap: process.env.REVIEW_SOURCE_COVERAGE === "true" ? "external" : false,

@@ -137,11 +137,11 @@ test("CV03 complementary real source-map reports merge function identities witho
 
 test("CV04 browser source maps require explicit test-build opt-in", async () => {
 	const { spawnSync } = await import("node:child_process");
-	const script = 'import config from "./apps/web/next.config.ts";console.log(JSON.stringify({browser:Boolean(config.productionBrowserSourceMaps),server:Boolean(config.experimental?.serverSourceMaps)}));';
+	const script = 'import config from "./apps/web/next.config.ts";const webpack={optimization:{minimize:true}};config.webpack(webpack);console.log(JSON.stringify({browser:Boolean(config.productionBrowserSourceMaps),server:Boolean(config.experimental?.serverSourceMaps),minimize:webpack.optimization.minimize}));';
 	for (const enabled of [false, true]) {
 		const result = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", script], { env: { ...process.env, PAB_TEST_SOURCE_COVERAGE: String(enabled), NODE_V8_COVERAGE: "" }, encoding: "utf8" });
 		assert.equal(result.status, 0, result.stderr);
-		assert.deepEqual(JSON.parse(result.stdout), { browser: enabled, server: enabled });
+		assert.deepEqual(JSON.parse(result.stdout), { browser: enabled, server: enabled, minimize: !enabled });
 	}
 });
 
@@ -541,6 +541,83 @@ test("multi-source Node maps retain actual called and uncalled function counters
 		assert.equal(summary.functions.total, 2);
 		assert.equal(summary.functions.covered, 1);
 		assert.equal(evaluateCoverage([report], "", [helper], 0.8).passed, false);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("exported function aliases merge with their declared identity", async () => {
+	const directory = await mkdtemp(resolve("test-results/exported-alias-"));
+	try {
+		const source = resolve(directory, "exported.ts");
+		await writeFile(source, "export function shared() {\n return 1;\n}\n");
+		const declared = { start: { line: 1, column: 0 }, end: { line: 3, column: 1 } };
+		const alias = { start: { line: 1, column: 7 }, end: { line: 3, column: 1 } };
+
+		const report = (name: string, loc: typeof declared, count: number) => ({
+			[source]: {
+				path: source,
+				statementMap: { 0: declared },
+				s: { 0: count },
+				branchMap: {},
+				b: {},
+				fnMap: {
+					0: {
+						name,
+						decl: loc,
+						loc,
+						line: 1,
+					},
+				},
+				f: { 0: count },
+			},
+		});
+
+		const summary = mergeNodeCoverage([report("shared", declared, 0), report("e", alias, 1)])
+			.fileCoverageFor(source)
+			.toSummary();
+		assert.equal(summary.functions.total, 1);
+		assert.equal(summary.functions.covered, 1);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("generated module factories are not authored functions and cannot cover a cold function", async () => {
+	const directory = await mkdtemp(resolve("test-results/generated-factory-"));
+	try {
+		const source = resolve(directory, "module.ts");
+		await writeFile(source, "export const data = [1, 2, 3];\n");
+		const loc = { start: { line: 1, column: 0 }, end: { line: 1, column: 29 } };
+		const factory = {
+			name: "12345",
+			decl: loc,
+			loc,
+			line: 1,
+		};
+		const data = {
+			path: source,
+			statementMap: { 0: loc },
+			s: { 0: 1 },
+			branchMap: {},
+			b: {},
+			fnMap: { 0: factory },
+			f: { 0: 0 },
+		};
+		assert.equal(
+			mergeNodeCoverage([{ [source]: data }])
+				.fileCoverageFor(source)
+				.toSummary().functions.total,
+			0,
+		);
+		await writeFile(source, "export function cold(){return 0;}\n");
+		const cold = { ...data, fnMap: { 0: factory, 1: { ...factory, name: "cold" } }, f: { 0: 1, 1: 0 } };
+		const summary = mergeNodeCoverage([{ [source]: cold }])
+			.fileCoverageFor(source)
+			.toSummary();
+		assert.equal(summary.functions.total, 1);
+		assert.equal(summary.functions.covered, 0);
+		assert.equal(evaluateCoverage([{ [source]: cold }], "", [source], 0.8).passed, false);
 	} finally {
 		await rm(directory, { recursive: true, force: true });
 	}

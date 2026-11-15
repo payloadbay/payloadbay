@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import ts from "typescript";
 import type { FileCoverageData, FunctionMapping } from "istanbul-lib-coverage";
 
-type NamedFunction = { mapping: FunctionMapping; declared: boolean };
+type NamedFunction = { mapping: FunctionMapping; declared: boolean; starts: { line: number; column: number }[] };
 
 /** Reconcile precise source ranges and unique declarations across compiler aliases. */
 export function createFunctionNormalizer() {
@@ -52,7 +52,10 @@ export function createFunctionNormalizer() {
 						line: loc.start.line,
 					};
 					const declared = (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node)) && Boolean(node.name);
-					names.set(name, [...(names.get(name) ?? []), { mapping, declared }]);
+					const starts = [loc.start];
+					if (ts.canHaveModifiers(node)) starts.push(...(ts.getModifiers(node) ?? []).map((modifier) => position(modifier.getStart(source))));
+					for (const token of node.getChildren(source)) if (token.kind === ts.SyntaxKind.FunctionKeyword) starts.push(position(token.getStart(source)));
+					names.set(name, [...(names.get(name) ?? []), { mapping, declared, starts }]);
 				}
 
 				ts.forEachChild(node, visit);
@@ -65,6 +68,13 @@ export function createFunctionNormalizer() {
 		const names = indexes.get(file.path);
 		if (!names) return;
 		const sourceFunctions = [...names.values()].flat();
+		if (!sourceFunctions.length) {
+			file.fnMap = {};
+			file.f = {};
+
+			return;
+		}
+
 		const fnMap: FileCoverageData["fnMap"] = {};
 		const hits: FileCoverageData["f"] = {};
 		const identities = new Map<string, string>();
@@ -72,6 +82,7 @@ export function createFunctionNormalizer() {
 			// esbuild's name-preservation helper is generated, not an authored
 			// function. Retain a user-authored __name function when one exists.
 			if (mapping.name === "__name" && !names.has("__name")) continue;
+			if (/^\d+$/.test(mapping.name) && !names.has(mapping.name)) continue;
 			const source = names.get(mapping.name);
 			// Callback names can be inferred from repeated assignments/properties.
 			// They are not unique source declarations and keep their mapped ranges.
@@ -79,7 +90,7 @@ export function createFunctionNormalizer() {
 			// Coincident minified names in disjoint authored ranges remain distinct.
 			// Compiler maps can omit a parenthesis or include the trailing semicolon.
 			// Require unambiguous source boundaries rather than inferred names.
-			const located = sourceFunctions.filter(({ mapping: candidate }) => candidate.loc.start.line === mapping.loc.start.line && Math.abs(candidate.loc.start.column - mapping.loc.start.column) <= 1 && candidate.loc.end.line === mapping.loc.end.line && Math.abs(candidate.loc.end.column - mapping.loc.end.column) <= 1);
+			const located = sourceFunctions.filter(({ mapping: candidate, starts }) => starts.some((start) => start.line === mapping.loc.start.line && Math.abs(start.column - mapping.loc.start.column) <= 1) && candidate.loc.end.line === mapping.loc.end.line && Math.abs(candidate.loc.end.column - mapping.loc.end.column) <= 1);
 			const canonical = located.length === 1 ? located[0].mapping : source?.length === 1 && source[0].declared && mapping.loc.end.line >= source[0].mapping.loc.start.line && mapping.loc.start.line <= source[0].mapping.loc.end.line ? source[0].mapping : mapping;
 			const key = canonical.name + ":" + JSON.stringify(canonical.loc);
 			let target = identities.get(key);

@@ -20,6 +20,18 @@ test("U39 optimistic conflict cannot silently overwrite", () => {
 	assert.throws(() => expectedVersion(2, 1), { code: "version_conflict", status: 409 });
 });
 
+test("HTTP resource identifiers and optimistic versions reject ambiguous command inputs", async () => {
+	const { uuid, version } = await import("../../apps/web/src/app/lib/api/parameters.ts");
+	const id = "b176d92f-7c86-44cd-b511-4b07a8e80798";
+	assert.equal(uuid(id), id);
+	for (const invalid of ["", "../projects", `${id}/other`, "not-a-uuid"]) assert.throws(() => uuid(invalid), { status: 400 });
+	assert.equal(version(new Request(options.origin, { headers: { "if-match": '"12"' } })), 12);
+	for (const invalid of [undefined, "12", 'W/"12"', '"0"', '"-1"', '"1", "2"']) {
+		const headers = invalid === undefined ? undefined : { "if-match": invalid };
+		assert.throws(() => version(new Request(options.origin, { headers })), { status: 428 });
+	}
+});
+
 import { handle } from "../../apps/web/src/app/lib/api/handler.ts";
 
 test("U206 private HTTP command is unauthorized before invocation", async () => {

@@ -5,6 +5,45 @@ import { nextFixture } from "../helpers/next-fixture.ts";
 import { runOnce } from "../../apps/worker/node_modules/graphile-worker/dist/index.js";
 import { platformJobTask } from "../../apps/worker/src/tasks/platform-job.ts";
 
+test("HTTP invitation cancellation requires member management and closes a pending invitation once", async () => {
+	await nextFixture(async (f) => {
+		const { seedScope } = await import("../helpers/domain-fixtures.ts");
+		const { permissions } = await import("../../packages/contracts/src/permissions.ts");
+		const { createToken } = await import("../../packages/domain/src/tokens.ts");
+		const scope = await seedScope(f.db);
+		await f.db.query("UPDATE payloadbay.installation SET bootstrap_state='complete'");
+		await f.db.query("INSERT INTO payloadbay.grant_record(user_id,scope_type,scope_id,role_preset,permissions) VALUES('fixture-owner','organization',$1,'owner',$2)", [scope.organization, permissions]);
+		const invitation = (await f.db.query("INSERT INTO payloadbay.invitation(installation_id,scope_type,scope_id,email,token_digest,grants,created_by) VALUES($1,'project',$2,'invitee@example.test','fixture-cancellation-digest','[]','fixture-owner') RETURNING id", [scope.installation, scope.project])).rows[0].id;
+
+		const mint = (rights: Parameters<typeof createToken>[2]["permissions"]) =>
+			createToken(
+				f.pool,
+				{ userId: "fixture-owner" },
+				{
+					scope: { type: "project", id: scope.project },
+					name: "Invitation cancellation",
+					permissions: rights,
+					expiresAt: new Date(Date.now() + 60000),
+				},
+			);
+
+		const reader = await mint(["metadata.read"]);
+		const manager = await mint(["members.manage"]);
+
+		const cancel = (secret: string, id = invitation) => fetch(f.url + "/api/v1/invitations/" + id, { method: "DELETE", headers: { authorization: "Bearer " + secret } });
+
+		assert.equal((await cancel(reader.secret)).status, 403);
+		assert.equal((await f.db.query("SELECT state FROM payloadbay.invitation WHERE id=$1", [invitation])).rows[0].state, "pending");
+		assert.equal((await cancel(manager.secret, "invalid-identifier")).status, 400);
+		const response = await cancel(manager.secret);
+		assert.equal(response.status, 200);
+		assert.deepEqual(await response.json(), { cancelled: true });
+		assert.equal((await f.db.query("SELECT state FROM payloadbay.invitation WHERE id=$1", [invitation])).rows[0].state, "cancelled");
+		assert.equal((await cancel(manager.secret)).status, 409);
+		assert.equal((await f.db.query("SELECT count(*)::int AS n FROM payloadbay.audit WHERE operation='invitation.cancelled' AND resource_id=$1", [invitation])).rows[0].n, 1);
+	});
+});
+
 test("U223 Next auth route mounts passwordless service", async () => {
 	await nextFixture(async ({ url }) => {
 		const response = await fetch(url + "/api/auth/get-session");
