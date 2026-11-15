@@ -43,17 +43,16 @@ export function createFunctionNormalizer() {
 					}
 
 					if (!name && ts.isJsxExpression(parent) && ts.isJsxAttribute(parent.parent)) name = parent.parent.name.getText(source);
-					if (name) {
-						const loc = { start: position(node.getStart(source)), end: position(node.getEnd()) };
-						const mapping = {
-							name,
-							decl: loc,
-							loc,
-							line: loc.start.line,
-						};
-						const declared = (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node)) && Boolean(node.name);
-						names.set(name, [...(names.get(name) ?? []), { mapping, declared }]);
-					}
+					name ??= "(anonymous)";
+					const loc = { start: position(node.getStart(source)), end: position(node.getEnd()) };
+					const mapping = {
+						name,
+						decl: loc,
+						loc,
+						line: loc.start.line,
+					};
+					const declared = (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node)) && Boolean(node.name);
+					names.set(name, [...(names.get(name) ?? []), { mapping, declared }]);
 				}
 
 				ts.forEachChild(node, visit);
@@ -92,6 +91,18 @@ export function createFunctionNormalizer() {
 			}
 
 			hits[target] += file.f[id];
+		}
+
+		// Source-map placeholders have no executed function ranges. They must not
+		// turn authored functions into 100% coverage through an empty denominator.
+		if (!Object.keys(fnMap).length && sourceFunctions.length) {
+			Object.assign(file, { all: true });
+			for (const [index, source] of sourceFunctions.entries()) {
+				fnMap[String(index)] = source.mapping;
+				hits[String(index)] = 0;
+			}
+
+			for (const id of Object.keys(file.s)) file.s[id] = 0;
 		}
 
 		file.fnMap = fnMap;
