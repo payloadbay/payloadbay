@@ -51,7 +51,7 @@ export function processEventTask(pool: Pool, config: ServerConfig, run?: (option
 					attempt: execution.attempt_number,
 					secrets,
 				},
-				broker: (target, value) => managedSend(pool, authority, target as Parameters<typeof managedSend>[2], value as Parameters<typeof managedSend>[3], { timeoutMs: config.httpTimeoutMs, signal: abort.signal }),
+				broker: (target, value) => managedSend(pool, authority, target as Parameters<typeof managedSend>[2], value as Parameters<typeof managedSend>[3], { timeoutMs: config.httpTimeoutMs, signal: abort.signal, encryptionKey: config.encryptionKey }),
 			};
 			const result = await executePipeline({
 				...options,

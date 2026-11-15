@@ -2,6 +2,7 @@ import type { Pool } from "pg";
 import { createHash, randomUUID } from "node:crypto";
 import { recordEndpointUsage } from "./usage.ts";
 import { transaction } from "./db.ts";
+import { sendThroughRunner } from "./runner.ts";
 import { assertAuthority, type Authority } from "./execution-lease.ts";
 import { AppError } from "../../contracts/src/errors.ts";
 import type { DestinationTarget, SendInput, SendResult } from "../../script-sdk/src/lifecycle.ts";
@@ -34,7 +35,7 @@ function canonical(value: unknown): string {
 	return JSON.stringify(value);
 }
 
-export async function managedSend(pool: Pool, authority: Authority, target: DestinationTarget, input: SendInput, options: { timeoutMs?: number; signal?: AbortSignal } = {}): Promise<SendResult> {
+export async function managedSend(pool: Pool, authority: Authority, target: DestinationTarget, input: SendInput, options: { timeoutMs?: number; signal?: AbortSignal; encryptionKey?: string } = {}): Promise<SendResult> {
 	if (typeof input.operationId !== "string" || !input.operationId || input.operationId.length > 128) throw new AppError("invalid_operation", 400, "Provide a stable operation identifier");
 	if (typeof input.body !== "string" && !(input.body instanceof Uint8Array)) throw new AppError("invalid_body", 400, "Provide a string or binary request body");
 	const body = Buffer.from(input.body);
@@ -49,7 +50,12 @@ export async function managedSend(pool: Pool, authority: Authority, target: Dest
 			name: string;
 			isDefault?: boolean;
 			concurrency?: number;
-			httpConfig: { url: string; method?: string; headers?: Record<string, string> };
+			httpConfig: {
+				url: string;
+				method?: string;
+				headers?: Record<string, string>;
+				transport?: "runner";
+			};
 		}[];
 		const destination = target === "default" ? (entries.find((d) => d.isDefault) ?? entries.find((d) => d.name === "default")) : entries.find((d) => d.id === target || d.name === target);
 		if (!destination) throw new AppError("destination_unavailable", 409, "Destination is not in this publication");
@@ -102,6 +108,8 @@ export async function managedSend(pool: Pool, authority: Authority, target: Dest
 
 		return {
 			attemptId,
+			destinationId,
+			transport: destination.httpConfig.transport,
 			url,
 			method,
 			headers: normalized,
@@ -113,21 +121,42 @@ export async function managedSend(pool: Pool, authority: Authority, target: Dest
 	let networkError: string | undefined;
 	const chunks: Buffer[] = [];
 	try {
-		const response = await fetch(prepared.url!, {
-			method: prepared.method,
-			headers: prepared.headers,
-			body: ["GET", "HEAD"].includes(prepared.method!) ? undefined : body,
-			redirect: "manual",
-			signal: options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(options.timeoutMs ?? 10000)]) : AbortSignal.timeout(options.timeoutMs ?? 10000),
-		});
-		status = response.status;
-		let size = 0;
-		if (response.body)
-			for await (const chunk of response.body) {
-				size += chunk.byteLength;
-				if (size > 1048576) throw Error("response_limit");
-				chunks.push(Buffer.from(chunk));
+		if (prepared.transport === "runner") {
+			const reported = await sendThroughRunner(
+				pool,
+				authority,
+				{
+					attemptId: prepared.attemptId!,
+					destinationId: prepared.destinationId!,
+					operationId: input.operationId,
+					method: prepared.method!,
+					headers: prepared.headers!,
+					body,
+				},
+				options,
+			);
+			if ("networkError" in reported) networkError = "delivery_network_error";
+			else {
+				status = reported.status;
+				chunks.push(Buffer.from(reported.bodyBase64, "base64"));
 			}
+		} else {
+			const response = await fetch(prepared.url!, {
+				method: prepared.method,
+				headers: prepared.headers,
+				body: ["GET", "HEAD"].includes(prepared.method!) ? undefined : body,
+				redirect: "manual",
+				signal: options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(options.timeoutMs ?? 10000)]) : AbortSignal.timeout(options.timeoutMs ?? 10000),
+			});
+			status = response.status;
+			let size = 0;
+			if (response.body)
+				for await (const chunk of response.body) {
+					size += chunk.byteLength;
+					if (size > 1048576) throw Error("response_limit");
+					chunks.push(Buffer.from(chunk));
+				}
+		}
 	} catch {
 		networkError = "delivery_network_error";
 	}

@@ -21,6 +21,7 @@ export async function scheduleDispatch(
 
 export async function recoverExpired(pool: Pool) {
 	return transaction(pool, async (client) => {
+		await client.query("UPDATE payloadbay.runner_delivery SET payload=NULL,result=NULL WHERE id IN (SELECT id FROM payloadbay.runner_delivery WHERE expires_at<=clock_timestamp() AND (payload IS NOT NULL OR result IS NOT NULL) ORDER BY expires_at,id LIMIT 100 FOR UPDATE SKIP LOCKED)");
 		const candidates = await client.query(`SELECT e.*,p.priority,p.project_id FROM payloadbay.execution e JOIN payloadbay.endpoint p ON p.id=e.endpoint_id LEFT JOIN payloadbay.dispatch d ON d.execution_id=e.id AND d.generation=e.dispatch_generation
    WHERE NOT p.paused AND ((e.state='running' AND e.lease_expiry<=clock_timestamp()) OR(e.state IN ('queued','retry_wait') AND e.due_at<=clock_timestamp() AND(d.claim_deadline_at<=clock_timestamp() OR d.execution_id IS NULL)))
    ORDER BY e.due_at,e.id FOR UPDATE OF e SKIP LOCKED LIMIT 100`);

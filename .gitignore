@@ -24,6 +24,8 @@ graphify-out/cost.json
 # Bootstrap runner artifacts
 test-results/
 playwright-report/
+# Public Runner checkout used only by the CI transport integration.
+/.runner-integration/
 # Release SQL/snapshots under packages/domain/drizzle are committed only by CI.
 
 # Generated native crash dumps

@@ -11,7 +11,7 @@ type Operation = {
 	operationId: string;
 	summary: string;
 	tags: string[];
-	security: ({ apiToken: never[] } | { session: never[] })[];
+	security: ({ apiToken: never[] } | { session: never[] } | { runnerToken: never[] })[];
 	parameters: {
 		in: string;
 		name: string;
@@ -25,6 +25,7 @@ type Operation = {
 };
 
 const names: Record<string, string> = {
+	runner: "Private delivery Runner",
 	bootstrap: "Installation setup",
 	changes: "Live updates",
 	"delivery-attempts": "Delivery attempts",
@@ -72,7 +73,7 @@ export function openApiDocument() {
 			operationId: method + path.replace(/[^a-zA-Z0-9]+(.)?/g, (_, next: string | undefined) => next?.toUpperCase() ?? ""),
 			summary: `${method.toUpperCase()} ${path.slice(7)}`,
 			tags: [label],
-			security: publicOperation ? [] : [{ apiToken: [] }, { session: [] }],
+			security: publicOperation ? [] : resource === "runner" ? [{ runnerToken: [] }] : [{ apiToken: [] }, { session: [] }],
 			parameters: [...path.matchAll(/\{([^}]+)\}/g)].map((match) => ({
 				in: "path",
 				name: match[1],
@@ -84,6 +85,7 @@ export function openApiDocument() {
 				default: { description: "Request rejected with a safe error envelope.", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
 			},
 		};
+		if (resource === "runner") operation.responses["204"] = { description: path.endsWith("/claim") ? "No pending delivery for this destination." : "Delivery result recorded." };
 		const query = method === "get" ? apiQuerySchemas[path] : undefined;
 		if (query) {
 			const input = z.toJSONSchema(query, { target: "draft-2020-12", io: "input" });
@@ -141,6 +143,7 @@ export function openApiDocument() {
 		servers: [{ url: "/" }],
 		components: {
 			securitySchemes: {
+				runnerToken: { type: "http", scheme: "bearer", description: "A revocable destination-scoped Runner credential; session cookies and ordinary API keys are not accepted on Runner claim/complete endpoints." },
 				apiToken: { type: "http", scheme: "bearer", description: "A scoped Payload Bay API token. Permissions are intersected with the current user grants." },
 				session: {
 					type: "apiKey",

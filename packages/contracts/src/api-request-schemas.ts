@@ -2,6 +2,7 @@ import { ingressPolicyUpdate, protectionTestInput } from "./ingress-policy.ts";
 import { installationUpdateInput } from "./installation.ts";
 import { snoozeNotificationInput } from "./notifications.ts";
 import { z } from "zod";
+import { runnerCompletion } from "./runner.ts";
 import { resourceInput, tokenCreationInput, grantInput } from "./resources.ts";
 import { destinationInput } from "./destinations.ts";
 import { sharedVersionInput, sharedCopyInput, middlewareBindingInput, middlewareUpdateInput, middlewareOrderInput } from "./code.ts";
@@ -13,6 +14,7 @@ import { bootstrapInput, emailPreviewInput, draftInput, publicationInput, activa
 
 /** The same validators used by HTTP handlers; no copied documentation shapes. */
 export const apiRequestSchemas: Record<string, z.ZodType> = {
+	"post /api/v1/runner/deliveries/{deliveryId}/complete": runnerCompletion,
 	"put /api/v1/organizations/{organizationId}/protection": ingressPolicyUpdate,
 	"put /api/v1/workspaces/{workspaceId}/protection": ingressPolicyUpdate,
 	"put /api/v1/projects/{projectId}/protection": ingressPolicyUpdate,
