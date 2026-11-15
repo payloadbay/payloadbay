@@ -410,3 +410,56 @@ test("route code cannot use an arbitrary URL target even after bypassing TypeScr
 	assert.deepEqual(result.decision, { kind: "complete" });
 	assert.equal(called, false);
 });
+
+test("queued executions cancel and expire without consuming the released lane", async () => {
+	const blocked = await compile({ stage: "processing", body: "while(true){}" });
+	const complete = await compile({ stage: "processing", body: "return ctx.complete();" });
+	const executor = createExecutor({ ingressConcurrency: 1, processingConcurrency: 1 });
+	const activeAbort = new AbortController();
+	const active = assert.rejects(
+		executor.run({
+			stage: "processing",
+			bundle: blocked.bundle,
+			input: {},
+			signal: activeAbort.signal,
+			deadlineMs: 5000,
+		}),
+		{ code: "cancelled" },
+	);
+	try {
+		const queuedAbort = new AbortController();
+		const cancelled = assert.rejects(
+			executor.run({
+				stage: "processing",
+				bundle: complete.bundle,
+				input: {},
+				signal: queuedAbort.signal,
+				deadlineMs: 3000,
+			}),
+			{ code: "cancelled" },
+		);
+		queuedAbort.abort();
+		await cancelled;
+		await assert.rejects(
+			executor.run({
+				stage: "processing",
+				bundle: complete.bundle,
+				input: {},
+				deadlineMs: 30,
+			}),
+			{ code: "deadline_exceeded" },
+		);
+		const next = executor.run({
+			stage: "processing",
+			bundle: complete.bundle,
+			input: {},
+			deadlineMs: 3000,
+		});
+		activeAbort.abort();
+		await active;
+		assert.deepEqual((await next).decision, { kind: "complete" });
+	} finally {
+		activeAbort.abort();
+		await active;
+	}
+});

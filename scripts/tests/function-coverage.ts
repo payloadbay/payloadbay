@@ -114,7 +114,8 @@ export function createFunctionNormalizer() {
 			// Coincident minified names in disjoint authored ranges remain distinct.
 			// Compiler maps can omit a parenthesis or include the trailing comma and space.
 			// Require unambiguous source boundaries rather than inferred names.
-			const located = sourceFunctions.filter(({ mapping: candidate, starts }) => starts.some((start) => start.line === mapping.loc.start.line && Math.abs(start.column - mapping.loc.start.column) <= 1) && candidate.loc.end.line === mapping.loc.end.line && Math.abs(candidate.loc.end.column - mapping.loc.end.column) <= 2);
+			// Parenthesized JSX/expression arrows can end at the body, before its closing delimiters.
+			const located = sourceFunctions.filter(({ mapping: candidate, starts, body }) => starts.some((start) => start.line === mapping.loc.start.line && Math.abs(start.column - mapping.loc.start.column) <= 1) && ((candidate.loc.end.line === mapping.loc.end.line && Math.abs(candidate.loc.end.column - mapping.loc.end.column) <= 2) || (beforeOrEqual(mapping.loc.start, body) && beforeOrEqual(body, mapping.loc.end))));
 			// Export accessors can carry the declaration's name without invoking its
 			// body. They cannot claim an authored function's execution counter.
 			const canonical = located.length === 1 ? located[0].mapping : source?.length === 1 && source[0].declared && beforeOrEqual(mapping.loc.start, source[0].body) && beforeOrEqual(source[0].body, mapping.loc.end) ? source[0].mapping : undefined;
