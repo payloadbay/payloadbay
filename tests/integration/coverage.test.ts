@@ -678,10 +678,10 @@ test("callback source maps reconcile trailing delimiter drift without covering a
 		const lines = ['export const a = check((value: unknown) => Boolean(value), "first");', 'export const b = check((value: unknown) => !value, "second");'];
 		await writeFile(source, lines.join("\n") + "\n");
 
-		const report = (shift: number, called: number) => {
+		const report = (shift: number, called: number, endExtra = 2) => {
 			const fnMap: Record<string, FunctionMapping> = {};
 			for (const [index, line] of lines.entries()) {
-				const loc = { start: { line: index + 1, column: line.indexOf("(value:") + shift }, end: { line: index + 1, column: line.indexOf(', "') + 2 } };
+				const loc = { start: { line: index + 1, column: line.indexOf("(value:") + shift }, end: { line: index + 1, column: line.indexOf(', "') + endExtra } };
 				fnMap[String(index)] = {
 					name: "(anonymous)",
 					decl: loc,
@@ -703,7 +703,7 @@ test("callback source maps reconcile trailing delimiter drift without covering a
 			};
 		};
 
-		const merged = mergeNodeCoverage([report(0, 0), report(1, 1)]);
+		const merged = mergeNodeCoverage([report(0, 0), report(1, 1, 4)]);
 		const summary = merged.fileCoverageFor(source).toSummary();
 		assert.equal(summary.functions.total, 2, "One authored callback must not become two compiler identities");
 		assert.equal(summary.functions.covered, 1, "The second callback must remain cold");
@@ -751,6 +751,24 @@ test("reading export getters cannot cover an uncalled factory, nested callback o
 		const summary = mergeNodeCoverage([report]).fileCoverageFor(source).toSummary();
 		assert.equal(summary.functions.total, 4);
 		assert.equal(summary.functions.covered, 1);
+		assert.equal(evaluateCoverage([report], "", [source], 0.8).passed, false);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("executed parenthesized arrow bodies retain coverage when maps omit closing delimiters", async () => {
+	const directory = await mkdtemp(resolve("test-results/parenthesized-callbacks-"));
+	try {
+		const source = resolve(directory, "callbacks.ts");
+		await writeFile(source, "export const callbacks = [\n (value: string) => (\n  value.toUpperCase()\n ),\n (value: string) => (\n  value.toLowerCase()\n ),\n];\n");
+		const output = resolve(directory, "coverage");
+		const result = runNodeCoverage(["--import", "tsx", "-e", `const {callbacks}=require(${JSON.stringify(source)});if(callbacks[0]("probe")!=="PROBE")throw Error("callback did not execute");`], { directory: output, env: process.env, include: [relative(process.cwd(), source)] });
+		assert.equal(result.status, 0, result.stderr);
+		const report = JSON.parse(await readFile(resolve(output, "coverage-final.json"), "utf8"));
+		const summary = mergeNodeCoverage([report]).fileCoverageFor(source).toSummary();
+		assert.equal(summary.functions.total, 2);
+		assert.equal(summary.functions.covered, 1, "The executed body must count while the other callback stays cold");
 		assert.equal(evaluateCoverage([report], "", [source], 0.8).passed, false);
 	} finally {
 		await rm(directory, { recursive: true, force: true });
